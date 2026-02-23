@@ -443,14 +443,15 @@ As of February 23, 2026, this stack provides the best balance of intelligence ro
 
 ### 18.1 Core Platform
 
-- **Language/runtime:** Python 3.12 with `uv` for fast, reproducible environments.
-- **Type safety and schemas:** `Pydantic` for experiment contracts, agent I/O, and validation.
-- **Control API:** `FastAPI` for orchestration endpoints and operator controls.
+- **Language/runtime:** TypeScript 5.x on Node.js 25+ for the control plane, agent services, and tooling.
+- **Type safety and schemas:** TypeScript strict mode plus `zod` for experiment contracts, agent I/O, and runtime validation.
+- **Control API:** `Fastify` (or `NestJS`) for orchestration endpoints and operator controls.
+- **Project CLI:** TypeScript CLI (`opencolab`) for topic intake, checkpoint approvals, run control, status, and audit-log inspection.
 - **Ops UI:** `Next.js` for live experiment portfolio, agent status, and decision trails.
 
 ### 18.2 Multi-Agent and Workflow Orchestration
 
-- **Agent workflow layer:** `LangGraph` for professor/student/reviewer graph execution and branching logic.
+- **Agent workflow layer:** `LangGraph` JS/TS runtime for professor/student/reviewer graph execution and branching logic.
 - **Durable execution layer:** `Temporal` for retries, timeouts, long-running workflows, and crash recovery.
 - **Model gateway:** `LiteLLM Proxy` for multi-provider routing, fallback, and cost controls.
 - **Message bus:** `Redis Streams` or `NATS` for inter-agent communication channels.
@@ -493,21 +494,23 @@ As of February 23, 2026, this stack provides the best balance of intelligence ro
 ### Week 1: Foundation and Contracts
 
 - Define experiment contract schema and validation rules.
-- Stand up FastAPI service, PostgreSQL + pgvector, and object storage.
+- Stand up Fastify (or NestJS) service, PostgreSQL + pgvector, and object storage.
+- Scaffold the TypeScript `opencolab` CLI with `init`, `topic submit`, and `program status` commands.
 - Integrate W&B tracking and artifact registration.
 - Build agent workspace infrastructure (Docker + VNC + computer-use API).
 - Set up inter-agent message bus (Redis Streams or NATS).
-- Deliverable: topic intake works end-to-end, agent workspaces are provisionable, and message bus is operational.
+- Deliverable: topic intake works end-to-end through API and CLI, agent workspaces are provisionable, and message bus is operational.
 
 ### Week 2: Multi-Agent Core
 
-- Implement professor and 3 PhD student agents in LangGraph.
+- Implement professor and 3 PhD student agents in LangGraph JS/TS.
 - Add LiteLLM routing profiles by role (professor, student, reviewer).
 - Add Temporal workflows for durable run state and retries.
 - Implement inter-agent communication channels (broadcast, peer-to-peer, shared board).
 - Integrate paper search and indexing pipeline (arXiv + Semantic Scholar).
 - Implement human intervention queue and approval APIs.
-- Deliverable: one topic can generate parallel experiment plans with agents reading papers, sharing ideas, and maintaining full decision logs.
+- Extend CLI with `checkpoint approve`, `cycle run`, and `logs` commands.
+- Deliverable: one topic can generate parallel experiment plans with agents reading papers, sharing ideas, and maintaining full decision logs via API and CLI.
 
 ### Week 3: Hybrid Execution Loop
 
@@ -515,7 +518,8 @@ As of February 23, 2026, this stack provides the best balance of intelligence ro
 - Enable agents to use computer-use to interact with Colab notebooks and remote terminals from their workspaces.
 - Implement checkpoint sync, disconnection recovery, and auto-resume across both providers.
 - Add baseline comparison and replication gate in evaluation pipeline.
-- Deliverable: at least 3 parallel experiments run on Colab and/or remote SSH with agents using full workspace capabilities and reporting comparable metrics.
+- Add CLI runtime controls for pause/resume/terminate and checkpoint-aware reruns.
+- Deliverable: at least 3 parallel experiments run on Colab and/or remote SSH with agents using full workspace capabilities and reporting comparable metrics, fully operable from the CLI.
 
 ### Week 4: Hardening and First Research Cycle
 
@@ -525,7 +529,7 @@ As of February 23, 2026, this stack provides the best balance of intelligence ro
 - Add manual pause/resume/override controls and intervention audit panels.
 - Run one full pilot topic from intake to synthesis report.
 - Generate a submission-ready paper draft with figures, tables, and references.
-- Deliverable: production-like v1 demo with audited decisions, agent collaboration traces, one independently replicated result, and one submission-ready manuscript draft.
+- Deliverable: production-like v1 demo with audited decisions, agent collaboration traces, one independently replicated result, one submission-ready manuscript draft, and complete command-line operability through `opencolab`.
 
 ## 20. Risks and Mitigations
 
@@ -561,6 +565,8 @@ As of February 23, 2026, this stack provides the best balance of intelligence ro
 - At least one claimed improvement is independently replicated.
 - System produces a submission-ready paper draft grounded in tracked artifacts and verified citations.
 - Human operator can pause, edit, reroute, or terminate workflows at defined checkpoints.
+- Core orchestration services and contracts are implemented in TypeScript.
+- A project CLI (`opencolab`) can execute the end-to-end workflow: topic submission, checkpoint approvals, run execution, status inspection, and audit-log access.
 - Full decision, communication, and artifact trace is available for audit.
 
 ## 22. Open Decisions (To Finalize Before Build)

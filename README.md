@@ -1,5 +1,9 @@
 # OpenColab
 
+<p align="center">
+  <img src="header.png" alt="OpenColab banner" />
+</p>
+
 OpenColab is a multi-agent AI research lab that combines a senior "Professor" agent with multiple high-capability "PhD Student" agents to explore AI architectures in parallel.
 
 Each student agent gets GPU-backed execution capacity (Google Colab and/or remote SSH GPU nodes) to run experiments, while the professor agent provides strategy, critique, and scientific rigor. The system also generates submission-ready scientific paper drafts from validated results.
