@@ -4,7 +4,7 @@
   <img src="header.png" alt="OpenColab banner" />
 </p>
 
-OpenColab is a multi-agent AI research lab that combines a senior "Professor" agent with multiple high-capability "PhD Student" agents to explore AI architectures in parallel.
+OpenColab is a personal multi-agent AI research lab that combines a senior "Professor" agent with multiple high-capability "PhD Student" agents to explore AI architectures in parallel.
 
 Each student agent gets GPU-backed execution capacity (Google Colab and/or remote SSH GPU nodes) to run experiments, while the professor agent provides strategy, critique, and scientific rigor. The system also generates submission-ready scientific paper drafts from validated results.
 
@@ -34,10 +34,10 @@ Each student agent gets GPU-backed execution capacity (Google Colab and/or remot
 
 ## Recommended v1 Stack
 
-- Python 3.12 + uv
-- Pydantic
-- FastAPI + Next.js
-- LangGraph + Temporal
+- TypeScript 5.x + Node.js 25+
+- TypeScript strict mode + zod
+- Fastify (or NestJS) + Next.js
+- LangGraph JS/TS + Temporal
 - LiteLLM Proxy
 - PostgreSQL + pgvector
 - Weights & Biases
@@ -46,13 +46,14 @@ Each student agent gets GPU-backed execution capacity (Google Colab and/or remot
 - Remote SSH GPU runner with preflight checks and job launcher
 - OpenTelemetry + Prometheus + Grafana
 - Kubernetes Jobs (scale-out path beyond Colab)
+- Project CLI: `opencolab` for topic intake, approvals, run control, status, and audit logs
 
 ## 4-Week v1 Plan
 
-- Week 1: contracts, storage, tracking, topic intake pipeline.
-- Week 2: professor + 3 student agents, routing, durable workflows.
-- Week 3: Colab + remote SSH execution adapters, checkpoint/resume, evaluation gate.
-- Week 4: reviewer + writer agents, policy controls, dashboard, pilot end-to-end run, manuscript draft export.
+- Week 1: contracts, storage, tracking, topic intake pipeline, and initial `opencolab` CLI (`init`, `topic submit`, `program status`).
+- Week 2: professor + 3 student agents, routing, durable workflows, and CLI extensions (`checkpoint approve`, `cycle run`, `logs`).
+- Week 3: Colab + remote SSH execution adapters, checkpoint/resume, evaluation gate, and CLI runtime controls (pause/resume/terminate).
+- Week 4: reviewer + writer agents, policy controls, dashboard, pilot end-to-end run, manuscript draft export, and full CLI operability.
 
 ## Current Repository
 
@@ -62,7 +63,7 @@ Each student agent gets GPU-backed execution capacity (Google Colab and/or remot
 
 ## Status
 
-Specification-first project. Core codebase implementation is next.
+Specification-first project. TypeScript control-plane services and the `opencolab` CLI are the next implementation step.
 
 ## License
 
