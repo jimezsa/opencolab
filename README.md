@@ -1,4 +1,4 @@
-# OpenColab
+# 🐙 OpenColab - personal multi-agent AI research lab
 
 <p align="center">
   <img src="header.png" alt="OpenColab banner" />
