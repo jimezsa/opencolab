@@ -29,9 +29,35 @@ It follows an academic collaboration model:
 - Prioritize reliability, auditability, and human control checkpoints.
 - Deliver a practical power tool before advanced autonomy.
 
+## Getting Started
+
+```bash
+npm install
+npm run build
+node dist/src/cli.js init
+node dist/src/cli.js project create demo-lab
+node dist/src/cli.js run start --project demo-lab --goal "Evaluate a new research idea"
+node dist/src/cli.js run status <run_id>
+```
+
+Run local web control UI:
+
+```bash
+node dist/src/cli.js web start --port 4646
+```
+
+By default, v1 runs agent tasks in deterministic mock mode so the workflow works without installed CLIs.
+Set `OPENCOLAB_FORCE_MOCK_CLI=0` to execute real CLI commands.
+
 ## Project Status
 
-Specification-first project.
+v1 baseline implementation is now included in `src/` with:
+
+- local SQLite persistence
+- parallel multi-agent orchestration
+- CLI control surface
+- local web control surface
+- SKILLS directory support
 
 Primary docs:
 
