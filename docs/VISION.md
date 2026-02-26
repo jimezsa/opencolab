@@ -32,6 +32,7 @@ OpenColab adopts the academic lab model to operationalize this.
 - The human researcher is the principal investigator.
 - Agents can ask the human for support, decisions, and clarifications.
 - The human can inspect all discussions and artifacts at any time.
+- The human can access the team directly via Telegram.
 
 ## Product Experience We Want
 
@@ -51,6 +52,7 @@ OpenColab should make research feel like an always-on, disciplined lab:
 
 - multi-agent planning and execution
 - structured group/private chat
+- Telegram access channel for human-team communication
 - recurring meeting checkpoints
 - runtime adapters for local, SSH, and Colab workflows
 - paper search, reading, and summarization

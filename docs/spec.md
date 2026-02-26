@@ -2,7 +2,7 @@
 
 **Status:** Draft v4
 **Date:** February 26, 2026
-**Audience:** Individual researchers and solo builders
+**Audience:** Researchers
 
 ## 1. Purpose
 
@@ -28,6 +28,7 @@ OpenColab should feel like running a small research group on one machine:
 - Accelerate research throughput with parallel AI agents.
 - Support Professor-led decomposition and Student execution.
 - Enable structured communication: group chat, private chat, and meeting logs.
+- Provide human access to team communication over Telegram.
 - Support GitHub repository topologies for research execution:
   - per-agent repositories for independent exploration
   - shared repositories where multiple agents collaborate
@@ -55,6 +56,7 @@ OpenColab should feel like running a small research group on one machine:
 - Approves major plan revisions and run conclusions.
 - Can join discussions, answer questions, and redirect work.
 - Can inspect all chat channels and run artifacts.
+- Can interact with the team through Telegram.
 
 ### 5.2 Professor Agent
 
@@ -82,6 +84,7 @@ OpenColab must support:
 - **Project Group Chat**: all agents + human visibility
 - **Private Agent Chats**: one-to-one or small group channels
 - **Meeting Threads**: recurring structured check-ins led by Professor
+- **Telegram Bridge**: human-accessible team channel with message sync to run logs
 
 All channels are logged with timestamps, participants, and linked artifacts.
 
@@ -196,6 +199,7 @@ SQLite stores:
 - meetings
 - events
 - approvals
+- telegram_threads
 - repositories
 - paper_drafts
 
@@ -281,6 +285,12 @@ opencolab/
 - review screenshots and artifacts
 - approve/pause/stop runs
 
+### 12.3 Telegram Interface (Required for Human Access)
+
+- human can read team updates and agent discussions
+- human can send instructions/questions to Professor and Students
+- messages are linked to run and meeting records for traceability
+
 ## 13. Acceptance Criteria for v1
 
 - At least 1 Professor and 3 Student agents can collaborate in one run.
@@ -290,6 +300,7 @@ opencolab/
 - Each Student can use at least one dedicated GitHub repository.
 - Multiple agents can collaborate in at least one shared repository.
 - Human can view all run artifacts, chats, and decisions in CLI and web UI.
+- Human can access and communicate with the team through Telegram.
 - AI paper search/read/summarize workflow completes with source-linked output.
 - Agents can generate a LaTeX paper draft that the human can edit and continue iterating.
 

@@ -17,6 +17,7 @@ It follows an academic collaboration model:
 
 - Parallel research execution across multiple agents.
 - Structured collaboration: group chat, private chats, and regular meetings.
+- Human access to the team over Telegram.
 - Practical runtimes for agent work: local machine, SSH compute, and Google Colab workflows.
 - Flexible code collaboration: per-agent GitHub repositories and shared team repositories.
 - Scientific writing pipeline: agents generate LaTeX papers and the human coauthors directly.
