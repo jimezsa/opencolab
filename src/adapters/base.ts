@@ -31,6 +31,18 @@ export abstract class BaseCliAdapter implements Adapter {
 
     fs.mkdirSync(instance.workspacePath, { recursive: true });
 
+    if (config.forceMockCli) {
+      return {
+        status: "ok",
+        stdout: this.mockOutput(input, template, instance),
+        stderr: "",
+        outputFiles: [],
+        startedAt,
+        finishedAt: nowIso(),
+        exitCode: 0
+      };
+    }
+
     let stdout = "";
     let stderr = "";
     let exitCode: number | null = null;
@@ -46,6 +58,16 @@ export abstract class BaseCliAdapter implements Adapter {
         },
         stdio: ["pipe", "pipe", "pipe"]
       });
+
+      let settled = false;
+      const finalize = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeoutHandle);
+        resolve();
+      };
 
       const timeoutHandle = setTimeout(() => {
         timedOut = true;
@@ -65,12 +87,12 @@ export abstract class BaseCliAdapter implements Adapter {
           commandMissing = true;
         }
         stderr += `${error.message}\n`;
+        finalize();
       });
 
       child.on("close", (code) => {
-        clearTimeout(timeoutHandle);
         exitCode = code;
-        resolve();
+        finalize();
       });
 
       child.stdin.write(formattedPrompt);
