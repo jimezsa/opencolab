@@ -1,12 +1,10 @@
 # 🐙 OpenColab - personal multi-agent AI research lab
 
 <p align="center">
-  <img src="header.png" alt="OpenColab banner" />
+  <img src="docs/assets/header.png" alt="OpenColab banner" />
 </p>
 
 OpenColab is a personal multi-agent AI research lab for running parallel research and coding workstreams with multiple local AI CLIs.
-
-The project keeps the original lab spirit:
 
 - one coordinator/research-lead role for planning and critique
 - multiple worker agents for parallel execution
