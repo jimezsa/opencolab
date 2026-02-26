@@ -99,6 +99,60 @@ node dist/src/cli.js web start --port 4646
 By default, v1 runs agent tasks in deterministic mock mode so the workflow works without installed CLIs.
 Set `OPENCOLAB_FORCE_MOCK_CLI=0` to execute real CLI commands.
 
+## Configure Provider CLIs
+
+Add one template per provider CLI:
+
+```bash
+node dist/src/cli.js agent template add \
+  --template-id tpl_openai_codex \
+  --provider openai \
+  --cli-command codex \
+  --default-args "run" \
+  --default-env "OPENAI_API_KEY=your_key"
+
+node dist/src/cli.js agent template add \
+  --template-id tpl_anthropic_claude \
+  --provider anthropic \
+  --cli-command claude_code \
+  --default-env "ANTHROPIC_API_KEY=your_key"
+
+node dist/src/cli.js agent template add \
+  --template-id tpl_google_gemini \
+  --provider google \
+  --cli-command gemini \
+  --default-env "GEMINI_API_KEY=your_key"
+```
+
+Create agent instances from those templates:
+
+```bash
+node dist/src/cli.js agent instance add \
+  --agent-id professor_codex \
+  --template-id tpl_openai_codex \
+  --role professor
+
+node dist/src/cli.js agent instance add \
+  --agent-id student_claude_1 \
+  --template-id tpl_anthropic_claude \
+  --role student
+
+node dist/src/cli.js agent instance add \
+  --agent-id student_gemini_1 \
+  --template-id tpl_google_gemini \
+  --role student
+
+node dist/src/cli.js agent list
+```
+
+Run using real provider CLIs:
+
+```bash
+OPENCOLAB_FORCE_MOCK_CLI=0 node dist/src/cli.js run start \
+  --project demo-lab \
+  --goal "Your research goal"
+```
+
 ## Project Status
 
 v1 baseline implementation is now included in `src/` with:
