@@ -3,6 +3,9 @@ dist/
 *.log
 .DS_Store
 opencolab.db
+opencolab.db-wal
+opencolab.db-shm
+opencolab.db-journal
 projects/
 coverage/
 .tmp/
