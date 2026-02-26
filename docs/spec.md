@@ -26,6 +26,7 @@ OpenColab should feel like running a small research group on one machine:
 ## 3. v1 Goals
 
 - Accelerate research throughput with parallel AI agents.
+- Support agent pools from different companies and CLI ecosystems running in parallel (for example `codex`, `claude_code`, `gemini`).
 - Support Professor-led decomposition and Student execution.
 - Enable structured communication: group chat, private chat, and meeting logs.
 - Provide human access to team communication over Telegram.
@@ -108,10 +109,13 @@ Each run includes three required meeting checkpoints:
 
 - Task planning and delegation.
 - Parallel subtask execution.
+- Cross-provider parallel execution across heterogeneous agent CLIs.
 - Research discussion and meeting orchestration.
 - Human approval checkpoints.
 - Per-agent and shared GitHub repository workflows.
 - LaTeX paper generation and iterative coauthoring with the human researcher.
+- SKILL-based capability extension so agents can gain new domain abilities over time.
+- SKILLs can be installed later without redesigning the core orchestration flow.
 - Local persistence of prompts, outputs, logs, and chat history.
 
 ### 7.2 Execution Environments in v1
@@ -132,6 +136,15 @@ Student agents may use bounded tools to act like practical researchers:
 - code execution in assigned environments
 - Git operations on assigned repositories
 - LaTeX editing and build tooling for paper drafts
+- SKILL modules for specialized workflows (for example paper search, paper reading, and summarization)
+
+### 7.4 Provider and CLI Diversity (v1)
+
+The system must support agents from different companies and different CLIs in the same run.
+
+- Supported examples: OpenAI Codex (`codex`), Anthropic Claude Code (`claude_code`), Google Gemini CLI (`gemini`)
+- Mixed-provider agents can be scheduled concurrently.
+- Orchestration is provider-agnostic at the task-routing level.
 
 ## 8. AI Research Workflow
 
@@ -202,6 +215,8 @@ SQLite stores:
 - telegram_threads
 - repositories
 - paper_drafts
+- skills
+- agent_skill_bindings
 
 Filesystem stores:
 
@@ -222,7 +237,14 @@ opencolab/
     adapters/
     orchestration/
     collaboration/
+    skills/
     web/
+  SKILLS/
+    <skill_name>/
+      SKILL.md
+      references/
+      scripts/
+      assets/
   docs/
     spec.md
     VISION.md
@@ -301,6 +323,8 @@ opencolab/
 - Multiple agents can collaborate in at least one shared repository.
 - Human can view all run artifacts, chats, and decisions in CLI and web UI.
 - Human can access and communicate with the team through Telegram.
+- Agents from at least two different CLI ecosystems (for example Codex + Claude Code, or Claude Code + Gemini CLI) can run in parallel in one run.
+- At least one run uses a SKILL-enabled workflow for paper search or paper summarization.
 - AI paper search/read/summarize workflow completes with source-linked output.
 - Agents can generate a LaTeX paper draft that the human can edit and continue iterating.
 
