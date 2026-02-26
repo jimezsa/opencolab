@@ -1,0 +1,21 @@
+{
+  "name": "opencolab",
+  "version": "0.1.0",
+  "description": "Personal multi-agent AI research lab",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "opencolab": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "node --enable-source-maps --experimental-strip-types src/cli.ts",
+    "start": "node dist/cli.js",
+    "test": "node --test dist/tests/**/*.test.js",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  }
+}
