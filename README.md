@@ -1,70 +1,92 @@
-# 🐙 OpenColab - personal multi-agent AI research lab
+# 🐙 OpenColab - personal multi-agent CLI orchestrator
 
 <p align="center">
   <img src="header.png" alt="OpenColab banner" />
 </p>
 
-OpenColab is a personal multi-agent AI research lab that combines a small and focused team of "Professor" agent with multiple high-capability "PhD Student" agents to accelerate AI research.
+OpenColab is a personal project to orchestrate many local AI CLI agents on one goal.
 
-Each student agent gets GPU-backed execution capacity (Google Colab and/or remote SSH GPU nodes) to run experiments, while the professor agent provides strategy, critique, and scientific rigor. The system also generates submission-ready scientific paper drafts from validated results.
+It is built for simplicity:
 
-## Why OpenColab
+- many instances of `claude`, `codex`, and `gemini`
+- one small control process
+- local persistence
+- human checkpoints
+- CLI + local web management
 
-- Increase research throughput with parallel hypothesis testing.
-- Improve quality with adversarial review and replication gates.
-- Build reusable research memory so insights compound over time.
+## What v1 Includes
 
-## System Overview
+- Multi-provider CLI adapters (`claude`, `codex`, `gemini`)
+- Multiple instances per provider
+- Coordinator, worker, and optional reviewer roles
+- Local SQLite state
+- Filesystem logs and artifacts
+- Local web interface for agent and run management
+- Optional Docker isolation per agent instance
 
-1. You submit a focused research topic.
-2. Professor agent defines objective, metrics, and constraints.
-3. Student agents propose diverse hypotheses and experiment plans.
-4. Experiments run in parallel on per-agent GPU runtimes (Colab or remote SSH).
-5. Results are ingested, critiqued, and ranked by evidence quality.
-6. The system produces a synthesis report, next-step plan, and submission-ready manuscript draft.
+## What v1 Does Not Include
 
-## Agent Roles
+- Multi-tenant user accounts
+- Heavy distributed infrastructure
+- Autonomous long-running swarms without checkpoints
+- Full desktop computer-use automation
+- Cloud worker autoscaling
 
-- Professor Agent: strategy, decomposition, critical review, portfolio decisions.
-- PhD Student Agents: exploration, implementation, experimentation, analysis.
-- Reviewer Agent (optional): replication and confound detection.
-- Librarian Agent (optional): prior-art and benchmark retrieval.
-- Writer Agent (optional): evidence-grounded manuscript drafting and formatting.
-- Ops Agent (optional): run monitoring, retries, and artifact integrity.
+## Architecture (v1)
 
-## Recommended v1 Stack
+- One Node.js TypeScript process for orchestration, API, CLI, and web UI
+- Provider adapters normalize CLI execution results
+- Template + instance model for scalable agent definitions
+- SQLite for run/task/event/approval state
+- Filesystem for prompts, outputs, artifacts, and logs
 
-- TypeScript 5.x + Node.js 25+
-- TypeScript strict mode + zod
-- Fastify (or NestJS) + Next.js
-- LangGraph JS/TS + Temporal
-- LiteLLM Proxy
-- PostgreSQL + pgvector
-- Weights & Biases
-- GCS/S3-compatible artifact storage
-- LaTeX/Pandoc template pipeline for manuscript output
-- Remote SSH GPU runner with preflight checks and job launcher
-- OpenTelemetry + Prometheus + Grafana
-- Kubernetes Jobs (scale-out path beyond Colab)
-- Project CLI: `opencolab` for topic intake, approvals, run control, status, and audit logs
+## Typical Flow
 
-## 4-Week v1 Plan
+1. Create project.
+2. Register agent templates and instances.
+3. Start run with one goal.
+4. Coordinator creates subtasks.
+5. Workers execute in parallel.
+6. Reviewer summarizes results.
+7. You approve, rerun, pause, or stop.
 
-- Week 1: contracts, storage, tracking, topic intake pipeline, and initial `opencolab` CLI (`init`, `topic submit`, `program status`).
-- Week 2: professor + 3 student agents, routing, durable workflows, and CLI extensions (`checkpoint approve`, `cycle run`, `logs`).
-- Week 3: Colab + remote SSH execution adapters, checkpoint/resume, evaluation gate, and CLI runtime controls (pause/resume/terminate).
-- Week 4: reviewer + writer agents, policy controls, dashboard, pilot end-to-end run, manuscript draft export, and full CLI operability.
+## Control Surfaces
 
-## Current Repository
+### CLI
 
-- `spec.md`: Full system specification (why, how, architecture, KPIs, rollout).
-- `README.md`: Project overview and implementation direction.
-- `LICENSE`: MIT license.
+Planned core commands:
+
+- `opencolab init`
+- `opencolab project create <name>`
+- `opencolab agent template add`
+- `opencolab agent instance add`
+- `opencolab agent list`
+- `opencolab run start --project <name> --goal "<text>"`
+- `opencolab run status <run_id>`
+- `opencolab run logs <run_id>`
+- `opencolab run approve <run_id>`
+- `opencolab run pause <run_id>`
+- `opencolab run stop <run_id>`
+- `opencolab task rerun <task_id> --agent <agent_id>`
+
+### Local Web Interface
+
+The local web UI is for:
+
+- managing agent instances (create/edit/enable/disable)
+- monitoring active/completed runs
+- approving/pausing/stopping runs
+- inspecting task logs and outputs
+- rerunning failed tasks with another instance
 
 ## Status
 
-Specification-first project. TypeScript control-plane services and the `opencolab` CLI are the next implementation step.
+Specification-first project.
+
+Current source of truth:
+
+- [spec.md](spec.md)
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).
