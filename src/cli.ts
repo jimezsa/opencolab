@@ -3,6 +3,7 @@ import path from "node:path";
 import { createRuntime } from "./runtime.js";
 import { startHttpServer } from "./http.js";
 import { loadConfig } from "./config.js";
+import { isSetupCompleted, runSetupWizard } from "./setup.js";
 
 function parseFlags(args: string[]): { values: Record<string, string>; positionals: string[] } {
   const values: Record<string, string> = {};
@@ -48,6 +49,7 @@ function usage(): string {
     "OpenColab CLI",
     "",
     "Commands:",
+    "  opencolab setup",
     "  opencolab init",
     "  opencolab project create <name>",
     "  opencolab agent template add --template-id <id> --provider <openai|anthropic|google> --cli-command <cmd> [--default-args \"a,b\"] [--default-env \"KEY=V,KEY2=V2\"]",
@@ -72,6 +74,14 @@ async function main(): Promise<void> {
 
   if (!command || command === "help" || command === "--help") {
     console.log(usage());
+    if (!isSetupCompleted()) {
+      console.log("\nTip: run 'opencolab setup' for guided first-time configuration.");
+    }
+    return;
+  }
+
+  if (command === "setup") {
+    await runSetupWizard();
     return;
   }
 
@@ -90,6 +100,9 @@ async function main(): Promise<void> {
     if (command === "init") {
       orchestrator.init();
       console.log("OpenColab initialized.");
+      if (!isSetupCompleted()) {
+        console.log("Run 'opencolab setup' for guided provider keys, models, and Telegram setup.");
+      }
       return;
     }
 

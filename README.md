@@ -84,11 +84,20 @@ flowchart TB
 ```bash
 npm install
 npm run build
+node dist/src/cli.js setup
 node dist/src/cli.js init
 node dist/src/cli.js project create demo-lab
 node dist/src/cli.js run start --project demo-lab --goal "Evaluate a new research idea"
 node dist/src/cli.js run status <run_id>
 ```
+
+First-time setup wizard (`opencolab setup`) guides you through:
+
+- provider CLI command configuration
+- default model args per provider
+- API key input persisted in `opencolab.db`
+- Telegram bot/chat configuration
+- mock-vs-real execution mode
 
 Run local web control UI:
 

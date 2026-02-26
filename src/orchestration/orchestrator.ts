@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { OpenColabConfig } from "../config.js";
-import type { Db } from "../db.js";
+import { getSetting, setSetting, type Db } from "../db.js";
 import { upsertProject } from "../db.js";
 import { recordEvent } from "../events.js";
 import { ensureProjectLayout, ensureRunLayout } from "../paths.js";
@@ -107,6 +107,18 @@ export class Orchestrator {
 
   listAgentInstances() {
     return this.registry.listInstances();
+  }
+
+  listAgentTemplates() {
+    return this.registry.listTemplates();
+  }
+
+  getSetting(key: string): string | null {
+    return getSetting(this.db, key);
+  }
+
+  setSetting(key: string, value: string): void {
+    setSetting(this.db, key, value);
   }
 
   async startRun(input: RunStartInput): Promise<{ runId: string; status: string }> {

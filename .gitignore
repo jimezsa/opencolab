@@ -9,3 +9,5 @@ opencolab.db-journal
 projects/
 coverage/
 .tmp/
+.env.local
+.opencolab/

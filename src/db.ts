@@ -186,6 +186,12 @@ export function initSchema(db: Db): void {
       created_at TEXT NOT NULL,
       UNIQUE(agent_id, skill_name)
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -200,4 +206,27 @@ export function upsertProject(db: Db, projectName: string): void {
       created_at: now
     }
   );
+}
+
+export function setSetting(db: Db, key: string, value: string): void {
+  db.run(
+    `INSERT INTO settings (key, value, updated_at)
+     VALUES (:key, :value, :updated_at)
+     ON CONFLICT(key) DO UPDATE SET
+       value = excluded.value,
+       updated_at = excluded.updated_at`,
+    {
+      key,
+      value,
+      updated_at: nowIso()
+    }
+  );
+}
+
+export function getSetting(db: Db, key: string): string | null {
+  const row = db.get<{ value: string }>(
+    `SELECT value FROM settings WHERE key = :key`,
+    { key }
+  );
+  return row?.value ?? null;
 }
