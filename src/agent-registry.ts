@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import type { OpenColabConfig } from "./config.js";
 import { Db } from "./db.js";
@@ -105,6 +106,11 @@ export class AgentRegistry {
     for (const instance of instances) {
       this.createInstance(instance);
     }
+
+    for (const instance of this.listInstances()) {
+      const template = this.getTemplate(instance.templateId);
+      this.ensureAgentContextFiles(instance, template);
+    }
   }
 
   createTemplate(input: AgentTemplate): void {
@@ -157,6 +163,15 @@ export class AgentRegistry {
         enabled: input.enabled ? 1 : 0,
         created_at: nowIso()
       }
+    );
+
+    const template = this.getTemplate(input.templateId);
+    this.ensureAgentContextFiles(
+      {
+        ...input,
+        agentId
+      },
+      template
     );
 
     return agentId;
@@ -242,5 +257,100 @@ export class AgentRegistry {
       isolationMode: row.isolation_mode,
       enabled: row.enabled === 1
     };
+  }
+
+  private ensureAgentContextFiles(instance: AgentInstance, template?: AgentTemplate): void {
+    fs.mkdirSync(instance.workspacePath, { recursive: true });
+    const fileMap: Record<string, string> = {
+      "SOUL.md": this.defaultSoul(instance),
+      "IDENTITY.md": this.defaultIdentity(instance, template),
+      "TOOLS.md": this.defaultTools(instance, template),
+      "USER.md": this.defaultUser(instance),
+      "AGENTS.md": this.defaultAgents(instance)
+    };
+
+    for (const [name, content] of Object.entries(fileMap)) {
+      const target = path.join(instance.workspacePath, name);
+      if (!fs.existsSync(target)) {
+        fs.writeFileSync(target, content, "utf8");
+      }
+    }
+  }
+
+  private defaultSoul(instance: AgentInstance): string {
+    return [
+      `# SOUL`,
+      ``,
+      `Agent: ${instance.agentId}`,
+      `Role: ${instance.role}`,
+      ``,
+      `Core values:`,
+      `- pursue evidence over assumptions`,
+      `- surface uncertainty early`,
+      `- collaborate respectfully with other agents and the human`,
+      `- document key decisions and tradeoffs`
+    ].join("\n");
+  }
+
+  private defaultIdentity(instance: AgentInstance, template?: AgentTemplate): string {
+    return [
+      `# IDENTITY`,
+      ``,
+      `agent_id: ${instance.agentId}`,
+      `role: ${instance.role}`,
+      `template_id: ${instance.templateId}`,
+      `provider: ${template?.provider ?? "unknown"}`,
+      `cli_command: ${template?.cliCommand ?? "unknown"}`,
+      `workspace_path: ${instance.workspacePath}`,
+      `isolation_mode: ${instance.isolationMode}`
+    ].join("\n");
+  }
+
+  private defaultTools(instance: AgentInstance, template?: AgentTemplate): string {
+    const args = template?.defaultArgs.length ? template.defaultArgs.join(" ") : "(none)";
+    return [
+      `# TOOLS`,
+      ``,
+      `Primary CLI: ${template?.cliCommand ?? "unknown"}`,
+      `Default CLI args: ${args}`,
+      ``,
+      `Expected tool families in OpenColab:`,
+      `- paper search / reading / summarization`,
+      `- code execution and repository operations`,
+      `- artifact and screenshot production`,
+      `- LaTeX manuscript drafting`,
+      ``,
+      `Runtime limits:`,
+      `- max_runtime_sec: ${instance.maxRuntimeSec}`,
+      `- retry_limit: ${instance.retryLimit}`
+    ].join("\n");
+  }
+
+  private defaultUser(instance: AgentInstance): string {
+    return [
+      `# USER`,
+      ``,
+      `The human researcher is the principal investigator.`,
+      `When blocked, ask focused questions with evidence and concrete options.`,
+      `For role ${instance.role}, always surface:`,
+      `- assumptions`,
+      `- confidence level`,
+      `- required human decisions`
+    ].join("\n");
+  }
+
+  private defaultAgents(instance: AgentInstance): string {
+    return [
+      `# AGENTS`,
+      ``,
+      `You are part of a Professor/Students research team.`,
+      `Collaboration rules:`,
+      `- keep group chat updates concise and evidence-backed`,
+      `- use private chats for targeted sub-investigation`,
+      `- disagreement is allowed and should include supporting evidence`,
+      `- unresolved conflicts escalate to Professor, then human`,
+      ``,
+      `Current agent: ${instance.agentId} (${instance.role})`
+    ].join("\n");
   }
 }

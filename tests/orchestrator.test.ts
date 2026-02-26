@@ -67,3 +67,29 @@ test("skill sync loads SKILLS directory", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("default agent context files exist for every agent workspace", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-agent-files-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    const required = ["SOUL.md", "IDENTITY.md", "TOOLS.md", "USER.md", "AGENTS.md"];
+    const agentIds = [
+      "professor_codex",
+      "student_claude_1",
+      "student_codex_1",
+      "student_gemini_1"
+    ];
+
+    for (const agentId of agentIds) {
+      const workspace = path.join(tempDir, "projects", "_default", "agents", agentId);
+      for (const fileName of required) {
+        const fullPath = path.join(workspace, fileName);
+        assert.equal(fs.existsSync(fullPath), true, `${fullPath} should exist`);
+      }
+    }
+  } finally {
+    runtime.close();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
