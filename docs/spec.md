@@ -1,215 +1,260 @@
-# OpenColab v1 Specification (Personal, Minimal, Multi-CLI)
+# OpenColab v1 Specification
 
-**Status:** Draft v3  
-**Date:** February 26, 2026  
-**Audience:** Solo maintainer
+**Status:** Draft v4
+**Date:** February 26, 2026
+**Audience:** Individual researchers and solo builders
 
 ## 1. Purpose
 
-OpenColab is a personal multi-agent orchestrator for running many local AI CLI agents on the same goal.
+OpenColab is a personal multi-agent AI research lab designed to help researchers and accelerate scientific discoveries.
 
-v1 focuses on:
+The operating metaphor is academic:
 
-- many instances of `claude`, `codex`, and `gemini`
-- simple local operations
-- low implementation complexity
-- clear human control checkpoints
+- one **Professor agent** guides strategy and quality
+- multiple **Student agents** execute experiments and analysis
+- a **Human researcher** supervises critical decisions and can intervene at any time
 
-## 2. Product Goals
+## 2. Product Vision in Practice
 
-- Run multiple agents in parallel across different CLI providers.
-- Support many instances per provider (for example `claude_worker_1`, `claude_worker_2`, `codex_worker_1`).
-- Keep one small control-plane process with minimal moving parts.
-- Provide CLI and local web management for agents and runs.
-- Persist state and artifacts locally with straightforward recovery.
+OpenColab should feel like running a small research group on one machine:
 
-## 3. Non-Goals (v1)
+- Professor and Students discuss goals, plans, and results
+- Students can work in parallel and specialize by task
+- regular check-ins keep work synchronized
+- human oversight remains first-class, not an afterthought
 
-- Multi-tenant accounts, team permissions, or cloud SaaS features.
-- Heavy distributed systems (Kubernetes, Temporal, Redis/NATS).
-- Autonomous end-to-end paper pipeline.
-- Full GUI computer-use/desktop automation.
-- Mandatory Docker isolation for all agents.
+## 3. v1 Goals
 
-## 4. Design Principles
+- Accelerate research throughput with parallel AI agents.
+- Support Professor-led decomposition and Student execution.
+- Enable structured communication: group chat, private chat, and meeting logs.
+- Support GitHub repository topologies for research execution:
+  - per-agent repositories for independent exploration
+  - shared repositories where multiple agents collaborate
+- Keep human-in-the-loop checkpoints for approvals and redirections.
+- Provide practical execution access for Students:
+  - local compute
+  - SSH-accessible remote compute
+  - Google Colab sessions (adapter-based)
+- Enable scientific paper authoring in LaTeX with agent and human coauthoring.
+- Preserve all runs, discussions, artifacts, and decisions locally.
 
-- Small enough to understand in one sitting.
-- Provider-agnostic orchestration via adapter contracts.
-- Instance isolation first; stronger isolation optional.
-- Human-in-the-loop for run progression.
-- Reliability before sophistication.
-- Code-first customization, minimal config sprawl.
+## 4. Non-Goals (v1)
 
-## 5. Primary Use Case
+- Full autonomous operation without human checkpoints.
+- Large-scale distributed infrastructure (Kubernetes, queues, worker fleets).
+- Multi-tenant SaaS accounts and team permission models.
+- Automatic end-to-end literature map generation (deferred).
+- Fully general desktop automation beyond bounded task tools.
 
-You submit one goal (research or coding), and OpenColab:
+## 5. Core Roles
 
-1. Creates a run.
-2. Uses a coordinator agent to decompose the goal.
-3. Dispatches subtasks to worker instances across `claude`/`codex`/`gemini`.
-4. Collects outputs into a single run record.
-5. Runs a reviewer step.
-6. Waits for your approve/rerun/stop decision.
+### 5.1 Human Researcher
 
-## 6. v1 Scope
+- Defines project goals and constraints.
+- Approves major plan revisions and run conclusions.
+- Can join discussions, answer questions, and redirect work.
+- Can inspect all chat channels and run artifacts.
 
-### In Scope
+### 5.2 Professor Agent
 
-- 3 to 12 agent instances.
-- Adapter support for `claude`, `codex`, `gemini`.
-- Multiple instances per provider.
-- Local SQLite state.
-- Filesystem artifact and log storage.
-- Manual checkpoint controls.
-- Local web interface for managing agents and runs.
-- CLI parity for core operations.
+- Translates goal into research plan and milestones.
+- Assigns and reassigns Student tasks.
+- Runs regular progress meetings.
+- Synthesizes conflicting results and proposes next steps.
+- Escalates key questions to the Human researcher.
+- Cannot suppress evidence-based disagreement from Students.
 
-### Out of Scope
+### 5.3 Student Agents
 
-- Auto-scaling cloud workers.
-- Long-running autonomous swarms without checkpoints.
-- Full literature indexing pipelines.
-- Advanced model capability benchmarking automation.
+- Execute assigned subtasks (experiments, coding, reading, synthesis).
+- Report progress, blockers, and evidence.
+- Participate in group discussion and private peer discussions.
+- Can disagree with the Professor when evidence supports an alternative view.
+- Ask Human researcher or Professor for clarification when needed.
 
-## 7. Architecture Overview
+## 6. Collaboration Model
 
-### 7.1 Single Process Control Plane
+### 6.1 Communication Channels
 
-One Node.js TypeScript process handles:
+OpenColab must support:
 
-- orchestration loop
-- adapter execution
+- **Project Group Chat**: all agents + human visibility
+- **Private Agent Chats**: one-to-one or small group channels
+- **Meeting Threads**: recurring structured check-ins led by Professor
+
+All channels are logged with timestamps, participants, and linked artifacts.
+
+Disagreement protocol:
+
+- Students may file a formal challenge to Professor direction with evidence.
+- Professor must respond with accept/reject reasoning in the run log.
+- Human researcher can arbitrate unresolved disagreements.
+
+### 6.2 Meeting Cadence (v1)
+
+Each run includes three required meeting checkpoints:
+
+1. **Kickoff Meeting**: align on plan and assignments.
+2. **Mid-run Review**: inspect early findings, replan if needed.
+3. **Final Synthesis Meeting**: summarize results and unresolved risks.
+
+## 7. Capability Scope
+
+### 7.1 Required in v1
+
+- Task planning and delegation.
+- Parallel subtask execution.
+- Research discussion and meeting orchestration.
+- Human approval checkpoints.
+- Per-agent and shared GitHub repository workflows.
+- LaTeX paper generation and iterative coauthoring with the human researcher.
+- Local persistence of prompts, outputs, logs, and chat history.
+
+### 7.2 Execution Environments in v1
+
+Student agents can run tasks using adapters for:
+
+- local machine execution
+- SSH remote hosts (for GPU or specialized environments)
+- Google Colab session workflows
+
+### 7.3 Tool Access in v1
+
+Student agents may use bounded tools to act like practical researchers:
+
+- browser navigation and web research
+- page reading and summarization
+- screenshot capture for evidence trails
+- code execution in assigned environments
+- Git operations on assigned repositories
+- LaTeX editing and build tooling for paper drafts
+
+## 8. AI Research Workflow
+
+### 8.1 Standard Run Lifecycle
+
+1. Human submits goal and constraints.
+2. Professor creates plan and Student assignments.
+3. Kickoff Meeting confirms scope and timeline.
+4. Students execute in parallel with periodic updates.
+5. Mid-run Review adjusts priorities and methods.
+6. Students deliver artifacts and summaries.
+7. Final Synthesis Meeting produces final report.
+8. Human approves closure or requests another iteration.
+
+### 8.2 Paper Workflows (v1)
+
+Agents must be able to:
+
+- search for AI research papers
+- read and extract key claims, methods, and results
+- compare papers and identify agreement/conflict
+- produce concise summaries linked to source evidence
+- draft and revise scientific papers in LaTeX
+- support human coauthor edits and feedback cycles
+
+### 8.3 Repository Collaboration Workflows (v1)
+
+Agents must be able to:
+
+- operate in their own dedicated repositories
+- contribute to one or more shared repositories used by multiple agents
+- open and update branches/commits for transparent collaboration history
+- surface repository activity to the human researcher for review
+
+## 9. Deferred Capabilities (v2+)
+
+- automatic mental-map generation from paper corpora
+- citation graph mining and interactive concept maps
+- fully autonomous long-horizon project loops
+- benchmark-driven automatic agent specialization
+
+## 10. System Architecture (v1)
+
+### 10.1 Control Plane
+
+One local Node.js TypeScript process handles:
+
+- orchestration
+- agent runtime adapters
 - persistence
-- local HTTP API
-- local web UI
-- CLI command entrypoints
+- local API
+- local web interface
+- CLI
 
-### 7.2 Core Modules
+### 10.2 Data Model
 
-| File | Purpose |
-|------|---------|
-| `src/index.ts` | Process bootstrap |
-| `src/orchestrator.ts` | Run lifecycle and scheduling |
-| `src/config.ts` | Config loading and validation |
-| `src/db.ts` | SQLite access |
-| `src/agent-registry.ts` | Agent template and instance management |
-| `src/router.ts` | Task assignment |
-| `src/agent-runner.ts` | CLI subprocess execution, timeout, retry |
-| `src/adapters/*.ts` | Provider CLI adapters |
-| `src/checkpoints.ts` | Approve/pause/resume/stop logic |
-| `src/http.ts` | Local HTTP API |
-| `src/web.ts` | Local web interface routes/assets |
-| `src/cli.ts` | `opencolab` CLI |
+SQLite stores:
 
-### 7.3 Data and Files
+- projects
+- agent templates
+- agent instances
+- runs
+- tasks
+- chats (group/private)
+- meetings
+- events
+- approvals
+- repositories
+- paper_drafts
 
-- **SQLite**: `projects`, `agent_templates`, `agent_instances`, `runs`, `tasks`, `events`, `approvals`
-- **Filesystem**: prompts, outputs, artifacts, logs
-- **Project memory**: markdown context per project
+Filesystem stores:
 
-### 7.4 Suggested Repository Layout
+- prompts
+- outputs
+- logs
+- artifacts
+- screenshots
+- meeting summaries
+- repository snapshots and patches
+- LaTeX manuscript sources and build outputs
+
+### 10.3 Suggested Repository Layout
 
 ```txt
 opencolab/
   src/
     adapters/
+    orchestration/
+    collaboration/
     web/
+  docs/
+    spec.md
+    VISION.md
   projects/
     <project_name>/
       memory.md
-      agents/
-        <agent_id>/
+      repos/
+        shared/
+          <repo_name>/
+        agents/
+          <agent_id>/
+            <repo_name>/
+      papers/
+        <paper_id>/
+          latex/
+          builds/
       runs/
         <run_id>/
           prompts/
           outputs/
-          artifacts/
           logs/
+          artifacts/
+          screenshots/
+          chats/
+          meetings/
   opencolab.db
 ```
 
-## 8. Agent Model
+## 11. Reliability and Safety Requirements
 
-### 8.1 Roles
-
-- **Coordinator**: decomposes goals and decides next iteration plan.
-- **Worker**: executes assigned subtasks.
-- **Reviewer** (optional): compares outputs, flags conflicts and risk.
-
-### 8.2 Template and Instance Model
-
-To support many agents cleanly:
-
-- **Template** defines provider CLI behavior.
-- **Instance** is a runnable agent with its own workspace and limits.
-
-Template fields:
-
-- `template_id`
-- `provider` (`anthropic` | `openai` | `google`)
-- `cli_command` (`claude` | `codex` | `gemini`)
-- `default_args`
-- `default_env`
-
-Instance fields:
-
-- `agent_id`
-- `template_id`
-- `role`
-- `workspace_path`
-- `max_runtime_sec`
-- `retry_limit`
-- `isolation_mode` (`host` | `docker`)
-- `enabled`
-
-## 9. Provider Adapter Contract
-
-All adapters implement the same interface:
-
-```ts
-type AgentInput = {
-  runId: string;
-  taskId: string;
-  prompt: string;
-  workspacePath: string;
-  contextFiles: string[];
-};
-
-type AgentOutput = {
-  status: "ok" | "error" | "timeout";
-  stdout: string;
-  stderr: string;
-  outputFiles: string[];
-  startedAt: string;
-  finishedAt: string;
-  exitCode: number | null;
-};
-```
-
-Adapter responsibilities:
-
-- build provider-specific command and args
-- run subprocess with controlled environment
-- normalize results into `AgentOutput`
-- return consistent structured errors
-
-## 10. Orchestration Lifecycle
-
-1. **Run created** with goal and constraints.
-2. **Planning** by coordinator (2 to 12 subtasks).
-3. **Dispatch** to worker instances based on availability and limits.
-4. **Execution** in parallel up to global concurrency.
-5. **Review** by reviewer or coordinator fallback.
-6. **Checkpoint** requiring user action.
-7. **Close** with final summary and artifact index.
-
-## 11. Scheduling and Concurrency
-
-- Global concurrency default: `4`
-- Per-agent max concurrent tasks default: `1`
-- Queue policy: FIFO within a run
-- Retry policy default: `1` retry for failures
-- Timeout policy: per instance `max_runtime_sec`
+- Human approval required at run checkpoints.
+- Every task execution has timeout and retry limits.
+- Restart-safe run state from SQLite.
+- Immutable event and chat logs for auditability.
+- Secrets only through environment variables.
+- Explicit workspace boundaries per agent instance.
 
 ## 12. Control Surfaces
 
@@ -219,99 +264,35 @@ Adapter responsibilities:
 - `opencolab project create <name>`
 - `opencolab agent template add`
 - `opencolab agent instance add`
-- `opencolab agent list`
 - `opencolab run start --project <name> --goal "<text>"`
 - `opencolab run status <run_id>`
-- `opencolab run logs <run_id>`
 - `opencolab run approve <run_id>`
 - `opencolab run pause <run_id>`
 - `opencolab run stop <run_id>`
-- `opencolab task rerun <task_id> --agent <agent_id>`
+- `opencolab chat list <run_id>`
+- `opencolab chat view <chat_id>`
+- `opencolab meeting list <run_id>`
 
-### 12.2 Web Interface (Required, Local-Only)
+### 12.2 Local Web Interface (Required)
 
-The web UI must support:
-
-- create/edit/enable/disable agent instances
-- view active and completed runs
+- manage agents and runtimes
+- monitor runs/tasks
+- inspect chats and meetings
+- review screenshots and artifacts
 - approve/pause/stop runs
-- inspect task outputs and logs
-- rerun failed tasks with another agent instance
 
-## 13. Isolation and Security
+## 13. Acceptance Criteria for v1
 
-- Each instance writes only inside its workspace.
-- Shared write path allowed only for run-level artifacts.
-- Secrets come from local environment variables, never from source files.
-- Subprocess env is explicit and minimal.
-- Docker isolation is optional and configured per instance.
+- At least 1 Professor and 3 Student agents can collaborate in one run.
+- Group chat and private chat both function with persisted logs.
+- Three meeting checkpoints are created and recorded per run.
+- Student tasks can run across local and at least one remote runtime (SSH or Colab adapter).
+- Each Student can use at least one dedicated GitHub repository.
+- Multiple agents can collaborate in at least one shared repository.
+- Human can view all run artifacts, chats, and decisions in CLI and web UI.
+- AI paper search/read/summarize workflow completes with source-linked output.
+- Agents can generate a LaTeX paper draft that the human can edit and continue iterating.
 
-## 14. Reliability Requirements
+## 14. Summary
 
-- durable run and task state in SQLite
-- atomic writes for task logs and outputs
-- recoverable process restart (resume from persisted run state)
-- deterministic timestamps and event records
-- pause/resume without dropping task history
-
-## 15. Observability
-
-- per-run `events.jsonl`
-- per-task stdout/stderr logs
-- final run report with:
-  - task results
-  - retries/timeouts
-  - artifact paths
-  - reviewer summary
-
-## 16. Implementation Plan
-
-### Milestone 1: Core Skeleton
-
-- initialize SQLite schema
-- implement one adapter end-to-end
-- implement coordinator + one worker run
-- ship CLI: `init`, `run start`, `run status`
-
-### Milestone 2: Multi-Instance Multi-Provider
-
-- implement `claude`, `codex`, `gemini` adapters
-- add template/instance registry
-- implement parallel dispatch and checkpoint flow
-- add CLI run controls: approve/pause/stop/rerun
-
-### Milestone 3: Local Web Management
-
-- implement local HTTP API
-- implement web pages for agent and run management
-- ensure CLI and web use same service layer
-- harden timeout/retry/recovery behavior
-
-## 17. Acceptance Criteria (v1)
-
-- at least 6 configured agent instances on one machine
-- at least 2 instances per CLI type where installed
-- at least 6 subtasks can run in one run with parallel execution
-- task-level prompt/output/timestamps/status persisted
-- run controls work from both CLI and web UI
-- failed task rerun works with alternate agent instance
-- no required infrastructure beyond local Node.js, SQLite, and installed CLIs
-
-## 18. Locked v1 Defaults
-
-- Provider CLIs: `claude`, `codex`, `gemini`
-- Isolation default: `host` (`docker` opt-in)
-- Global max concurrency default: `4`
-- Adapter output contract: raw text plus normalized metadata
-
-## 19. Deferred to v2+
-
-- team access control
-- cloud worker pools and GPU scheduling
-- automatic capability benchmarking and auto-routing
-- advanced research memory ingestion and retrieval
-- nested swarm orchestration
-
----
-
-This spec defines a practical, personal-use baseline: many local agent instances, multiple CLI providers, simple orchestration, and manageable operations through CLI plus local web interface.
+OpenColab v1 is a practical personal research power tool: a Professor-guided, Student-executed multi-agent lab with structured discussion, real execution environments, and strong human oversight.
