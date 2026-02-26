@@ -29,6 +29,56 @@ It follows an academic collaboration model:
 - Prioritize reliability, auditability, and human control checkpoints.
 - Deliver a practical power tool before advanced autonomy.
 
+## General Architecture
+
+```mermaid
+flowchart TB
+  Human[Human Researcher]
+  CLI[CLI]
+  Web[Local Web UI/API]
+  Telegram[Telegram Bridge]
+
+  Human --> CLI
+  Human --> Web
+  Human --> Telegram
+
+  subgraph ControlPlane[OpenColab Control Plane (Node.js/TypeScript)]
+    Orchestrator[Orchestrator]
+    Registry[Agent Registry]
+    Collaboration[Chats + Meetings]
+    Skills[SKILL Registry]
+    RepoPaper[Repositories + LaTeX Paper Service]
+    Checkpoints[Approval Checkpoints]
+    Router[Task Router]
+    Runner[Agent Runner]
+    Adapters[Provider Adapters<br/>codex | claude_code | gemini]
+  end
+
+  CLI --> Orchestrator
+  Web --> Orchestrator
+  Telegram --> Orchestrator
+
+  Orchestrator --> Registry
+  Orchestrator --> Collaboration
+  Orchestrator --> Skills
+  Orchestrator --> RepoPaper
+  Orchestrator --> Checkpoints
+  Orchestrator --> Router
+  Router --> Runner
+  Runner --> Adapters
+
+  Adapters --> Local[Local Compute]
+  Adapters --> SSH[SSH Compute / GPU Hosts]
+  Adapters --> Colab[Google Colab]
+
+  Orchestrator --> SQLite[(SQLite)]
+  Orchestrator --> FS[(Project Filesystem<br/>runs, logs, artifacts, chats, meetings, papers, repos)]
+```
+
+- Single-process local control plane orchestrates all workflows.
+- Agents can run in parallel across different provider CLIs.
+- All operational state is persisted locally in SQLite + filesystem artifacts.
+
 ## Getting Started
 
 ```bash
