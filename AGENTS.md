@@ -1,62 +1,76 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository is currently specification-first.
+This repository now includes an implemented v1 baseline.
 
-- `spec.md`: source of truth for system requirements and architecture.
-- `README.md`: high-level project overview and implementation direction.
-- `LICENSE`: MIT license.
-- `AGENTS.md`: contributor workflow and standards.
+- `docs/spec.md`: source of truth for requirements and architecture.
+- `docs/VISION.md`: product direction and long-term intent.
+- `README.md`: quickstart and high-level overview.
+- `src/`: TypeScript implementation.
+- `tests/`: Node test suite.
+- `SKILLS/`: installable skill definitions used by agents.
 
-When code is introduced, use this layout:
+Core implementation areas:
 
-- `src/` for application code (agents, orchestration, runtime adapters).
-- `tests/` for automated tests.
-- `docs/` for supporting design notes and diagrams.
+- `src/orchestration/`: run lifecycle and scheduling.
+- `src/adapters/`: provider adapter layer (`codex`, `claude_code`, `gemini`).
+- `src/collaboration/`: chats and meetings.
+- `src/web/` + `src/http.ts`: local web UI and API.
+- `src/cli.ts`: command-line control surface.
 
-Keep product behavior changes in `spec.md` first, then sync `README.md`.
+For behavior changes, update `docs/spec.md` first, then sync `README.md` and code.
 
 ## Build, Test, and Development Commands
-There is no formal build pipeline yet. Use these commands for contributor checks:
+Use these commands for normal development:
 
-- `rg --files` to list repository files quickly.
-- `rg -n "pattern" spec.md README.md` to validate cross-document consistency.
-- `git diff -- spec.md README.md AGENTS.md` to review documentation edits.
-- `git status` to confirm intended changes only.
+- `npm install`
+- `npm run check` (TypeScript typecheck)
+- `npm run build`
+- `npm test`
+- `node dist/src/cli.js init`
+- `node dist/src/cli.js web start --port 4646`
 
-When Python code is added, standardize on:
+Useful repository checks:
 
-- `python -m pytest` for tests.
-- `python -m ruff check .` for linting.
-- `python -m ruff format .` for formatting.
+- `rg --files`
+- `rg -n "pattern" docs/spec.md docs/VISION.md README.md`
+- `git diff -- docs/spec.md docs/VISION.md README.md AGENTS.md`
+- `git status`
 
 ## Coding Style & Naming Conventions
-- Prefer clear, direct Markdown with short paragraphs and actionable bullets.
-- Keep headings descriptive and stable; avoid unnecessary renumbering churn.
-- Use ASCII by default unless domain content requires Unicode.
-- For future Python, follow PEP 8 and use type hints in public interfaces.
-- Naming: `snake_case` for files/functions, `PascalCase` for classes.
+- Language: TypeScript (Node.js ESM).
+- Keep code ASCII unless non-ASCII is required.
+- Prefer small, focused modules and explicit types on public interfaces.
+- Naming: `kebab-case` filenames, `camelCase` functions/variables, `PascalCase` classes.
+- Keep comments concise and only where logic is non-obvious.
 
 ## Testing Guidelines
-- For documentation changes, test by consistency: requirements, workflow steps, and acceptance criteria must agree across files.
-- For future code, place tests in `tests/` and name them `test_<feature>.py`.
-- Prioritize deterministic tests for orchestration logic, approval gates, and reproducibility checks.
+- Place tests in `tests/`.
+- Use deterministic tests for orchestration, approvals, and persistence behavior.
+- Prefer end-to-end lifecycle coverage for run creation, task execution, checkpoint flow, and artifacts.
+- Run `npm run check && npm run build && npm test` before pushing.
 
 ## Commit & Pull Request Guidelines
-No commit history exists yet; adopt Conventional Commits:
+Use Conventional Commits:
 
-- `docs: update AGENTS contributor guide`
 - `feat: add ssh runtime adapter`
-- `fix: correct checkpoint retry policy`
+- `fix: handle missing provider CLI command`
+- `docs: update architecture diagram`
+- `test: cover approval state transitions`
 
 PRs should include:
 
 - concise summary of what changed and why,
-- affected files,
-- verification steps performed,
-- follow-up tasks or known limitations.
+- affected files/modules,
+- verification steps run,
+- follow-up work or limitations.
 
 ## Security & Configuration Tips
-- Never commit secrets (API keys, SSH private keys, access tokens).
-- Use environment variables and keep examples in a non-secret `.env.example`.
-- Redact hostnames/usernames from logs and docs when sharing externally.
+- Never commit secrets (API keys, tokens, private keys).
+- Use environment variables (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, etc.).
+- Keep local SQLite and runtime artifacts out of git:
+  - `opencolab.db`
+  - `opencolab.db-wal`
+  - `opencolab.db-shm`
+  - `projects/`
+- Redact personal or host-identifying information when sharing logs/docs externally.
