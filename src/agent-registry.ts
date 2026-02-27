@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { OpenColabConfig } from "./config.js";
 import { Db } from "./db.js";
+import { persistProjectConfigurationFromDb } from "./project-config.js";
 import type { AgentInstance, AgentRole, AgentTemplate } from "./types.js";
 import { fromJson, newId, nowIso, splitArgs, toJson } from "./utils.js";
 
@@ -135,6 +136,7 @@ export class AgentRegistry {
         created_at: nowIso()
       }
     );
+    persistProjectConfigurationFromDb(this.config, this.db);
   }
 
   createInstance(input: AgentInstance): string {
@@ -177,6 +179,8 @@ export class AgentRegistry {
       },
       template
     );
+
+    persistProjectConfigurationFromDb(this.config, this.db);
 
     return agentId;
   }

@@ -51,7 +51,7 @@ export async function runSetupWizard(cwd = process.cwd()): Promise<void> {
   try {
     console.log("\nOpenColab first-time setup\n");
     console.log("This wizard configures provider CLIs, model args, API keys, and Telegram access.");
-    console.log("Provider keys and Telegram secrets are saved in opencolab.db (settings + templates).\n");
+    console.log("Project configuration is saved in opencolab.json.\n");
 
     const configuredProviders: string[] = [];
     const missingCli: string[] = [];
@@ -143,7 +143,7 @@ export async function runSetupWizard(cwd = process.cwd()): Promise<void> {
     writeSetupState(config.setupStatePath, {
       completedAt: new Date().toISOString(),
       configuredProviders,
-      secretsStorage: "opencolab.db",
+      secretsStorage: "opencolab.json",
       forceMockDefault: forceMock
     });
 

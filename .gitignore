@@ -6,6 +6,7 @@ opencolab.db
 opencolab.db-wal
 opencolab.db-shm
 opencolab.db-journal
+opencolab.json
 projects/
 coverage/
 .tmp/

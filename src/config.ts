@@ -4,6 +4,7 @@ import path from "node:path";
 export interface OpenColabConfig {
   rootDir: string;
   dbPath: string;
+  projectConfigPath: string;
   projectsDir: string;
   skillsDir: string;
   globalConcurrency: number;
@@ -21,6 +22,7 @@ export function loadConfig(cwd = process.cwd()): OpenColabConfig {
   return {
     rootDir,
     dbPath: path.join(rootDir, "opencolab.db"),
+    projectConfigPath: path.join(rootDir, "opencolab.json"),
     projectsDir: path.join(rootDir, "projects"),
     skillsDir: path.join(rootDir, "SKILLS"),
     globalConcurrency: Number(process.env.OPENCOLAB_GLOBAL_CONCURRENCY ?? "4"),

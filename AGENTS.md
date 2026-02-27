@@ -69,6 +69,7 @@ PRs should include:
 - Never commit secrets (API keys, tokens, private keys).
 - Use environment variables (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, etc.).
 - Keep local SQLite and runtime artifacts out of git:
+  - `opencolab.json`
   - `opencolab.db`
   - `opencolab.db-wal`
   - `opencolab.db-shm`

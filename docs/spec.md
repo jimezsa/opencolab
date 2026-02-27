@@ -218,6 +218,13 @@ SQLite stores:
 - skills
 - agent_skill_bindings
 
+Project configuration file stores:
+
+- runtime settings (`opencolab.force_mock_cli`, `telegram.bot_token`, `telegram.chat_id`)
+- agent templates
+- agent instances
+- persisted at `opencolab.json`
+
 Filesystem stores:
 
 - prompts
@@ -248,6 +255,7 @@ opencolab/
   docs/
     spec.md
     VISION.md
+  opencolab.json
   projects/
     <project_name>/
       memory.md

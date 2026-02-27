@@ -95,7 +95,7 @@ First-time setup wizard (`opencolab setup`) guides you through:
 
 - provider CLI command configuration
 - default model args per provider
-- API key input persisted in `opencolab.db`
+- API key input persisted in `opencolab.json`
 - Telegram bot/chat configuration
 - mock-vs-real execution mode
 

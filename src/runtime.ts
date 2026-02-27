@@ -1,7 +1,8 @@
 import { loadConfig } from "./config.js";
-import { getSetting, openDb } from "./db.js";
+import { openDb } from "./db.js";
 import { initWorkspace } from "./paths.js";
 import { Orchestrator } from "./orchestration/orchestrator.js";
+import { ensureProjectConfiguration } from "./project-config.js";
 
 export function createRuntime(cwd = process.cwd()): {
   orchestrator: Orchestrator;
@@ -10,7 +11,8 @@ export function createRuntime(cwd = process.cwd()): {
   const config = loadConfig(cwd);
   initWorkspace(config);
   const db = openDb(config);
-  applyDbSettingsOverrides(config, db);
+  const projectConfig = ensureProjectConfiguration(config, db);
+  applyProjectConfigOverrides(config, projectConfig);
   const orchestrator = new Orchestrator(db, config);
   orchestrator.init();
 
@@ -20,21 +22,21 @@ export function createRuntime(cwd = process.cwd()): {
   };
 }
 
-function applyDbSettingsOverrides(
+function applyProjectConfigOverrides(
   config: ReturnType<typeof loadConfig>,
-  db: ReturnType<typeof openDb>
+  projectConfig: ReturnType<typeof ensureProjectConfiguration>
 ): void {
-  const forceMock = getSetting(db, "opencolab.force_mock_cli");
+  const forceMock = projectConfig.settings["opencolab.force_mock_cli"] ?? null;
   if (forceMock !== null && process.env.OPENCOLAB_FORCE_MOCK_CLI === undefined) {
     config.forceMockCli = forceMock !== "0";
   }
 
-  const telegramBotToken = getSetting(db, "telegram.bot_token");
+  const telegramBotToken = projectConfig.settings["telegram.bot_token"] ?? null;
   if (telegramBotToken && process.env.TELEGRAM_BOT_TOKEN === undefined) {
     config.telegramBotToken = telegramBotToken;
   }
 
-  const telegramChatId = getSetting(db, "telegram.chat_id");
+  const telegramChatId = projectConfig.settings["telegram.chat_id"] ?? null;
   if (telegramChatId && process.env.TELEGRAM_CHAT_ID === undefined) {
     config.telegramChatId = telegramChatId;
   }
