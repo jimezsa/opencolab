@@ -82,8 +82,8 @@ flowchart TB
 ## Getting Started
 
 ```bash
-npm install
-npm run build
+pnpm install
+pnpm run build
 node dist/src/cli.js setup
 node dist/src/cli.js init
 node dist/src/cli.js project create demo-lab

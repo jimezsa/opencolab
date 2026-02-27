@@ -4,6 +4,7 @@
   "description": "Personal multi-agent AI research lab",
   "license": "MIT",
   "type": "module",
+  "packageManager": "pnpm@9.15.5",
   "bin": {
     "opencolab": "dist/src/cli.js"
   },

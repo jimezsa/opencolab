@@ -23,10 +23,10 @@ For behavior changes, update `docs/spec.md` first, then sync `README.md` and cod
 ## Build, Test, and Development Commands
 Use these commands for normal development:
 
-- `npm install`
-- `npm run check` (TypeScript typecheck)
-- `npm run build`
-- `npm test`
+- `pnpm install`
+- `pnpm run check` (TypeScript typecheck)
+- `pnpm run build`
+- `pnpm test`
 - `node dist/src/cli.js init`
 - `node dist/src/cli.js web start --port 4646`
 
@@ -48,7 +48,7 @@ Useful repository checks:
 - Place tests in `tests/`.
 - Use deterministic tests for orchestration, approvals, and persistence behavior.
 - Prefer end-to-end lifecycle coverage for run creation, task execution, checkpoint flow, and artifacts.
-- Run `npm run check && npm run build && npm test` before pushing.
+- Run `pnpm run check && pnpm run build && pnpm test` before pushing.
 
 ## Commit & Pull Request Guidelines
 Use Conventional Commits:
