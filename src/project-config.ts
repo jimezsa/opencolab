@@ -19,7 +19,8 @@ export function defaultProjectState(config: OpenColabConfig): OpenColabState {
         identity: "IDENTITY.md",
         soul: "SOUL.md",
         tools: "TOOLS.md",
-        user: "USER.md"
+        user: "USER.md",
+        memory: "MEMORY.md"
       }
     },
     provider: {
@@ -85,7 +86,8 @@ function normalizeState(raw: unknown, defaults: OpenColabState): OpenColabState 
     identity: asString(sourceAgentFiles?.identity, defaults.agent.files.identity),
     soul: asString(sourceAgentFiles?.soul, defaults.agent.files.soul),
     tools: asString(sourceAgentFiles?.tools, defaults.agent.files.tools),
-    user: asString(sourceAgentFiles?.user, defaults.agent.files.user)
+    user: asString(sourceAgentFiles?.user, defaults.agent.files.user),
+    memory: asString(sourceAgentFiles?.memory, defaults.agent.files.memory)
   };
 
   const cliArgs = Array.isArray(sourceProvider?.cliArgs)

@@ -19,6 +19,7 @@ test("project state defaults to single codex agent contract", () => {
     assert.equal(state.agent.files.soul, "SOUL.md");
     assert.equal(state.agent.files.tools, "TOOLS.md");
     assert.equal(state.agent.files.user, "USER.md");
+    assert.equal(state.agent.files.memory, "MEMORY.md");
 
     assert.equal(state.provider.name, "codex");
     assert.equal(state.provider.apiKeyEnvVar, "OPENAI_API_KEY");

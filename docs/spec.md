@@ -55,8 +55,10 @@ The single agent must include the following files in its agent directory:
 - `SOUL.md`
 - `TOOLS.md`
 - `USER.md`
+- `MEMORY.md`
 
 These files define behavior, persona, boundaries, and user context for the agent prompt assembly flow.
+`MEMORY.md` is reserved for long-term memory only.
 
 ## 6. Telegram Pairing Flow
 
@@ -129,7 +131,8 @@ It must store:
       "identity": "IDENTITY.md",
       "soul": "SOUL.md",
       "tools": "TOOLS.md",
-      "user": "USER.md"
+      "user": "USER.md",
+      "memory": "MEMORY.md"
     }
   },
   "provider": {
@@ -173,5 +176,4 @@ v1 is complete when all are true:
 - After pairing, user can chat with the single agent from Telegram.
 - Agent responses come from the Codex runtime path.
 - `opencolab.json` persists agent and provider information plus Telegram pairing state.
-- Agent directory includes `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `TOOLS.md`, and `USER.md`.
-
+- Agent directory includes `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `TOOLS.md`, `USER.md`, and `MEMORY.md`.

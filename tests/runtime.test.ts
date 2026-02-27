@@ -14,7 +14,7 @@ test("init creates required agent context files", () => {
     const state = runtime.getState();
     const agentDir = path.join(tempDir, state.agent.path);
 
-    const required = ["AGENTS.md", "IDENTITY.md", "SOUL.md", "TOOLS.md", "USER.md"];
+    const required = ["AGENTS.md", "IDENTITY.md", "SOUL.md", "TOOLS.md", "USER.md", "MEMORY.md"];
     for (const file of required) {
       assert.equal(fs.existsSync(path.join(agentDir, file)), true, `${file} should exist`);
     }

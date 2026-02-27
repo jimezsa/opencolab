@@ -85,6 +85,7 @@ Agent directory must include:
 - `SOUL.md`
 - `TOOLS.md`
 - `USER.md`
+- `MEMORY.md` (long-term memory only)
 
 Default location: `agents/research_agent`.
 

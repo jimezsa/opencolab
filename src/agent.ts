@@ -8,7 +8,8 @@ const DEFAULT_FILE_CONTENT: Record<keyof AgentFiles, string> = {
   identity: "# IDENTITY\n\nYou are OpenColab's research assistant.\n",
   soul: "# SOUL\n\nBe clear, rigorous, and practical.\n",
   tools: "# TOOLS\n\nPrimary runtime: Codex CLI.\n",
-  user: "# USER\n\nThe user chats through Telegram.\n"
+  user: "# USER\n\nThe user chats through Telegram.\n",
+  memory: "# MEMORY\n\nLong-term memory for stable user/project facts.\n"
 };
 
 export function resolveAgentDirectory(rootDir: string, agentPath: string): string {
@@ -24,7 +25,8 @@ export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
     ["identity", agent.files.identity],
     ["soul", agent.files.soul],
     ["tools", agent.files.tools],
-    ["user", agent.files.user]
+    ["user", agent.files.user],
+    ["memory", agent.files.memory]
   ];
 
   for (const [key, fileName] of files) {
@@ -45,7 +47,8 @@ export function readAgentDocuments(rootDir: string, agent: AgentConfig): Record<
     ["identity", agent.files.identity],
     ["soul", agent.files.soul],
     ["tools", agent.files.tools],
-    ["user", agent.files.user]
+    ["user", agent.files.user],
+    ["memory", agent.files.memory]
   ];
 
   const docs = {} as Record<keyof AgentFiles, string>;
@@ -73,7 +76,9 @@ export function buildAgentPrompt(
     "[TOOLS]",
     docs.tools,
     "[USER]",
-    docs.user
+    docs.user,
+    "[MEMORY]",
+    docs.memory
   ].join("\n\n");
 
   const transcript = history

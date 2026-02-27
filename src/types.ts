@@ -4,6 +4,7 @@ export interface AgentFiles {
   soul: string;
   tools: string;
   user: string;
+  memory: string;
 }
 
 export interface AgentConfig {
