@@ -1,45 +1,34 @@
-import { randomBytes } from "node:crypto";
+import { randomInt } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 
 export function nowIso(): string {
   return new Date().toISOString();
 }
 
-export function newId(prefix: string): string {
-  return `${prefix}_${randomBytes(6).toString("hex")}`;
+export function ensureDir(dirPath: string): void {
+  fs.mkdirSync(dirPath, { recursive: true });
 }
 
-export function toJson(value: unknown): string {
-  return JSON.stringify(value ?? null);
-}
-
-export function fromJson<T>(value: string | null): T {
-  if (!value) {
-    return {} as T;
+export function randomDigits(length: number): string {
+  if (!Number.isInteger(length) || length < 1 || length > 9) {
+    throw new Error("length must be an integer between 1 and 9");
   }
 
-  return JSON.parse(value) as T;
+  const max = 10 ** length;
+  return String(randomInt(max)).padStart(length, "0");
 }
 
-export function splitArgs(raw: string | null): string[] {
-  if (!raw) {
-    return [];
-  }
-
+export function safeReadJson<T>(filePath: string, fallback: T): T {
   try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed.map((item) => String(item));
-    }
-    return [];
+    const raw = fs.readFileSync(filePath, "utf8");
+    return JSON.parse(raw) as T;
   } catch {
-    return raw.split(" ").filter(Boolean);
+    return fallback;
   }
 }
 
-export function ensure<T>(value: T | undefined | null, message: string): T {
-  if (value === undefined || value === null) {
-    throw new Error(message);
-  }
-
-  return value;
+export function writeJson(filePath: string, value: unknown): void {
+  ensureDir(path.dirname(filePath));
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }

@@ -9,7 +9,7 @@
     "opencolab": "dist/src/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "rm -rf dist && tsc -p tsconfig.json",
     "dev": "NODE_NO_WARNINGS=1 node --enable-source-maps --experimental-strip-types src/cli.ts",
     "start": "NODE_NO_WARNINGS=1 node dist/src/cli.js",
     "test": "NODE_NO_WARNINGS=1 node --test dist/tests/**/*.test.js",

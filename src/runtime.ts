@@ -1,43 +1,142 @@
-import { loadConfig } from "./config.js";
-import { openDb } from "./db.js";
-import { initWorkspace } from "./paths.js";
-import { Orchestrator } from "./orchestration/orchestrator.js";
-import { ensureProjectConfiguration } from "./project-config.js";
+import { ensureAgentFiles } from "./agent.js";
+import { loadConfig, type OpenColabConfig } from "./config.js";
+import { ConversationStore } from "./conversation.js";
+import { CodexAgent, type CodexAgentInput } from "./codex-agent.js";
+import { readProjectState, writeProjectState } from "./project-config.js";
+import { TelegramGateway, type TelegramSender } from "./gateway.js";
+import type { GatewayResult, OpenColabState } from "./types.js";
+import { ensureDir } from "./utils.js";
 
-export function createRuntime(cwd = process.cwd()): {
-  orchestrator: Orchestrator;
-  close: () => void;
-} {
-  const config = loadConfig(cwd);
-  initWorkspace(config);
-  const db = openDb(config);
-  const projectConfig = ensureProjectConfiguration(config, db);
-  applyProjectConfigOverrides(config, projectConfig);
-  const orchestrator = new Orchestrator(db, config);
-  orchestrator.init();
-
-  return {
-    orchestrator,
-    close: () => db.close()
-  };
+export interface RuntimeOptions {
+  telegramSender?: TelegramSender;
+  agentResponder?: (input: CodexAgentInput) => Promise<string>;
 }
 
-function applyProjectConfigOverrides(
-  config: ReturnType<typeof loadConfig>,
-  projectConfig: ReturnType<typeof ensureProjectConfiguration>
-): void {
-  const forceMock = projectConfig.settings["opencolab.force_mock_cli"] ?? null;
-  if (forceMock !== null && process.env.OPENCOLAB_FORCE_MOCK_CLI === undefined) {
-    config.forceMockCli = forceMock !== "0";
+export interface ModelSetupInput {
+  model: string;
+  apiKeyEnvVar: string;
+  cliCommand: string;
+  cliArgs: string[];
+}
+
+export interface TelegramSetupInput {
+  botTokenEnvVar: string;
+  chatId: string;
+}
+
+export class OpenColabRuntime {
+  readonly config: OpenColabConfig;
+
+  private state: OpenColabState;
+  private readonly conversations: ConversationStore;
+  private readonly codex: CodexAgent;
+  private readonly gateway: TelegramGateway;
+
+  constructor(cwd = process.cwd(), private readonly options: RuntimeOptions = {}) {
+    this.config = loadConfig(cwd);
+    this.state = readProjectState(this.config);
+    this.conversations = new ConversationStore(this.config.conversationsDir);
+    this.codex = new CodexAgent(this.config, () => this.state);
+
+    this.gateway = new TelegramGateway(this.config, {
+      getState: () => this.state,
+      saveState: (next) => {
+        this.state = next;
+        writeProjectState(this.config, this.state);
+      },
+      readConversation: (chatId, limit) => this.conversations.readRecent(chatId, limit),
+      appendConversation: (chatId, message) => this.conversations.append(chatId, message),
+      respond: async (input) => {
+        if (this.options.agentResponder) {
+          return this.options.agentResponder(input);
+        }
+        return this.codex.respond(input);
+      },
+      telegramSender: this.options.telegramSender
+    });
   }
 
-  const telegramBotToken = projectConfig.settings["telegram.bot_token"] ?? null;
-  if (telegramBotToken && process.env.TELEGRAM_BOT_TOKEN === undefined) {
-    config.telegramBotToken = telegramBotToken;
+  init(): OpenColabState {
+    ensureDir(this.config.stateDir);
+    this.state = readProjectState(this.config);
+    writeProjectState(this.config, this.state);
+    ensureAgentFiles(this.config.rootDir, this.state.agent);
+    return this.state;
   }
 
-  const telegramChatId = projectConfig.settings["telegram.chat_id"] ?? null;
-  if (telegramChatId && process.env.TELEGRAM_CHAT_ID === undefined) {
-    config.telegramChatId = telegramChatId;
+  getState(): OpenColabState {
+    return this.state;
   }
+
+  setupModel(input: ModelSetupInput): OpenColabState {
+    this.state = {
+      ...this.state,
+      provider: {
+        name: "codex",
+        model: input.model,
+        apiKeyEnvVar: input.apiKeyEnvVar,
+        cliCommand: input.cliCommand,
+        cliArgs: input.cliArgs
+      }
+    };
+
+    this.persist();
+    return this.state;
+  }
+
+  setupTelegram(input: TelegramSetupInput): OpenColabState {
+    const chatChanged = this.state.telegram.chatId !== input.chatId;
+
+    this.state = {
+      ...this.state,
+      telegram: {
+        ...this.state.telegram,
+        botTokenEnvVar: input.botTokenEnvVar,
+        chatId: input.chatId,
+        paired: chatChanged ? false : this.state.telegram.paired,
+        pairedAt: chatChanged ? null : this.state.telegram.pairedAt,
+        pendingPairingCode: null,
+        pendingPairingExpiresAt: null
+      }
+    };
+
+    this.persist();
+    return this.state;
+  }
+
+  configureAgent(agentId: string, agentPath: string): OpenColabState {
+    this.state = {
+      ...this.state,
+      agent: {
+        ...this.state.agent,
+        id: agentId,
+        path: agentPath
+      }
+    };
+
+    this.persist();
+    ensureAgentFiles(this.config.rootDir, this.state.agent);
+    return this.state;
+  }
+
+  async startPairing(): Promise<{ code: string; expiresAt: string; sent: boolean }> {
+    return this.gateway.startPairing();
+  }
+
+  completePairing(code: string): { pairedAt: string } {
+    return this.gateway.completePairing(code);
+  }
+
+  async handleTelegramWebhook(body: unknown): Promise<GatewayResult> {
+    return this.gateway.handleWebhook(body);
+  }
+
+  private persist(): void {
+    writeProjectState(this.config, this.state);
+    this.state = readProjectState(this.config);
+  }
+}
+
+export function createRuntime(cwd = process.cwd(), options: RuntimeOptions = {}): OpenColabRuntime {
+  return new OpenColabRuntime(cwd, options);
 }

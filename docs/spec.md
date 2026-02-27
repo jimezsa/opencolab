@@ -1,355 +1,177 @@
-# OpenColab v1 Specification
-
-**Status:** Draft v4
-**Date:** February 26, 2026
-**Audience:** Researchers
+# OpenColab v1 Minimal Specification
 
 ## 1. Purpose
 
-OpenColab is a personal multi-agent AI research lab designed to help researchers and accelerate scientific discoveries.
+OpenColab v1 is a minimal personal research assistant that provides one AI agent reachable through Telegram.
 
-The operating metaphor is academic:
+This specification replaces the previous multi-agent lab direction for the initial release.
 
-- one **Professor agent** guides strategy and quality
-- multiple **Student agents** execute experiments and analysis
-- a **Human researcher** supervises critical decisions and can intervene at any time
+## 2. Product Scope
 
-## 2. Product Vision in Practice
+v1 supports exactly one agent and one provider runtime:
 
-OpenColab should feel like running a small research group on one machine:
+- one research agent instance
+- one model provider: Codex only
+- one user interaction channel: Telegram chat through a gateway
+- one operator control channel: OpenColab CLI
 
-- Professor and Students discuss goals, plans, and results
-- Students can work in parallel and specialize by task
-- regular check-ins keep work synchronized
-- human oversight remains first-class, not an afterthought
+No parallel agent orchestration is included in this version.
 
-## 3. v1 Goals
+## 3. Initial Architecture
 
-- Accelerate research throughput with parallel AI agents.
-- Support agent pools from different companies and CLI ecosystems running in parallel (for example `codex`, `claude_code`, `gemini`).
-- Support Professor-led decomposition and Student execution.
-- Enable structured communication: group chat, private chat, and meeting logs.
-- Provide human access to team communication over Telegram.
-- Support GitHub repository topologies for research execution:
-  - per-agent repositories for independent exploration
-  - shared repositories where multiple agents collaborate
-- Keep human-in-the-loop checkpoints for approvals and redirections.
-- Provide practical execution access for Students:
-  - local compute
-  - SSH-accessible remote compute
-  - Google Colab sessions (adapter-based)
-- Enable scientific paper authoring in LaTeX with agent and human coauthoring.
-- Preserve all runs, discussions, artifacts, and decisions locally.
+The runtime architecture is strictly:
 
-## 4. Non-Goals (v1)
+`Telegram -> Gateway -> Agent`
 
-- Full autonomous operation without human checkpoints.
-- Large-scale distributed infrastructure (Kubernetes, queues, worker fleets).
-- Multi-tenant SaaS accounts and team permission models.
-- Automatic end-to-end literature map generation (deferred).
-- Fully general desktop automation beyond bounded task tools.
+Definitions:
 
-## 5. Core Roles
+- `Telegram`: external messaging channel used by the user.
+- `Gateway`: local OpenColab service that receives Telegram updates, validates pairing, and routes messages.
+- `Agent`: single Codex-backed research assistant execution unit.
 
-### 5.1 Human Researcher
+## 4. Core Capabilities (v1)
 
-- Defines project goals and constraints.
-- Approves major plan revisions and run conclusions.
-- Can join discussions, answer questions, and redirect work.
-- Can inspect all chat channels and run artifacts.
-- Can interact with the team through Telegram.
+Required:
 
-### 5.2 Professor Agent
+- Receive Telegram messages and route them to the single agent.
+- Return agent responses back to Telegram.
+- Keep minimal conversation context for the chat session.
+- Configure model API key and Telegram pairing via CLI.
+- Persist agent and provider configuration in `opencolab.json`.
 
-- Translates goal into research plan and milestones.
-- Assigns and reassigns Student tasks.
-- Runs regular progress meetings.
-- Synthesizes conflicting results and proposes next steps.
-- Escalates key questions to the Human researcher.
-- Cannot suppress evidence-based disagreement from Students.
+Not required in v1:
 
-### 5.3 Student Agents
+- web UI
+- multi-agent scheduling
+- provider abstraction across multiple vendors
+- meetings, run orchestration, or shared repositories
 
-- Execute assigned subtasks (experiments, coding, reading, synthesis).
-- Report progress, blockers, and evidence.
-- Participate in group discussion and private peer discussions.
-- Can disagree with the Professor when evidence supports an alternative view.
-- Ask Human researcher or Professor for clarification when needed.
+## 5. Agent Definition Files
 
-## 6. Collaboration Model
+The single agent must include the following files in its agent directory:
 
-### 6.1 Communication Channels
+- `AGENTS.md`
+- `IDENTITY.md`
+- `SOUL.md`
+- `TOOLS.md`
+- `USER.md`
 
-OpenColab must support:
+These files define behavior, persona, boundaries, and user context for the agent prompt assembly flow.
 
-- **Project Group Chat**: all agents + human visibility
-- **Private Agent Chats**: one-to-one or small group channels
-- **Meeting Threads**: recurring structured check-ins led by Professor
-- **Telegram Bridge**: human-accessible team channel with message sync to run logs
+## 6. Telegram Pairing Flow
 
-All channels are logged with timestamps, participants, and linked artifacts.
+Pairing is mandatory before normal chat routing.
 
-Disagreement protocol:
+### 6.1 Pairing Sequence
 
-- Students may file a formal challenge to Professor direction with evidence.
-- Professor must respond with accept/reject reasoning in the run log.
-- Human researcher can arbitrate unresolved disagreements.
+1. Operator runs CLI pairing start command.
+2. OpenColab generates a short-lived pairing code.
+3. Gateway sends the pairing code to the configured Telegram user/chat.
+4. Operator enters that code in the CLI to complete pairing.
+5. On success, Telegram chat is marked as trusted and chat routing is enabled.
 
-### 6.2 Meeting Cadence (v1)
+### 6.2 Pairing Requirements
 
-Each run includes three required meeting checkpoints:
+- Pairing code must expire (recommended: 10 minutes).
+- Pairing code must be single-use.
+- Failed attempts must not enable chat routing.
+- Gateway must reject normal messages until pairing is completed.
 
-1. **Kickoff Meeting**: align on plan and assignments.
-2. **Mid-run Review**: inspect early findings, replan if needed.
-3. **Final Synthesis Meeting**: summarize results and unresolved risks.
+## 7. CLI Requirements
 
-## 7. Capability Scope
+CLI is the required setup and control surface for v1.
 
-### 7.1 Required in v1
-
-- Task planning and delegation.
-- Parallel subtask execution.
-- Cross-provider parallel execution across heterogeneous agent CLIs.
-- Research discussion and meeting orchestration.
-- Human approval checkpoints.
-- Per-agent and shared GitHub repository workflows.
-- LaTeX paper generation and iterative coauthoring with the human researcher.
-- SKILL-based capability extension so agents can gain new domain abilities over time.
-- SKILLs can be installed later without redesigning the core orchestration flow.
-- Local persistence of prompts, outputs, logs, and chat history.
-
-### 7.2 Execution Environments in v1
-
-Student agents can run tasks using adapters for:
-
-- local machine execution
-- SSH remote hosts (for GPU or specialized environments)
-- Google Colab session workflows
-
-### 7.3 Tool Access in v1
-
-Student agents may use bounded tools to act like practical researchers:
-
-- browser navigation and web research
-- page reading and summarization
-- screenshot capture for evidence trails
-- code execution in assigned environments
-- Git operations on assigned repositories
-- LaTeX editing and build tooling for paper drafts
-- SKILL modules for specialized workflows (for example paper search, paper reading, and summarization)
-
-### 7.4 Provider and CLI Diversity (v1)
-
-The system must support agents from different companies and different CLIs in the same run.
-
-- Supported examples: OpenAI Codex (`codex`), Anthropic Claude Code (`claude_code`), Google Gemini CLI (`gemini`)
-- Mixed-provider agents can be scheduled concurrently.
-- Orchestration is provider-agnostic at the task-routing level.
-
-## 8. AI Research Workflow
-
-### 8.1 Standard Run Lifecycle
-
-1. Human submits goal and constraints.
-2. Professor creates plan and Student assignments.
-3. Kickoff Meeting confirms scope and timeline.
-4. Students execute in parallel with periodic updates.
-5. Mid-run Review adjusts priorities and methods.
-6. Students deliver artifacts and summaries.
-7. Final Synthesis Meeting produces final report.
-8. Human approves closure or requests another iteration.
-
-### 8.2 Paper Workflows (v1)
-
-Agents must be able to:
-
-- search for AI research papers
-- read and extract key claims, methods, and results
-- compare papers and identify agreement/conflict
-- produce concise summaries linked to source evidence
-- draft and revise scientific papers in LaTeX
-- support human coauthor edits and feedback cycles
-
-### 8.3 Repository Collaboration Workflows (v1)
-
-Agents must be able to:
-
-- operate in their own dedicated repositories
-- contribute to one or more shared repositories used by multiple agents
-- open and update branches/commits for transparent collaboration history
-- surface repository activity to the human researcher for review
-
-## 9. Deferred Capabilities (v2+)
-
-- automatic mental-map generation from paper corpora
-- citation graph mining and interactive concept maps
-- fully autonomous long-horizon project loops
-- benchmark-driven automatic agent specialization
-
-## 10. System Architecture (v1)
-
-### 10.1 Control Plane
-
-One local Node.js TypeScript process handles:
-
-- orchestration
-- agent runtime adapters
-- persistence
-- local API
-- local web interface
-- CLI
-
-### 10.2 Data Model
-
-SQLite stores:
-
-- projects
-- agent templates
-- agent instances
-- runs
-- tasks
-- chats (group/private)
-- meetings
-- events
-- approvals
-- telegram_threads
-- repositories
-- paper_drafts
-- skills
-- agent_skill_bindings
-
-Project configuration file stores:
-
-- runtime settings (`opencolab.force_mock_cli`, `telegram.bot_token`, `telegram.chat_id`)
-- agent templates
-- agent instances
-- persisted at `opencolab.json`
-
-Filesystem stores:
-
-- prompts
-- outputs
-- logs
-- artifacts
-- screenshots
-- meeting summaries
-- repository snapshots and patches
-- LaTeX manuscript sources and build outputs
-
-### 10.3 Suggested Repository Layout
-
-```txt
-opencolab/
-  src/
-    adapters/
-    orchestration/
-    collaboration/
-    skills/
-    web/
-  SKILLS/
-    <skill_name>/
-      SKILL.md
-      references/
-      scripts/
-      assets/
-  docs/
-    spec.md
-    VISION.md
-  opencolab.json
-  projects/
-    <project_name>/
-      memory.md
-      repos/
-        shared/
-          <repo_name>/
-        agents/
-          <agent_id>/
-            <repo_name>/
-      papers/
-        <paper_id>/
-          latex/
-          builds/
-      runs/
-        <run_id>/
-          prompts/
-          outputs/
-          logs/
-          artifacts/
-          screenshots/
-          chats/
-          meetings/
-  opencolab.db
-```
-
-## 11. Reliability and Safety Requirements
-
-- Human approval required at run checkpoints.
-- Every task execution has timeout and retry limits.
-- Restart-safe run state from SQLite.
-- Immutable event and chat logs for auditability.
-- Secrets only through environment variables.
-- Explicit workspace boundaries per agent instance.
-
-## 12. Control Surfaces
-
-### 12.1 CLI (Required)
+Required command groups:
 
 - `opencolab init`
-- `opencolab project create <name>`
-- `opencolab agent template add`
-- `opencolab agent instance add`
-- `opencolab run start --project <name> --goal "<text>"`
-- `opencolab run status <run_id>`
-- `opencolab run approve <run_id>`
-- `opencolab run pause <run_id>`
-- `opencolab run stop <run_id>`
-- `opencolab chat list <run_id>`
-- `opencolab chat view <chat_id>`
-- `opencolab meeting list <run_id>`
+- `opencolab setup model`
+- `opencolab setup telegram`
+- `opencolab setup telegram pair`
+- `opencolab agent`
 
-### 12.2 Local Web Interface (Required)
+### 7.1 CLI Responsibilities
 
-- manage agents and runtimes
-- monitor runs/tasks
-- inspect chats and meetings
-- review screenshots and artifacts
-- approve/pause/stop runs
+- collect and store Codex API key
+- collect Telegram bot configuration
+- start pairing and validate pairing code
+- show current configured agent and provider status
 
-### 12.3 Telegram Interface (Required for Human Access)
+## 8. Provider Constraint
 
-- human can read team updates and agent discussions
-- human can send instructions/questions to Professor and Students
-- messages are linked to run and meeting records for traceability
-- Telegram Bot API updates are accepted through a webhook endpoint on the local API service.
-- Webhook updates are restricted to the configured `TELEGRAM_CHAT_ID`.
-- Supported commands:
-  - `/help` and `/start`: show available commands
-  - `/agents`: list enabled agents available for direct Telegram interaction
-  - `/agent [agent_id]`: show or set active agent for this Telegram chat
-  - `/ask <agent_id> <message>`: send a direct question to a specific agent
-  - `/run <run_id>`: set active run for subsequent messages and commands
-  - `/status [run_id]`: show run status, approval state, and task summary
-  - `/approve [run_id]`: approve the run
-  - `/pause [run_id]`: pause the run
-  - `/stop [run_id]`: stop the run
-- Non-command text is recorded as a human Telegram message for the active run and mirrored to the run group chat log.
-- If an active agent is set for the chat, non-command text is routed as a direct prompt to that agent and the response is sent back to Telegram.
+v1 supports only Codex.
 
-## 13. Acceptance Criteria for v1
+Requirements:
 
-- At least 1 Professor and 3 Student agents can collaborate in one run.
-- Group chat and private chat both function with persisted logs.
-- Three meeting checkpoints are created and recorded per run.
-- Student tasks can run across local and at least one remote runtime (SSH or Colab adapter).
-- Each Student can use at least one dedicated GitHub repository.
-- Multiple agents can collaborate in at least one shared repository.
-- Human can view all run artifacts, chats, and decisions in CLI and web UI.
-- Human can access and communicate with the team through Telegram.
-- Agents from at least two different CLI ecosystems (for example Codex + Claude Code, or Claude Code + Gemini CLI) can run in parallel in one run.
-- At least one run uses a SKILL-enabled workflow for paper search or paper summarization.
-- AI paper search/read/summarize workflow completes with source-linked output.
-- Agents can generate a LaTeX paper draft that the human can edit and continue iterating.
+- provider identifier is fixed to `codex`
+- no `claude_code` or `gemini` adapters in scope for v1
+- agent runtime calls only Codex execution path
 
-## 14. Summary
+## 9. Configuration Persistence (`opencolab.json`)
 
-OpenColab v1 is a practical personal research power tool: a Professor-guided, Student-executed multi-agent lab with structured discussion, real execution environments, and strong human oversight.
+`opencolab.json` is the source of truth for local runtime configuration.
+
+It must store:
+
+- agent metadata
+- provider metadata (Codex)
+- Telegram settings
+- pairing state
+
+### 9.1 Minimum Shape
+
+```json
+{
+  "agent": {
+    "id": "research_agent",
+    "path": "agents/research_agent",
+    "files": {
+      "agents": "AGENTS.md",
+      "identity": "IDENTITY.md",
+      "soul": "SOUL.md",
+      "tools": "TOOLS.md",
+      "user": "USER.md"
+    }
+  },
+  "provider": {
+    "name": "codex",
+    "model": "<model-name>",
+    "apiKeyEnvVar": "OPENAI_API_KEY"
+  },
+  "telegram": {
+    "botTokenEnvVar": "TELEGRAM_BOT_TOKEN",
+    "chatId": "<telegram-chat-id>",
+    "paired": true,
+    "pairedAt": "2026-02-27T00:00:00.000Z"
+  }
+}
+```
+
+Notes:
+
+- Secrets should be loaded from environment variables, not stored as raw keys.
+- Additional fields are allowed if they do not violate this minimum contract.
+
+## 10. Message Handling Rules
+
+- If chat is unpaired: Gateway replies with pairing-required message.
+- If chat is paired: Gateway forwards message content to the Codex agent.
+- Agent response is sent back to the same Telegram chat.
+- System should log request/response metadata for local debugging.
+
+## 11. Non-Goals for This Version
+
+- multi-user support
+- multi-chat routing
+- autonomous background jobs
+- complex toolchains beyond the minimal agent prompt contract
+
+## 12. Acceptance Criteria
+
+v1 is complete when all are true:
+
+- A user can pair Telegram using a CLI-entered pairing code sent by OpenColab.
+- After pairing, user can chat with the single agent from Telegram.
+- Agent responses come from the Codex runtime path.
+- `opencolab.json` persists agent and provider information plus Telegram pairing state.
+- Agent directory includes `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `TOOLS.md`, and `USER.md`.
+

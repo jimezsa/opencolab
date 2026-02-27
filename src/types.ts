@@ -1,83 +1,57 @@
-export type Provider = "openai" | "anthropic" | "google";
-export type AgentRole = "professor" | "student" | "reviewer";
-export type IsolationMode = "host" | "docker";
-export type RunStatus =
-  | "created"
-  | "planning"
-  | "running"
-  | "review"
-  | "waiting_approval"
-  | "approved"
-  | "paused"
-  | "stopped"
-  | "completed"
-  | "failed";
+export interface AgentFiles {
+  agents: string;
+  identity: string;
+  soul: string;
+  tools: string;
+  user: string;
+}
 
-export type TaskStatus = "queued" | "running" | "ok" | "error" | "timeout";
+export interface AgentConfig {
+  id: string;
+  path: string;
+  files: AgentFiles;
+}
 
-export type ApprovalStatus = "pending" | "approved" | "rejected";
-
-export type MeetingType = "kickoff" | "mid_run" | "final_synthesis";
-
-export type EventType =
-  | "run.created"
-  | "run.status_changed"
-  | "plan.created"
-  | "task.created"
-  | "task.started"
-  | "task.completed"
-  | "task.failed"
-  | "review.completed"
-  | "approval.requested"
-  | "approval.updated"
-  | "chat.message"
-  | "meeting.created"
-  | "telegram.message"
-  | "paper.updated";
-
-export interface AgentTemplate {
-  templateId: string;
-  provider: Provider;
+export interface ProviderConfig {
+  name: "codex";
+  model: string;
+  apiKeyEnvVar: string;
   cliCommand: string;
-  defaultArgs: string[];
-  defaultEnv: Record<string, string>;
+  cliArgs: string[];
 }
 
-export interface AgentInstance {
-  agentId: string;
-  templateId: string;
-  role: AgentRole;
-  workspacePath: string;
-  maxRuntimeSec: number;
-  retryLimit: number;
-  isolationMode: IsolationMode;
-  enabled: boolean;
+export interface TelegramConfig {
+  botTokenEnvVar: string;
+  chatId: string | null;
+  paired: boolean;
+  pairedAt: string | null;
+  pendingPairingCode: string | null;
+  pendingPairingExpiresAt: string | null;
 }
 
-export interface AgentInput {
-  runId: string;
-  taskId: string;
-  prompt: string;
-  workspacePath: string;
-  contextFiles: string[];
+export interface OpenColabState {
+  version: 1;
+  updatedAt: string;
+  agent: AgentConfig;
+  provider: ProviderConfig;
+  telegram: TelegramConfig;
 }
 
-export interface AgentOutput {
-  status: "ok" | "error" | "timeout";
-  stdout: string;
-  stderr: string;
-  outputFiles: string[];
-  startedAt: string;
-  finishedAt: string;
-  exitCode: number | null;
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+  at: string;
 }
 
-export interface RunStartInput {
-  projectName: string;
-  goal: string;
+export interface TelegramInbound {
+  chatId: string;
+  sender: string;
+  text: string;
 }
 
-export interface PlannedTask {
-  title: string;
-  prompt: string;
+export interface GatewayResult {
+  ok: boolean;
+  action: "ignored" | "unauthorized_chat" | "pairing_required" | "agent_response";
+  response: string;
+  sent: boolean;
 }

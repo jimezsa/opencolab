@@ -3,35 +3,26 @@ import path from "node:path";
 
 export interface OpenColabConfig {
   rootDir: string;
-  dbPath: string;
   projectConfigPath: string;
-  projectsDir: string;
-  skillsDir: string;
-  globalConcurrency: number;
+  stateDir: string;
+  conversationsDir: string;
   localApiPort: number;
-  telegramBotToken: string | null;
-  telegramChatId: string | null;
-  mockCliOnMissing: boolean;
-  forceMockCli: boolean;
-  setupStatePath: string;
+  forceMockCodex: boolean;
+  codexTimeoutMs: number;
 }
 
 export function loadConfig(cwd = process.cwd()): OpenColabConfig {
   const rootDir = cwd;
   loadLocalEnv(rootDir);
+
   return {
     rootDir,
-    dbPath: path.join(rootDir, "opencolab.db"),
     projectConfigPath: path.join(rootDir, "opencolab.json"),
-    projectsDir: path.join(rootDir, "projects"),
-    skillsDir: path.join(rootDir, "SKILLS"),
-    globalConcurrency: Number(process.env.OPENCOLAB_GLOBAL_CONCURRENCY ?? "4"),
+    stateDir: path.join(rootDir, ".opencolab"),
+    conversationsDir: path.join(rootDir, ".opencolab", "conversations"),
     localApiPort: Number(process.env.OPENCOLAB_PORT ?? "4646"),
-    telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? null,
-    telegramChatId: process.env.TELEGRAM_CHAT_ID ?? null,
-    mockCliOnMissing: (process.env.OPENCOLAB_MOCK_CLI_ON_MISSING ?? "1") !== "0",
-    forceMockCli: (process.env.OPENCOLAB_FORCE_MOCK_CLI ?? "1") !== "0",
-    setupStatePath: path.join(rootDir, ".opencolab", "setup.json")
+    forceMockCodex: (process.env.OPENCOLAB_FORCE_MOCK_CLI ?? "1") !== "0",
+    codexTimeoutMs: Number(process.env.OPENCOLAB_CODEX_TIMEOUT_MS ?? "120000")
   };
 }
 
@@ -48,15 +39,16 @@ function loadLocalEnv(rootDir: string): void {
       continue;
     }
 
-    const index = line.indexOf("=");
-    if (index <= 0) {
+    const separator = line.indexOf("=");
+    if (separator < 1) {
       continue;
     }
 
-    const key = line.slice(0, index).trim();
-    let value = line.slice(index + 1).trim();
+    const key = line.slice(0, separator).trim();
+    let value = line.slice(separator + 1).trim();
+
     if (
-      (value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith('"') && value.endsWith('"')) ||
       (value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1);

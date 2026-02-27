@@ -4,53 +4,56 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { loadConfig } from "../src/config.js";
-import { openDb, setSetting } from "../src/db.js";
-import {
-  ensureProjectConfiguration,
-  getProjectSetting,
-  setProjectSetting
-} from "../src/project-config.js";
+import { readProjectState, updateProjectState } from "../src/project-config.js";
 
-test("project settings are persisted in opencolab.json", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-settings-test-"));
+test("project state defaults to single codex agent contract", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-default-"));
 
   try {
     const config = loadConfig(tempDir);
-    const db = openDb(config);
-    try {
-      ensureProjectConfiguration(config, db);
-      setProjectSetting(config, "telegram.bot_token", "token_abc123");
-      setProjectSetting(config, "opencolab.force_mock_cli", "0");
+    const state = readProjectState(config);
 
-      assert.equal(getProjectSetting(config, "telegram.bot_token"), "token_abc123");
-      assert.equal(getProjectSetting(config, "opencolab.force_mock_cli"), "0");
-      assert.equal(fs.existsSync(config.projectConfigPath), true);
-    } finally {
-      db.close();
-    }
+    assert.equal(state.agent.id, "research_agent");
+    assert.equal(state.agent.files.agents, "AGENTS.md");
+    assert.equal(state.agent.files.identity, "IDENTITY.md");
+    assert.equal(state.agent.files.soul, "SOUL.md");
+    assert.equal(state.agent.files.tools, "TOOLS.md");
+    assert.equal(state.agent.files.user, "USER.md");
+
+    assert.equal(state.provider.name, "codex");
+    assert.equal(state.provider.apiKeyEnvVar, "OPENAI_API_KEY");
+    assert.equal(state.telegram.paired, false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
-test("project settings migrate from opencolab.db on first run", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-settings-migrate-test-"));
+test("project state persists updates in opencolab.json", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-persist-"));
 
   try {
     const config = loadConfig(tempDir);
-    const db = openDb(config);
-    try {
-      setSetting(db, "telegram.bot_token", "legacy_token");
-      setSetting(db, "telegram.chat_id", "10001");
-      setSetting(db, "opencolab.force_mock_cli", "0");
 
-      const projectConfig = ensureProjectConfiguration(config, db);
-      assert.equal(projectConfig.settings["telegram.bot_token"], "legacy_token");
-      assert.equal(projectConfig.settings["telegram.chat_id"], "10001");
-      assert.equal(projectConfig.settings["opencolab.force_mock_cli"], "0");
-    } finally {
-      db.close();
-    }
+    updateProjectState(config, (current) => ({
+      ...current,
+      provider: {
+        ...current.provider,
+        model: "gpt-5-research"
+      },
+      telegram: {
+        ...current.telegram,
+        chatId: "10001",
+        paired: true,
+        pairedAt: "2026-02-27T00:00:00.000Z"
+      }
+    }));
+
+    const loaded = readProjectState(config);
+
+    assert.equal(loaded.provider.model, "gpt-5-research");
+    assert.equal(loaded.telegram.chatId, "10001");
+    assert.equal(loaded.telegram.paired, true);
+    assert.equal(fs.existsSync(config.projectConfigPath), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

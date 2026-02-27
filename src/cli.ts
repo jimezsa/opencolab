@@ -1,70 +1,62 @@
 #!/usr/bin/env node
-import path from "node:path";
-import { createRuntime } from "./runtime.js";
 import { startHttpServer } from "./http.js";
-import { loadConfig } from "./config.js";
-import { isSetupCompleted, runSetupWizard } from "./setup.js";
+import { createRuntime } from "./runtime.js";
 
 function parseFlags(args: string[]): { values: Record<string, string>; positionals: string[] } {
   const values: Record<string, string> = {};
   const positionals: string[] = [];
 
-  for (let i = 0; i < args.length; i += 1) {
-    const value = args[i];
-    if (value.startsWith("--")) {
-      const key = value.slice(2);
-      const next = args[i + 1];
-      if (!next || next.startsWith("--")) {
-        values[key] = "true";
-      } else {
-        values[key] = next;
-        i += 1;
-      }
-    } else {
-      positionals.push(value);
+  for (let index = 0; index < args.length; index += 1) {
+    const current = args[index];
+
+    if (!current.startsWith("--")) {
+      positionals.push(current);
+      continue;
     }
+
+    const key = current.slice(2);
+    const next = args[index + 1];
+
+    if (!next || next.startsWith("--")) {
+      values[key] = "true";
+      continue;
+    }
+
+    values[key] = next;
+    index += 1;
   }
 
   return { values, positionals };
 }
 
-function parseEnvFlags(raw: string): Record<string, string> {
-  if (!raw) {
-    return {};
+function parseCsv(value: string | undefined): string[] {
+  if (!value) {
+    return [];
   }
 
-  const out: Record<string, string> = {};
-  for (const pair of raw.split(",")) {
-    const [key, ...rest] = pair.split("=");
-    if (!key || rest.length === 0) {
-      continue;
-    }
-    out[key.trim()] = rest.join("=").trim();
-  }
-  return out;
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function usage(): string {
   return [
-    "OpenColab CLI",
+    "OpenColab CLI (minimal v1)",
     "",
     "Commands:",
-    "  opencolab setup",
     "  opencolab init",
-    "  opencolab project create <name>",
-    "  opencolab agent template add --template-id <id> --provider <openai|anthropic|google> --cli-command <cmd> [--default-args \"a,b\"] [--default-env \"KEY=V,KEY2=V2\"]",
-    "  opencolab agent instance add --agent-id <id> --template-id <id> --role <professor|student|reviewer> [--workspace <path>] [--max-runtime-sec 300] [--retry-limit 1]",
-    "  opencolab agent list",
-    "  opencolab run start --project <name> --goal <text>",
-    "  opencolab run status <run_id>",
-    "  opencolab run approve <run_id>",
-    "  opencolab run pause <run_id>",
-    "  opencolab run stop <run_id>",
-    "  opencolab chat list <run_id>",
-    "  opencolab chat view <chat_id>",
-    "  opencolab meeting list <run_id>",
-    "  opencolab skill sync",
-    "  opencolab web start [--port 4646]"
+    "  opencolab setup model [--model gpt-5] [--api-key-env-var OPENAI_API_KEY] [--cli-command codex] [--cli-args 'exec,-']",
+    "  opencolab setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
+    "  opencolab setup telegram pair start",
+    "  opencolab setup telegram pair complete --code <pairing_code>",
+    "  opencolab agent init [--agent-id research_agent] [--path agents/research_agent]",
+    "  opencolab agent show",
+    "  opencolab gateway start [--port 4646]",
+    "",
+    "Notes:",
+    "  - v1 uses one Codex-backed agent.",
+    "  - Pairing code is sent to Telegram and must be entered in CLI."
   ].join("\n");
 }
 
@@ -74,191 +66,104 @@ async function main(): Promise<void> {
 
   if (!command || command === "help" || command === "--help") {
     console.log(usage());
-    if (!isSetupCompleted()) {
-      console.log("\nTip: run 'opencolab setup' for guided first-time configuration.");
-    }
     return;
   }
 
-  if (command === "setup") {
-    await runSetupWizard();
-    return;
-  }
-
-  if (command === "web" && subcommand === "start") {
+  if ((command === "gateway" || command === "web") && subcommand === "start") {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
-    const config = loadConfig();
-    const port = Number(values.port ?? config.localApiPort);
+    const port = Number(values.port ?? "4646");
     startHttpServer(port);
     return;
   }
 
   const runtime = createRuntime();
-  const { orchestrator, close } = runtime;
+  runtime.init();
 
-  try {
-    if (command === "init") {
-      orchestrator.init();
-      console.log("OpenColab initialized.");
-      if (!isSetupCompleted()) {
-        console.log("Run 'opencolab setup' for guided provider keys, models, and Telegram setup.");
-      }
-      return;
-    }
-
-    if (command === "project" && subcommand === "create") {
-      const projectName = action;
-      if (!projectName) {
-        throw new Error("project name is required");
-      }
-      orchestrator.createProject(projectName);
-      console.log(`Project created: ${projectName}`);
-      return;
-    }
-
-    if (command === "agent" && subcommand === "template" && action === "add") {
-      const { values } = parseFlags(rest);
-      const templateId = values["template-id"];
-      const provider = values.provider as "openai" | "anthropic" | "google" | undefined;
-      const cliCommand = values["cli-command"];
-
-      if (!templateId || !provider || !cliCommand) {
-        throw new Error("--template-id, --provider, and --cli-command are required");
-      }
-
-      orchestrator.addAgentTemplate({
-        templateId,
-        provider,
-        cliCommand,
-        defaultArgs: (values["default-args"] ?? "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
-        defaultEnv: parseEnvFlags(values["default-env"] ?? "")
-      });
-      console.log(`Agent template saved: ${templateId}`);
-      return;
-    }
-
-    if (command === "agent" && subcommand === "instance" && action === "add") {
-      const { values } = parseFlags(rest);
-      const agentId = values["agent-id"];
-      const templateId = values["template-id"];
-      const role = values.role as "professor" | "student" | "reviewer" | undefined;
-
-      if (!agentId || !templateId || !role) {
-        throw new Error("--agent-id, --template-id, and --role are required");
-      }
-
-      const workspace =
-        values.workspace ?? path.join(process.cwd(), "projects", "_default", "agents", agentId);
-
-      orchestrator.addAgentInstance({
-        agentId,
-        templateId,
-        role,
-        workspacePath: workspace,
-        maxRuntimeSec: Number(values["max-runtime-sec"] ?? "300"),
-        retryLimit: Number(values["retry-limit"] ?? "1"),
-        isolationMode: (values["isolation-mode"] as "host" | "docker" | undefined) ?? "host",
-        enabled: values.enabled !== "false"
-      });
-
-      console.log(`Agent instance saved: ${agentId}`);
-      return;
-    }
-
-    if (command === "agent" && subcommand === "list") {
-      console.log(JSON.stringify(orchestrator.listAgentInstances(), null, 2));
-      return;
-    }
-
-    if (command === "run" && subcommand === "start") {
-      const { values } = parseFlags([action, ...rest].filter(Boolean));
-      const projectName = values.project;
-      const goal = values.goal;
-
-      if (!projectName || !goal) {
-        throw new Error("--project and --goal are required");
-      }
-
-      const result = await orchestrator.startRun({
-        projectName,
-        goal
-      });
-
-      console.log(JSON.stringify(result, null, 2));
-      return;
-    }
-
-    if (command === "run" && subcommand === "status") {
-      if (!action) {
-        throw new Error("run id is required");
-      }
-      console.log(JSON.stringify(orchestrator.getRunStatus(action), null, 2));
-      return;
-    }
-
-    if (command === "run" && subcommand === "approve") {
-      if (!action) {
-        throw new Error("run id is required");
-      }
-      orchestrator.approveRun(action);
-      console.log(`Run approved: ${action}`);
-      return;
-    }
-
-    if (command === "run" && subcommand === "pause") {
-      if (!action) {
-        throw new Error("run id is required");
-      }
-      orchestrator.pauseRun(action);
-      console.log(`Run paused: ${action}`);
-      return;
-    }
-
-    if (command === "run" && subcommand === "stop") {
-      if (!action) {
-        throw new Error("run id is required");
-      }
-      orchestrator.stopRun(action);
-      console.log(`Run stopped: ${action}`);
-      return;
-    }
-
-    if (command === "chat" && subcommand === "list") {
-      if (!action) {
-        throw new Error("run id is required");
-      }
-      console.log(JSON.stringify(orchestrator.listChats(action), null, 2));
-      return;
-    }
-
-    if (command === "chat" && subcommand === "view") {
-      if (!action) {
-        throw new Error("chat id is required");
-      }
-      console.log(JSON.stringify(orchestrator.viewChat(action), null, 2));
-      return;
-    }
-
-    if (command === "meeting" && subcommand === "list") {
-      if (!action) {
-        throw new Error("run id is required");
-      }
-      console.log(JSON.stringify(orchestrator.listMeetings(action), null, 2));
-      return;
-    }
-
-    if (command === "skill" && subcommand === "sync") {
-      console.log(JSON.stringify(orchestrator.syncSkills(), null, 2));
-      return;
-    }
-
-    throw new Error(`Unknown command: ${argv.join(" ")}`);
-  } finally {
-    close();
+  if (command === "init") {
+    const state = runtime.getState();
+    console.log(`Initialized OpenColab at ${runtime.config.projectConfigPath}`);
+    console.log(`Agent: ${state.agent.id} (${state.agent.path})`);
+    return;
   }
+
+  if (command === "setup" && subcommand === "model") {
+    const { values } = parseFlags([action, ...rest].filter(Boolean));
+    const state = runtime.setupModel({
+      model: values.model ?? "gpt-5",
+      apiKeyEnvVar: values["api-key-env-var"] ?? "OPENAI_API_KEY",
+      cliCommand: values["cli-command"] ?? "codex",
+      cliArgs: parseCsv(values["cli-args"] ?? "exec,-")
+    });
+
+    console.log(`Provider configured: ${state.provider.name}`);
+    console.log(`Model: ${state.provider.model}`);
+    console.log(`API key env var: ${state.provider.apiKeyEnvVar}`);
+    console.log(`CLI: ${state.provider.cliCommand} ${state.provider.cliArgs.join(" ")}`);
+    return;
+  }
+
+  if (command === "setup" && subcommand === "telegram" && action !== "pair") {
+    const { values } = parseFlags([action, ...rest].filter(Boolean));
+    const chatId = values["chat-id"];
+
+    if (!chatId) {
+      throw new Error("--chat-id is required");
+    }
+
+    const state = runtime.setupTelegram({
+      botTokenEnvVar: values["bot-token-env-var"] ?? "TELEGRAM_BOT_TOKEN",
+      chatId
+    });
+
+    console.log("Telegram configured.");
+    console.log(`Chat ID: ${state.telegram.chatId}`);
+    console.log(`Bot token env var: ${state.telegram.botTokenEnvVar}`);
+    console.log("Run 'opencolab setup telegram pair start' to begin pairing.");
+    return;
+  }
+
+  if (command === "setup" && subcommand === "telegram" && action === "pair") {
+    const pairAction = rest[0];
+
+    if (pairAction === "start") {
+      const result = await runtime.startPairing();
+      console.log(`Pairing code sent to Telegram (expires ${result.expiresAt}).`);
+      console.log(`Enter in CLI: opencolab setup telegram pair complete --code ${result.code}`);
+      return;
+    }
+
+    if (pairAction === "complete") {
+      const { values } = parseFlags(rest.slice(1));
+      const code = values.code;
+      if (!code) {
+        throw new Error("--code is required");
+      }
+
+      const result = runtime.completePairing(code);
+      console.log(`Telegram pairing completed at ${result.pairedAt}`);
+      return;
+    }
+
+    throw new Error("Unknown pairing command. Use 'start' or 'complete --code <value>'.");
+  }
+
+  if (command === "agent" && subcommand === "init") {
+    const { values } = parseFlags([action, ...rest].filter(Boolean));
+    const agentId = values["agent-id"] ?? "research_agent";
+    const agentPath = values.path ?? "agents/research_agent";
+
+    const state = runtime.configureAgent(agentId, agentPath);
+    console.log(`Agent configured: ${state.agent.id}`);
+    console.log(`Agent path: ${state.agent.path}`);
+    return;
+  }
+
+  if (command === "agent" && subcommand === "show") {
+    console.log(JSON.stringify(runtime.getState().agent, null, 2));
+    return;
+  }
+
+  throw new Error(`Unknown command: ${argv.join(" ")}`);
 }
 
 main().catch((error) => {
