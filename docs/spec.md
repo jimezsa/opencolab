@@ -312,6 +312,16 @@ opencolab/
 - human can read team updates and agent discussions
 - human can send instructions/questions to Professor and Students
 - messages are linked to run and meeting records for traceability
+- Telegram Bot API updates are accepted through a webhook endpoint on the local API service.
+- Webhook updates are restricted to the configured `TELEGRAM_CHAT_ID`.
+- Supported commands:
+  - `/help` and `/start`: show available commands
+  - `/run <run_id>`: set active run for subsequent messages and commands
+  - `/status [run_id]`: show run status, approval state, and task summary
+  - `/approve [run_id]`: approve the run
+  - `/pause [run_id]`: pause the run
+  - `/stop [run_id]`: stop the run
+- Non-command text is recorded as a human Telegram message for the active run and mirrored to the run group chat log.
 
 ## 13. Acceptance Criteria for v1
 

@@ -115,6 +115,23 @@ export function startHttpServer(port = loadConfig().localApiPort): void {
         return;
       }
 
+      if (method === "POST" && pathname === "/api/telegram/webhook") {
+        const body = await readJson(request);
+        const inbound = parseTelegramWebhookPayload(body);
+        if (!inbound) {
+          sendJson(response, 200, { ok: true, ignored: true });
+          return;
+        }
+
+        const result = await orchestrator.handleTelegramWebhookMessage(
+          inbound.chatId,
+          inbound.sender,
+          inbound.text
+        );
+        sendJson(response, 200, result);
+        return;
+      }
+
       sendText(response, 404, "Not found");
     } catch (error) {
       sendJson(response, 500, {
@@ -137,4 +154,64 @@ export function startHttpServer(port = loadConfig().localApiPort): void {
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+}
+
+function parseTelegramWebhookPayload(
+  body: Record<string, unknown>
+): { chatId: string; sender: string; text: string } | null {
+  const message = asRecord(body.message) ?? asRecord(body.edited_message);
+  if (!message) {
+    return null;
+  }
+
+  const text = String(message.text ?? "").trim();
+  if (!text) {
+    return null;
+  }
+
+  const chat = asRecord(message.chat);
+  if (!chat || chat.id === undefined || chat.id === null) {
+    return null;
+  }
+
+  const from = asRecord(message.from);
+  const sender = formatTelegramSender(from);
+
+  return {
+    chatId: String(chat.id),
+    sender,
+    text
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function formatTelegramSender(from: Record<string, unknown> | null): string {
+  if (!from) {
+    return "human";
+  }
+
+  const username = String(from.username ?? "").trim();
+  if (username) {
+    return username;
+  }
+
+  const firstName = String(from.first_name ?? "").trim();
+  const lastName = String(from.last_name ?? "").trim();
+  const fullName = `${firstName} ${lastName}`.trim();
+  if (fullName) {
+    return fullName;
+  }
+
+  const id = String(from.id ?? "").trim();
+  if (id) {
+    return `telegram_user_${id}`;
+  }
+
+  return "human";
 }

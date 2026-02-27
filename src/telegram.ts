@@ -13,8 +13,20 @@ export class TelegramBridge {
     return Boolean(this.config.telegramBotToken && this.config.telegramChatId);
   }
 
-  ensureThread(runId: string): string | null {
+  hasConfiguredChat(): boolean {
+    return Boolean(this.config.telegramChatId);
+  }
+
+  isAllowedChat(chatId: string): boolean {
     if (!this.config.telegramChatId) {
+      return false;
+    }
+    return String(this.config.telegramChatId) === String(chatId);
+  }
+
+  ensureThread(runId: string, chatId?: string): string | null {
+    const resolvedChatId = this.resolveChatId(chatId);
+    if (!resolvedChatId) {
       return null;
     }
 
@@ -24,7 +36,7 @@ export class TelegramBridge {
        WHERE run_id = :run_id AND telegram_chat_id = :telegram_chat_id`,
       {
         run_id: runId,
-        telegram_chat_id: this.config.telegramChatId
+        telegram_chat_id: resolvedChatId
       }
     );
 
@@ -39,7 +51,7 @@ export class TelegramBridge {
       {
         thread_id: threadId,
         run_id: runId,
-        telegram_chat_id: this.config.telegramChatId,
+        telegram_chat_id: resolvedChatId,
         last_message_at: null,
         created_at: nowIso()
       }
@@ -47,63 +59,131 @@ export class TelegramBridge {
     return threadId;
   }
 
+  getLatestRunForChat(chatId?: string): string | null {
+    const resolvedChatId = this.resolveChatId(chatId);
+    if (!resolvedChatId) {
+      return null;
+    }
+
+    const row = this.db.get<{ run_id: string }>(
+      `SELECT run_id
+       FROM telegram_threads
+       WHERE telegram_chat_id = :telegram_chat_id
+         AND run_id IS NOT NULL
+       ORDER BY COALESCE(last_message_at, created_at) DESC
+       LIMIT 1`,
+      {
+        telegram_chat_id: resolvedChatId
+      }
+    );
+
+    return row?.run_id ?? null;
+  }
+
+  activateRun(runId: string, chatId?: string): void {
+    const resolvedChatId = this.resolveChatId(chatId);
+    if (!resolvedChatId) {
+      return;
+    }
+
+    this.ensureThread(runId, resolvedChatId);
+    this.db.run(
+      `UPDATE telegram_threads
+       SET last_message_at = :last_message_at
+       WHERE run_id = :run_id AND telegram_chat_id = :telegram_chat_id`,
+      {
+        run_id: runId,
+        telegram_chat_id: resolvedChatId,
+        last_message_at: nowIso()
+      }
+    );
+  }
+
+  async sendMessage(chatId: string, text: string, runId?: string): Promise<boolean> {
+    const token = this.config.telegramBotToken;
+    if (!token) {
+      return false;
+    }
+
+    if (runId) {
+      this.ensureThread(runId, chatId);
+    }
+
+    let ok = false;
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text
+        })
+      });
+      ok = response.ok;
+    } catch {
+      ok = false;
+    }
+
+    if (runId) {
+      this.db.run(
+        `UPDATE telegram_threads
+         SET last_message_at = :last_message_at
+         WHERE run_id = :run_id AND telegram_chat_id = :telegram_chat_id`,
+        {
+          run_id: runId,
+          telegram_chat_id: chatId,
+          last_message_at: nowIso()
+        }
+      );
+
+      recordEvent(this.db, runId, "telegram.message", {
+        direction: "outbound",
+        ok,
+        text
+      });
+    }
+
+    return ok;
+  }
+
   async sendRunUpdate(runId: string, text: string): Promise<boolean> {
     if (!this.isConfigured()) {
       return false;
     }
 
-    const chatId = this.config.telegramChatId as string;
-    const token = this.config.telegramBotToken as string;
-    this.ensureThread(runId);
-
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text
-      })
-    });
-
-    const ok = response.ok;
-    const now = nowIso();
-    this.db.run(
-      `UPDATE telegram_threads
-       SET last_message_at = :last_message_at
-       WHERE run_id = :run_id AND telegram_chat_id = :telegram_chat_id`,
-      {
-        run_id: runId,
-        telegram_chat_id: chatId,
-        last_message_at: now
-      }
-    );
-
-    recordEvent(this.db, runId, "telegram.message", {
-      direction: "outbound",
-      ok,
-      text
-    });
-
-    return ok;
+    return this.sendMessage(this.config.telegramChatId as string, text, runId);
   }
 
-  recordInbound(runId: string, sender: string, text: string): void {
-    this.ensureThread(runId);
-    this.db.run(
-      `UPDATE telegram_threads
-       SET last_message_at = :last_message_at
-       WHERE run_id = :run_id AND telegram_chat_id = :telegram_chat_id`,
-      {
-        run_id: runId,
-        telegram_chat_id: this.config.telegramChatId,
-        last_message_at: nowIso()
-      }
-    );
+  recordInbound(runId: string, sender: string, text: string, chatId?: string): void {
+    const resolvedChatId = this.resolveChatId(chatId);
+    if (resolvedChatId) {
+      this.ensureThread(runId, resolvedChatId);
+      this.db.run(
+        `UPDATE telegram_threads
+         SET last_message_at = :last_message_at
+         WHERE run_id = :run_id AND telegram_chat_id = :telegram_chat_id`,
+        {
+          run_id: runId,
+          telegram_chat_id: resolvedChatId,
+          last_message_at: nowIso()
+        }
+      );
+    }
 
     recordEvent(this.db, runId, "telegram.message", {
       direction: "inbound",
       sender,
       text
     });
+  }
+
+  private resolveChatId(chatId?: string): string | null {
+    if (chatId) {
+      return chatId;
+    }
+    if (this.config.telegramChatId) {
+      return String(this.config.telegramChatId);
+    }
+    return null;
   }
 }

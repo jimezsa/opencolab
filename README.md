@@ -105,6 +105,27 @@ Run local web control UI:
 node dist/src/cli.js web start --port 4646
 ```
 
+## Telegram Bridge
+
+After running `setup` with `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, point Telegram to the local API webhook:
+
+```bash
+curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<your-public-url>/api/telegram/webhook"
+```
+
+If OpenColab is running locally, expose `http://127.0.0.1:4646` through a tunnel (for example `ngrok`) and use that public URL.
+
+Supported Telegram commands:
+
+- `/help` or `/start`
+- `/run <run_id>` to set active run
+- `/status [run_id]`
+- `/approve [run_id]`
+- `/pause [run_id]`
+- `/stop [run_id]`
+
+Plain text messages are recorded as human input for the active run and mirrored to the run group chat log.
+
 By default, v1 runs agent tasks in deterministic mock mode so the workflow works without installed CLIs.
 Set `OPENCOLAB_FORCE_MOCK_CLI=0` to execute real CLI commands.
 

@@ -46,6 +46,13 @@ interface TaskRow {
   updated_at: string;
 }
 
+type TelegramCommand = "help" | "run" | "status" | "approve" | "pause" | "stop";
+
+interface ParsedTelegramCommand {
+  command: TelegramCommand;
+  arg: string | null;
+}
+
 export class Orchestrator {
   private readonly registry: AgentRegistry;
   private readonly runner: AgentRunner;
@@ -500,8 +507,145 @@ export class Orchestrator {
     return this.chats.addMessage(chatId, sender, content);
   }
 
-  recordTelegramInbound(runId: string, sender: string, text: string): void {
-    this.telegram.recordInbound(runId, sender, text);
+  recordTelegramInbound(runId: string, sender: string, text: string, chatId?: string): void {
+    this.telegram.recordInbound(runId, sender, text, chatId);
+    this.appendTelegramToGroupChat(runId, sender, text);
+  }
+
+  async handleTelegramWebhookMessage(
+    chatId: string,
+    sender: string,
+    text: string
+  ): Promise<{ ok: boolean; action: string; runId: string | null; response: string }> {
+    const incomingText = text.trim();
+    const normalizedSender = sender.trim() || "human";
+
+    if (!incomingText) {
+      return {
+        ok: false,
+        action: "ignored",
+        runId: null,
+        response: "Ignored empty Telegram message."
+      };
+    }
+
+    if (!this.telegram.hasConfiguredChat()) {
+      return {
+        ok: false,
+        action: "not_configured",
+        runId: null,
+        response: "Telegram chat is not configured. Run setup and configure TELEGRAM_CHAT_ID."
+      };
+    }
+
+    if (!this.telegram.isAllowedChat(chatId)) {
+      return {
+        ok: false,
+        action: "unauthorized_chat",
+        runId: null,
+        response: "Ignored Telegram message from unauthorized chat."
+      };
+    }
+
+    const parsed = parseTelegramCommand(incomingText);
+    if (!parsed) {
+      const runId = this.telegram.getLatestRunForChat(chatId);
+      if (!runId) {
+        const response =
+          "No active run is linked to this chat. Use /run <run_id> first, then send your message.";
+        await this.telegram.sendMessage(chatId, response);
+        return { ok: false, action: "no_active_run", runId: null, response };
+      }
+
+      if (!this.runExists(runId)) {
+        const response = `Run not found: ${runId}. Link a valid run with /run <run_id>.`;
+        await this.telegram.sendMessage(chatId, response);
+        return { ok: false, action: "run_not_found", runId, response };
+      }
+
+      this.recordTelegramInbound(runId, normalizedSender, incomingText, chatId);
+      const response = `Recorded message for ${runId}.`;
+      await this.telegram.sendMessage(chatId, response, runId);
+      return { ok: true, action: "message_recorded", runId, response };
+    }
+
+    if (parsed.command === "help") {
+      const response = telegramHelpText();
+      await this.telegram.sendMessage(chatId, response);
+      return { ok: true, action: "help", runId: null, response };
+    }
+
+    if (parsed.command === "run") {
+      if (!parsed.arg) {
+        const activeRunId = this.telegram.getLatestRunForChat(chatId);
+        const response = activeRunId
+          ? `Active run: ${activeRunId}`
+          : "No active run. Use /run <run_id>.";
+        await this.telegram.sendMessage(chatId, response, activeRunId ?? undefined);
+        return { ok: Boolean(activeRunId), action: "run_show", runId: activeRunId, response };
+      }
+
+      const runId = parsed.arg;
+      if (!this.runExists(runId)) {
+        const response = `Run not found: ${runId}`;
+        await this.telegram.sendMessage(chatId, response);
+        return { ok: false, action: "run_not_found", runId, response };
+      }
+
+      this.telegram.activateRun(runId, chatId);
+      this.recordTelegramInbound(runId, normalizedSender, incomingText, chatId);
+      const response = `Active run set to ${runId}.`;
+      await this.telegram.sendMessage(chatId, response, runId);
+      return { ok: true, action: "run_set", runId, response };
+    }
+
+    const runId = parsed.arg ?? this.telegram.getLatestRunForChat(chatId);
+    if (!runId) {
+      const response = "No active run. Use /run <run_id> first.";
+      await this.telegram.sendMessage(chatId, response);
+      return { ok: false, action: "no_active_run", runId: null, response };
+    }
+
+    if (!this.runExists(runId)) {
+      const response = `Run not found: ${runId}`;
+      await this.telegram.sendMessage(chatId, response);
+      return { ok: false, action: "run_not_found", runId, response };
+    }
+
+    this.telegram.activateRun(runId, chatId);
+    this.recordTelegramInbound(runId, normalizedSender, incomingText, chatId);
+
+    if (parsed.command === "status") {
+      const status = this.getRunStatus(runId);
+      const tasksByStatus = summarizeTasks(status.tasks);
+      const response = [
+        `Run ${runId}`,
+        `status: ${status.run.status}`,
+        `approval: ${status.approval?.status ?? "none"}`,
+        `tasks: ${status.tasks.length} (${tasksByStatus})`
+      ].join("\n");
+      await this.telegram.sendMessage(chatId, response, runId);
+      return { ok: true, action: "status", runId, response };
+    }
+
+    if (parsed.command === "approve") {
+      this.approveRun(runId);
+      const response = `Approved run ${runId}.`;
+      await this.telegram.sendMessage(chatId, response, runId);
+      return { ok: true, action: "approve", runId, response };
+    }
+
+    if (parsed.command === "pause") {
+      this.pauseRun(runId);
+      const response = `Paused run ${runId}.`;
+      await this.telegram.sendMessage(chatId, response, runId);
+      return { ok: true, action: "pause", runId, response };
+    }
+
+    this.stopRun(runId);
+    const response = `Stopped run ${runId}.`;
+    await this.telegram.sendMessage(chatId, response, runId);
+    return { ok: true, action: "stop", runId, response };
   }
 
   syncSkills(): Array<{ skillName: string; path: string; description: string | null }> {
@@ -548,6 +692,92 @@ export class Orchestrator {
       combined
     ].join("\n");
   }
+
+  private runExists(runId: string): boolean {
+    const row = this.db.get<{ run_id: string }>(
+      `SELECT run_id
+       FROM runs
+       WHERE run_id = :run_id`,
+      { run_id: runId }
+    );
+    return Boolean(row);
+  }
+
+  private appendTelegramToGroupChat(runId: string, sender: string, text: string): void {
+    const groupChat = this.db.get<{ chat_id: string }>(
+      `SELECT chat_id
+       FROM chats
+       WHERE run_id = :run_id AND kind = :kind
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      {
+        run_id: runId,
+        kind: "group"
+      }
+    );
+
+    if (!groupChat) {
+      return;
+    }
+
+    this.chats.addMessage(groupChat.chat_id, `telegram:${sender}`, text);
+  }
+}
+
+function parseTelegramCommand(text: string): ParsedTelegramCommand | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("/")) {
+    return null;
+  }
+
+  const [rawCommand = "", rawArg = ""] = trimmed.split(/\s+/, 2);
+  const commandName = rawCommand.slice(1).toLowerCase().split("@")[0];
+  const arg = rawArg.trim() || null;
+
+  if (
+    commandName === "help" ||
+    commandName === "start" ||
+    commandName === "run" ||
+    commandName === "status" ||
+    commandName === "approve" ||
+    commandName === "pause" ||
+    commandName === "stop"
+  ) {
+    return {
+      command: commandName === "start" ? "help" : commandName,
+      arg
+    };
+  }
+
+  return null;
+}
+
+function summarizeTasks(tasks: TaskRow[]): string {
+  if (tasks.length === 0) {
+    return "none";
+  }
+
+  const counts = new Map<string, number>();
+  for (const task of tasks) {
+    counts.set(task.status, (counts.get(task.status) ?? 0) + 1);
+  }
+
+  return Array.from(counts.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([status, count]) => `${status}:${count}`)
+    .join(", ");
+}
+
+function telegramHelpText(): string {
+  return [
+    "OpenColab Telegram commands:",
+    "/run <run_id> - set active run",
+    "/status [run_id] - show run status",
+    "/approve [run_id] - approve run",
+    "/pause [run_id] - pause run",
+    "/stop [run_id] - stop run",
+    "Send plain text to record a message for the active run."
+  ].join("\n");
 }
 
 async function mapWithConcurrency<T, R>(
