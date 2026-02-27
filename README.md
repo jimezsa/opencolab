@@ -36,6 +36,14 @@ Initialize project state and default agent files:
 node dist/src/cli.js init
 ```
 
+Configure a different personal-named agent (this replaces the active agent in v1):
+
+```bash
+node dist/src/cli.js agent init \
+  --agent-id personal_agent \
+  --path agents/personal_agent
+```
+
 Configure Codex provider:
 
 ```bash
