@@ -21,7 +21,7 @@ export function loadConfig(cwd = process.cwd()): OpenColabConfig {
     stateDir: path.join(rootDir, ".opencolab"),
     conversationsDir: path.join(rootDir, ".opencolab", "conversations"),
     localApiPort: Number(process.env.OPENCOLAB_PORT ?? "4646"),
-    forceMockCodex: (process.env.OPENCOLAB_FORCE_MOCK_CLI ?? "1") !== "0",
+    forceMockCodex: (process.env.OPENCOLAB_FORCE_MOCK_CLI ?? "0") !== "0",
     codexTimeoutMs: Number(process.env.OPENCOLAB_CODEX_TIMEOUT_MS ?? "120000")
   };
 }

@@ -52,3 +52,21 @@ test("loadConfig reads .env.local values", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("loadConfig defaults to real codex mode", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-config-default-"));
+  const oldForceMock = process.env.OPENCOLAB_FORCE_MOCK_CLI;
+  delete process.env.OPENCOLAB_FORCE_MOCK_CLI;
+
+  try {
+    const config = loadConfig(tempDir);
+    assert.equal(config.forceMockCodex, false);
+  } finally {
+    if (oldForceMock === undefined) {
+      delete process.env.OPENCOLAB_FORCE_MOCK_CLI;
+    } else {
+      process.env.OPENCOLAB_FORCE_MOCK_CLI = oldForceMock;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

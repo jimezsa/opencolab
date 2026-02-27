@@ -42,6 +42,13 @@ export function startHttpServer(
 ): void {
   const runtime = createRuntime(cwd);
   runtime.init();
+
+  if (runtime.config.forceMockCodex) {
+    console.log(
+      "OpenColab is running in mock mode (OPENCOLAB_FORCE_MOCK_CLI=1). Set OPENCOLAB_FORCE_MOCK_CLI=0 for real Codex responses."
+    );
+  }
+
   const telegramPollingEnabled = options.telegramPolling ?? true;
   const poller: TelegramPollingHandle | null = telegramPollingEnabled
     ? startTelegramPolling(runtime, { logger: (message) => console.log(message) })

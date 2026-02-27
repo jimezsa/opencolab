@@ -9,13 +9,13 @@ export function resolveSecretReference(reference: string): string | null {
     return fromEnv.trim();
   }
 
-  if (looksLikeLiteralSecret(value)) {
+  if (isLiteralSecretReference(value)) {
     return value;
   }
 
   return null;
 }
 
-function looksLikeLiteralSecret(value: string): boolean {
+export function isLiteralSecretReference(value: string): boolean {
   return value.includes(":") || value.startsWith("sk-");
 }
