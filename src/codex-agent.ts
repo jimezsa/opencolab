@@ -29,9 +29,9 @@ export class CodexAgent {
   }
 
   private runCodexCli(prompt: string, state: OpenColabState): Promise<string> {
-    const apiKey = process.env[state.provider.apiKeyEnvVar];
+    const apiKey = resolveSecretReference(state.provider.apiKeyEnvVar);
     if (!apiKey) {
-      throw new Error(`Missing required API key env var: ${state.provider.apiKeyEnvVar}`);
+      throw new Error("Missing required provider API key (env var or literal value).");
     }
 
     const cwd = resolveAgentDirectory(this.config.rootDir, state.agent.path);
@@ -100,4 +100,23 @@ export class CodexAgent {
       `Question: ${text}`
     ].join("\n");
   }
+}
+
+function resolveSecretReference(reference: string): string | null {
+  const value = reference.trim();
+  if (!value) {
+    return null;
+  }
+
+  const fromEnv = process.env[value];
+  if (fromEnv && fromEnv.trim()) {
+    return fromEnv.trim();
+  }
+
+  // Backward-compatible fallback for users who entered a raw key in setup.
+  if (value.startsWith("sk-")) {
+    return value;
+  }
+
+  return null;
 }

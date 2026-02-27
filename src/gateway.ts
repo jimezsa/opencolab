@@ -68,7 +68,7 @@ export class TelegramGateway {
 
     if (!sent) {
       throw new Error(
-        `Could not send pairing code to Telegram. Ensure env var ${next.telegram.botTokenEnvVar} is set.`
+        `Could not send pairing code to Telegram. Ensure bot token is configured (env var or literal token).`
       );
     }
 
@@ -177,7 +177,7 @@ export async function defaultTelegramSender(
   text: string,
   state: OpenColabState
 ): Promise<boolean> {
-  const token = process.env[state.telegram.botTokenEnvVar];
+  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
   if (!token) {
     return false;
   }
@@ -198,6 +198,29 @@ export async function defaultTelegramSender(
   } catch {
     return false;
   }
+}
+
+function resolveSecretReference(reference: string): string | null {
+  const value = reference.trim();
+  if (!value) {
+    return null;
+  }
+
+  const fromEnv = process.env[value];
+  if (fromEnv && fromEnv.trim()) {
+    return fromEnv.trim();
+  }
+
+  // Backward-compatible fallback for users who entered a raw token in setup.
+  if (looksLikeLiteralSecret(value)) {
+    return value;
+  }
+
+  return null;
+}
+
+function looksLikeLiteralSecret(value: string): boolean {
+  return value.includes(":") || value.startsWith("sk-");
 }
 
 function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {
