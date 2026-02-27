@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadConfig } from "./config.js";
 import { createRuntime } from "./runtime.js";
+import { startTelegramPolling, type TelegramPollingHandle } from "./telegram-poller.js";
 
 function sendJson(response: ServerResponse, status: number, data: unknown): void {
   response.writeHead(status, {
@@ -30,9 +31,21 @@ async function readJson(request: IncomingMessage): Promise<unknown> {
   return JSON.parse(raw) as unknown;
 }
 
-export function startHttpServer(port = loadConfig().localApiPort, cwd = process.cwd()): void {
+interface HttpServerOptions {
+  telegramPolling?: boolean;
+}
+
+export function startHttpServer(
+  port = loadConfig().localApiPort,
+  cwd = process.cwd(),
+  options: HttpServerOptions = {}
+): void {
   const runtime = createRuntime(cwd);
   runtime.init();
+  const telegramPollingEnabled = options.telegramPolling ?? true;
+  const poller: TelegramPollingHandle | null = telegramPollingEnabled
+    ? startTelegramPolling(runtime, { logger: (message) => console.log(message) })
+    : null;
 
   const server = createServer(async (request, response) => {
     try {
@@ -69,6 +82,7 @@ export function startHttpServer(port = loadConfig().localApiPort, cwd = process.
   });
 
   const shutdown = () => {
+    poller?.stop();
     server.close(() => {
       process.exit(0);
     });

@@ -12,3 +12,4 @@ coverage/
 .tmp/
 .env.local
 .opencolab/
+agents/

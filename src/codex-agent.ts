@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import type { OpenColabConfig } from "./config.js";
 import { buildAgentPrompt, readAgentDocuments, resolveAgentDirectory } from "./agent.js";
+import { resolveSecretReference } from "./secrets.js";
 import type { ConversationMessage, OpenColabState } from "./types.js";
 
 export interface CodexAgentInput {
@@ -100,23 +101,4 @@ export class CodexAgent {
       `Question: ${text}`
     ].join("\n");
   }
-}
-
-function resolveSecretReference(reference: string): string | null {
-  const value = reference.trim();
-  if (!value) {
-    return null;
-  }
-
-  const fromEnv = process.env[value];
-  if (fromEnv && fromEnv.trim()) {
-    return fromEnv.trim();
-  }
-
-  // Backward-compatible fallback for users who entered a raw key in setup.
-  if (value.startsWith("sk-")) {
-    return value;
-  }
-
-  return null;
 }

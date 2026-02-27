@@ -6,6 +6,7 @@ import type {
   OpenColabState,
   TelegramInbound
 } from "./types.js";
+import { resolveSecretReference } from "./secrets.js";
 import { nowIso, randomDigits } from "./utils.js";
 
 export type TelegramSender = (
@@ -198,29 +199,6 @@ export async function defaultTelegramSender(
   } catch {
     return false;
   }
-}
-
-function resolveSecretReference(reference: string): string | null {
-  const value = reference.trim();
-  if (!value) {
-    return null;
-  }
-
-  const fromEnv = process.env[value];
-  if (fromEnv && fromEnv.trim()) {
-    return fromEnv.trim();
-  }
-
-  // Backward-compatible fallback for users who entered a raw token in setup.
-  if (looksLikeLiteralSecret(value)) {
-    return value;
-  }
-
-  return null;
-}
-
-function looksLikeLiteralSecret(value: string): boolean {
-  return value.includes(":") || value.startsWith("sk-");
 }
 
 function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {

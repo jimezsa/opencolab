@@ -52,7 +52,7 @@ function usage(): string {
     "  opencolab setup telegram pair complete --code <pairing_code>",
     "  opencolab agent init [--agent-id research_agent] [--path agents/research_agent]",
     "  opencolab agent show",
-    "  opencolab gateway start [--port 4646]",
+    "  opencolab gateway start [--port 4646] [--telegram-polling true|false]",
     "",
     "Notes:",
     "  - v1 uses one Codex-backed agent.",
@@ -69,10 +69,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  if ((command === "gateway" || command === "web") && subcommand === "start") {
+  if ((command === "gateway" || command === "getway" || command === "web") && subcommand === "start") {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
     const port = Number(values.port ?? "4646");
-    startHttpServer(port);
+    const telegramPolling = values["telegram-polling"] !== "false" && values["telegram-polling"] !== "0";
+    startHttpServer(port, process.cwd(), { telegramPolling });
     return;
   }
 
