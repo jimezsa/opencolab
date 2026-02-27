@@ -15,6 +15,8 @@ export type TelegramSender = (
   state: OpenColabState
 ) => Promise<boolean>;
 
+export type TelegramTypingSender = (chatId: string, state: OpenColabState) => Promise<boolean>;
+
 interface GatewayDependencies {
   getState: () => OpenColabState;
   saveState: (next: OpenColabState) => void;
@@ -22,16 +24,19 @@ interface GatewayDependencies {
   appendConversation: (chatId: string, message: ConversationMessage) => void;
   respond: (input: CodexAgentInput) => Promise<string>;
   telegramSender?: TelegramSender;
+  telegramTypingSender?: TelegramTypingSender;
 }
 
 export class TelegramGateway {
   private readonly sender: TelegramSender;
+  private readonly typingSender: TelegramTypingSender;
 
   constructor(
     private readonly config: OpenColabConfig,
     private readonly deps: GatewayDependencies
   ) {
     this.sender = deps.telegramSender ?? defaultTelegramSender;
+    this.typingSender = deps.telegramTypingSender ?? defaultTelegramTypingSender;
   }
 
   async startPairing(): Promise<{ code: string; expiresAt: string; sent: boolean }> {
@@ -143,12 +148,19 @@ export class TelegramGateway {
     }
 
     const history = this.deps.readConversation(inbound.chatId, 8);
-    const response = await this.deps.respond({
-      chatId: inbound.chatId,
-      sender: inbound.sender,
-      text: inbound.text,
-      history
-    });
+    const stopTyping = this.startTypingFeedback(inbound.chatId, state);
+    let response = "";
+
+    try {
+      response = await this.deps.respond({
+        chatId: inbound.chatId,
+        sender: inbound.sender,
+        text: inbound.text,
+        history
+      });
+    } finally {
+      stopTyping();
+    }
 
     this.deps.appendConversation(inbound.chatId, {
       role: "user",
@@ -169,6 +181,32 @@ export class TelegramGateway {
       action: "agent_response",
       response,
       sent
+    };
+  }
+
+  private startTypingFeedback(chatId: string, state: OpenColabState): () => void {
+    let running = true;
+
+    const tick = async (): Promise<void> => {
+      if (!running) {
+        return;
+      }
+
+      try {
+        await this.typingSender(chatId, state);
+      } catch {
+        // Typing feedback is best-effort.
+      }
+    };
+
+    void tick();
+    const timer = setInterval(() => {
+      void tick();
+    }, 4000);
+
+    return () => {
+      running = false;
+      clearInterval(timer);
     };
   }
 }
@@ -192,6 +230,33 @@ export async function defaultTelegramSender(
       body: JSON.stringify({
         chat_id: chatId,
         text
+      })
+    });
+
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function defaultTelegramTypingSender(
+  chatId: string,
+  state: OpenColabState
+): Promise<boolean> {
+  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
+  if (!token) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendChatAction`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        chat_id: chatId,
+        action: "typing"
       })
     });
 

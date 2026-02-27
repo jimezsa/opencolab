@@ -90,10 +90,15 @@ test("webhook rejects unauthorized chat id", async () => {
 test("paired webhook routes message to the agent and stores conversation", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-route-"));
   const sentTexts: string[] = [];
+  let typingCalls = 0;
 
   const runtime = createRuntime(tempDir, {
     telegramSender: async (_chatId, text) => {
       sentTexts.push(text);
+      return true;
+    },
+    telegramTypingSender: async () => {
+      typingCalls += 1;
       return true;
     },
     agentResponder: async ({ text }) => `research:${text}`
@@ -121,6 +126,7 @@ test("paired webhook routes message to the agent and stores conversation", async
     assert.equal(result.action, "agent_response");
     assert.equal(result.response, "research:Find recent breakthroughs in SAE methods");
     assert.equal(sentTexts.includes(result.response), true);
+    assert.equal(typingCalls > 0, true);
 
     const historyPath = path.join(tempDir, ".opencolab", "conversations", "10001.jsonl");
     assert.equal(fs.existsSync(historyPath), true);

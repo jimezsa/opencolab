@@ -72,6 +72,8 @@ Start local gateway server:
 node dist/src/cli.js gateway start --port 4646
 ```
 
+During response generation, the gateway sends Telegram `typing...` feedback automatically.
+
 Telegram webhook endpoint:
 
 `POST http://127.0.0.1:4646/api/telegram/webhook`

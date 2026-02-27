@@ -158,6 +158,7 @@ Notes:
 
 - If chat is unpaired: Gateway replies with pairing-required message.
 - If chat is paired: Gateway forwards message content to the Codex agent.
+- While response is being generated: Gateway sends Telegram typing feedback (`typing` chat action).
 - Agent response is sent back to the same Telegram chat.
 - System should log request/response metadata for local debugging.
 
