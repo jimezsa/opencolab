@@ -10,9 +10,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "node --enable-source-maps --experimental-strip-types src/cli.ts",
-    "start": "node dist/src/cli.js",
-    "test": "node --test dist/tests/**/*.test.js",
+    "dev": "NODE_NO_WARNINGS=1 node --enable-source-maps --experimental-strip-types src/cli.ts",
+    "start": "NODE_NO_WARNINGS=1 node dist/src/cli.js",
+    "test": "NODE_NO_WARNINGS=1 node --test dist/tests/**/*.test.js",
     "check": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
