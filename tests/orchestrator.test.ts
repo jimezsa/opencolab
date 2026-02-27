@@ -94,6 +94,32 @@ test("default agent context files exist for every agent workspace", () => {
   }
 });
 
+test("custom template settings persist across runtime init", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-template-persist-"));
+  let runtime = createRuntime(tempDir);
+
+  try {
+    runtime.orchestrator.addAgentTemplate({
+      templateId: "tpl_codex",
+      provider: "openai",
+      cliCommand: "codex",
+      defaultArgs: ["exec", "-"],
+      defaultEnv: { OPENAI_API_KEY: "test-key" }
+    });
+    runtime.close();
+
+    runtime = createRuntime(tempDir);
+    const templates = runtime.orchestrator.listAgentTemplates();
+    const codex = templates.find((item) => item.templateId === "tpl_codex");
+    assert.ok(codex);
+    assert.deepEqual(codex.defaultArgs, ["exec", "-"]);
+    assert.equal(codex.defaultEnv.OPENAI_API_KEY, "test-key");
+  } finally {
+    runtime.close();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("telegram commands can target a run and apply run actions", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-telegram-"));
   const oldChatId = process.env.TELEGRAM_CHAT_ID;
@@ -188,6 +214,88 @@ test("telegram webhook rejects unauthorized chat id", async () => {
       delete process.env.TELEGRAM_CHAT_ID;
     } else {
       process.env.TELEGRAM_CHAT_ID = oldChatId;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("telegram can set active agent and get direct agent reply", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-telegram-agent-"));
+  const oldChatId = process.env.TELEGRAM_CHAT_ID;
+  const oldBotToken = process.env.TELEGRAM_BOT_TOKEN;
+  delete process.env.TELEGRAM_BOT_TOKEN;
+  process.env.TELEGRAM_CHAT_ID = "10001";
+
+  const runtime = createRuntime(tempDir);
+  try {
+    const { orchestrator } = runtime;
+    orchestrator.createProject("telegram-agent-proj");
+
+    const started = await orchestrator.startRun({
+      projectName: "telegram-agent-proj",
+      goal: "Validate direct Telegram agent interaction"
+    });
+
+    const runId = started.runId;
+    const agents = await orchestrator.handleTelegramWebhookMessage("10001", "alice", "/agents");
+    assert.equal(agents.ok, true);
+    assert.equal(agents.action, "agents");
+    assert.equal(agents.response.includes("student_codex_1"), true);
+
+    const setRun = await orchestrator.handleTelegramWebhookMessage(
+      "10001",
+      "alice",
+      `/run ${runId}`
+    );
+    assert.equal(setRun.ok, true);
+    assert.equal(setRun.action, "run_set");
+
+    const setAgent = await orchestrator.handleTelegramWebhookMessage(
+      "10001",
+      "alice",
+      "/agent student_codex_1"
+    );
+    assert.equal(setAgent.ok, true);
+    assert.equal(setAgent.action, "agent_set");
+
+    const reply = await orchestrator.handleTelegramWebhookMessage(
+      "10001",
+      "alice",
+      "Please summarize your latest findings."
+    );
+    assert.equal(reply.ok, true);
+    assert.equal(reply.action, "agent_reply");
+    assert.equal(reply.response.includes("[student_codex_1]"), true);
+
+    const status = orchestrator.getRunStatus(runId);
+    assert.equal(
+      status.tasks.some(
+        (task) => task.agent_id === "student_codex_1" && task.title === "Telegram Direct Agent Query"
+      ),
+      true
+    );
+
+    const chats = orchestrator.listChats(runId);
+    assert.equal(chats.length > 0, true);
+    const messages = orchestrator.viewChat(chats[0].chatId);
+    assert.equal(
+      messages.some(
+        (message) =>
+          message.sender === "student_codex_1" && message.content.includes("[student_codex_1] status=ok")
+      ),
+      true
+    );
+  } finally {
+    runtime.close();
+    if (oldChatId === undefined) {
+      delete process.env.TELEGRAM_CHAT_ID;
+    } else {
+      process.env.TELEGRAM_CHAT_ID = oldChatId;
+    }
+    if (oldBotToken === undefined) {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    } else {
+      process.env.TELEGRAM_BOT_TOKEN = oldBotToken;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

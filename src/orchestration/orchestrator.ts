@@ -46,11 +46,20 @@ interface TaskRow {
   updated_at: string;
 }
 
-type TelegramCommand = "help" | "run" | "status" | "approve" | "pause" | "stop";
+type TelegramCommand =
+  | "help"
+  | "agents"
+  | "agent"
+  | "ask"
+  | "run"
+  | "status"
+  | "approve"
+  | "pause"
+  | "stop";
 
 interface ParsedTelegramCommand {
   command: TelegramCommand;
-  arg: string | null;
+  rest: string | null;
 }
 
 export class Orchestrator {
@@ -563,7 +572,14 @@ export class Orchestrator {
         return { ok: false, action: "run_not_found", runId, response };
       }
 
+      this.telegram.activateRun(runId, chatId);
       this.recordTelegramInbound(runId, normalizedSender, incomingText, chatId);
+
+      const activeAgentId = this.telegram.getActiveAgent(chatId);
+      if (activeAgentId) {
+        return this.handleTelegramAgentQuery(chatId, runId, normalizedSender, activeAgentId, incomingText);
+      }
+
       const response = `Recorded message for ${runId}.`;
       await this.telegram.sendMessage(chatId, response, runId);
       return { ok: true, action: "message_recorded", runId, response };
@@ -575,8 +591,56 @@ export class Orchestrator {
       return { ok: true, action: "help", runId: null, response };
     }
 
+    if (parsed.command === "agents") {
+      const agents = this.listEnabledAgents();
+      const response =
+        agents.length > 0
+          ? `Enabled agents:\n${agents.map((agent) => `- ${agent.agentId} (${agent.role})`).join("\n")}`
+          : "No enabled agents found.";
+      await this.telegram.sendMessage(chatId, response);
+      return { ok: agents.length > 0, action: "agents", runId: null, response };
+    }
+
+    if (parsed.command === "agent") {
+      if (!parsed.rest) {
+        const activeAgentId = this.telegram.getActiveAgent(chatId);
+        const response = activeAgentId
+          ? `Active agent: ${activeAgentId}`
+          : "No active agent set. Use /agent <agent_id>.";
+        await this.telegram.sendMessage(chatId, response);
+        return { ok: Boolean(activeAgentId), action: "agent_show", runId: null, response };
+      }
+
+      const [candidateAgentId] = splitFirstToken(parsed.rest);
+      if (!candidateAgentId) {
+        const response = "Usage: /agent <agent_id> or /agent clear";
+        await this.telegram.sendMessage(chatId, response);
+        return { ok: false, action: "agent_invalid", runId: null, response };
+      }
+
+      if (candidateAgentId.toLowerCase() === "clear") {
+        this.telegram.clearActiveAgent(chatId);
+        const response = "Active agent cleared.";
+        await this.telegram.sendMessage(chatId, response);
+        return { ok: true, action: "agent_cleared", runId: null, response };
+      }
+
+      const instance = this.registry.getInstance(candidateAgentId);
+      if (!instance || !instance.enabled) {
+        const response = `Enabled agent not found: ${candidateAgentId}`;
+        await this.telegram.sendMessage(chatId, response);
+        return { ok: false, action: "agent_not_found", runId: null, response };
+      }
+
+      this.telegram.setActiveAgent(chatId, candidateAgentId);
+      const response = `Active agent set to ${candidateAgentId}.`;
+      await this.telegram.sendMessage(chatId, response);
+      return { ok: true, action: "agent_set", runId: null, response };
+    }
+
     if (parsed.command === "run") {
-      if (!parsed.arg) {
+      const [candidateRunId] = splitFirstToken(parsed.rest);
+      if (!candidateRunId) {
         const activeRunId = this.telegram.getLatestRunForChat(chatId);
         const response = activeRunId
           ? `Active run: ${activeRunId}`
@@ -585,7 +649,7 @@ export class Orchestrator {
         return { ok: Boolean(activeRunId), action: "run_show", runId: activeRunId, response };
       }
 
-      const runId = parsed.arg;
+      const runId = candidateRunId;
       if (!this.runExists(runId)) {
         const response = `Run not found: ${runId}`;
         await this.telegram.sendMessage(chatId, response);
@@ -599,7 +663,19 @@ export class Orchestrator {
       return { ok: true, action: "run_set", runId, response };
     }
 
-    const runId = parsed.arg ?? this.telegram.getLatestRunForChat(chatId);
+    let runId = this.telegram.getLatestRunForChat(chatId);
+    if (parsed.command === "ask") {
+      const [candidateRunId] = splitFirstToken(parsed.rest);
+      if (candidateRunId && this.runExists(candidateRunId)) {
+        runId = candidateRunId;
+      }
+    } else {
+      const [candidateRunId] = splitFirstToken(parsed.rest);
+      if (candidateRunId && this.runExists(candidateRunId)) {
+        runId = candidateRunId;
+      }
+    }
+
     if (!runId) {
       const response = "No active run. Use /run <run_id> first.";
       await this.telegram.sendMessage(chatId, response);
@@ -614,6 +690,29 @@ export class Orchestrator {
 
     this.telegram.activateRun(runId, chatId);
     this.recordTelegramInbound(runId, normalizedSender, incomingText, chatId);
+
+    if (parsed.command === "ask") {
+      const [candidateAgentId, messageRest] = splitFirstToken(parsed.rest);
+      let targetAgentId: string | null = candidateAgentId;
+      let prompt: string | null = messageRest;
+      const candidateAgent = candidateAgentId ? this.registry.getInstance(candidateAgentId) : undefined;
+      if (!candidateAgent || !candidateAgent.enabled) {
+        const activeAgent = this.telegram.getActiveAgent(chatId);
+        if (activeAgent && parsed.rest) {
+          targetAgentId = activeAgent;
+          prompt = parsed.rest;
+        }
+      }
+
+      if (!targetAgentId || !prompt) {
+        const response = "Usage: /ask <agent_id> <message>";
+        await this.telegram.sendMessage(chatId, response, runId);
+        return { ok: false, action: "ask_usage", runId, response };
+      }
+
+      this.telegram.setActiveAgent(chatId, targetAgentId);
+      return this.handleTelegramAgentQuery(chatId, runId, normalizedSender, targetAgentId, prompt);
+    }
 
     if (parsed.command === "status") {
       const status = this.getRunStatus(runId);
@@ -693,6 +792,178 @@ export class Orchestrator {
     ].join("\n");
   }
 
+  private listEnabledAgents(): AgentInstance[] {
+    return this.registry.listInstances().filter((agent) => agent.enabled);
+  }
+
+  private async handleTelegramAgentQuery(
+    chatId: string,
+    runId: string,
+    sender: string,
+    agentId: string,
+    userPrompt: string
+  ): Promise<{ ok: boolean; action: string; runId: string | null; response: string }> {
+    const instance = this.registry.getInstance(agentId);
+    if (!instance || !instance.enabled) {
+      const response = `Enabled agent not found: ${agentId}`;
+      await this.telegram.sendMessage(chatId, response, runId);
+      return { ok: false, action: "agent_not_found", runId, response };
+    }
+
+    const template = this.registry.getTemplate(instance.templateId);
+    if (!template) {
+      const response = `Template not found for agent: ${agentId}`;
+      await this.telegram.sendMessage(chatId, response, runId);
+      return { ok: false, action: "template_not_found", runId, response };
+    }
+
+    const run = this.db.get<{ run_id: string; project_name: string; goal: string }>(
+      `SELECT run_id, project_name, goal
+       FROM runs
+       WHERE run_id = :run_id`,
+      { run_id: runId }
+    );
+    if (!run) {
+      const response = `Run not found: ${runId}`;
+      await this.telegram.sendMessage(chatId, response);
+      return { ok: false, action: "run_not_found", runId, response };
+    }
+
+    const runPaths = ensureRunLayout(this.config, run.project_name, runId);
+    const taskId = newId("task");
+    const createdAt = nowIso();
+    const prompt = this.buildTelegramDirectPrompt(run.goal, sender, userPrompt);
+
+    this.db.run(
+      `INSERT INTO tasks (
+         task_id, run_id, agent_id, title, prompt, status, retries,
+         started_at, finished_at, stdout_path, stderr_path, output_files,
+         created_at, updated_at
+       ) VALUES (
+         :task_id, :run_id, :agent_id, :title, :prompt, :status, :retries,
+         :started_at, :finished_at, :stdout_path, :stderr_path, :output_files,
+         :created_at, :updated_at
+       )`,
+      {
+        task_id: taskId,
+        run_id: runId,
+        agent_id: agentId,
+        title: "Telegram Direct Agent Query",
+        prompt,
+        status: "queued",
+        retries: 0,
+        started_at: null,
+        finished_at: null,
+        stdout_path: null,
+        stderr_path: null,
+        output_files: "[]",
+        created_at: createdAt,
+        updated_at: createdAt
+      }
+    );
+    recordEvent(this.db, runId, "task.created", {
+      taskId,
+      title: "Telegram Direct Agent Query",
+      agentId
+    });
+
+    const startedAt = nowIso();
+    this.db.run(
+      `UPDATE tasks
+       SET status = :status,
+           started_at = :started_at,
+           updated_at = :updated_at
+       WHERE task_id = :task_id`,
+      {
+        task_id: taskId,
+        status: "running",
+        started_at: startedAt,
+        updated_at: startedAt
+      }
+    );
+    recordEvent(this.db, runId, "task.started", {
+      taskId,
+      agentId
+    });
+
+    const promptPath = writePrompt(runPaths, taskId, prompt);
+    const output = await this.runner.runTask(
+      {
+        runId,
+        taskId,
+        prompt,
+        workspacePath: instance.workspacePath,
+        contextFiles: [promptPath]
+      },
+      template,
+      instance
+    );
+
+    const stdoutPath = writeOutput(runPaths, taskId, output.stdout);
+    const stderrPath = writeError(runPaths, taskId, output.stderr);
+    const status: TaskStatus = mapTaskStatus(output.status);
+
+    this.db.run(
+      `UPDATE tasks
+       SET status = :status,
+           finished_at = :finished_at,
+           stdout_path = :stdout_path,
+           stderr_path = :stderr_path,
+           output_files = :output_files,
+           updated_at = :updated_at
+       WHERE task_id = :task_id`,
+      {
+        task_id: taskId,
+        status,
+        finished_at: output.finishedAt,
+        stdout_path: stdoutPath,
+        stderr_path: stderrPath,
+        output_files: toJson(output.outputFiles),
+        updated_at: nowIso()
+      }
+    );
+
+    if (status === "ok") {
+      recordEvent(this.db, runId, "task.completed", {
+        taskId,
+        agentId,
+        stdoutPath,
+        stderrPath
+      });
+    } else {
+      recordEvent(this.db, runId, "task.failed", {
+        taskId,
+        agentId,
+        status,
+        stderrPath
+      });
+    }
+
+    const agentReply = renderTelegramAgentReply(agentId, status, output.stdout, output.stderr);
+    this.appendAgentToGroupChat(runId, agentId, agentReply, [stdoutPath, stderrPath]);
+    await this.telegram.sendMessage(chatId, agentReply, runId);
+
+    return {
+      ok: status === "ok",
+      action: "agent_reply",
+      runId,
+      response: agentReply
+    };
+  }
+
+  private buildTelegramDirectPrompt(runGoal: string, sender: string, message: string): string {
+    return [
+      "You are responding inside OpenColab's Telegram bridge.",
+      `Run goal: ${runGoal}`,
+      `Human sender: ${sender}`,
+      "",
+      "User message:",
+      message,
+      "",
+      "Respond directly and concisely to the user."
+    ].join("\n");
+  }
+
   private runExists(runId: string): boolean {
     const row = this.db.get<{ run_id: string }>(
       `SELECT run_id
@@ -722,6 +993,31 @@ export class Orchestrator {
 
     this.chats.addMessage(groupChat.chat_id, `telegram:${sender}`, text);
   }
+
+  private appendAgentToGroupChat(
+    runId: string,
+    agentId: string,
+    content: string,
+    linkedArtifacts: string[]
+  ): void {
+    const groupChat = this.db.get<{ chat_id: string }>(
+      `SELECT chat_id
+       FROM chats
+       WHERE run_id = :run_id AND kind = :kind
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      {
+        run_id: runId,
+        kind: "group"
+      }
+    );
+
+    if (!groupChat) {
+      return;
+    }
+
+    this.chats.addMessage(groupChat.chat_id, agentId, content, linkedArtifacts);
+  }
 }
 
 function parseTelegramCommand(text: string): ParsedTelegramCommand | null {
@@ -730,13 +1026,20 @@ function parseTelegramCommand(text: string): ParsedTelegramCommand | null {
     return null;
   }
 
-  const [rawCommand = "", rawArg = ""] = trimmed.split(/\s+/, 2);
-  const commandName = rawCommand.slice(1).toLowerCase().split("@")[0];
-  const arg = rawArg.trim() || null;
+  const match = trimmed.match(/^\/([^\s@]+)(?:@\S+)?(?:\s+([\s\S]+))?$/);
+  if (!match) {
+    return null;
+  }
+
+  const commandName = match[1].toLowerCase();
+  const rest = (match[2] ?? "").trim() || null;
 
   if (
     commandName === "help" ||
     commandName === "start" ||
+    commandName === "agents" ||
+    commandName === "agent" ||
+    commandName === "ask" ||
     commandName === "run" ||
     commandName === "status" ||
     commandName === "approve" ||
@@ -745,11 +1048,31 @@ function parseTelegramCommand(text: string): ParsedTelegramCommand | null {
   ) {
     return {
       command: commandName === "start" ? "help" : commandName,
-      arg
+      rest
     };
   }
 
   return null;
+}
+
+function splitFirstToken(value: string | null): [string | null, string | null] {
+  if (!value) {
+    return [null, null];
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [null, null];
+  }
+
+  const firstSpace = trimmed.search(/\s/);
+  if (firstSpace === -1) {
+    return [trimmed, null];
+  }
+
+  const first = trimmed.slice(0, firstSpace).trim();
+  const rest = trimmed.slice(firstSpace + 1).trim();
+  return [first || null, rest || null];
 }
 
 function summarizeTasks(tasks: TaskRow[]): string {
@@ -771,13 +1094,45 @@ function summarizeTasks(tasks: TaskRow[]): string {
 function telegramHelpText(): string {
   return [
     "OpenColab Telegram commands:",
+    "/agents - list enabled agents",
+    "/agent <agent_id> - set active agent",
+    "/agent clear - clear active agent",
+    "/ask <agent_id> <message> - ask a specific agent",
     "/run <run_id> - set active run",
     "/status [run_id] - show run status",
     "/approve [run_id] - approve run",
     "/pause [run_id] - pause run",
     "/stop [run_id] - stop run",
-    "Send plain text to record a message for the active run."
+    "Send plain text to ask the active agent (if set), otherwise log a human message."
   ].join("\n");
+}
+
+function mapTaskStatus(status: "ok" | "error" | "timeout"): TaskStatus {
+  if (status === "ok") {
+    return "ok";
+  }
+  if (status === "timeout") {
+    return "timeout";
+  }
+  return "error";
+}
+
+function renderTelegramAgentReply(
+  agentId: string,
+  status: TaskStatus,
+  stdout: string,
+  stderr: string
+): string {
+  const title = `[${agentId}] status=${status}`;
+  const body = status === "ok" ? stdout.trim() || "(empty response)" : stderr.trim() || "(no error output)";
+  return trimForTelegram(`${title}\n${body}`);
+}
+
+function trimForTelegram(text: string, maxLen = 3500): string {
+  if (text.length <= maxLen) {
+    return text;
+  }
+  return `${text.slice(0, maxLen)}\n...[truncated]`;
 }
 
 async function mapWithConcurrency<T, R>(

@@ -118,13 +118,16 @@ If OpenColab is running locally, expose `http://127.0.0.1:4646` through a tunnel
 Supported Telegram commands:
 
 - `/help` or `/start`
+- `/agents`
+- `/agent <agent_id>` (or `/agent clear`)
+- `/ask <agent_id> <message>`
 - `/run <run_id>` to set active run
 - `/status [run_id]`
 - `/approve [run_id]`
 - `/pause [run_id]`
 - `/stop [run_id]`
 
-Plain text messages are recorded as human input for the active run and mirrored to the run group chat log.
+Plain text messages are routed to the active agent (if set with `/agent`), otherwise they are recorded as human input for the active run and mirrored to the run group chat log.
 
 By default, v1 runs agent tasks in deterministic mock mode so the workflow works without installed CLIs.
 Set `OPENCOLAB_FORCE_MOCK_CLI=0` to execute real CLI commands.

@@ -1,5 +1,5 @@
 import type { OpenColabConfig } from "./config.js";
-import type { Db } from "./db.js";
+import { getSetting, setSetting, type Db } from "./db.js";
 import { recordEvent } from "./events.js";
 import { newId, nowIso } from "./utils.js";
 
@@ -99,6 +99,20 @@ export class TelegramBridge {
     );
   }
 
+  getActiveAgent(chatId: string): string | null {
+    return getSetting(this.db, this.activeAgentSettingKey(chatId));
+  }
+
+  setActiveAgent(chatId: string, agentId: string): void {
+    setSetting(this.db, this.activeAgentSettingKey(chatId), agentId);
+  }
+
+  clearActiveAgent(chatId: string): void {
+    this.db.run(`DELETE FROM settings WHERE key = :key`, {
+      key: this.activeAgentSettingKey(chatId)
+    });
+  }
+
   async sendMessage(chatId: string, text: string, runId?: string): Promise<boolean> {
     const token = this.config.telegramBotToken;
     if (!token) {
@@ -185,5 +199,9 @@ export class TelegramBridge {
       return String(this.config.telegramChatId);
     }
     return null;
+  }
+
+  private activeAgentSettingKey(chatId: string): string {
+    return `telegram.active_agent.${chatId}`;
   }
 }

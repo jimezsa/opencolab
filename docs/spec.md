@@ -316,12 +316,16 @@ opencolab/
 - Webhook updates are restricted to the configured `TELEGRAM_CHAT_ID`.
 - Supported commands:
   - `/help` and `/start`: show available commands
+  - `/agents`: list enabled agents available for direct Telegram interaction
+  - `/agent [agent_id]`: show or set active agent for this Telegram chat
+  - `/ask <agent_id> <message>`: send a direct question to a specific agent
   - `/run <run_id>`: set active run for subsequent messages and commands
   - `/status [run_id]`: show run status, approval state, and task summary
   - `/approve [run_id]`: approve the run
   - `/pause [run_id]`: pause the run
   - `/stop [run_id]`: stop the run
 - Non-command text is recorded as a human Telegram message for the active run and mirrored to the run group chat log.
+- If an active agent is set for the chat, non-command text is routed as a direct prompt to that agent and the response is sent back to Telegram.
 
 ## 13. Acceptance Criteria for v1
 

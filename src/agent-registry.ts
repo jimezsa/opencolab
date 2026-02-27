@@ -56,7 +56,9 @@ export class AgentRegistry {
     ];
 
     for (const template of defaults) {
-      this.createTemplate(template);
+      if (!this.getTemplate(template.templateId)) {
+        this.createTemplate(template);
+      }
     }
 
     const workspaceBase = path.join(this.config.rootDir, "projects", "_default", "agents");
@@ -104,7 +106,9 @@ export class AgentRegistry {
     ];
 
     for (const instance of instances) {
-      this.createInstance(instance);
+      if (!this.getInstance(instance.agentId)) {
+        this.createInstance(instance);
+      }
     }
 
     for (const instance of this.listInstances()) {
