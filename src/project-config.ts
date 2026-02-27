@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import type { OpenColabConfig } from "./config.js";
+import { getProviderSetupDefaults, isProviderName } from "./provider.js";
 import type { AgentFiles, OpenColabState } from "./types.js";
 import { nowIso, safeReadJson, writeJson } from "./utils.js";
 
@@ -25,10 +26,7 @@ export function defaultProjectState(config: OpenColabConfig): OpenColabState {
     },
     provider: {
       name: "codex",
-      model: "gpt-5",
-      apiKeyEnvVar: "OPENAI_API_KEY",
-      cliCommand: "codex",
-      cliArgs: ["exec", "-"]
+      ...getProviderSetupDefaults("codex")
     },
     telegram: {
       botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
@@ -80,6 +78,8 @@ function normalizeState(raw: unknown, defaults: OpenColabState): OpenColabState 
   const sourceAgentFiles = asRecord(sourceAgent?.files);
   const sourceProvider = asRecord(source.provider);
   const sourceTelegram = asRecord(source.telegram);
+  const providerName = asProviderName(sourceProvider?.name, defaults.provider.name);
+  const providerDefaults = getProviderSetupDefaults(providerName);
 
   const agentFiles: AgentFiles = {
     agents: asString(sourceAgentFiles?.agents, defaults.agent.files.agents),
@@ -92,7 +92,7 @@ function normalizeState(raw: unknown, defaults: OpenColabState): OpenColabState 
 
   const cliArgs = Array.isArray(sourceProvider?.cliArgs)
     ? sourceProvider.cliArgs.map((item) => String(item))
-    : defaults.provider.cliArgs;
+    : providerDefaults.cliArgs;
 
   return {
     version: CURRENT_VERSION,
@@ -103,10 +103,10 @@ function normalizeState(raw: unknown, defaults: OpenColabState): OpenColabState 
       files: agentFiles
     },
     provider: {
-      name: "codex",
-      model: asString(sourceProvider?.model, defaults.provider.model),
-      apiKeyEnvVar: asString(sourceProvider?.apiKeyEnvVar, defaults.provider.apiKeyEnvVar),
-      cliCommand: asString(sourceProvider?.cliCommand, defaults.provider.cliCommand),
+      name: providerName,
+      model: asString(sourceProvider?.model, providerDefaults.model),
+      apiKeyEnvVar: asString(sourceProvider?.apiKeyEnvVar, providerDefaults.apiKeyEnvVar),
+      cliCommand: asString(sourceProvider?.cliCommand, providerDefaults.cliCommand),
       cliArgs
     },
     telegram: {
@@ -137,4 +137,11 @@ function asNullableString(value: unknown): string | null {
   }
   const parsed = String(value).trim();
   return parsed ? parsed : null;
+}
+
+function asProviderName(value: unknown, fallback: OpenColabState["provider"]["name"]) {
+  if (typeof value === "string" && isProviderName(value)) {
+    return value;
+  }
+  return fallback;
 }

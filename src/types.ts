@@ -13,8 +13,10 @@ export interface AgentConfig {
   files: AgentFiles;
 }
 
+export type ProviderName = "codex" | "claude_code";
+
 export interface ProviderConfig {
-  name: "codex";
+  name: ProviderName;
   model: string;
   apiKeyEnvVar: string;
   cliCommand: string;

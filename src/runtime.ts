@@ -4,7 +4,7 @@ import { ConversationStore } from "./conversation.js";
 import { CodexAgent, type CodexAgentInput } from "./codex-agent.js";
 import { readProjectState, writeProjectState } from "./project-config.js";
 import { TelegramGateway, type TelegramSender, type TelegramTypingSender } from "./gateway.js";
-import type { GatewayResult, OpenColabState } from "./types.js";
+import type { GatewayResult, OpenColabState, ProviderName } from "./types.js";
 import { ensureDir } from "./utils.js";
 
 export interface RuntimeOptions {
@@ -14,6 +14,7 @@ export interface RuntimeOptions {
 }
 
 export interface ModelSetupInput {
+  providerName: ProviderName;
   model: string;
   apiKeyEnvVar: string;
   cliCommand: string;
@@ -74,7 +75,7 @@ export class OpenColabRuntime {
     this.state = {
       ...this.state,
       provider: {
-        name: "codex",
+        name: input.providerName,
         model: input.model,
         apiKeyEnvVar: input.apiKeyEnvVar,
         cliCommand: input.cliCommand,

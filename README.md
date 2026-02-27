@@ -7,7 +7,7 @@ Architecture:
 `Telegram -> Gateway -> Agent`
 
 - one agent
-- one provider runtime: Codex only
+- one provider runtime per project: Codex or Claude Code
 - setup and control via CLI
 - persistence in `opencolab.json`
 
@@ -21,7 +21,7 @@ Architecture:
 - Node.js 22+
 - pnpm 9+
 - Telegram bot token (exported in env var)
-- Codex CLI + API key env var (or mock mode)
+- Codex CLI or Claude Code CLI + provider API key env var (or mock mode)
 
 ## Quickstart
 
@@ -48,10 +48,22 @@ Configure Codex provider:
 
 ```bash
 node dist/src/cli.js setup model \
+  --provider codex \
   --model gpt-5 \
   --api-key-env-var OPENAI_API_KEY \
   --cli-command codex \
   --cli-args "exec,-"
+```
+
+Configure Claude Code provider:
+
+```bash
+node dist/src/cli.js setup model \
+  --provider claude_code \
+  --model claude-sonnet-4-5 \
+  --api-key-env-var ANTHROPIC_API_KEY \
+  --cli-command claude \
+  --cli-args "-p,{prompt},--model,{model}"
 ```
 
 Configure Telegram:
@@ -104,7 +116,7 @@ Default location: `agents/research_agent`.
 `opencolab.json` stores the local runtime state:
 
 - agent metadata
-- provider metadata (`codex`)
+- provider metadata (`codex` or `claude_code`)
 - Telegram settings
 - pairing state
 

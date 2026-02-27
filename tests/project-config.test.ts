@@ -6,7 +6,7 @@ import path from "node:path";
 import { loadConfig } from "../src/config.js";
 import { readProjectState, updateProjectState } from "../src/project-config.js";
 
-test("project state defaults to single codex agent contract", () => {
+test("project state defaults to codex provider", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-default-"));
 
   try {
@@ -24,6 +24,30 @@ test("project state defaults to single codex agent contract", () => {
     assert.equal(state.provider.name, "codex");
     assert.equal(state.provider.apiKeyEnvVar, "OPENAI_API_KEY");
     assert.equal(state.telegram.paired, false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state normalizes supported provider name", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        provider: {
+          name: "claude_code"
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    assert.equal(loaded.provider.name, "claude_code");
+    assert.equal(loaded.provider.apiKeyEnvVar, "ANTHROPIC_API_KEY");
+    assert.equal(loaded.provider.cliCommand, "claude");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

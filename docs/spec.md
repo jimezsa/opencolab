@@ -11,7 +11,7 @@ This specification replaces the previous multi-agent lab direction for the initi
 v1 supports exactly one agent and one provider runtime:
 
 - one research agent instance
-- one model provider: Codex only
+- one model provider selected at runtime: `codex` or `claude_code`
 - one user interaction channel: Telegram chat through a gateway
 - one operator control channel: OpenColab CLI
 
@@ -27,7 +27,7 @@ Definitions:
 
 - `Telegram`: external messaging channel used by the user.
 - `Gateway`: local OpenColab service that receives Telegram updates, validates pairing, and routes messages.
-- `Agent`: single Codex-backed research assistant execution unit.
+- `Agent`: single research assistant execution unit backed by either Codex CLI or Claude Code CLI.
 
 ## 4. Core Capabilities (v1)
 
@@ -36,14 +36,13 @@ Required:
 - Receive Telegram messages and route them to the single agent.
 - Return agent responses back to Telegram.
 - Keep minimal conversation context for the chat session.
-- Configure model API key and Telegram pairing via CLI.
+- Configure provider/model API key and Telegram pairing via CLI.
 - Persist agent and provider configuration in `opencolab.json`.
 
 Not required in v1:
 
 - web UI
 - multi-agent scheduling
-- provider abstraction across multiple vendors
 - meetings, run orchestration, or shared repositories
 
 ## 5. Agent Definition Files
@@ -93,20 +92,21 @@ Required command groups:
 
 ### 7.1 CLI Responsibilities
 
-- collect and store Codex API key
+- collect and store provider API key reference
 - collect Telegram bot configuration
 - start pairing and validate pairing code
 - show current configured agent and provider status
 
 ## 8. Provider Constraint
 
-v1 supports only Codex.
+v1 supports only these provider identifiers:
 
 Requirements:
 
-- provider identifier is fixed to `codex`
-- no `claude_code` or `gemini` adapters in scope for v1
-- agent runtime calls only Codex execution path
+- `codex`
+- `claude_code`
+- no `gemini` adapter in scope for v1
+- provider execution path is selected by `provider.name`
 
 ## 9. Configuration Persistence (`opencolab.json`)
 
@@ -115,7 +115,7 @@ Requirements:
 It must store:
 
 - agent metadata
-- provider metadata (Codex)
+- provider metadata (`codex` or `claude_code`)
 - Telegram settings
 - pairing state
 
@@ -157,7 +157,7 @@ Notes:
 ## 10. Message Handling Rules
 
 - If chat is unpaired: Gateway replies with pairing-required message.
-- If chat is paired: Gateway forwards message content to the Codex agent.
+- If chat is paired: Gateway forwards message content to the configured provider agent runtime.
 - While response is being generated: Gateway sends Telegram typing feedback (`typing` chat action).
 - Agent response is sent back to the same Telegram chat.
 - System should log request/response metadata for local debugging.
@@ -175,6 +175,6 @@ v1 is complete when all are true:
 
 - A user can pair Telegram using a CLI-entered pairing code sent by OpenColab.
 - After pairing, user can chat with the single agent from Telegram.
-- Agent responses come from the Codex runtime path.
+- Agent responses come from the configured provider runtime path (`codex` or `claude_code`).
 - `opencolab.json` persists agent and provider information plus Telegram pairing state.
 - Agent directory includes `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `TOOLS.md`, `USER.md`, and `MEMORY.md`.

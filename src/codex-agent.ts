@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import type { OpenColabConfig } from "./config.js";
 import { buildAgentPrompt, readAgentDocuments, resolveAgentDirectory } from "./agent.js";
+import { getCanonicalProviderKeyEnvVar } from "./provider.js";
 import { isLiteralSecretReference, resolveSecretReference } from "./secrets.js";
 import type { ConversationMessage, OpenColabState } from "./types.js";
 
@@ -26,28 +27,33 @@ export class CodexAgent {
       return this.mockResponse(state.provider.model, input.text);
     }
 
-    return this.runCodexCli(prompt, state);
+    return this.runProviderCli(prompt, state);
   }
 
-  private runCodexCli(prompt: string, state: OpenColabState): Promise<string> {
+  private runProviderCli(prompt: string, state: OpenColabState): Promise<string> {
     const apiKey = resolveSecretReference(state.provider.apiKeyEnvVar);
     if (!apiKey) {
       throw new Error("Missing required provider API key (env var or literal value).");
     }
     const configuredReference = state.provider.apiKeyEnvVar.trim();
+    const canonicalKeyName = getCanonicalProviderKeyEnvVar(state.provider.name);
     const preferredKeyName = isLiteralSecretReference(configuredReference)
-      ? "OPENAI_API_KEY"
+      ? canonicalKeyName
       : configuredReference;
 
     const cwd = resolveAgentDirectory(this.config.rootDir, state.agent.path);
+    const resolvedArgs = state.provider.cliArgs.map((arg) => arg.replaceAll("{model}", state.provider.model));
+    const promptProvidedInArgs = resolvedArgs.some((arg) => arg.includes("{prompt}"));
+    const cliArgs = resolvedArgs.map((arg) => arg.replaceAll("{prompt}", prompt));
+    const providerLabel = state.provider.name.replaceAll("_", " ");
 
     return new Promise<string>((resolve, reject) => {
-      const child = spawn(state.provider.cliCommand, state.provider.cliArgs, {
+      const child = spawn(state.provider.cliCommand, cliArgs, {
         cwd,
         env: {
           ...process.env,
-          OPENAI_API_KEY: apiKey,
-          ...(preferredKeyName !== "OPENAI_API_KEY" ? { [preferredKeyName]: apiKey } : {}),
+          [canonicalKeyName]: apiKey,
+          ...(preferredKeyName !== canonicalKeyName ? { [preferredKeyName]: apiKey } : {}),
           OPENCOLAB_MODEL: state.provider.model
         },
         stdio: ["pipe", "pipe", "pipe"]
@@ -68,7 +74,7 @@ export class CodexAgent {
 
       const timeoutHandle = setTimeout(() => {
         child.kill("SIGKILL");
-        finish(() => reject(new Error("Codex CLI timed out")));
+        finish(() => reject(new Error(`${providerLabel} CLI timed out`)));
       }, Math.max(this.config.codexTimeoutMs, 1000));
 
       child.stdout.on("data", (chunk: Buffer) => {
@@ -86,13 +92,18 @@ export class CodexAgent {
       child.on("close", (code) => {
         if (code === 0) {
           const response = stdout.trim();
-          finish(() => resolve(response || "(empty response from Codex CLI)"));
+          finish(() => resolve(response || `(empty response from ${providerLabel} CLI)`));
           return;
         }
 
-        const message = stderr.trim() || `Codex CLI exited with code ${String(code)}`;
+        const message = stderr.trim() || `${providerLabel} CLI exited with code ${String(code)}`;
         finish(() => reject(new Error(message)));
       });
+
+      if (promptProvidedInArgs) {
+        child.stdin.end();
+        return;
+      }
 
       child.stdin.write(prompt);
       child.stdin.end();
@@ -101,7 +112,7 @@ export class CodexAgent {
 
   private mockResponse(model: string, text: string): string {
     return [
-      `[mock-codex:${model}]`,
+      `[mock-${this.getState().provider.name}:${model}]`,
       "This is a simulated response from the OpenColab research agent.",
       `Question: ${text}`
     ].join("\n");

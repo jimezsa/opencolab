@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { startHttpServer } from "./http.js";
+import { getProviderSetupDefaults, isProviderName } from "./provider.js";
 import { createRuntime } from "./runtime.js";
+import type { ProviderName } from "./types.js";
 
 function parseFlags(args: string[]): { values: Record<string, string>; positionals: string[] } {
   const values: Record<string, string> = {};
@@ -46,7 +48,7 @@ function usage(): string {
     "",
     "Commands:",
     "  opencolab init",
-    "  opencolab setup model [--model gpt-5] [--api-key-env-var OPENAI_API_KEY] [--cli-command codex] [--cli-args 'exec,-']",
+    "  opencolab setup model [--provider codex|claude_code] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
     "  opencolab setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
     "  opencolab setup telegram pair start",
     "  opencolab setup telegram pair complete --code <pairing_code>",
@@ -55,9 +57,17 @@ function usage(): string {
     "  opencolab gateway start [--port 4646] [--telegram-polling true|false]",
     "",
     "Notes:",
-    "  - v1 uses one Codex-backed agent.",
+    "  - v1 uses one agent with provider runtime: codex or claude_code.",
     "  - Pairing code is sent to Telegram and must be entered in CLI."
   ].join("\n");
+}
+
+function parseProviderName(value: string | undefined): ProviderName {
+  const parsed = value ?? "codex";
+  if (!isProviderName(parsed)) {
+    throw new Error(`Unsupported provider: ${parsed}. Use codex or claude_code.`);
+  }
+  return parsed;
 }
 
 async function main(): Promise<void> {
@@ -89,11 +99,14 @@ async function main(): Promise<void> {
 
   if (command === "setup" && subcommand === "model") {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
+    const providerName = parseProviderName(values.provider);
+    const providerDefaults = getProviderSetupDefaults(providerName);
     const state = runtime.setupModel({
-      model: values.model ?? "gpt-5",
-      apiKeyEnvVar: values["api-key-env-var"] ?? "OPENAI_API_KEY",
-      cliCommand: values["cli-command"] ?? "codex",
-      cliArgs: parseCsv(values["cli-args"] ?? "exec,-")
+      providerName,
+      model: values.model ?? providerDefaults.model,
+      apiKeyEnvVar: values["api-key-env-var"] ?? providerDefaults.apiKeyEnvVar,
+      cliCommand: values["cli-command"] ?? providerDefaults.cliCommand,
+      cliArgs: parseCsv(values["cli-args"] ?? providerDefaults.cliArgs.join(","))
     });
 
     console.log(`Provider configured: ${state.provider.name}`);

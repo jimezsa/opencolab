@@ -23,6 +23,27 @@ test("init creates required agent context files", () => {
   }
 });
 
+test("setupModel supports claude_code provider defaults", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-runtime-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    const state = runtime.setupModel({
+      providerName: "claude_code",
+      model: "claude-sonnet-4-5",
+      apiKeyEnvVar: "ANTHROPIC_API_KEY",
+      cliCommand: "claude",
+      cliArgs: ["-p", "{prompt}", "--model", "{model}"]
+    });
+
+    assert.equal(state.provider.name, "claude_code");
+    assert.equal(state.provider.apiKeyEnvVar, "ANTHROPIC_API_KEY");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("pairing start sends code and complete validates it", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-pairing-"));
   const sentTexts: string[] = [];
