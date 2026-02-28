@@ -44,7 +44,7 @@ function parseCsv(value: string | undefined): string[] {
 
 function usage(): string {
   return [
-    "OpenColab CLI (minimal v1)",
+    "OpenColab CLI (multi-project v1)",
     "",
     "Commands:",
     "  opencolab init",
@@ -52,13 +52,19 @@ function usage(): string {
     "  opencolab setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
     "  opencolab setup telegram pair start",
     "  opencolab setup telegram pair complete --code <pairing_code>",
-    "  opencolab agent init [--agent-id research_agent] [--path agents/research_agent]",
+    "  opencolab project create --project-id <id>",
+    "  opencolab project use --project-id <id>",
+    "  opencolab project list",
+    "  opencolab project show",
+    "  opencolab agent create --agent-id <id> [--path projects/<project_id>/agents/<agent_id>]",
+    "  opencolab agent use --agent-id <id>",
+    "  opencolab agent list",
     "  opencolab agent show",
     "  opencolab gateway start [--port 4646] [--telegram-polling true|false]",
     "",
     "Notes:",
-    "  - v1 uses one agent with provider runtime: codex or claude_code.",
-    "  - Pairing code is sent to Telegram and must be entered in CLI."
+    "  - State is stored in opencolab.json under projects and agents.",
+    "  - Telegram pairing is per active project."
   ].join("\n");
 }
 
@@ -92,8 +98,12 @@ async function main(): Promise<void> {
 
   if (command === "init") {
     const state = runtime.getState();
+    const project = runtime.getActiveProject();
+    const agent = runtime.getActiveAgent();
+
     console.log(`Initialized OpenColab at ${runtime.config.projectConfigPath}`);
-    console.log(`Agent: ${state.agent.id} (${state.agent.path})`);
+    console.log(`Active project: ${state.activeProjectId} (${project.path})`);
+    console.log(`Active agent: ${agent.id} (${agent.path})`);
     return;
   }
 
@@ -101,7 +111,7 @@ async function main(): Promise<void> {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
     const providerName = parseProviderName(values.provider);
     const providerDefaults = getProviderSetupDefaults(providerName);
-    const state = runtime.setupModel({
+    runtime.setupModel({
       providerName,
       model: values.model ?? providerDefaults.model,
       apiKeyEnvVar: values["api-key-env-var"] ?? providerDefaults.apiKeyEnvVar,
@@ -109,10 +119,12 @@ async function main(): Promise<void> {
       cliArgs: parseCsv(values["cli-args"] ?? providerDefaults.cliArgs.join(","))
     });
 
-    console.log(`Provider configured: ${state.provider.name}`);
-    console.log(`Model: ${state.provider.model}`);
-    console.log(`API key env var: ${state.provider.apiKeyEnvVar}`);
-    console.log(`CLI: ${state.provider.cliCommand} ${state.provider.cliArgs.join(" ")}`);
+    const project = runtime.getActiveProject();
+    console.log(`Project: ${project.id}`);
+    console.log(`Provider configured: ${project.provider.name}`);
+    console.log(`Model: ${project.provider.model}`);
+    console.log(`API key env var: ${project.provider.apiKeyEnvVar}`);
+    console.log(`CLI: ${project.provider.cliCommand} ${project.provider.cliArgs.join(" ")}`);
     return;
   }
 
@@ -124,14 +136,16 @@ async function main(): Promise<void> {
       throw new Error("--chat-id is required");
     }
 
-    const state = runtime.setupTelegram({
+    runtime.setupTelegram({
       botTokenEnvVar: values["bot-token-env-var"] ?? "TELEGRAM_BOT_TOKEN",
       chatId
     });
 
+    const project = runtime.getActiveProject();
+    console.log(`Project: ${project.id}`);
     console.log("Telegram configured.");
-    console.log(`Chat ID: ${state.telegram.chatId}`);
-    console.log(`Bot token env var: ${state.telegram.botTokenEnvVar}`);
+    console.log(`Chat ID: ${project.telegram.chatId}`);
+    console.log(`Bot token env var: ${project.telegram.botTokenEnvVar}`);
     console.log("Run 'opencolab setup telegram pair start' to begin pairing.");
     return;
   }
@@ -140,7 +154,9 @@ async function main(): Promise<void> {
     const pairAction = rest[0];
 
     if (pairAction === "start") {
+      const project = runtime.getActiveProject();
       const result = await runtime.startPairing();
+      console.log(`Project: ${project.id}`);
       console.log(`Pairing code sent to Telegram (expires ${result.expiresAt}).`);
       console.log(`Enter in CLI: opencolab setup telegram pair complete --code ${result.code}`);
       return;
@@ -153,7 +169,9 @@ async function main(): Promise<void> {
         throw new Error("--code is required");
       }
 
+      const project = runtime.getActiveProject();
       const result = runtime.completePairing(code);
+      console.log(`Project: ${project.id}`);
       console.log(`Telegram pairing completed at ${result.pairedAt}`);
       return;
     }
@@ -161,20 +179,98 @@ async function main(): Promise<void> {
     throw new Error("Unknown pairing command. Use 'start' or 'complete --code <value>'.");
   }
 
-  if (command === "agent" && subcommand === "init") {
+  if (command === "project") {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
-    const agentId = values["agent-id"] ?? "research_agent";
-    const agentPath = values.path ?? "agents/research_agent";
 
-    const state = runtime.configureAgent(agentId, agentPath);
-    console.log(`Agent configured: ${state.agent.id}`);
-    console.log(`Agent path: ${state.agent.path}`);
-    return;
+    if (subcommand === "create" || subcommand === "init") {
+      const projectId = values["project-id"];
+      if (!projectId) {
+        throw new Error("--project-id is required");
+      }
+
+      runtime.createProject(projectId);
+      const project = runtime.getActiveProject();
+      const agent = runtime.getActiveAgent();
+      console.log(`Project created and selected: ${project.id}`);
+      console.log(`Path: ${project.path}`);
+      console.log(`Default agent: ${agent.id} (${agent.path})`);
+      return;
+    }
+
+    if (subcommand === "use") {
+      const projectId = values["project-id"];
+      if (!projectId) {
+        throw new Error("--project-id is required");
+      }
+
+      runtime.useProject(projectId);
+      const project = runtime.getActiveProject();
+      const agent = runtime.getActiveAgent();
+      console.log(`Active project: ${project.id}`);
+      console.log(`Active agent: ${agent.id}`);
+      return;
+    }
+
+    if (subcommand === "list") {
+      const state = runtime.getState();
+      const projects = runtime.listProjects();
+      for (const project of projects) {
+        const marker = project.id === state.activeProjectId ? "*" : "-";
+        console.log(`${marker} ${project.id} (active agent: ${project.activeAgentId})`);
+      }
+      return;
+    }
+
+    if (subcommand === "show") {
+      console.log(JSON.stringify(runtime.getActiveProject(), null, 2));
+      return;
+    }
   }
 
-  if (command === "agent" && subcommand === "show") {
-    console.log(JSON.stringify(runtime.getState().agent, null, 2));
-    return;
+  if (command === "agent") {
+    const { values } = parseFlags([action, ...rest].filter(Boolean));
+
+    if (subcommand === "create" || subcommand === "init") {
+      const project = runtime.getActiveProject();
+      const agentId = values["agent-id"] ?? "research_agent";
+      const agentPath = values.path;
+      runtime.configureAgent(agentId, agentPath);
+
+      const agent = runtime.getActiveAgent();
+      console.log(`Project: ${project.id}`);
+      console.log(`Agent configured: ${agent.id}`);
+      console.log(`Agent path: ${agent.path}`);
+      return;
+    }
+
+    if (subcommand === "use") {
+      const agentId = values["agent-id"];
+      if (!agentId) {
+        throw new Error("--agent-id is required");
+      }
+
+      runtime.useAgent(agentId);
+      const project = runtime.getActiveProject();
+      const agent = runtime.getActiveAgent();
+      console.log(`Project: ${project.id}`);
+      console.log(`Active agent: ${agent.id}`);
+      return;
+    }
+
+    if (subcommand === "list") {
+      const project = runtime.getActiveProject();
+      const agents = runtime.listAgents();
+      for (const agent of agents) {
+        const marker = agent.id === project.activeAgentId ? "*" : "-";
+        console.log(`${marker} ${agent.id} (${agent.path})`);
+      }
+      return;
+    }
+
+    if (subcommand === "show") {
+      console.log(JSON.stringify(runtime.getActiveAgent(), null, 2));
+      return;
+    }
   }
 
   throw new Error(`Unknown command: ${argv.join(" ")}`);

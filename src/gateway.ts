@@ -1,5 +1,12 @@
+import { ensureAgentFiles } from "./agent.js";
 import type { OpenColabConfig } from "./config.js";
 import type { CodexAgentInput } from "./codex-agent.js";
+import {
+  createDefaultAgentConfig,
+  createDefaultProjectState,
+  ensureProjectAndAgent,
+  getActiveProject
+} from "./project-config.js";
 import type {
   ConversationMessage,
   GatewayResult,
@@ -40,30 +47,39 @@ export class TelegramGateway {
   }
 
   async startPairing(): Promise<{ code: string; expiresAt: string; sent: boolean }> {
-    const state = this.deps.getState();
-    if (!state.telegram.chatId) {
-      throw new Error("Telegram chatId is not configured. Run 'opencolab setup telegram'.");
+    const state = ensureProjectAndAgent(this.deps.getState());
+    const project = getActiveProject(state);
+
+    if (!project.telegram.chatId) {
+      throw new Error("Telegram chatId is not configured for the active project. Run 'opencolab setup telegram'.");
     }
 
     const code = randomDigits(6);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const next: OpenColabState = {
       ...state,
-      telegram: {
-        ...state.telegram,
-        paired: false,
-        pairedAt: null,
-        pendingPairingCode: code,
-        pendingPairingExpiresAt: expiresAt
+      projects: {
+        ...state.projects,
+        [project.id]: {
+          ...project,
+          telegram: {
+            ...project.telegram,
+            paired: false,
+            pairedAt: null,
+            pendingPairingCode: code,
+            pendingPairingExpiresAt: expiresAt
+          }
+        }
       }
     };
 
     this.deps.saveState(next);
 
     const sent = await this.sender(
-      state.telegram.chatId,
+      project.telegram.chatId,
       [
         "OpenColab pairing request",
+        `Project: ${project.id}`,
         `Code: ${code}`,
         "Enter this code in your terminal:",
         `opencolab setup telegram pair complete --code ${code}`,
@@ -74,7 +90,7 @@ export class TelegramGateway {
 
     if (!sent) {
       throw new Error(
-        `Could not send pairing code to Telegram. Ensure bot token is configured (env var or literal token).`
+        "Could not send pairing code to Telegram. Ensure bot token is configured (env var or literal token)."
       );
     }
 
@@ -82,9 +98,10 @@ export class TelegramGateway {
   }
 
   completePairing(code: string): { pairedAt: string } {
-    const state = this.deps.getState();
-    const pendingCode = state.telegram.pendingPairingCode;
-    const pendingExpiresAt = state.telegram.pendingPairingExpiresAt;
+    const state = ensureProjectAndAgent(this.deps.getState());
+    const project = getActiveProject(state);
+    const pendingCode = project.telegram.pendingPairingCode;
+    const pendingExpiresAt = project.telegram.pendingPairingExpiresAt;
 
     if (!pendingCode || !pendingExpiresAt) {
       throw new Error("No active pairing code. Run 'opencolab setup telegram pair start' first.");
@@ -101,12 +118,18 @@ export class TelegramGateway {
     const pairedAt = nowIso();
     const next: OpenColabState = {
       ...state,
-      telegram: {
-        ...state.telegram,
-        paired: true,
-        pairedAt,
-        pendingPairingCode: null,
-        pendingPairingExpiresAt: null
+      projects: {
+        ...state.projects,
+        [project.id]: {
+          ...project,
+          telegram: {
+            ...project.telegram,
+            paired: true,
+            pairedAt,
+            pendingPairingCode: null,
+            pendingPairingExpiresAt: null
+          }
+        }
       }
     };
 
@@ -125,9 +148,10 @@ export class TelegramGateway {
       };
     }
 
-    const state = this.deps.getState();
+    const state = ensureProjectAndAgent(this.deps.getState());
+    const project = getActiveProject(state);
 
-    if (!state.telegram.chatId || inbound.chatId !== state.telegram.chatId) {
+    if (!project.telegram.chatId || inbound.chatId !== project.telegram.chatId) {
       return {
         ok: false,
         action: "unauthorized_chat",
@@ -136,13 +160,35 @@ export class TelegramGateway {
       };
     }
 
-    if (!state.telegram.paired) {
+    if (!project.telegram.paired) {
       const response = "Pairing required. Run 'opencolab setup telegram pair start' in your terminal.";
       const sent = await this.sender(inbound.chatId, response, state);
       return {
         ok: false,
         action: "pairing_required",
         response,
+        sent
+      };
+    }
+
+    let commandResult: { nextState?: OpenColabState; response: string } | null = null;
+    try {
+      commandResult = this.tryHandleManagementCommand(inbound, state);
+    } catch (error) {
+      commandResult = {
+        response: error instanceof Error ? error.message : String(error)
+      };
+    }
+    if (commandResult) {
+      if (commandResult.nextState) {
+        this.deps.saveState(commandResult.nextState);
+      }
+
+      const sent = await this.sender(inbound.chatId, commandResult.response, state);
+      return {
+        ok: true,
+        action: "management_command",
+        response: commandResult.response,
         sent
       };
     }
@@ -184,6 +230,215 @@ export class TelegramGateway {
     };
   }
 
+  private tryHandleManagementCommand(
+    inbound: TelegramInbound,
+    state: OpenColabState
+  ): { nextState?: OpenColabState; response: string } | null {
+    const text = inbound.text.trim();
+    if (!text.startsWith("/")) {
+      return null;
+    }
+
+    const tokens = text.split(/\s+/);
+    const scope = tokens[0]?.toLowerCase();
+    const action = tokens[1]?.toLowerCase();
+    const value = tokens[2];
+
+    if (scope === "/project") {
+      if (action === "list") {
+        return {
+          response: this.renderProjectList(state)
+        };
+      }
+
+      if (action === "create") {
+        if (!value) {
+          return {
+            response: "Usage: /project create <project_id>"
+          };
+        }
+
+        const projectId = normalizeEntityId(value);
+        if (state.projects[projectId]) {
+          return {
+            response: `Project already exists: ${projectId}`
+          };
+        }
+
+        const currentProject = getActiveProject(state);
+        const project = createDefaultProjectState(projectId);
+        project.provider = { ...currentProject.provider };
+        project.telegram = {
+          ...currentProject.telegram,
+          pendingPairingCode: null,
+          pendingPairingExpiresAt: null
+        };
+
+        const nextState = ensureProjectAndAgent({
+          ...state,
+          activeProjectId: project.id,
+          projects: {
+            ...state.projects,
+            [project.id]: project
+          }
+        });
+
+        const activeAgent = project.agents[project.activeAgentId];
+        ensureAgentFiles(this.config.rootDir, activeAgent);
+
+        return {
+          nextState,
+          response: `Project created and selected: ${project.id}`
+        };
+      }
+
+      if (action === "use") {
+        if (!value) {
+          return {
+            response: "Usage: /project use <project_id>"
+          };
+        }
+
+        const projectId = normalizeEntityId(value);
+        const target = state.projects[projectId];
+        if (!target) {
+          return {
+            response: `Unknown project: ${projectId}`
+          };
+        }
+
+        const nextState = ensureProjectAndAgent({
+          ...state,
+          activeProjectId: projectId
+        });
+
+        const activeAgent = target.agents[target.activeAgentId] ?? Object.values(target.agents)[0];
+        if (activeAgent) {
+          ensureAgentFiles(this.config.rootDir, activeAgent);
+        }
+
+        return {
+          nextState,
+          response: `Active project: ${projectId}`
+        };
+      }
+
+      return {
+        response: "Project commands: /project list | /project create <project_id> | /project use <project_id>"
+      };
+    }
+
+    if (scope === "/agent") {
+      const project = getActiveProject(state);
+
+      if (action === "list") {
+        return {
+          response: this.renderAgentList(project)
+        };
+      }
+
+      if (action === "create") {
+        if (!value) {
+          return {
+            response: "Usage: /agent create <agent_id>"
+          };
+        }
+
+        const agentId = normalizeEntityId(value);
+        if (project.agents[agentId]) {
+          return {
+            response: `Agent already exists in project '${project.id}': ${agentId}`
+          };
+        }
+
+        const agent = createDefaultAgentConfig(project.id, agentId);
+        const nextState = ensureProjectAndAgent({
+          ...state,
+          projects: {
+            ...state.projects,
+            [project.id]: {
+              ...project,
+              activeAgentId: agent.id,
+              agents: {
+                ...project.agents,
+                [agent.id]: agent
+              }
+            }
+          }
+        });
+
+        ensureAgentFiles(this.config.rootDir, agent);
+
+        return {
+          nextState,
+          response: `Agent created and selected: ${agent.id} (project ${project.id})`
+        };
+      }
+
+      if (action === "use") {
+        if (!value) {
+          return {
+            response: "Usage: /agent use <agent_id>"
+          };
+        }
+
+        const agentId = normalizeEntityId(value);
+        if (!project.agents[agentId]) {
+          return {
+            response: `Unknown agent in project '${project.id}': ${agentId}`
+          };
+        }
+
+        const nextState = ensureProjectAndAgent({
+          ...state,
+          projects: {
+            ...state.projects,
+            [project.id]: {
+              ...project,
+              activeAgentId: agentId
+            }
+          }
+        });
+
+        ensureAgentFiles(this.config.rootDir, project.agents[agentId]);
+
+        return {
+          nextState,
+          response: `Active agent: ${agentId} (project ${project.id})`
+        };
+      }
+
+      return {
+        response: "Agent commands: /agent list | /agent create <agent_id> | /agent use <agent_id>"
+      };
+    }
+
+    return {
+      response:
+        "Supported commands: /project list | /project create <project_id> | /project use <project_id> | /agent list | /agent create <agent_id> | /agent use <agent_id>"
+    };
+  }
+
+  private renderProjectList(state: OpenColabState): string {
+    const entries = Object.values(state.projects).sort((a, b) => a.id.localeCompare(b.id));
+    const lines = entries.map((project) => {
+      const marker = project.id === state.activeProjectId ? "*" : "-";
+      return `${marker} ${project.id} (active agent: ${project.activeAgentId})`;
+    });
+
+    return [`Projects (${entries.length})`, ...lines].join("\n");
+  }
+
+  private renderAgentList(project: OpenColabState["projects"][string]): string {
+    const entries = Object.values(project.agents).sort((a, b) => a.id.localeCompare(b.id));
+    const lines = entries.map((agent) => {
+      const marker = agent.id === project.activeAgentId ? "*" : "-";
+      return `${marker} ${agent.id} (${agent.path})`;
+    });
+
+    return [`Agents in ${project.id} (${entries.length})`, ...lines].join("\n");
+  }
+
   private startTypingFeedback(chatId: string, state: OpenColabState): () => void {
     let running = true;
 
@@ -216,7 +471,8 @@ export async function defaultTelegramSender(
   text: string,
   state: OpenColabState
 ): Promise<boolean> {
-  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
+  const project = getActiveProject(state);
+  const token = resolveSecretReference(project.telegram.botTokenEnvVar);
   if (!token) {
     return false;
   }
@@ -243,7 +499,8 @@ export async function defaultTelegramTypingSender(
   chatId: string,
   state: OpenColabState
 ): Promise<boolean> {
-  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
+  const project = getActiveProject(state);
+  const token = resolveSecretReference(project.telegram.botTokenEnvVar);
   if (!token) {
     return false;
   }
@@ -321,4 +578,19 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   }
 
   return value as Record<string, unknown>;
+}
+
+function normalizeEntityId(value: string): string {
+  const trimmed = String(value).trim();
+  if (!trimmed) {
+    throw new Error("Identifier is required.");
+  }
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+    throw new Error(
+      `Invalid identifier '${trimmed}'. Use only letters, numbers, underscore, or hyphen.`
+    );
+  }
+
+  return trimmed;
 }

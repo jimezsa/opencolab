@@ -2,9 +2,23 @@ import { ensureAgentFiles } from "./agent.js";
 import { loadConfig, type OpenColabConfig } from "./config.js";
 import { ConversationStore } from "./conversation.js";
 import { CodexAgent, type CodexAgentInput } from "./codex-agent.js";
-import { readProjectState, writeProjectState } from "./project-config.js";
+import {
+  buildAgentPath,
+  createDefaultAgentConfig,
+  createDefaultProjectState,
+  ensureProjectAndAgent,
+  getActiveProject,
+  readProjectState,
+  writeProjectState
+} from "./project-config.js";
 import { TelegramGateway, type TelegramSender, type TelegramTypingSender } from "./gateway.js";
-import type { GatewayResult, OpenColabState, ProviderName } from "./types.js";
+import type {
+  AgentConfig,
+  GatewayResult,
+  OpenColabState,
+  ProjectState,
+  ProviderName
+} from "./types.js";
 import { ensureDir } from "./utils.js";
 
 export interface RuntimeOptions {
@@ -36,18 +50,21 @@ export class OpenColabRuntime {
 
   constructor(cwd = process.cwd(), private readonly options: RuntimeOptions = {}) {
     this.config = loadConfig(cwd);
-    this.state = readProjectState(this.config);
+    this.state = ensureProjectAndAgent(readProjectState(this.config));
     this.conversations = new ConversationStore(this.config.conversationsDir);
     this.codex = new CodexAgent(this.config, () => this.state);
 
     this.gateway = new TelegramGateway(this.config, {
       getState: () => this.state,
       saveState: (next) => {
-        this.state = next;
+        this.state = ensureProjectAndAgent(next);
         writeProjectState(this.config, this.state);
+        this.ensureActiveAgentFiles();
       },
-      readConversation: (chatId, limit) => this.conversations.readRecent(chatId, limit),
-      appendConversation: (chatId, message) => this.conversations.append(chatId, message),
+      readConversation: (chatId, limit) =>
+        this.conversations.readRecent(this.getConversationKey(chatId), limit),
+      appendConversation: (chatId, message) =>
+        this.conversations.append(this.getConversationKey(chatId), message),
       respond: async (input) => {
         if (this.options.agentResponder) {
           return this.options.agentResponder(input);
@@ -61,9 +78,9 @@ export class OpenColabRuntime {
 
   init(): OpenColabState {
     ensureDir(this.config.stateDir);
-    this.state = readProjectState(this.config);
-    writeProjectState(this.config, this.state);
-    ensureAgentFiles(this.config.rootDir, this.state.agent);
+    this.state = ensureProjectAndAgent(readProjectState(this.config));
+    this.persist();
+    this.ensureActiveAgentFiles();
     return this.state;
   }
 
@@ -71,15 +88,83 @@ export class OpenColabRuntime {
     return this.state;
   }
 
-  setupModel(input: ModelSetupInput): OpenColabState {
+  getActiveProject(): ProjectState {
+    return getActiveProject(this.state);
+  }
+
+  getActiveAgent(): AgentConfig {
+    const project = this.getActiveProject();
+    const active = project.agents[project.activeAgentId];
+    if (active) {
+      return active;
+    }
+
+    const fallback = Object.values(project.agents)[0];
+    if (fallback) {
+      return fallback;
+    }
+
+    return createDefaultAgentConfig(project.id, "research_agent");
+  }
+
+  listProjects(): ProjectState[] {
+    return Object.values(this.state.projects).sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  createProject(projectId: string): OpenColabState {
+    const id = normalizeEntityId(projectId);
+    if (this.state.projects[id]) {
+      throw new Error(`Project already exists: ${id}`);
+    }
+
+    const project = createDefaultProjectState(id);
     this.state = {
       ...this.state,
-      provider: {
-        name: input.providerName,
-        model: input.model,
-        apiKeyEnvVar: input.apiKeyEnvVar,
-        cliCommand: input.cliCommand,
-        cliArgs: input.cliArgs
+      activeProjectId: id,
+      projects: {
+        ...this.state.projects,
+        [id]: project
+      }
+    };
+
+    this.persist();
+    this.ensureActiveAgentFiles();
+    return this.state;
+  }
+
+  useProject(projectId: string): OpenColabState {
+    const id = normalizeEntityId(projectId);
+    if (!this.state.projects[id]) {
+      throw new Error(`Unknown project: ${id}`);
+    }
+
+    this.state = {
+      ...this.state,
+      activeProjectId: id
+    };
+
+    this.persist();
+    this.ensureActiveAgentFiles();
+    return this.state;
+  }
+
+  setupModel(input: ModelSetupInput): OpenColabState {
+    const project = this.getActiveProject();
+
+    this.state = {
+      ...this.state,
+      projects: {
+        ...this.state.projects,
+        [project.id]: {
+          ...project,
+          provider: {
+            name: input.providerName,
+            model: input.model,
+            apiKeyEnvVar: input.apiKeyEnvVar,
+            cliCommand: input.cliCommand,
+            cliArgs: input.cliArgs
+          }
+        }
       }
     };
 
@@ -88,18 +173,25 @@ export class OpenColabRuntime {
   }
 
   setupTelegram(input: TelegramSetupInput): OpenColabState {
-    const chatChanged = this.state.telegram.chatId !== input.chatId;
+    const project = this.getActiveProject();
+    const chatChanged = project.telegram.chatId !== input.chatId;
 
     this.state = {
       ...this.state,
-      telegram: {
-        ...this.state.telegram,
-        botTokenEnvVar: input.botTokenEnvVar,
-        chatId: input.chatId,
-        paired: chatChanged ? false : this.state.telegram.paired,
-        pairedAt: chatChanged ? null : this.state.telegram.pairedAt,
-        pendingPairingCode: null,
-        pendingPairingExpiresAt: null
+      projects: {
+        ...this.state.projects,
+        [project.id]: {
+          ...project,
+          telegram: {
+            ...project.telegram,
+            botTokenEnvVar: input.botTokenEnvVar,
+            chatId: input.chatId,
+            paired: chatChanged ? false : project.telegram.paired,
+            pairedAt: chatChanged ? null : project.telegram.pairedAt,
+            pendingPairingCode: null,
+            pendingPairingExpiresAt: null
+          }
+        }
       }
     };
 
@@ -107,18 +199,68 @@ export class OpenColabRuntime {
     return this.state;
   }
 
-  configureAgent(agentId: string, agentPath: string): OpenColabState {
+  listAgents(projectId = this.state.activeProjectId): AgentConfig[] {
+    const project = this.state.projects[projectId];
+    if (!project) {
+      throw new Error(`Unknown project: ${projectId}`);
+    }
+
+    return Object.values(project.agents).sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  configureAgent(agentId: string, agentPath?: string): OpenColabState {
+    const project = this.getActiveProject();
+    const id = normalizeEntityId(agentId);
+    const candidatePath = agentPath?.trim();
+    const resolvedPath = candidatePath || buildAgentPath(project.id, id);
+
+    const existing = project.agents[id] ?? createDefaultAgentConfig(project.id, id);
+    const updatedAgent: AgentConfig = {
+      ...existing,
+      id,
+      path: resolvedPath
+    };
+
     this.state = {
       ...this.state,
-      agent: {
-        ...this.state.agent,
-        id: agentId,
-        path: agentPath
+      projects: {
+        ...this.state.projects,
+        [project.id]: {
+          ...project,
+          activeAgentId: id,
+          agents: {
+            ...project.agents,
+            [id]: updatedAgent
+          }
+        }
       }
     };
 
     this.persist();
-    ensureAgentFiles(this.config.rootDir, this.state.agent);
+    this.ensureActiveAgentFiles();
+    return this.state;
+  }
+
+  useAgent(agentId: string): OpenColabState {
+    const project = this.getActiveProject();
+    const id = normalizeEntityId(agentId);
+    if (!project.agents[id]) {
+      throw new Error(`Unknown agent in project '${project.id}': ${id}`);
+    }
+
+    this.state = {
+      ...this.state,
+      projects: {
+        ...this.state.projects,
+        [project.id]: {
+          ...project,
+          activeAgentId: id
+        }
+      }
+    };
+
+    this.persist();
+    this.ensureActiveAgentFiles();
     return this.state;
   }
 
@@ -134,12 +276,42 @@ export class OpenColabRuntime {
     return this.gateway.handleWebhook(body);
   }
 
+  private ensureActiveAgentFiles(): void {
+    const project = getActiveProject(this.state);
+    const agent = project.agents[project.activeAgentId] ?? Object.values(project.agents)[0];
+    if (!agent) {
+      return;
+    }
+
+    ensureAgentFiles(this.config.rootDir, agent);
+  }
+
+  private getConversationKey(chatId: string): string {
+    return `${this.state.activeProjectId}__${chatId}`;
+  }
+
   private persist(): void {
+    this.state = ensureProjectAndAgent(this.state);
     writeProjectState(this.config, this.state);
-    this.state = readProjectState(this.config);
+    this.state = ensureProjectAndAgent(readProjectState(this.config));
   }
 }
 
 export function createRuntime(cwd = process.cwd(), options: RuntimeOptions = {}): OpenColabRuntime {
   return new OpenColabRuntime(cwd, options);
+}
+
+function normalizeEntityId(value: string): string {
+  const trimmed = String(value).trim();
+  if (!trimmed) {
+    throw new Error("Identifier is required");
+  }
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+    throw new Error(
+      `Invalid identifier '${trimmed}'. Use only letters, numbers, underscore, or hyphen.`
+    );
+  }
+
+  return trimmed;
 }

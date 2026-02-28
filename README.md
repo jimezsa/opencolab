@@ -1,14 +1,16 @@
 # OpenColab
 
-OpenColab v1 is now a minimalist single-agent research assistant.
+OpenColab v1 is a minimalist multi-project research assistant.
 
 Architecture:
 
-`Telegram -> Gateway -> Agent`
+`Telegram -> Gateway -> Active Project -> Active Agent`
 
-- one agent
+- multiple projects
+- multiple agents per project
+- one active project/agent at a time
 - one provider runtime per project: Codex or Claude Code
-- setup and control via CLI
+- setup and control via CLI and Telegram commands
 - persistence in `opencolab.json`
 
 ## Stack
@@ -30,21 +32,25 @@ pnpm install
 pnpm run build
 ```
 
-Initialize project state and default agent files:
+Initialize state and default project/agent files:
 
 ```bash
 node dist/src/cli.js init
 ```
 
-Configure a different personal-named agent (this replaces the active agent in v1):
+Create and select a project:
 
 ```bash
-node dist/src/cli.js agent init \
-  --agent-id personal_agent \
-  --path agents/personal_agent
+node dist/src/cli.js project create --project-id personal
 ```
 
-Configure Codex provider:
+Create and select an agent in the active project:
+
+```bash
+node dist/src/cli.js agent create --agent-id personal_agent
+```
+
+Configure Codex provider for the active project:
 
 ```bash
 node dist/src/cli.js setup model \
@@ -55,18 +61,7 @@ node dist/src/cli.js setup model \
   --cli-args "exec,-"
 ```
 
-Configure Claude Code provider:
-
-```bash
-node dist/src/cli.js setup model \
-  --provider claude_code \
-  --model claude-sonnet-4-5 \
-  --api-key-env-var ANTHROPIC_API_KEY \
-  --cli-command claude \
-  --cli-args "-p,{prompt},--model,{model}"
-```
-
-Configure Telegram:
+Configure Telegram for the active project:
 
 ```bash
 node dist/src/cli.js setup telegram \
@@ -98,9 +93,31 @@ Telegram webhook endpoint:
 
 `POST http://127.0.0.1:4646/api/telegram/webhook`
 
+## Project and Agent Commands
+
+CLI:
+
+- `opencolab project create --project-id <id>`
+- `opencolab project use --project-id <id>`
+- `opencolab project list`
+- `opencolab project show`
+- `opencolab agent create --agent-id <id> [--path <path>]`
+- `opencolab agent use --agent-id <id>`
+- `opencolab agent list`
+- `opencolab agent show`
+
+Telegram (paired and authorized chat):
+
+- `/project create <project_id>`
+- `/project use <project_id>`
+- `/project list`
+- `/agent create <agent_id>`
+- `/agent use <agent_id>`
+- `/agent list`
+
 ## Agent Contract
 
-Agent directory must include:
+Each agent directory must include:
 
 - `AGENTS.md`
 - `IDENTITY.md`
@@ -109,16 +126,19 @@ Agent directory must include:
 - `USER.md`
 - `MEMORY.md` (long-term memory only)
 
-Default location: `agents/research_agent`.
+Default layout:
+
+- `projects/<project_id>/agents/<agent_id>/`
 
 ## Configuration
 
-`opencolab.json` stores the local runtime state:
+`opencolab.json` stores runtime state:
 
-- agent metadata
-- provider metadata (`codex` or `claude_code`)
-- Telegram settings
-- pairing state
+- active project id
+- projects map
+- per-project agents map
+- per-project provider config (`codex` or `claude_code`)
+- per-project Telegram settings and pairing state
 
 Secrets are referenced by env var names and should not be committed to git.
 

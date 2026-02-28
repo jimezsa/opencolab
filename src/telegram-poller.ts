@@ -1,4 +1,5 @@
 import type { OpenColabRuntime } from "./runtime.js";
+import { getActiveProject } from "./project-config.js";
 import { resolveSecretReference } from "./secrets.js";
 
 interface TelegramUpdate {
@@ -24,7 +25,8 @@ export function startTelegramPolling(
 ): TelegramPollingHandle | null {
   const log = options.logger ?? (() => undefined);
   const state = runtime.getState();
-  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
+  const project = getActiveProject(state);
+  const token = resolveSecretReference(project.telegram.botTokenEnvVar);
 
   if (!token) {
     log("Telegram polling skipped: bot token is not configured.");

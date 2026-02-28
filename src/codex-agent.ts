@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import type { OpenColabConfig } from "./config.js";
 import { buildAgentPrompt, readAgentDocuments, resolveAgentDirectory } from "./agent.js";
+import { getActiveAgent, getActiveProject } from "./project-config.js";
 import { getCanonicalProviderKeyEnvVar } from "./provider.js";
 import { isLiteralSecretReference, resolveSecretReference } from "./secrets.js";
 import type { ConversationMessage, OpenColabState } from "./types.js";
@@ -20,41 +21,47 @@ export class CodexAgent {
 
   async respond(input: CodexAgentInput): Promise<string> {
     const state = this.getState();
-    const docs = readAgentDocuments(this.config.rootDir, state.agent);
+    const project = getActiveProject(state);
+    const agent = getActiveAgent(project);
+    const docs = readAgentDocuments(this.config.rootDir, agent);
     const prompt = buildAgentPrompt(docs, input.history, input.text);
 
     if (this.config.forceMockCodex) {
-      return this.mockResponse(state.provider.model, input.text);
+      return this.mockResponse(project.provider.name, project.provider.model, input.text);
     }
 
-    return this.runProviderCli(prompt, state);
+    return this.runProviderCli(prompt, project.provider, agent.path);
   }
 
-  private runProviderCli(prompt: string, state: OpenColabState): Promise<string> {
-    const apiKey = resolveSecretReference(state.provider.apiKeyEnvVar);
+  private runProviderCli(
+    prompt: string,
+    provider: OpenColabState["projects"][string]["provider"],
+    agentPath: string
+  ): Promise<string> {
+    const apiKey = resolveSecretReference(provider.apiKeyEnvVar);
     if (!apiKey) {
       throw new Error("Missing required provider API key (env var or literal value).");
     }
-    const configuredReference = state.provider.apiKeyEnvVar.trim();
-    const canonicalKeyName = getCanonicalProviderKeyEnvVar(state.provider.name);
+    const configuredReference = provider.apiKeyEnvVar.trim();
+    const canonicalKeyName = getCanonicalProviderKeyEnvVar(provider.name);
     const preferredKeyName = isLiteralSecretReference(configuredReference)
       ? canonicalKeyName
       : configuredReference;
 
-    const cwd = resolveAgentDirectory(this.config.rootDir, state.agent.path);
-    const resolvedArgs = state.provider.cliArgs.map((arg) => arg.replaceAll("{model}", state.provider.model));
+    const cwd = resolveAgentDirectory(this.config.rootDir, agentPath);
+    const resolvedArgs = provider.cliArgs.map((arg) => arg.replaceAll("{model}", provider.model));
     const promptProvidedInArgs = resolvedArgs.some((arg) => arg.includes("{prompt}"));
     const cliArgs = resolvedArgs.map((arg) => arg.replaceAll("{prompt}", prompt));
-    const providerLabel = state.provider.name.replaceAll("_", " ");
+    const providerLabel = provider.name.replaceAll("_", " ");
 
     return new Promise<string>((resolve, reject) => {
-      const child = spawn(state.provider.cliCommand, cliArgs, {
+      const child = spawn(provider.cliCommand, cliArgs, {
         cwd,
         env: {
           ...process.env,
           [canonicalKeyName]: apiKey,
           ...(preferredKeyName !== canonicalKeyName ? { [preferredKeyName]: apiKey } : {}),
-          OPENCOLAB_MODEL: state.provider.model
+          OPENCOLAB_MODEL: provider.model
         },
         stdio: ["pipe", "pipe", "pipe"]
       });
@@ -110,9 +117,9 @@ export class CodexAgent {
     });
   }
 
-  private mockResponse(model: string, text: string): string {
+  private mockResponse(providerName: string, model: string, text: string): string {
     return [
-      `[mock-${this.getState().provider.name}:${model}]`,
+      `[mock-${providerName}:${model}]`,
       "This is a simulated response from the OpenColab research agent.",
       `Question: ${text}`
     ].join("\n");

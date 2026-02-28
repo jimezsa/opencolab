@@ -5,14 +5,17 @@ import os from "node:os";
 import path from "node:path";
 import { createRuntime } from "../src/runtime.js";
 
-test("init creates required agent context files", () => {
+test("init creates required agent context files for active project", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-agent-files-"));
   const runtime = createRuntime(tempDir);
 
   try {
     runtime.init();
-    const state = runtime.getState();
-    const agentDir = path.join(tempDir, state.agent.path);
+    const project = runtime.getActiveProject();
+    const agent = runtime.getActiveAgent();
+    const agentDir = path.join(tempDir, agent.path);
+
+    assert.equal(project.id, "default");
 
     const required = ["AGENTS.md", "IDENTITY.md", "SOUL.md", "TOOLS.md", "USER.md", "MEMORY.md"];
     for (const file of required) {
@@ -23,13 +26,13 @@ test("init creates required agent context files", () => {
   }
 });
 
-test("setupModel supports claude_code provider defaults", () => {
+test("setupModel supports claude_code provider defaults for active project", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-runtime-"));
   const runtime = createRuntime(tempDir);
 
   try {
     runtime.init();
-    const state = runtime.setupModel({
+    runtime.setupModel({
       providerName: "claude_code",
       model: "claude-sonnet-4-5",
       apiKeyEnvVar: "ANTHROPIC_API_KEY",
@@ -37,14 +40,15 @@ test("setupModel supports claude_code provider defaults", () => {
       cliArgs: ["-p", "{prompt}", "--model", "{model}"]
     });
 
-    assert.equal(state.provider.name, "claude_code");
-    assert.equal(state.provider.apiKeyEnvVar, "ANTHROPIC_API_KEY");
+    const project = runtime.getActiveProject();
+    assert.equal(project.provider.name, "claude_code");
+    assert.equal(project.provider.apiKeyEnvVar, "ANTHROPIC_API_KEY");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
-test("pairing start sends code and complete validates it", async () => {
+test("pairing start sends code and complete validates it for active project", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-pairing-"));
   const sentTexts: string[] = [];
 
@@ -72,7 +76,7 @@ test("pairing start sends code and complete validates it", async () => {
 
     const completed = runtime.completePairing(pairing.code);
     assert.equal(typeof completed.pairedAt, "string");
-    assert.equal(runtime.getState().telegram.paired, true);
+    assert.equal(runtime.getActiveProject().telegram.paired, true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -108,7 +112,7 @@ test("webhook rejects unauthorized chat id", async () => {
   }
 });
 
-test("paired webhook routes message to the agent and stores conversation", async () => {
+test("paired webhook routes message to the active agent and stores conversation", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-route-"));
   const sentTexts: string[] = [];
   let typingCalls = 0;
@@ -149,10 +153,59 @@ test("paired webhook routes message to the agent and stores conversation", async
     assert.equal(sentTexts.includes(result.response), true);
     assert.equal(typingCalls > 0, true);
 
-    const historyPath = path.join(tempDir, ".opencolab", "conversations", "10001.jsonl");
+    const historyPath = path.join(tempDir, ".opencolab", "conversations", "default__10001.jsonl");
     assert.equal(fs.existsSync(historyPath), true);
     const lines = fs.readFileSync(historyPath, "utf8").trim().split(/\r?\n/);
     assert.equal(lines.length, 2);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("paired webhook can create and switch projects and agents", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-manage-"));
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async ({ text }) => `research:${text}`
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const createProject = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/project create alpha",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(createProject.ok, true);
+    assert.equal(createProject.action, "management_command");
+    assert.equal(runtime.getState().activeProjectId, "alpha");
+
+    const createAgent = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/agent create scout",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(createAgent.ok, true);
+    assert.equal(createAgent.action, "management_command");
+    assert.equal(runtime.getActiveProject().activeAgentId, "scout");
+
+    const createdAgentDir = path.join(tempDir, "projects", "alpha", "agents", "scout");
+    assert.equal(fs.existsSync(path.join(createdAgentDir, "AGENTS.md")), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

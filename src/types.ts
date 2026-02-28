@@ -32,12 +32,20 @@ export interface TelegramConfig {
   pendingPairingExpiresAt: string | null;
 }
 
+export interface ProjectState {
+  id: string;
+  path: string;
+  activeAgentId: string;
+  agents: Record<string, AgentConfig>;
+  provider: ProviderConfig;
+  telegram: TelegramConfig;
+}
+
 export interface OpenColabState {
   version: 1;
   updatedAt: string;
-  agent: AgentConfig;
-  provider: ProviderConfig;
-  telegram: TelegramConfig;
+  activeProjectId: string;
+  projects: Record<string, ProjectState>;
 }
 
 export interface ConversationMessage {
@@ -54,7 +62,12 @@ export interface TelegramInbound {
 
 export interface GatewayResult {
   ok: boolean;
-  action: "ignored" | "unauthorized_chat" | "pairing_required" | "agent_response";
+  action:
+    | "ignored"
+    | "unauthorized_chat"
+    | "pairing_required"
+    | "agent_response"
+    | "management_command";
   response: string;
   sent: boolean;
 }
