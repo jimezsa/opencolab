@@ -44,7 +44,9 @@ Create and select a project:
 node dist/src/cli.js project create --project-id personal
 ```
 
-Create and select an agent in the active project:
+This creates the main `researcher_agent` files directly in `projects/personal/`.
+
+Create and select an additional agent in the active project:
 
 ```bash
 node dist/src/cli.js agent create --agent-id personal_agent
@@ -128,7 +130,8 @@ Each agent directory must include:
 
 Default layout:
 
-- `projects/<project_id>/agents/<agent_id>/`
+- main `researcher_agent`: `projects/<project_id>/`
+- additional agents: `projects/<project_id>/subagents/<agent_id>/`
 
 ## Configuration
 

@@ -19,8 +19,8 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(project.id, "default");
     assert.equal(project.path, "projects/default");
 
-    assert.equal(agent.id, "research_agent");
-    assert.equal(agent.path, "projects/default/agents/research_agent");
+    assert.equal(agent.id, "researcher_agent");
+    assert.equal(agent.path, "projects/default");
     assert.equal(agent.files.agents, "AGENTS.md");
     assert.equal(agent.files.identity, "IDENTITY.md");
     assert.equal(agent.files.soul, "SOUL.md");
@@ -48,11 +48,11 @@ test("project state normalizes supported provider name in nested project config"
         projects: {
           alpha: {
             id: "alpha",
-            activeAgentId: "research_agent",
+            activeAgentId: "researcher_agent",
             agents: {
-              research_agent: {
-                id: "research_agent",
-                path: "projects/alpha/agents/research_agent",
+              researcher_agent: {
+                id: "researcher_agent",
+                path: "projects/alpha",
                 files: {
                   agents: "AGENTS.md",
                   identity: "IDENTITY.md",

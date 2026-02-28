@@ -13,7 +13,7 @@ import { nowIso, safeReadJson, writeJson } from "./utils.js";
 
 const CURRENT_VERSION = 1 as const;
 export const DEFAULT_PROJECT_ID = "default";
-export const DEFAULT_AGENT_ID = "research_agent";
+export const DEFAULT_AGENT_ID = "researcher_agent";
 
 const DEFAULT_AGENT_FILES: AgentFiles = {
   agents: "AGENTS.md",
@@ -39,8 +39,18 @@ export function buildProjectPath(projectId: string): string {
   return `projects/${projectId}`;
 }
 
+export function buildMainAgentPath(projectId: string): string {
+  return buildProjectPath(projectId);
+}
+
+export function buildSubagentPath(projectId: string, agentId: string): string {
+  return `${buildProjectPath(projectId)}/subagents/${agentId}`;
+}
+
 export function buildAgentPath(projectId: string, agentId: string): string {
-  return `${buildProjectPath(projectId)}/agents/${agentId}`;
+  return agentId === DEFAULT_AGENT_ID
+    ? buildMainAgentPath(projectId)
+    : buildSubagentPath(projectId, agentId);
 }
 
 export function createDefaultAgentConfig(projectId: string, agentId = DEFAULT_AGENT_ID): AgentConfig {
@@ -256,7 +266,7 @@ function normalizeLegacyState(
   const projectId = DEFAULT_PROJECT_ID;
   const projectDefaults = createDefaultProjectState(projectId);
   const agentId = asString(sourceAgent?.id, projectDefaults.activeAgentId);
-  const agentPath = asString(sourceAgent?.path, buildAgentPath(projectId, agentId));
+  const agentPath = asString(sourceAgent?.path, buildMainAgentPath(projectId));
 
   const agent: AgentConfig = {
     id: agentId,

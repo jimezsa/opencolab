@@ -6,6 +6,7 @@ import {
   buildAgentPath,
   createDefaultAgentConfig,
   createDefaultProjectState,
+  DEFAULT_AGENT_ID,
   ensureProjectAndAgent,
   getActiveProject,
   readProjectState,
@@ -104,7 +105,7 @@ export class OpenColabRuntime {
       return fallback;
     }
 
-    return createDefaultAgentConfig(project.id, "research_agent");
+    return createDefaultAgentConfig(project.id, DEFAULT_AGENT_ID);
   }
 
   listProjects(): ProjectState[] {

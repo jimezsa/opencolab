@@ -56,7 +56,8 @@ Projects must live under:
 
 Each project must keep its agents under:
 
-- `projects/<project_id>/agents/<agent_id>/`
+- main agent (`researcher_agent`): `projects/<project_id>/`
+- additional agents: `projects/<project_id>/subagents/<agent_id>/`
 
 Each agent directory must include:
 
@@ -143,11 +144,11 @@ Minimum shape:
     "default": {
       "id": "default",
       "path": "projects/default",
-      "activeAgentId": "research_agent",
+      "activeAgentId": "researcher_agent",
       "agents": {
-        "research_agent": {
-          "id": "research_agent",
-          "path": "projects/default/agents/research_agent",
+        "researcher_agent": {
+          "id": "researcher_agent",
+          "path": "projects/default",
           "files": {
             "agents": "AGENTS.md",
             "identity": "IDENTITY.md",
@@ -195,4 +196,4 @@ v1 is complete when all are true:
 - Telegram can create/select projects and agents.
 - Active project routes to its active agent and provider runtime.
 - `opencolab.json` persists active project plus all project/agent configs.
-- Each created agent directory includes all required context files.
+- Main `researcher_agent` files are created in the project root and extra agents are created under `subagents/`.

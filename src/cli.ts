@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { startHttpServer } from "./http.js";
+import { DEFAULT_AGENT_ID } from "./project-config.js";
 import { getProviderSetupDefaults, isProviderName } from "./provider.js";
 import { createRuntime } from "./runtime.js";
 import type { ProviderName } from "./types.js";
@@ -56,7 +57,7 @@ function usage(): string {
     "  opencolab project use --project-id <id>",
     "  opencolab project list",
     "  opencolab project show",
-    "  opencolab agent create --agent-id <id> [--path projects/<project_id>/agents/<agent_id>]",
+    "  opencolab agent create --agent-id <id> [--path projects/<project_id>/subagents/<agent_id>]",
     "  opencolab agent use --agent-id <id>",
     "  opencolab agent list",
     "  opencolab agent show",
@@ -232,7 +233,7 @@ async function main(): Promise<void> {
 
     if (subcommand === "create" || subcommand === "init") {
       const project = runtime.getActiveProject();
-      const agentId = values["agent-id"] ?? "research_agent";
+      const agentId = values["agent-id"] ?? DEFAULT_AGENT_ID;
       const agentPath = values.path;
       runtime.configureAgent(agentId, agentPath);
 
