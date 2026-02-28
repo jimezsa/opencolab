@@ -63,6 +63,17 @@ node dist/src/cli.js setup model \
   --cli-args "exec,-"
 ```
 
+Configure Anthropic provider with Claude for the active project:
+
+```bash
+node dist/src/cli.js setup model \
+  --provider claude_code \
+  --model claude-sonnet-4-5 \
+  --api-key-env-var ANTHROPIC_API_KEY \
+  --cli-command claude \
+  --cli-args "-p,{prompt},--model,{model}"
+```
+
 Configure Telegram once for all projects:
 
 ```bash
