@@ -65,7 +65,7 @@ function usage(): string {
     "",
     "Notes:",
     "  - State is stored in opencolab.json under projects and agents.",
-    "  - Telegram pairing is per active project."
+    "  - Telegram configuration and pairing are shared across all projects."
   ].join("\n");
 }
 
@@ -142,11 +142,10 @@ async function main(): Promise<void> {
       chatId
     });
 
-    const project = runtime.getActiveProject();
-    console.log(`Project: ${project.id}`);
+    const state = runtime.getState();
     console.log("Telegram configured.");
-    console.log(`Chat ID: ${project.telegram.chatId}`);
-    console.log(`Bot token env var: ${project.telegram.botTokenEnvVar}`);
+    console.log(`Chat ID: ${state.telegram.chatId}`);
+    console.log(`Bot token env var: ${state.telegram.botTokenEnvVar}`);
     console.log("Run 'opencolab setup telegram pair start' to begin pairing.");
     return;
   }
@@ -155,9 +154,7 @@ async function main(): Promise<void> {
     const pairAction = rest[0];
 
     if (pairAction === "start") {
-      const project = runtime.getActiveProject();
       const result = await runtime.startPairing();
-      console.log(`Project: ${project.id}`);
       console.log(`Pairing code sent to Telegram (expires ${result.expiresAt}).`);
       console.log(`Enter in CLI: opencolab setup telegram pair complete --code ${result.code}`);
       return;
@@ -170,9 +167,7 @@ async function main(): Promise<void> {
         throw new Error("--code is required");
       }
 
-      const project = runtime.getActiveProject();
       const result = runtime.completePairing(code);
-      console.log(`Project: ${project.id}`);
       console.log(`Telegram pairing completed at ${result.pairedAt}`);
       return;
     }

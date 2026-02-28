@@ -174,25 +174,18 @@ export class OpenColabRuntime {
   }
 
   setupTelegram(input: TelegramSetupInput): OpenColabState {
-    const project = this.getActiveProject();
-    const chatChanged = project.telegram.chatId !== input.chatId;
+    const chatChanged = this.state.telegram.chatId !== input.chatId;
 
     this.state = {
       ...this.state,
-      projects: {
-        ...this.state.projects,
-        [project.id]: {
-          ...project,
-          telegram: {
-            ...project.telegram,
-            botTokenEnvVar: input.botTokenEnvVar,
-            chatId: input.chatId,
-            paired: chatChanged ? false : project.telegram.paired,
-            pairedAt: chatChanged ? null : project.telegram.pairedAt,
-            pendingPairingCode: null,
-            pendingPairingExpiresAt: null
-          }
-        }
+      telegram: {
+        ...this.state.telegram,
+        botTokenEnvVar: input.botTokenEnvVar,
+        chatId: input.chatId,
+        paired: chatChanged ? false : this.state.telegram.paired,
+        pairedAt: chatChanged ? null : this.state.telegram.pairedAt,
+        pendingPairingCode: null,
+        pendingPairingExpiresAt: null
       }
     };
 

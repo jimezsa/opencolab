@@ -30,7 +30,7 @@ test("project state defaults to a default project and agent", () => {
 
     assert.equal(project.provider.name, "codex");
     assert.equal(project.provider.apiKeyEnvVar, "OPENAI_API_KEY");
-    assert.equal(project.telegram.paired, false);
+    assert.equal(state.telegram.paired, false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -67,6 +67,11 @@ test("project state normalizes supported provider name in nested project config"
               name: "claude_code"
             }
           }
+        },
+        telegram: {
+          botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
+          chatId: "10001",
+          paired: true
         }
       }),
       "utf8"
@@ -100,14 +105,14 @@ test("project state persists updates in opencolab.json", () => {
             provider: {
               ...project.provider,
               model: "gpt-5-research"
-            },
-            telegram: {
-              ...project.telegram,
-              chatId: "10001",
-              paired: true,
-              pairedAt: "2026-02-27T00:00:00.000Z"
             }
           }
+        },
+        telegram: {
+          ...current.telegram,
+          chatId: "10001",
+          paired: true,
+          pairedAt: "2026-02-27T00:00:00.000Z"
         }
       };
     });
@@ -116,8 +121,8 @@ test("project state persists updates in opencolab.json", () => {
     const project = loaded.projects[loaded.activeProjectId];
 
     assert.equal(project.provider.model, "gpt-5-research");
-    assert.equal(project.telegram.chatId, "10001");
-    assert.equal(project.telegram.paired, true);
+    assert.equal(loaded.telegram.chatId, "10001");
+    assert.equal(loaded.telegram.paired, true);
     assert.equal(fs.existsSync(config.projectConfigPath), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -164,7 +169,59 @@ test("project state migrates legacy single-agent shape", () => {
     assert.equal(project.activeAgentId, "legacy_agent");
     assert.equal(project.agents.legacy_agent.path, "agents/legacy_agent");
     assert.equal(project.provider.name, "codex");
-    assert.equal(project.telegram.chatId, "10001");
+    assert.equal(loaded.telegram.chatId, "10001");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state migrates legacy per-project telegram shape", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-legacy-project-telegram-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: "researcher_agent",
+            agents: {
+              researcher_agent: {
+                id: "researcher_agent",
+                path: "projects/alpha",
+                files: {
+                  agents: "AGENTS.md",
+                  identity: "IDENTITY.md",
+                  soul: "SOUL.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            },
+            provider: {
+              name: "codex"
+            },
+            telegram: {
+              botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
+              chatId: "55555",
+              paired: true,
+              pairedAt: "2026-02-27T00:00:00.000Z"
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    assert.equal(loaded.activeProjectId, "alpha");
+    assert.equal(loaded.telegram.chatId, "55555");
+    assert.equal(loaded.telegram.paired, true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

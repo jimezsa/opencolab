@@ -74,15 +74,18 @@ export function createDefaultProjectState(projectId = DEFAULT_PROJECT_ID): Proje
     provider: {
       name: "codex",
       ...getProviderSetupDefaults("codex")
-    },
-    telegram: {
-      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
-      chatId: null,
-      paired: false,
-      pairedAt: null,
-      pendingPairingCode: null,
-      pendingPairingExpiresAt: null
     }
+  };
+}
+
+export function createDefaultTelegramConfig(): TelegramConfig {
+  return {
+    botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
+    chatId: null,
+    paired: false,
+    pairedAt: null,
+    pendingPairingCode: null,
+    pendingPairingExpiresAt: null
   };
 }
 
@@ -96,7 +99,8 @@ export function defaultProjectState(config: OpenColabConfig): OpenColabState {
     activeProjectId: defaultProject.id,
     projects: {
       [defaultProject.id]: defaultProject
-    }
+    },
+    telegram: createDefaultTelegramConfig()
   };
 }
 
@@ -133,6 +137,10 @@ export function getActiveAgent(project: ProjectState): AgentConfig {
 }
 
 export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
+  const telegram = normalizeTelegram(
+    asRecord((state as unknown as Record<string, unknown>).telegram),
+    createDefaultTelegramConfig()
+  );
   const projects = { ...state.projects };
   if (Object.keys(projects).length === 0) {
     const fallback = createDefaultProjectState(DEFAULT_PROJECT_ID);
@@ -141,7 +149,8 @@ export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
       activeProjectId: fallback.id,
       projects: {
         [fallback.id]: fallback
-      }
+      },
+      telegram
     };
   }
 
@@ -161,14 +170,16 @@ export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
     return {
       ...state,
       activeProjectId,
-      projects
+      projects,
+      telegram
     };
   }
 
   if (activeProject.agents[activeProject.activeAgentId]) {
     return {
       ...state,
-      activeProjectId
+      activeProjectId,
+      telegram
     };
   }
 
@@ -181,7 +192,8 @@ export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
   return {
     ...state,
     activeProjectId,
-    projects
+    projects,
+    telegram
   };
 }
 
@@ -242,12 +254,14 @@ function normalizeState(raw: unknown, defaults: OpenColabState): OpenColabState 
 
     const preferredActiveId = asString(source.activeProjectId, defaults.activeProjectId);
     const activeProjectId = projects[preferredActiveId] ? preferredActiveId : Object.keys(projects)[0];
+    const telegram = normalizeSharedTelegram(source, sourceProjects, activeProjectId, defaults.telegram);
 
     return {
       version: CURRENT_VERSION,
       updatedAt: asString(source.updatedAt, defaults.updatedAt),
       activeProjectId,
-      projects
+      projects,
+      telegram
     };
   }
 
@@ -287,8 +301,7 @@ function normalizeLegacyState(
     agents: {
       [agent.id]: agent
     },
-    provider: normalizeProvider(sourceProvider, projectDefaults.provider),
-    telegram: normalizeTelegram(sourceTelegram, projectDefaults.telegram)
+    provider: normalizeProvider(sourceProvider, projectDefaults.provider)
   };
 
   const normalized: OpenColabState = {
@@ -297,7 +310,8 @@ function normalizeLegacyState(
     activeProjectId: project.id,
     projects: {
       [project.id]: project
-    }
+    },
+    telegram: normalizeTelegram(sourceTelegram, defaults.telegram)
   };
 
   return ensureProjectAndAgent(normalized);
@@ -344,8 +358,7 @@ function normalizeProject(projectId: string, source: Record<string, unknown> | n
     path: asString(source.path, defaults.path),
     activeAgentId,
     agents: normalizedAgents,
-    provider: normalizeProvider(asRecord(source.provider), defaults.provider),
-    telegram: normalizeTelegram(asRecord(source.telegram), defaults.telegram)
+    provider: normalizeProvider(asRecord(source.provider), defaults.provider)
   };
 }
 
@@ -389,6 +402,34 @@ function normalizeProvider(
     cliCommand: asString(sourceProvider?.cliCommand, providerDefaults.cliCommand),
     cliArgs
   };
+}
+
+function normalizeSharedTelegram(
+  sourceState: Record<string, unknown>,
+  sourceProjects: Record<string, unknown>,
+  activeProjectId: string,
+  defaults: TelegramConfig
+): TelegramConfig {
+  const topLevelTelegram = asRecord(sourceState.telegram);
+  if (topLevelTelegram) {
+    return normalizeTelegram(topLevelTelegram, defaults);
+  }
+
+  const preferredProject = asRecord(sourceProjects[activeProjectId]);
+  const preferredProjectTelegram = asRecord(preferredProject?.telegram);
+  if (preferredProjectTelegram) {
+    return normalizeTelegram(preferredProjectTelegram, defaults);
+  }
+
+  for (const value of Object.values(sourceProjects)) {
+    const project = asRecord(value);
+    const legacyTelegram = asRecord(project?.telegram);
+    if (legacyTelegram) {
+      return normalizeTelegram(legacyTelegram, defaults);
+    }
+  }
+
+  return defaults;
 }
 
 function normalizeTelegram(

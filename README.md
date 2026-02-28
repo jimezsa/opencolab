@@ -63,7 +63,7 @@ node dist/src/cli.js setup model \
   --cli-args "exec,-"
 ```
 
-Configure Telegram for the active project:
+Configure Telegram once for all projects:
 
 ```bash
 node dist/src/cli.js setup telegram \
@@ -141,7 +141,7 @@ Default layout:
 - projects map
 - per-project agents map
 - per-project provider config (`codex` or `claude_code`)
-- per-project Telegram settings and pairing state
+- shared Telegram settings and pairing state
 
 Secrets are referenced by env var names and should not be committed to git.
 

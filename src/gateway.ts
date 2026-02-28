@@ -50,33 +50,27 @@ export class TelegramGateway {
     const state = ensureProjectAndAgent(this.deps.getState());
     const project = getActiveProject(state);
 
-    if (!project.telegram.chatId) {
-      throw new Error("Telegram chatId is not configured for the active project. Run 'opencolab setup telegram'.");
+    if (!state.telegram.chatId) {
+      throw new Error("Telegram chatId is not configured. Run 'opencolab setup telegram'.");
     }
 
     const code = randomDigits(6);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const next: OpenColabState = {
       ...state,
-      projects: {
-        ...state.projects,
-        [project.id]: {
-          ...project,
-          telegram: {
-            ...project.telegram,
-            paired: false,
-            pairedAt: null,
-            pendingPairingCode: code,
-            pendingPairingExpiresAt: expiresAt
-          }
-        }
+      telegram: {
+        ...state.telegram,
+        paired: false,
+        pairedAt: null,
+        pendingPairingCode: code,
+        pendingPairingExpiresAt: expiresAt
       }
     };
 
     this.deps.saveState(next);
 
     const sent = await this.sender(
-      project.telegram.chatId,
+      state.telegram.chatId,
       [
         "OpenColab pairing request",
         `Project: ${project.id}`,
@@ -99,9 +93,8 @@ export class TelegramGateway {
 
   completePairing(code: string): { pairedAt: string } {
     const state = ensureProjectAndAgent(this.deps.getState());
-    const project = getActiveProject(state);
-    const pendingCode = project.telegram.pendingPairingCode;
-    const pendingExpiresAt = project.telegram.pendingPairingExpiresAt;
+    const pendingCode = state.telegram.pendingPairingCode;
+    const pendingExpiresAt = state.telegram.pendingPairingExpiresAt;
 
     if (!pendingCode || !pendingExpiresAt) {
       throw new Error("No active pairing code. Run 'opencolab setup telegram pair start' first.");
@@ -118,18 +111,12 @@ export class TelegramGateway {
     const pairedAt = nowIso();
     const next: OpenColabState = {
       ...state,
-      projects: {
-        ...state.projects,
-        [project.id]: {
-          ...project,
-          telegram: {
-            ...project.telegram,
-            paired: true,
-            pairedAt,
-            pendingPairingCode: null,
-            pendingPairingExpiresAt: null
-          }
-        }
+      telegram: {
+        ...state.telegram,
+        paired: true,
+        pairedAt,
+        pendingPairingCode: null,
+        pendingPairingExpiresAt: null
       }
     };
 
@@ -151,7 +138,7 @@ export class TelegramGateway {
     const state = ensureProjectAndAgent(this.deps.getState());
     const project = getActiveProject(state);
 
-    if (!project.telegram.chatId || inbound.chatId !== project.telegram.chatId) {
+    if (!state.telegram.chatId || inbound.chatId !== state.telegram.chatId) {
       return {
         ok: false,
         action: "unauthorized_chat",
@@ -160,7 +147,7 @@ export class TelegramGateway {
       };
     }
 
-    if (!project.telegram.paired) {
+    if (!state.telegram.paired) {
       const response = "Pairing required. Run 'opencolab setup telegram pair start' in your terminal.";
       const sent = await this.sender(inbound.chatId, response, state);
       return {
@@ -268,11 +255,6 @@ export class TelegramGateway {
         const currentProject = getActiveProject(state);
         const project = createDefaultProjectState(projectId);
         project.provider = { ...currentProject.provider };
-        project.telegram = {
-          ...currentProject.telegram,
-          pendingPairingCode: null,
-          pendingPairingExpiresAt: null
-        };
 
         const nextState = ensureProjectAndAgent({
           ...state,
@@ -471,8 +453,7 @@ export async function defaultTelegramSender(
   text: string,
   state: OpenColabState
 ): Promise<boolean> {
-  const project = getActiveProject(state);
-  const token = resolveSecretReference(project.telegram.botTokenEnvVar);
+  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
   if (!token) {
     return false;
   }
@@ -499,8 +480,7 @@ export async function defaultTelegramTypingSender(
   chatId: string,
   state: OpenColabState
 ): Promise<boolean> {
-  const project = getActiveProject(state);
-  const token = resolveSecretReference(project.telegram.botTokenEnvVar);
+  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
   if (!token) {
     return false;
   }

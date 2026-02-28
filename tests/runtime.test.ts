@@ -78,7 +78,7 @@ test("pairing start sends code and complete validates it for active project", as
 
     const completed = runtime.completePairing(pairing.code);
     assert.equal(typeof completed.pairedAt, "string");
-    assert.equal(runtime.getActiveProject().telegram.paired, true);
+    assert.equal(runtime.getState().telegram.paired, true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

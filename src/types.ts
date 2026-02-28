@@ -38,7 +38,6 @@ export interface ProjectState {
   activeAgentId: string;
   agents: Record<string, AgentConfig>;
   provider: ProviderConfig;
-  telegram: TelegramConfig;
 }
 
 export interface OpenColabState {
@@ -46,6 +45,7 @@ export interface OpenColabState {
   updatedAt: string;
   activeProjectId: string;
   projects: Record<string, ProjectState>;
+  telegram: TelegramConfig;
 }
 
 export interface ConversationMessage {
