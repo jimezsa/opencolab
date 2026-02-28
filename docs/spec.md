@@ -39,7 +39,7 @@ Required:
 - Create/list/select projects from Telegram chat commands.
 - Create/list/select agents from Telegram chat commands.
 - Route Telegram messages to the selected project/agent runtime.
-- Persist project/agent/provider/Telegram settings in `opencolab.json`.
+- Persist project/agent/provider settings plus one shared Telegram configuration in `opencolab.json`.
 
 Not required in v1:
 
@@ -77,7 +77,7 @@ Pairing remains mandatory before regular routing.
 Sequence:
 
 1. Operator runs pairing start from CLI.
-2. System sends short-lived code to configured Telegram chat.
+2. System sends short-lived code to the shared configured Telegram chat.
 3. Operator completes pairing from CLI with the code.
 4. Gateway enables trusted routing.
 
@@ -101,7 +101,8 @@ Required command groups:
 
 Responsibilities:
 
-- configure provider and Telegram for the active project
+- configure provider for the active project
+- configure one shared Telegram setup for all projects
 - create/list/select projects
 - create/list/select agents inside active project
 - show active project/agent/provider status
@@ -163,14 +164,14 @@ Minimum shape:
         "name": "codex",
         "model": "<model-name>",
         "apiKeyEnvVar": "OPENAI_API_KEY"
-      },
-      "telegram": {
-        "botTokenEnvVar": "TELEGRAM_BOT_TOKEN",
-        "chatId": "<telegram-chat-id>",
-        "paired": true,
-        "pairedAt": "2026-02-27T00:00:00.000Z"
       }
     }
+  },
+  "telegram": {
+    "botTokenEnvVar": "TELEGRAM_BOT_TOKEN",
+    "chatId": "<telegram-chat-id>",
+    "paired": true,
+    "pairedAt": "2026-02-27T00:00:00.000Z"
   }
 }
 ```
@@ -195,5 +196,5 @@ v1 is complete when all are true:
 - CLI can create/select projects and agents.
 - Telegram can create/select projects and agents.
 - Active project routes to its active agent and provider runtime.
-- `opencolab.json` persists active project plus all project/agent configs.
+- `opencolab.json` persists active project, all project/agent configs, and one shared Telegram config.
 - Main `researcher_agent` files are created in the project root and extra agents are created under `subagents/`.
