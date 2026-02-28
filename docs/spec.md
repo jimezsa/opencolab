@@ -1,53 +1,64 @@
-# OpenColab v1 Minimal Specification
+# OpenColab v1 Multi-Project Specification
 
 ## 1. Purpose
 
-OpenColab v1 is a minimal personal research assistant that provides one AI agent reachable through Telegram.
-
-This specification replaces the previous multi-agent lab direction for the initial release.
+OpenColab v1 is a minimal personal research assistant that supports multiple projects, each with its own agents, and exposes control through CLI and Telegram.
 
 ## 2. Product Scope
 
-v1 supports exactly one agent and one provider runtime:
+v1 supports:
 
-- one research agent instance
-- one model provider selected at runtime: `codex` or `claude_code`
-- one user interaction channel: Telegram chat through a gateway
-- one operator control channel: OpenColab CLI
+- multiple local projects
+- multiple agents per project
+- one active project at a time
+- one active agent inside the active project
+- one provider runtime per project: `codex` or `claude_code`
+- one user channel: Telegram
+- one operator channel: OpenColab CLI
 
-No parallel agent orchestration is included in this version.
+No parallel orchestration between agents/projects is included in this version.
 
-## 3. Initial Architecture
+## 3. Architecture
 
-The runtime architecture is strictly:
+The runtime execution path is:
 
-`Telegram -> Gateway -> Agent`
+`Telegram -> Gateway -> Active Project -> Active Agent`
 
 Definitions:
 
-- `Telegram`: external messaging channel used by the user.
-- `Gateway`: local OpenColab service that receives Telegram updates, validates pairing, and routes messages.
-- `Agent`: single research assistant execution unit backed by either Codex CLI or Claude Code CLI.
+- `Project`: isolated workspace entry persisted in `opencolab.json`.
+- `Agent`: assistant instance under a project, with prompt-definition files.
+- `Gateway`: local service that validates Telegram pairing and routes messages to the active project/agent.
 
-## 4. Core Capabilities (v1)
+## 4. Core Capabilities
 
 Required:
 
-- Receive Telegram messages and route them to the single agent.
-- Return agent responses back to Telegram.
-- Keep minimal conversation context for the chat session.
-- Configure provider/model API key and Telegram pairing via CLI.
-- Persist agent and provider configuration in `opencolab.json`.
+- Create/list/select projects from CLI.
+- Create/list/select agents from CLI (scoped to selected project).
+- Create/list/select projects from Telegram chat commands.
+- Create/list/select agents from Telegram chat commands.
+- Route Telegram messages to the selected project/agent runtime.
+- Persist project/agent/provider/Telegram settings in `opencolab.json`.
 
 Not required in v1:
 
 - web UI
-- multi-agent scheduling
-- meetings, run orchestration, or shared repositories
+- multi-user support
+- background autonomous jobs
+- cross-project concurrent execution
 
-## 5. Agent Definition Files
+## 5. Filesystem Layout
 
-The single agent must include the following files in its agent directory:
+Projects must live under:
+
+- `projects/<project_id>/`
+
+Each project must keep its agents under:
+
+- `projects/<project_id>/agents/<agent_id>/`
+
+Each agent directory must include:
 
 - `AGENTS.md`
 - `IDENTITY.md`
@@ -56,31 +67,27 @@ The single agent must include the following files in its agent directory:
 - `USER.md`
 - `MEMORY.md`
 
-These files define behavior, persona, boundaries, and user context for the agent prompt assembly flow.
-`MEMORY.md` is reserved for long-term memory only.
+`MEMORY.md` remains reserved for long-term memory only.
 
 ## 6. Telegram Pairing Flow
 
-Pairing is mandatory before normal chat routing.
+Pairing remains mandatory before regular routing.
 
-### 6.1 Pairing Sequence
+Sequence:
 
-1. Operator runs CLI pairing start command.
-2. OpenColab generates a short-lived pairing code.
-3. Gateway sends the pairing code to the configured Telegram user/chat.
-4. Operator enters that code in the CLI to complete pairing.
-5. On success, Telegram chat is marked as trusted and chat routing is enabled.
+1. Operator runs pairing start from CLI.
+2. System sends short-lived code to configured Telegram chat.
+3. Operator completes pairing from CLI with the code.
+4. Gateway enables trusted routing.
 
-### 6.2 Pairing Requirements
+Requirements:
 
-- Pairing code must expire (recommended: 10 minutes).
-- Pairing code must be single-use.
-- Failed attempts must not enable chat routing.
-- Gateway must reject normal messages until pairing is completed.
+- code expiry (recommended 10 minutes)
+- single-use code
+- failed attempts do not enable routing
+- non-paired chats are rejected
 
 ## 7. CLI Requirements
-
-CLI is the required setup and control surface for v1.
 
 Required command groups:
 
@@ -88,93 +95,104 @@ Required command groups:
 - `opencolab setup model`
 - `opencolab setup telegram`
 - `opencolab setup telegram pair`
+- `opencolab project`
 - `opencolab agent`
 
-### 7.1 CLI Responsibilities
+Responsibilities:
 
-- collect and store provider API key reference
-- collect Telegram bot configuration
-- start pairing and validate pairing code
-- show current configured agent and provider status
+- configure provider and Telegram for the active project
+- create/list/select projects
+- create/list/select agents inside active project
+- show active project/agent/provider status
 
-## 8. Provider Constraint
+## 8. Telegram Management Commands
 
-v1 supports only these provider identifiers:
+Gateway must support project/agent management commands from authorized, paired chat.
 
-Requirements:
+Minimum supported commands:
+
+- `/project create <project_id>`
+- `/project use <project_id>`
+- `/project list`
+- `/agent create <agent_id>`
+- `/agent use <agent_id>`
+- `/agent list`
+
+Messages that are not management commands are routed to the active agent.
+
+## 9. Provider Constraints
+
+Supported provider identifiers:
 
 - `codex`
 - `claude_code`
-- no `gemini` adapter in scope for v1
-- provider execution path is selected by `provider.name`
 
-## 9. Configuration Persistence (`opencolab.json`)
+No `gemini` adapter in scope for v1.
 
-`opencolab.json` is the source of truth for local runtime configuration.
+## 10. Configuration Persistence (`opencolab.json`)
 
-It must store:
+`opencolab.json` is the source of truth and must contain project and agent configuration.
 
-- agent metadata
-- provider metadata (`codex` or `claude_code`)
-- Telegram settings
-- pairing state
-
-### 9.1 Minimum Shape
+Minimum shape:
 
 ```json
 {
-  "agent": {
-    "id": "research_agent",
-    "path": "agents/research_agent",
-    "files": {
-      "agents": "AGENTS.md",
-      "identity": "IDENTITY.md",
-      "soul": "SOUL.md",
-      "tools": "TOOLS.md",
-      "user": "USER.md",
-      "memory": "MEMORY.md"
+  "version": 1,
+  "activeProjectId": "default",
+  "projects": {
+    "default": {
+      "id": "default",
+      "path": "projects/default",
+      "activeAgentId": "research_agent",
+      "agents": {
+        "research_agent": {
+          "id": "research_agent",
+          "path": "projects/default/agents/research_agent",
+          "files": {
+            "agents": "AGENTS.md",
+            "identity": "IDENTITY.md",
+            "soul": "SOUL.md",
+            "tools": "TOOLS.md",
+            "user": "USER.md",
+            "memory": "MEMORY.md"
+          }
+        }
+      },
+      "provider": {
+        "name": "codex",
+        "model": "<model-name>",
+        "apiKeyEnvVar": "OPENAI_API_KEY"
+      },
+      "telegram": {
+        "botTokenEnvVar": "TELEGRAM_BOT_TOKEN",
+        "chatId": "<telegram-chat-id>",
+        "paired": true,
+        "pairedAt": "2026-02-27T00:00:00.000Z"
+      }
     }
-  },
-  "provider": {
-    "name": "codex",
-    "model": "<model-name>",
-    "apiKeyEnvVar": "OPENAI_API_KEY"
-  },
-  "telegram": {
-    "botTokenEnvVar": "TELEGRAM_BOT_TOKEN",
-    "chatId": "<telegram-chat-id>",
-    "paired": true,
-    "pairedAt": "2026-02-27T00:00:00.000Z"
   }
 }
 ```
 
 Notes:
 
-- Secrets should be loaded from environment variables, not stored as raw keys.
-- Additional fields are allowed if they do not violate this minimum contract.
+- secrets are referenced by environment variable names
+- extra fields are allowed if they do not break the minimum contract
 
-## 10. Message Handling Rules
+## 11. Message Handling Rules
 
-- If chat is unpaired: Gateway replies with pairing-required message.
-- If chat is paired: Gateway forwards message content to the configured provider agent runtime.
-- While response is being generated: Gateway sends Telegram typing feedback (`typing` chat action).
-- Agent response is sent back to the same Telegram chat.
-- System should log request/response metadata for local debugging.
-
-## 11. Non-Goals for This Version
-
-- multi-user support
-- multi-chat routing
-- autonomous background jobs
-- complex toolchains beyond the minimal agent prompt contract
+- if chat is unpaired, gateway replies with pairing-required guidance
+- if paired, gateway processes management commands first
+- non-management text is sent to the active project/agent runtime
+- while generating, gateway sends Telegram `typing` feedback
+- responses are sent to the same chat
 
 ## 12. Acceptance Criteria
 
 v1 is complete when all are true:
 
-- A user can pair Telegram using a CLI-entered pairing code sent by OpenColab.
-- After pairing, user can chat with the single agent from Telegram.
-- Agent responses come from the configured provider runtime path (`codex` or `claude_code`).
-- `opencolab.json` persists agent and provider information plus Telegram pairing state.
-- Agent directory includes `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `TOOLS.md`, `USER.md`, and `MEMORY.md`.
+- CLI can create/select projects and agents.
+- Telegram can create/select projects and agents.
+- Active project routes to its active agent and provider runtime.
+- `opencolab.json` persists active project plus all project/agent configs.
+- Each created agent directory includes all required context files.
