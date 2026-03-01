@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runOnboarding } from "../src/onboard.js";
+import { runIgnite } from "../src/ignite.js";
 import { createRuntime } from "../src/runtime.js";
 
-test("onboard configures project, provider, telegram, and optional agent", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-onboard-"));
+test("ignite configures project, provider, telegram, and optional agent", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-"));
   const runtime = createRuntime(tempDir);
   runtime.init();
 
@@ -31,7 +31,7 @@ test("onboard configures project, provider, telegram, and optional agent", async
   let syncCalls = 0;
 
   try {
-    await runOnboarding(
+    await runIgnite(
       runtime,
       {
         ask: async (prompt) => {

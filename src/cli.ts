@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline/promises";
 import { startHttpServer } from "./http.js";
-import { runOnboarding } from "./onboard.js";
+import { runIgnite } from "./ignite.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
 import { getProviderSetupDefaults, isProviderName } from "./provider.js";
 import { createRuntime } from "./runtime.js";
@@ -282,7 +282,7 @@ async function main(): Promise<void> {
     });
 
     try {
-      await runOnboarding(
+      await runIgnite(
         runtime,
         {
           ask: async (prompt) => reader.question(prompt),

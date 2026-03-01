@@ -7,22 +7,22 @@ interface SyncTelegramCommandsResult {
   error?: string;
 }
 
-export interface OnboardIo {
+export interface IgniteIo {
   ask(prompt: string): Promise<string>;
   write(line: string): void;
 }
 
-export interface OnboardDependencies {
+export interface IgniteDependencies {
   syncTelegramCommands: (
     botTokenReference: string,
     chatId?: string | null
   ) => Promise<SyncTelegramCommandsResult>;
 }
 
-export async function runOnboarding(
+export async function runIgnite(
   runtime: OpenColabRuntime,
-  io: OnboardIo,
-  deps: OnboardDependencies
+  io: IgniteIo,
+  deps: IgniteDependencies
 ): Promise<void> {
   io.write("OpenColab interactive onboarding");
   io.write(`Config path: ${runtime.config.projectConfigPath}`);
@@ -57,7 +57,7 @@ export async function runOnboarding(
   io.write("Next: opencolab gateway start --port 4646");
 }
 
-async function selectProject(runtime: OpenColabRuntime, io: OnboardIo): Promise<void> {
+async function selectProject(runtime: OpenColabRuntime, io: IgniteIo): Promise<void> {
   const currentProject = runtime.getActiveProject();
   const knownProjects = new Set(runtime.listProjects().map((project) => project.id));
 
@@ -78,7 +78,7 @@ async function selectProject(runtime: OpenColabRuntime, io: OnboardIo): Promise<
   }
 }
 
-async function configureProvider(runtime: OpenColabRuntime, io: OnboardIo): Promise<void> {
+async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promise<void> {
   const project = runtime.getActiveProject();
   const currentProvider = project.provider;
   const providerName = await askProviderName(io, currentProvider.name);
@@ -113,8 +113,8 @@ async function configureProvider(runtime: OpenColabRuntime, io: OnboardIo): Prom
 
 async function configureTelegram(
   runtime: OpenColabRuntime,
-  io: OnboardIo,
-  deps: OnboardDependencies
+  io: IgniteIo,
+  deps: IgniteDependencies
 ): Promise<void> {
   const telegram = runtime.getState().telegram;
   const hasChat = Boolean(telegram.chatId);
@@ -186,7 +186,7 @@ async function configureTelegram(
   }
 }
 
-async function configureAdditionalAgent(runtime: OpenColabRuntime, io: OnboardIo): Promise<void> {
+async function configureAdditionalAgent(runtime: OpenColabRuntime, io: IgniteIo): Promise<void> {
   const shouldCreateAgent = await askYesNo(io, "Create an additional agent now?", false);
   if (!shouldCreateAgent) {
     io.write("Additional agent setup skipped.");
@@ -208,7 +208,7 @@ async function configureAdditionalAgent(runtime: OpenColabRuntime, io: OnboardIo
   }
 }
 
-async function askProviderName(io: OnboardIo, fallback: ProviderName): Promise<ProviderName> {
+async function askProviderName(io: IgniteIo, fallback: ProviderName): Promise<ProviderName> {
   while (true) {
     const answer = (await askWithDefault(io, "Provider (codex|claude_code)", fallback)).toLowerCase();
     if (isProviderName(answer)) {
@@ -219,7 +219,7 @@ async function askProviderName(io: OnboardIo, fallback: ProviderName): Promise<P
   }
 }
 
-async function askWithDefault(io: OnboardIo, label: string, defaultValue: string): Promise<string> {
+async function askWithDefault(io: IgniteIo, label: string, defaultValue: string): Promise<string> {
   const answer = await io.ask(`${label} [${defaultValue}]: `);
   const trimmed = answer.trim();
   if (trimmed) {
@@ -229,7 +229,7 @@ async function askWithDefault(io: OnboardIo, label: string, defaultValue: string
 }
 
 async function askRequiredWithOptionalDefault(
-  io: OnboardIo,
+  io: IgniteIo,
   label: string,
   defaultValue?: string
 ): Promise<string> {
@@ -249,13 +249,13 @@ async function askRequiredWithOptionalDefault(
   }
 }
 
-async function askOptional(io: OnboardIo, label: string): Promise<string | null> {
+async function askOptional(io: IgniteIo, label: string): Promise<string | null> {
   const answer = await io.ask(`${label}: `);
   const trimmed = answer.trim();
   return trimmed ? trimmed : null;
 }
 
-async function askYesNo(io: OnboardIo, label: string, defaultValue: boolean): Promise<boolean> {
+async function askYesNo(io: IgniteIo, label: string, defaultValue: boolean): Promise<boolean> {
   const fallback = defaultValue ? "Y/n" : "y/N";
   const answer = (await io.ask(`${label} [${fallback}]: `)).trim().toLowerCase();
   if (!answer) {
