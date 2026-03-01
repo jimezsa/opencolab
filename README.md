@@ -55,6 +55,12 @@ node dist/src/cli.js init
 `AGENTS.md` is seeded from an internal essential researcher template.
 Fresh initialization defaults the active project provider to `claude_code` with model `claude-opus-4-6`.
 
+Run an interactive, step-by-step setup (project, model/provider, Telegram, pairing, and optional extra agent):
+
+```bash
+node dist/src/cli.js ignite
+```
+
 Create and select a project:
 
 ```bash

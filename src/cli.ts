@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import { createInterface } from "node:readline/promises";
 import { startHttpServer } from "./http.js";
+import { runOnboarding } from "./onboard.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
 import { getProviderSetupDefaults, isProviderName } from "./provider.js";
 import { createRuntime } from "./runtime.js";
@@ -81,6 +83,7 @@ function usage(): string {
     "",
     "Commands:",
     "  opencolab init",
+    "  opencolab ignite",
     "  opencolab setup model [--provider codex|claude_code] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
     "  opencolab setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
     "  opencolab setup telegram commands sync [--bot-token-env-var TELEGRAM_BOT_TOKEN] [--chat-id <id>]",
@@ -98,7 +101,8 @@ function usage(): string {
     "",
     "Notes:",
     "  - State is stored in opencolab.json under projects and agents.",
-    "  - Telegram configuration and pairing are shared across all projects."
+    "  - Telegram configuration and pairing are shared across all projects.",
+    "  - 'opencolab ignite' runs an interactive first-time setup."
   ].join("\n");
 }
 
@@ -266,6 +270,35 @@ async function main(): Promise<void> {
 
   const runtime = createRuntime();
   runtime.init();
+
+  if (command === "ignite" || command === "onboard") {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error("Interactive onboarding requires a TTY terminal.");
+    }
+
+    const reader = createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    try {
+      await runOnboarding(
+        runtime,
+        {
+          ask: async (prompt) => reader.question(prompt),
+          write: (line) => {
+            console.log(line);
+          }
+        },
+        {
+          syncTelegramCommands: syncTelegramBotCommands
+        }
+      );
+    } finally {
+      reader.close();
+    }
+    return;
+  }
 
   if (command === "init") {
     const state = runtime.getState();

@@ -114,6 +114,7 @@ Requirements:
 Required command groups:
 
 - `opencolab init`
+- `opencolab ignite`
 - `opencolab setup model`
 - `opencolab setup telegram`
 - `opencolab setup telegram pair`
@@ -127,6 +128,7 @@ Responsibilities:
 - create/list/select projects
 - create/list/select agents inside active project
 - show active project/agent/provider status
+- provide an interactive onboarding flow for first-time setup of project selection, provider/model, Telegram setup, and optional pairing/extra agent creation
 
 ## 8. Telegram Management Commands
 
