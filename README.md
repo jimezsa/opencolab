@@ -1,6 +1,6 @@
 # OpenColab
 
-OpenColab v1 is a minimalist multi-project research assistant.
+OpenColab is a multi-project AI research copilot built to accelerate scientific discovery.
 
 Architecture:
 
@@ -212,3 +212,12 @@ pnpm run check
 pnpm run build
 pnpm test
 ```
+
+## Inspiration
+
+- openclaw: https://github.com/openclaw/openclaw
+- nanoclaw: https://github.com/qwibitai/nanoclaw
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
