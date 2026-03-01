@@ -4,7 +4,7 @@ import { DEFAULT_AGENT_ID } from "./project-config.js";
 import { getProviderSetupDefaults, isProviderName } from "./provider.js";
 import { createRuntime } from "./runtime.js";
 import { resolveSecretReference } from "./secrets.js";
-import type { ProviderName } from "./types.js";
+import type { OpenColabState, ProviderName } from "./types.js";
 
 interface TelegramMenuCommand {
   command: string;
@@ -219,6 +219,21 @@ async function syncTelegramBotCommands(
   }
 }
 
+async function autoSyncTelegramCommandsIfConfigured(
+  state: OpenColabState
+): Promise<{ attempted: boolean; ok: boolean; error?: string }> {
+  if (!state.telegram.chatId) {
+    return { attempted: false, ok: true };
+  }
+
+  const result = await syncTelegramBotCommands(state.telegram.botTokenEnvVar, state.telegram.chatId);
+  return {
+    attempted: true,
+    ok: result.ok,
+    ...(result.error ? { error: result.error } : {})
+  };
+}
+
 async function main(): Promise<void> {
   const [, , ...argv] = process.argv;
   const [command, subcommand, action, ...rest] = argv;
@@ -229,6 +244,17 @@ async function main(): Promise<void> {
   }
 
   if ((command === "gateway" || command === "getway" || command === "web") && subcommand === "start") {
+    const runtime = createRuntime();
+    runtime.init();
+    const autoSync = await autoSyncTelegramCommandsIfConfigured(runtime.getState());
+    if (autoSync.attempted) {
+      if (autoSync.ok) {
+        console.log("Telegram bot commands synced.");
+      } else {
+        console.log(`Warning: could not sync Telegram commands (${autoSync.error ?? "unknown error"}).`);
+      }
+    }
+
     const { values } = parseFlags([action, ...rest].filter(Boolean));
     const port = Number(values.port ?? "4646");
     const telegramPolling = values["telegram-polling"] !== "false" && values["telegram-polling"] !== "0";
@@ -247,6 +273,14 @@ async function main(): Promise<void> {
     console.log(`Initialized OpenColab at ${runtime.config.projectConfigPath}`);
     console.log(`Active project: ${state.activeProjectId} (${project.path})`);
     console.log(`Active agent: ${agent.id} (${agent.path})`);
+    const autoSync = await autoSyncTelegramCommandsIfConfigured(state);
+    if (autoSync.attempted) {
+      if (autoSync.ok) {
+        console.log("Telegram bot commands synced.");
+      } else {
+        console.log(`Warning: could not sync Telegram commands (${autoSync.error ?? "unknown error"}).`);
+      }
+    }
     return;
   }
 

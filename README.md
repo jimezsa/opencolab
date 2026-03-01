@@ -92,6 +92,8 @@ You can resync manually any time:
 node dist/src/cli.js setup telegram commands sync
 ```
 
+If Telegram is already configured in `opencolab.json`, running `opencolab init` or `opencolab gateway start` also attempts command sync automatically.
+
 If commands still do not appear, run:
 
 ```bash
