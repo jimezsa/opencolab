@@ -39,6 +39,7 @@ node dist/src/cli.js init
 ```
 
 `AGENTS.md` is seeded from an internal essential researcher template.
+Fresh initialization defaults the active project provider to `claude_code` with model `claude-opus-4-6`.
 
 Create and select a project:
 

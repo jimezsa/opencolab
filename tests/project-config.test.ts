@@ -29,8 +29,8 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(agent.files.user, "USER.md");
     assert.equal(agent.files.memory, "MEMORY.md");
 
-    assert.equal(project.provider.name, "codex");
-    assert.equal(project.provider.apiKeyEnvVar, "OPENAI_API_KEY");
+    assert.equal(project.provider.name, "claude_code");
+    assert.equal(project.provider.apiKeyEnvVar, "ANTHROPIC_API_KEY");
     assert.equal(state.telegram.paired, false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

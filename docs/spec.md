@@ -183,9 +183,9 @@ Minimum shape:
         }
       },
       "provider": {
-        "name": "codex",
+        "name": "claude_code",
         "model": "<model-name>",
-        "apiKeyEnvVar": "OPENAI_API_KEY"
+        "apiKeyEnvVar": "ANTHROPIC_API_KEY"
       }
     }
   },

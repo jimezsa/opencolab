@@ -74,8 +74,8 @@ export function createDefaultProjectState(projectId = DEFAULT_PROJECT_ID): Proje
       [defaultAgent.id]: defaultAgent
     },
     provider: {
-      name: "codex",
-      ...getProviderSetupDefaults("codex")
+      name: "claude_code",
+      ...getProviderSetupDefaults("claude_code")
     }
   };
 }

@@ -14,7 +14,7 @@ export function isProviderName(value: string): value is ProviderName {
 export function getProviderSetupDefaults(providerName: ProviderName): ProviderSetupDefaults {
   if (providerName === "claude_code") {
     return {
-      model: "claude-sonnet-4-5",
+      model: "claude-opus-4-6",
       apiKeyEnvVar: "ANTHROPIC_API_KEY",
       cliCommand: "claude",
       cliArgs: ["-p", "{prompt}", "--model", "{model}"]
