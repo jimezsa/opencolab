@@ -22,7 +22,7 @@ export function getProviderSetupDefaults(providerName: ProviderName): ProviderSe
   }
 
   return {
-    model: "gpt-5",
+    model: "gpt-5.3-codex",
     apiKeyEnvVar: "OPENAI_API_KEY",
     cliCommand: "codex",
     cliArgs: ["exec", "-"]

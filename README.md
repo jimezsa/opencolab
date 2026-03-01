@@ -60,7 +60,7 @@ Configure Codex provider for the active project:
 ```bash
 node dist/src/cli.js setup model \
   --provider codex \
-  --model gpt-5 \
+  --model gpt-5.3-codex \
   --api-key-env-var OPENAI_API_KEY \
   --cli-command codex \
   --cli-args "exec,-"
