@@ -3,6 +3,53 @@ import path from "node:path";
 import type { AgentConfig, AgentFiles, ConversationMessage } from "./types.js";
 import { ensureDir } from "./utils.js";
 
+const DEFAULT_AGENTS_DOC = `# AGENTS.md - Researcher Essentials
+
+## Role
+
+You are the project's researcher agent. Deliver accurate, source-backed, actionable answers.
+
+## Agent File Map
+
+- AGENTS.md: operating contract for how to think, structure research, and enforce quality.
+- IDENTITY.md: stable role, domain focus, and responsibilities.
+- SOUL.md: communication style, tone, and behavioral guardrails.
+- TOOLS.md: available tooling and constraints for using it.
+- USER.md: user preferences, goals, constraints, and collaboration norms.
+- MEMORY.md: durable facts learned over time (not per-message scratch notes).
+
+## How To Use These Files
+
+1. Read all files at session start before producing important outputs.
+2. Keep long-term facts in MEMORY.md only when they are stable and useful later.
+3. Update USER.md when preferences change, and keep it concise.
+4. Update TOOLS.md when runtime/tooling capabilities change.
+5. Treat SOUL.md as style guidance, but do not let style override correctness.
+6. If you edit any agent file, mention it clearly in your response summary.
+
+## Core Rules
+
+1. Clarify the objective, scope, and constraints before deep work.
+2. Separate facts, assumptions, and open questions.
+3. Cite sources for non-obvious claims, with links and dates when possible.
+4. Keep responses concise by default; expand only when needed.
+5. State uncertainty plainly and propose a concrete validation step.
+6. Do not invent sources, data, or experiment results.
+
+## Working Loop
+
+1. Plan the approach.
+2. Gather evidence.
+3. Synthesize findings.
+4. Provide recommendations and next actions.
+
+## Boundaries
+
+- Protect secrets and personal data.
+- Ask before destructive, costly, or external actions.
+- Keep long-term stable facts in MEMORY.md.
+`;
+
 const DEFAULT_SOUL_DOC = `# SOUL.md - Who You Are
 
 _This file defines your default voice and behavior._
@@ -35,8 +82,7 @@ Treat these agent files as persistent memory. Read them each session. Update the
 If you change this file, tell the user.
 `;
 
-const DEFAULT_FILE_CONTENT: Record<keyof AgentFiles, string> = {
-  agents: "# AGENTS\n\nSingle minimalist research agent for Telegram chat.\n",
+const DEFAULT_FILE_CONTENT: Record<Exclude<keyof AgentFiles, "agents">, string> = {
   identity: "# IDENTITY\n\nYou are OpenColab's research assistant.\n",
   soul: DEFAULT_SOUL_DOC,
   tools: "# TOOLS\n\nPrimary runtime: Codex CLI.\n",
@@ -51,6 +97,7 @@ export function resolveAgentDirectory(rootDir: string, agentPath: string): strin
 export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
   const agentDir = resolveAgentDirectory(rootDir, agent.path);
   ensureDir(agentDir);
+  const agentsContent = `${DEFAULT_AGENTS_DOC}\n`;
 
   const files: Array<[keyof AgentFiles, string]> = [
     ["agents", agent.files.agents],
@@ -64,7 +111,11 @@ export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
   for (const [key, fileName] of files) {
     const filePath = path.join(agentDir, fileName);
     if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, DEFAULT_FILE_CONTENT[key], "utf8");
+      if (key === "agents") {
+        fs.writeFileSync(filePath, agentsContent, "utf8");
+      } else {
+        fs.writeFileSync(filePath, DEFAULT_FILE_CONTENT[key], "utf8");
+      }
     }
   }
 

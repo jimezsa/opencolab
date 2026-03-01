@@ -28,6 +28,30 @@ test("init creates required agent context files for active project", () => {
   }
 });
 
+test("init and agent create seed AGENTS.md from built-in researcher template", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-agent-template-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+
+    const mainAgentPath = path.join(tempDir, "projects", "default", "AGENTS.md");
+    const mainAgentDoc = fs.readFileSync(mainAgentPath, "utf8");
+    assert.equal(mainAgentDoc.includes("# AGENTS.md - Researcher Essentials"), true);
+    assert.equal(mainAgentDoc.includes("## Agent File Map"), true);
+    assert.equal(mainAgentDoc.includes("SOUL.md: communication style, tone, and behavioral guardrails."), true);
+    assert.equal(mainAgentDoc.includes("MEMORY.md: durable facts learned over time"), true);
+    assert.equal(mainAgentDoc.includes("Do not invent sources, data, or experiment results."), true);
+
+    runtime.configureAgent("scout");
+    const subagentPath = path.join(tempDir, "projects", "default", "subagents", "scout", "AGENTS.md");
+    const subagentDoc = fs.readFileSync(subagentPath, "utf8");
+    assert.equal(subagentDoc, mainAgentDoc);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("setupModel supports claude_code provider defaults for active project", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-runtime-"));
   const runtime = createRuntime(tempDir);

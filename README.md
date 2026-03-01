@@ -38,6 +38,8 @@ Initialize state and default project/agent files:
 node dist/src/cli.js init
 ```
 
+`AGENTS.md` is seeded from an internal essential researcher template.
+
 Create and select a project:
 
 ```bash
@@ -139,6 +141,8 @@ Each agent directory must include:
 - `TOOLS.md`
 - `USER.md`
 - `MEMORY.md` (long-term memory only)
+
+`AGENTS.md` is initialized from a built-in essential researcher template.
 
 Default layout:
 

@@ -68,6 +68,11 @@ Each agent directory must include:
 - `USER.md`
 - `MEMORY.md`
 
+Initialization requirements:
+
+- when an agent directory is created, `AGENTS.md` must be seeded from an internal runtime template
+- the default template must keep only essential researcher instructions
+
 `MEMORY.md` remains reserved for long-term memory only.
 
 Each agent must also persist Telegram conversation history under:
