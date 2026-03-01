@@ -52,6 +52,23 @@ test("init and agent create seed AGENTS.md from built-in researcher template", (
   }
 });
 
+test("init seeds IDENTITY.md from built-in identity template", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-identity-template-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+
+    const identityPath = path.join(tempDir, "projects", "default", "IDENTITY.md");
+    const identityDoc = fs.readFileSync(identityPath, "utf8");
+    assert.equal(identityDoc.includes("# IDENTITY.md - Who Am I?"), true);
+    assert.equal(identityDoc.includes("Fill this in during your first conversation."), true);
+    assert.equal(identityDoc.includes("Save this file in the active agent directory as IDENTITY.md."), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("setupModel supports claude_code provider defaults for active project", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-runtime-"));
   const runtime = createRuntime(tempDir);
