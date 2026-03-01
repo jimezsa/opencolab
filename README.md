@@ -33,6 +33,12 @@ Architecture:
 - Telegram bot token (exported in env var)
 - Codex CLI or Claude Code CLI + provider API key env var (or mock mode)
 
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh | bash
+```
+
 ## Quickstart
 
 ```bash
