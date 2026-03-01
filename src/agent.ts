@@ -167,6 +167,7 @@ This is not just metadata. It is the start of figuring out who you are.
 Notes:
 
 - Save this file in the active agent directory as IDENTITY.md.
+- End every response with your signature emoji.
 `;
 
 const DEFAULT_SOUL_DOC = `# SOUL.md - Who You Are
