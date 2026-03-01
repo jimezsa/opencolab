@@ -127,6 +127,7 @@ Telegram (paired and authorized chat):
 - `/agent create <agent_id>`
 - `/agent use <agent_id>`
 - `/agent list`
+- `/session reset`
 
 ## Agent Contract
 
@@ -143,6 +144,12 @@ Default layout:
 
 - main `researcher_agent`: `projects/<project_id>/`
 - additional agents: `projects/<project_id>/subagents/<agent_id>/`
+
+Conversation history layout:
+
+- current session logs: `<agent_path>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`
+- reset active session from Telegram with `/session reset`
+- conversation logs are no longer written under `.opencolab`
 
 ## Configuration
 

@@ -70,6 +70,18 @@ Each agent directory must include:
 
 `MEMORY.md` remains reserved for long-term memory only.
 
+Each agent must also persist Telegram conversation history under:
+
+- `projects/<project_id>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl` for main agent
+- `projects/<project_id>/subagents/<agent_id>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl` for subagents
+
+Requirements for session storage:
+
+- session folders are created automatically on first message
+- `YYYY-MM-DD.jsonl` uses current UTC date
+- `/session reset` starts a new session folder for the active agent
+- conversation logs must not be stored in `.opencolab`
+
 ## 6. Telegram Pairing Flow
 
 Pairing remains mandatory before regular routing.
@@ -119,6 +131,7 @@ Minimum supported commands:
 - `/agent create <agent_id>`
 - `/agent use <agent_id>`
 - `/agent list`
+- `/session reset`
 
 Messages that are not management commands are routed to the active agent.
 
@@ -185,6 +198,7 @@ Notes:
 
 - if chat is unpaired, gateway replies with pairing-required guidance
 - if paired, gateway processes management commands first
+- `/session reset` creates a new active session folder for the active agent
 - non-management text is sent to the active project/agent runtime
 - while generating, gateway sends Telegram `typing` feedback
 - responses are sent to the same chat
@@ -198,3 +212,4 @@ v1 is complete when all are true:
 - Active project routes to its active agent and provider runtime.
 - `opencolab.json` persists active project, all project/agent configs, and one shared Telegram config.
 - Main `researcher_agent` files are created in the project root and extra agents are created under `subagents/`.
+- Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
