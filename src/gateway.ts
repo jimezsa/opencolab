@@ -29,6 +29,7 @@ interface GatewayDependencies {
   saveState: (next: OpenColabState) => void;
   readConversation: (chatId: string, limit: number) => ConversationMessage[];
   appendConversation: (chatId: string, message: ConversationMessage) => void;
+  resetConversationSession: () => string;
   respond: (input: CodexAgentInput) => Promise<string>;
   telegramSender?: TelegramSender;
   telegramTypingSender?: TelegramTypingSender;
@@ -395,9 +396,22 @@ export class TelegramGateway {
       };
     }
 
+    if (scope === "/session") {
+      if (action === "reset") {
+        const sessionId = this.deps.resetConversationSession();
+        return {
+          response: `Session reset. New session: ${sessionId}`
+        };
+      }
+
+      return {
+        response: "Session commands: /session reset"
+      };
+    }
+
     return {
       response:
-        "Supported commands: /project list | /project create <project_id> | /project use <project_id> | /agent list | /agent create <agent_id> | /agent use <agent_id>"
+        "Supported commands: /project list | /project create <project_id> | /project use <project_id> | /agent list | /agent create <agent_id> | /agent use <agent_id> | /session reset"
     };
   }
 

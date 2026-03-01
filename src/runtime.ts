@@ -52,7 +52,7 @@ export class OpenColabRuntime {
   constructor(cwd = process.cwd(), private readonly options: RuntimeOptions = {}) {
     this.config = loadConfig(cwd);
     this.state = ensureProjectAndAgent(readProjectState(this.config));
-    this.conversations = new ConversationStore(this.config.conversationsDir);
+    this.conversations = new ConversationStore(this.config.rootDir);
     this.codex = new CodexAgent(this.config, () => this.state);
 
     this.gateway = new TelegramGateway(this.config, {
@@ -63,9 +63,10 @@ export class OpenColabRuntime {
         this.ensureActiveAgentFiles();
       },
       readConversation: (chatId, limit) =>
-        this.conversations.readRecent(this.getConversationKey(chatId), limit),
+        this.conversations.readRecent(this.resolveActiveAgentPath(), limit),
       appendConversation: (chatId, message) =>
-        this.conversations.append(this.getConversationKey(chatId), message),
+        this.conversations.append(this.resolveActiveAgentPath(), message),
+      resetConversationSession: () => this.conversations.resetSession(this.resolveActiveAgentPath()),
       respond: async (input) => {
         if (this.options.agentResponder) {
           return this.options.agentResponder(input);
@@ -280,8 +281,10 @@ export class OpenColabRuntime {
     ensureAgentFiles(this.config.rootDir, agent);
   }
 
-  private getConversationKey(chatId: string): string {
-    return `${this.state.activeProjectId}__${chatId}`;
+  private resolveActiveAgentPath(): string {
+    const project = getActiveProject(this.state);
+    const agent = project.agents[project.activeAgentId] ?? Object.values(project.agents)[0];
+    return agent?.path ?? project.path;
   }
 
   private persist(): void {
