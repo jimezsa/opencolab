@@ -61,78 +61,8 @@ Run an interactive, step-by-step setup (project, model/provider, Telegram, pairi
 node dist/src/cli.js ignite
 ```
 
-Create and select a project:
-
-```bash
-node dist/src/cli.js project create --project-id personal
-```
-
-This creates the main `researcher_agent` files directly in `projects/personal/`.
-
-Create and select an additional agent in the active project:
-
-```bash
-node dist/src/cli.js agent create --agent-id personal_agent
-```
-
-Configure Codex provider for the active project:
-
-```bash
-node dist/src/cli.js setup model \
-  --provider codex \
-  --model gpt-5.3-codex \
-  --api-key-env-var OPENAI_API_KEY \
-  --cli-command codex \
-  --cli-args "exec,-"
-```
-
-Configure Anthropic provider with Claude for the active project:
-
-```bash
-node dist/src/cli.js setup model \
-  --provider claude_code \
-  --model claude-opus-4-6 \
-  --api-key-env-var ANTHROPIC_API_KEY \
-  --cli-command claude \
-  --cli-args "-p,{prompt},--model,{model}"
-```
-
-Configure Telegram once for all projects:
-
-```bash
-node dist/src/cli.js setup telegram \
-  --bot-token-env-var TELEGRAM_BOT_TOKEN \
-  --chat-id <telegram_chat_id>
-```
-
-This also syncs Telegram slash-menu commands so they appear when you type `/`.
-You can resync manually any time:
-
-```bash
-node dist/src/cli.js setup telegram commands sync
-```
-
-If Telegram is already configured in `opencolab.json`, running `opencolab init` or `opencolab gateway start` also attempts command sync automatically.
-
-If commands still do not appear, run:
-
-```bash
-node dist/src/cli.js setup telegram commands sync --chat-id <telegram_chat_id>
-```
-
-Then reopen the Telegram chat (or force close/reopen Telegram) and type `/` again.
-
-Start pairing (code is sent to Telegram):
-
-```bash
-node dist/src/cli.js setup telegram pair start
-```
-
-Complete pairing in CLI using the code received on Telegram:
-
-```bash
-node dist/src/cli.js setup telegram pair complete --code <pairing_code>
-```
+`ignite` handles the main first-run setup (project, model/provider, Telegram, command sync, and optional pairing/extra agent).
+If you need to adjust settings later, rerun `ignite` or use `setup`, `project`, and `agent` commands directly.
 
 Start local gateway server:
 
