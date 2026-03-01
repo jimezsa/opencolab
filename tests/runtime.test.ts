@@ -476,3 +476,61 @@ test("paired webhook can create and switch projects and agents", async () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("paired webhook supports telegram menu alias commands", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-menu-aliases-"));
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async ({ text }) => `research:${text}`
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const createProject = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/project_create alpha",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(createProject.ok, true);
+    assert.equal(createProject.action, "management_command");
+    assert.equal(runtime.getState().activeProjectId, "alpha");
+
+    const createAgent = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/agent_create scout",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(createAgent.ok, true);
+    assert.equal(createAgent.action, "management_command");
+    assert.equal(runtime.getActiveProject().activeAgentId, "scout");
+
+    const resetSession = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/session_reset",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(resetSession.ok, true);
+    assert.equal(resetSession.action, "management_command");
+    assert.equal(resetSession.response.startsWith("Session reset. New session:"), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

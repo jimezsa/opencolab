@@ -144,6 +144,16 @@ Minimum supported commands:
 
 Messages that are not management commands are routed to the active agent.
 
+Menu alias compatibility (for Telegram slash command popup):
+
+- `/project_list` -> `/project list`
+- `/project_create <project_id>` -> `/project create <project_id>`
+- `/project_use <project_id>` -> `/project use <project_id>`
+- `/agent_list` -> `/agent list`
+- `/agent_create <agent_id>` -> `/agent create <agent_id>`
+- `/agent_use <agent_id>` -> `/agent use <agent_id>`
+- `/session_reset` -> `/session reset`
+
 ## 9. Provider Constraints
 
 Supported provider identifiers:
@@ -214,6 +224,7 @@ Notes:
 - responses are sent to the same chat
 - agent responses may include `@telegram-file <json>` directives to send Telegram files:
   - example: `@telegram-file {"kind":"document","file":"<file_id_or_url>","caption":"optional"}`
+- `setup telegram` should register Telegram bot commands via `setMyCommands` so slash-menu suggestions are available
 
 ## 12. Acceptance Criteria
 

@@ -85,6 +85,21 @@ node dist/src/cli.js setup telegram \
   --chat-id <telegram_chat_id>
 ```
 
+This also syncs Telegram slash-menu commands so they appear when you type `/`.
+You can resync manually any time:
+
+```bash
+node dist/src/cli.js setup telegram commands sync
+```
+
+If commands still do not appear, run:
+
+```bash
+node dist/src/cli.js setup telegram commands sync --chat-id <telegram_chat_id>
+```
+
+Then reopen the Telegram chat (or force close/reopen Telegram) and type `/` again.
+
 Start pairing (code is sent to Telegram):
 
 ```bash
@@ -138,6 +153,16 @@ Telegram (paired and authorized chat):
 - `/agent use <agent_id>`
 - `/agent list`
 - `/session reset`
+
+Telegram slash-menu aliases (for `/` popup command list):
+
+- `/project_list`
+- `/project_create <project_id>`
+- `/project_use <project_id>`
+- `/agent_list`
+- `/agent_create <agent_id>`
+- `/agent_use <agent_id>`
+- `/session_reset`
 
 ## Agent Contract
 

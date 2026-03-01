@@ -258,14 +258,14 @@ export class TelegramGateway {
     inbound: TelegramInbound,
     state: OpenColabState
   ): { nextState?: OpenColabState; response: string } | null {
-    const text = inbound.commandText.trim();
+    const text = normalizeManagementInput(inbound.commandText);
     if (!text.startsWith("/")) {
       return null;
     }
 
     const tokens = text.split(/\s+/);
-    const scope = tokens[0]?.toLowerCase();
-    const action = tokens[1]?.toLowerCase();
+    const scope = normalizeCommandToken(tokens[0]).toLowerCase();
+    const action = normalizeCommandToken(tokens[1]).toLowerCase();
     const value = tokens[2];
 
     if (scope === "/project") {
@@ -663,6 +663,42 @@ function normalizeEntityId(value: string): string {
   }
 
   return trimmed;
+}
+
+function normalizeManagementInput(raw: string): string {
+  const text = raw.trim();
+  if (!text.startsWith("/")) {
+    return text;
+  }
+
+  const tokens = text.split(/\s+/);
+  const scope = normalizeCommandToken(tokens[0]).toLowerCase();
+  const rest = tokens.slice(1).join(" ").trim();
+
+  const aliases: Record<string, string> = {
+    "/project_list": "/project list",
+    "/project_create": "/project create",
+    "/project_use": "/project use",
+    "/agent_list": "/agent list",
+    "/agent_create": "/agent create",
+    "/agent_use": "/agent use",
+    "/session_reset": "/session reset"
+  };
+
+  const expanded = aliases[scope];
+  if (!expanded) {
+    return [scope, rest].filter(Boolean).join(" ").trim();
+  }
+
+  return [expanded, rest].filter(Boolean).join(" ").trim();
+}
+
+function normalizeCommandToken(token: string | undefined): string {
+  if (!token) {
+    return "";
+  }
+
+  return token.split("@")[0] ?? token;
 }
 
 function parseInboundFiles(message: Record<string, unknown>): TelegramFilePayload[] {

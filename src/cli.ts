@@ -3,7 +3,37 @@ import { startHttpServer } from "./http.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
 import { getProviderSetupDefaults, isProviderName } from "./provider.js";
 import { createRuntime } from "./runtime.js";
+import { resolveSecretReference } from "./secrets.js";
 import type { ProviderName } from "./types.js";
+
+interface TelegramMenuCommand {
+  command: string;
+  description: string;
+}
+
+interface TelegramApiResult {
+  ok?: boolean;
+  description?: string;
+}
+
+type TelegramCommandScope =
+  | { type: "default" }
+  | { type: "all_private_chats" }
+  | { type: "all_group_chats" }
+  | { type: "chat"; chat_id: string };
+
+const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
+  { command: "project_list", description: "List projects" },
+  { command: "project_create", description: "Create project: /project_create <id>" },
+  { command: "project_use", description: "Use project: /project_use <id>" },
+  { command: "agent_list", description: "List agents" },
+  { command: "agent_create", description: "Create agent: /agent_create <id>" },
+  { command: "agent_use", description: "Use agent: /agent_use <id>" },
+  { command: "session_reset", description: "Reset active session" },
+  { command: "project", description: "Project command help" },
+  { command: "agent", description: "Agent command help" },
+  { command: "session", description: "Session command help" }
+];
 
 function parseFlags(args: string[]): { values: Record<string, string>; positionals: string[] } {
   const values: Record<string, string> = {};
@@ -51,6 +81,7 @@ function usage(): string {
     "  opencolab init",
     "  opencolab setup model [--provider codex|claude_code] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
     "  opencolab setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
+    "  opencolab setup telegram commands sync [--bot-token-env-var TELEGRAM_BOT_TOKEN] [--chat-id <id>]",
     "  opencolab setup telegram pair start",
     "  opencolab setup telegram pair complete --code <pairing_code>",
     "  opencolab project create --project-id <id>",
@@ -75,6 +106,117 @@ function parseProviderName(value: string | undefined): ProviderName {
     throw new Error(`Unsupported provider: ${parsed}. Use codex or claude_code.`);
   }
   return parsed;
+}
+
+async function syncTelegramBotCommands(
+  botTokenReference: string,
+  chatId?: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  const token = resolveSecretReference(botTokenReference);
+  if (!token) {
+    return {
+      ok: false,
+      error: `missing token value for reference '${botTokenReference}'`
+    };
+  }
+
+  try {
+    const scopes: TelegramCommandScope[] = [
+      { type: "default" },
+      { type: "all_private_chats" },
+      { type: "all_group_chats" },
+      ...(chatId ? [{ type: "chat", chat_id: chatId } as const] : [])
+    ];
+
+    for (const scope of scopes) {
+      const scopePayload =
+        scope.type === "default"
+          ? {}
+          : scope.type === "chat"
+            ? { scope: { type: "chat", chat_id: scope.chat_id } }
+            : { scope: { type: scope.type } };
+
+      const response = await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commands: TELEGRAM_MENU_COMMANDS,
+          ...scopePayload
+        })
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        return {
+          ok: false,
+          error: `[scope:${scope.type}] ${message || `telegram api status ${String(response.status)}`}`
+        };
+      }
+
+      const body = (await response.json()) as TelegramApiResult;
+      if (body.ok !== true) {
+        return {
+          ok: false,
+          error: `[scope:${scope.type}] ${body.description ?? "telegram returned ok=false"}`
+        };
+      }
+    }
+
+    const menuTargets: Array<{ label: string; payload: Record<string, unknown> }> = [
+      {
+        label: "default",
+        payload: {
+          menu_button: { type: "commands" }
+        }
+      },
+      ...(chatId
+        ? [
+            {
+              label: "chat",
+              payload: {
+                chat_id: chatId,
+                menu_button: { type: "commands" }
+              }
+            }
+          ]
+        : [])
+    ];
+
+    for (const target of menuTargets) {
+      const menuResponse = await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(target.payload)
+      });
+
+      if (!menuResponse.ok) {
+        const message = await menuResponse.text();
+        return {
+          ok: false,
+          error: `[menu:${target.label}] ${message || `telegram api status ${String(menuResponse.status)}`}`
+        };
+      }
+
+      const menuBody = (await menuResponse.json()) as TelegramApiResult;
+      if (menuBody.ok !== true) {
+        return {
+          ok: false,
+          error: `[menu:${target.label}] ${menuBody.description ?? "telegram returned ok=false"}`
+        };
+      }
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
 
 async function main(): Promise<void> {
@@ -129,7 +271,25 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (command === "setup" && subcommand === "telegram" && action !== "pair") {
+  if (command === "setup" && subcommand === "telegram" && action === "commands") {
+    const syncAction = rest[0];
+    if (syncAction !== "sync") {
+      throw new Error("Unknown telegram commands command. Use 'sync'.");
+    }
+
+    const { values } = parseFlags(rest.slice(1));
+    const botTokenReference = values["bot-token-env-var"] ?? runtime.getState().telegram.botTokenEnvVar;
+    const chatId = values["chat-id"] ?? runtime.getState().telegram.chatId;
+    const syncResult = await syncTelegramBotCommands(botTokenReference, chatId);
+    if (!syncResult.ok) {
+      throw new Error(`Could not sync Telegram commands: ${syncResult.error ?? "unknown error"}`);
+    }
+
+    console.log("Telegram bot commands synced.");
+    return;
+  }
+
+  if (command === "setup" && subcommand === "telegram" && action !== "pair" && action !== "commands") {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
     const chatId = values["chat-id"];
 
@@ -146,6 +306,13 @@ async function main(): Promise<void> {
     console.log("Telegram configured.");
     console.log(`Chat ID: ${state.telegram.chatId}`);
     console.log(`Bot token env var: ${state.telegram.botTokenEnvVar}`);
+    const syncResult = await syncTelegramBotCommands(state.telegram.botTokenEnvVar, state.telegram.chatId);
+    if (syncResult.ok) {
+      console.log("Telegram bot commands synced.");
+    } else {
+      console.log(`Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`);
+      console.log("Run 'opencolab setup telegram commands sync' after fixing token access.");
+    }
     console.log("Run 'opencolab setup telegram pair start' to begin pairing.");
     return;
   }
@@ -169,6 +336,13 @@ async function main(): Promise<void> {
 
       const result = runtime.completePairing(code);
       console.log(`Telegram pairing completed at ${result.pairedAt}`);
+      const state = runtime.getState();
+      const syncResult = await syncTelegramBotCommands(state.telegram.botTokenEnvVar, state.telegram.chatId);
+      if (syncResult.ok) {
+        console.log("Telegram bot commands synced.");
+      } else {
+        console.log(`Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`);
+      }
       return;
     }
 
