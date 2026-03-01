@@ -4,12 +4,13 @@ import { buildAgentPrompt, readAgentDocuments, resolveAgentDirectory } from "./a
 import { getActiveAgent, getActiveProject } from "./project-config.js";
 import { getCanonicalProviderKeyEnvVar } from "./provider.js";
 import { isLiteralSecretReference, resolveSecretReference } from "./secrets.js";
-import type { ConversationMessage, OpenColabState } from "./types.js";
+import type { ConversationMessage, OpenColabState, TelegramFilePayload } from "./types.js";
 
 export interface CodexAgentInput {
   chatId: string;
   sender: string;
   text: string;
+  files: TelegramFilePayload[];
   history: ConversationMessage[];
 }
 

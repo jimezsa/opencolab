@@ -39,6 +39,7 @@ Required:
 - Create/list/select projects from Telegram chat commands.
 - Create/list/select agents from Telegram chat commands.
 - Route Telegram messages to the selected project/agent runtime.
+- Route Telegram text and file messages (documents, photos, audio, video, voice, stickers, and related media) to the selected project/agent runtime.
 - Persist project/agent/provider settings plus one shared Telegram configuration in `opencolab.json`.
 
 Not required in v1:
@@ -208,9 +209,11 @@ Notes:
 - if chat is unpaired, gateway replies with pairing-required guidance
 - if paired, gateway processes management commands first
 - `/session reset` creates a new active session folder for the active agent
-- non-management text is sent to the active project/agent runtime
+- non-management text and file messages are sent to the active project/agent runtime
 - while generating, gateway sends Telegram `typing` feedback
 - responses are sent to the same chat
+- agent responses may include `@telegram-file <json>` directives to send Telegram files:
+  - example: `@telegram-file {"kind":"document","file":"<file_id_or_url>","caption":"optional"}`
 
 ## 12. Acceptance Criteria
 

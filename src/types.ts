@@ -55,10 +55,40 @@ export interface ConversationMessage {
   at: string;
 }
 
+export type TelegramFileKind =
+  | "document"
+  | "photo"
+  | "audio"
+  | "video"
+  | "voice"
+  | "video_note"
+  | "animation"
+  | "sticker";
+
+export interface TelegramFilePayload {
+  kind: TelegramFileKind;
+  fileId: string;
+  fileUniqueId?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileSize?: number;
+  durationSec?: number;
+  width?: number;
+  height?: number;
+}
+
+export interface TelegramOutboundFile {
+  kind: TelegramFileKind;
+  file: string;
+  caption?: string;
+}
+
 export interface TelegramInbound {
   chatId: string;
   sender: string;
+  commandText: string;
   text: string;
+  files: TelegramFilePayload[];
 }
 
 export interface GatewayResult {

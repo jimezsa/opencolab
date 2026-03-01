@@ -11,7 +11,10 @@ import type {
   ConversationMessage,
   GatewayResult,
   OpenColabState,
-  TelegramInbound
+  TelegramFileKind,
+  TelegramFilePayload,
+  TelegramInbound,
+  TelegramOutboundFile
 } from "./types.js";
 import { resolveSecretReference } from "./secrets.js";
 import { nowIso, randomDigits } from "./utils.js";
@@ -23,6 +26,11 @@ export type TelegramSender = (
 ) => Promise<boolean>;
 
 export type TelegramTypingSender = (chatId: string, state: OpenColabState) => Promise<boolean>;
+export type TelegramFileSender = (
+  chatId: string,
+  file: TelegramOutboundFile,
+  state: OpenColabState
+) => Promise<boolean>;
 
 interface GatewayDependencies {
   getState: () => OpenColabState;
@@ -33,11 +41,13 @@ interface GatewayDependencies {
   respond: (input: CodexAgentInput) => Promise<string>;
   telegramSender?: TelegramSender;
   telegramTypingSender?: TelegramTypingSender;
+  telegramFileSender?: TelegramFileSender;
 }
 
 export class TelegramGateway {
   private readonly sender: TelegramSender;
   private readonly typingSender: TelegramTypingSender;
+  private readonly fileSender: TelegramFileSender;
 
   constructor(
     private readonly config: OpenColabConfig,
@@ -45,6 +55,7 @@ export class TelegramGateway {
   ) {
     this.sender = deps.telegramSender ?? defaultTelegramSender;
     this.typingSender = deps.telegramTypingSender ?? defaultTelegramTypingSender;
+    this.fileSender = deps.telegramFileSender ?? defaultTelegramFileSender;
   }
 
   async startPairing(): Promise<{ code: string; expiresAt: string; sent: boolean }> {
@@ -190,11 +201,15 @@ export class TelegramGateway {
         chatId: inbound.chatId,
         sender: inbound.sender,
         text: inbound.text,
+        files: inbound.files,
         history
       });
     } finally {
       stopTyping();
     }
+
+    const outbound = parseOutboundAgentResponse(response);
+    const assistantLog = buildAssistantLogContent(outbound.text, outbound.files);
 
     this.deps.appendConversation(inbound.chatId, {
       role: "user",
@@ -204,16 +219,37 @@ export class TelegramGateway {
 
     this.deps.appendConversation(inbound.chatId, {
       role: "assistant",
-      content: response,
+      content: assistantLog,
       at: nowIso()
     });
 
-    const sent = await this.sender(inbound.chatId, response, state);
+    let sent = true;
+    let sentAny = false;
+
+    if (outbound.text) {
+      const textSent = await this.sender(inbound.chatId, outbound.text, state);
+      sent = sent && textSent;
+      sentAny = sentAny || textSent;
+    }
+
+    for (const file of outbound.files) {
+      const fileSent = await this.fileSender(inbound.chatId, file, state);
+      sent = sent && fileSent;
+      sentAny = sentAny || fileSent;
+    }
+
+    if (!outbound.text && outbound.files.length === 0) {
+      sent = false;
+    } else if (sentAny && !sent) {
+      sent = false;
+    }
+
+    const responseText = outbound.text || summarizeOutboundFiles(outbound.files);
 
     return {
       ok: true,
       action: "agent_response",
-      response,
+      response: responseText,
       sent
     };
   }
@@ -222,7 +258,7 @@ export class TelegramGateway {
     inbound: TelegramInbound,
     state: OpenColabState
   ): { nextState?: OpenColabState; response: string } | null {
-    const text = inbound.text.trim();
+    const text = inbound.commandText.trim();
     if (!text.startsWith("/")) {
       return null;
     }
@@ -517,6 +553,43 @@ export async function defaultTelegramTypingSender(
   }
 }
 
+export async function defaultTelegramFileSender(
+  chatId: string,
+  file: TelegramOutboundFile,
+  state: OpenColabState
+): Promise<boolean> {
+  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
+  if (!token) {
+    return false;
+  }
+
+  const method = resolveTelegramFileMethod(file.kind);
+  const fileField = resolveTelegramFileField(file.kind);
+
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    [fileField]: file.file
+  };
+
+  if (file.caption && supportsCaption(file.kind)) {
+    payload.caption = file.caption;
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {
   const root = asRecord(body);
   if (!root) {
@@ -528,8 +601,9 @@ function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {
     return null;
   }
 
-  const text = String(message.text ?? "").trim();
-  if (!text) {
+  const text = String(message.text ?? message.caption ?? "").trim();
+  const files = parseInboundFiles(message);
+  if (!text && files.length === 0) {
     return null;
   }
 
@@ -541,7 +615,9 @@ function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {
   return {
     chatId: String(chat.id),
     sender: parseSender(asRecord(message.from)),
-    text
+    commandText: text,
+    text: buildInboundText(text, files),
+    files
   };
 }
 
@@ -587,4 +663,318 @@ function normalizeEntityId(value: string): string {
   }
 
   return trimmed;
+}
+
+function parseInboundFiles(message: Record<string, unknown>): TelegramFilePayload[] {
+  const payloads: TelegramFilePayload[] = [];
+
+  const document = asRecord(message.document);
+  if (document) {
+    const payload = buildFilePayload("document", document);
+    if (payload) {
+      payloads.push(payload);
+    }
+  }
+
+  const audio = asRecord(message.audio);
+  if (audio) {
+    const payload = buildFilePayload("audio", audio);
+    if (payload) {
+      payloads.push(payload);
+    }
+  }
+
+  const video = asRecord(message.video);
+  if (video) {
+    const payload = buildFilePayload("video", video);
+    if (payload) {
+      payloads.push(payload);
+    }
+  }
+
+  const voice = asRecord(message.voice);
+  if (voice) {
+    const payload = buildFilePayload("voice", voice);
+    if (payload) {
+      payloads.push(payload);
+    }
+  }
+
+  const videoNote = asRecord(message.video_note);
+  if (videoNote) {
+    const payload = buildFilePayload("video_note", videoNote);
+    if (payload) {
+      payloads.push(payload);
+    }
+  }
+
+  const animation = asRecord(message.animation);
+  if (animation) {
+    const payload = buildFilePayload("animation", animation);
+    if (payload) {
+      payloads.push(payload);
+    }
+  }
+
+  const sticker = asRecord(message.sticker);
+  if (sticker) {
+    const payload = buildFilePayload("sticker", sticker);
+    if (payload) {
+      payloads.push(payload);
+    }
+  }
+
+  const photos = Array.isArray(message.photo) ? message.photo.map(asRecord).filter(Boolean) : [];
+  const bestPhoto = photos[photos.length - 1];
+  if (bestPhoto) {
+    const payload = buildFilePayload("photo", bestPhoto);
+    if (payload) {
+      payloads.push(payload);
+    }
+  }
+
+  return payloads;
+}
+
+function buildFilePayload(kind: TelegramFileKind, source: Record<string, unknown>): TelegramFilePayload | null {
+  const fileId = asStringValue(source.file_id);
+  if (!fileId) {
+    return null;
+  }
+
+  const payload: TelegramFilePayload = {
+    kind,
+    fileId
+  };
+
+  const uniqueId = asStringValue(source.file_unique_id);
+  if (uniqueId) {
+    payload.fileUniqueId = uniqueId;
+  }
+
+  const fileName = asStringValue(source.file_name);
+  if (fileName) {
+    payload.fileName = fileName;
+  }
+
+  const mimeType = asStringValue(source.mime_type);
+  if (mimeType) {
+    payload.mimeType = mimeType;
+  }
+
+  const size = asNumberValue(source.file_size);
+  if (size !== null) {
+    payload.fileSize = size;
+  }
+
+  const duration = asNumberValue(source.duration);
+  if (duration !== null) {
+    payload.durationSec = duration;
+  }
+
+  const width = asNumberValue(source.width);
+  if (width !== null) {
+    payload.width = width;
+  }
+
+  const height = asNumberValue(source.height);
+  if (height !== null) {
+    payload.height = height;
+  }
+
+  return payload;
+}
+
+function buildInboundText(baseText: string, files: TelegramFilePayload[]): string {
+  const lines: string[] = [];
+
+  if (baseText) {
+    lines.push(baseText);
+  }
+
+  if (files.length > 0) {
+    lines.push("[telegram_files]");
+    files.forEach((file, index) => {
+      lines.push(
+        `${index + 1}. kind=${file.kind} file_id=${file.fileId}` +
+          (file.fileName ? ` file_name=${file.fileName}` : "") +
+          (file.mimeType ? ` mime_type=${file.mimeType}` : "") +
+          (file.fileSize !== undefined ? ` file_size=${String(file.fileSize)}` : "")
+      );
+    });
+  }
+
+  return lines.join("\n").trim();
+}
+
+function parseOutboundAgentResponse(raw: string): { text: string; files: TelegramOutboundFile[] } {
+  const lines = raw.split(/\r?\n/);
+  const remaining: string[] = [];
+  const files: TelegramOutboundFile[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("@telegram-file")) {
+      remaining.push(line);
+      continue;
+    }
+
+    const payloadRaw = trimmed.slice("@telegram-file".length).trim();
+    if (!payloadRaw) {
+      continue;
+    }
+
+    try {
+      const payload = JSON.parse(payloadRaw) as Record<string, unknown>;
+      const file = normalizeOutboundFile(payload);
+      if (file) {
+        files.push(file);
+      }
+    } catch {
+      remaining.push(line);
+    }
+  }
+
+  return {
+    text: remaining.join("\n").trim(),
+    files
+  };
+}
+
+function normalizeOutboundFile(source: Record<string, unknown>): TelegramOutboundFile | null {
+  const kind = asOutboundKind(source.kind);
+  if (!kind) {
+    return null;
+  }
+
+  const file = asStringValue(source.file);
+  if (!file) {
+    return null;
+  }
+
+  const caption = asStringValue(source.caption);
+  return {
+    kind,
+    file,
+    ...(caption ? { caption } : {})
+  };
+}
+
+function asOutboundKind(value: unknown): TelegramFileKind | null {
+  const parsed = asStringValue(value);
+  if (!parsed) {
+    return null;
+  }
+
+  return isTelegramFileKind(parsed) ? parsed : null;
+}
+
+function isTelegramFileKind(value: string): value is TelegramFileKind {
+  return (
+    value === "document" ||
+    value === "photo" ||
+    value === "audio" ||
+    value === "video" ||
+    value === "voice" ||
+    value === "video_note" ||
+    value === "animation" ||
+    value === "sticker"
+  );
+}
+
+function buildAssistantLogContent(text: string, files: TelegramOutboundFile[]): string {
+  if (files.length === 0) {
+    return text;
+  }
+
+  const lines: string[] = [];
+  if (text) {
+    lines.push(text);
+  }
+  lines.push("[telegram_outbound_files]");
+  files.forEach((file, index) => {
+    lines.push(
+      `${index + 1}. kind=${file.kind} file=${file.file}` +
+        (file.caption ? ` caption=${file.caption}` : "")
+    );
+  });
+
+  return lines.join("\n").trim();
+}
+
+function summarizeOutboundFiles(files: TelegramOutboundFile[]): string {
+  if (files.length === 0) {
+    return "";
+  }
+
+  const nouns = files.map((file) => file.kind).join(", ");
+  return `Sent ${String(files.length)} file(s): ${nouns}`;
+}
+
+function resolveTelegramFileMethod(kind: TelegramFileKind): string {
+  switch (kind) {
+    case "document":
+      return "sendDocument";
+    case "photo":
+      return "sendPhoto";
+    case "audio":
+      return "sendAudio";
+    case "video":
+      return "sendVideo";
+    case "voice":
+      return "sendVoice";
+    case "video_note":
+      return "sendVideoNote";
+    case "animation":
+      return "sendAnimation";
+    case "sticker":
+      return "sendSticker";
+  }
+}
+
+function resolveTelegramFileField(kind: TelegramFileKind): string {
+  switch (kind) {
+    case "document":
+      return "document";
+    case "photo":
+      return "photo";
+    case "audio":
+      return "audio";
+    case "video":
+      return "video";
+    case "voice":
+      return "voice";
+    case "video_note":
+      return "video_note";
+    case "animation":
+      return "animation";
+    case "sticker":
+      return "sticker";
+  }
+}
+
+function supportsCaption(kind: TelegramFileKind): boolean {
+  return kind !== "sticker" && kind !== "video_note";
+}
+
+function asStringValue(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const parsed = String(value).trim();
+  return parsed ? parsed : null;
+}
+
+function asNumberValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
 }

@@ -104,6 +104,13 @@ node dist/src/cli.js gateway start --port 4646
 ```
 
 During response generation, the gateway sends Telegram `typing...` feedback automatically.
+Telegram inbound supports text plus file/media messages (document, photo, audio, video, voice, video note, animation, sticker).
+
+Agent responses can send Telegram files with directive lines:
+
+```text
+@telegram-file {"kind":"document","file":"<file_id_or_url>","caption":"optional"}
+```
 
 Telegram webhook endpoint:
 

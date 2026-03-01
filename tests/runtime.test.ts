@@ -242,6 +242,108 @@ test("paired webhook routes message to the active agent and stores conversation"
   }
 });
 
+test("paired webhook routes document-only inbound message to the agent", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-inbound-"));
+  const sentTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    agentResponder: async ({ files, text }) =>
+      `files:${String(files.length)} kind:${files[0]?.kind ?? "none"} text:${text.includes("[telegram_files]")}`
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        chat: { id: "10001" },
+        from: { username: "alice" },
+        document: {
+          file_id: "doc_123",
+          file_unique_id: "uniq_doc_1",
+          file_name: "notes.pdf",
+          mime_type: "application/pdf",
+          file_size: 1024
+        }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.equal(result.response, "files:1 kind:document text:true");
+    assert.equal(sentTexts.includes("files:1 kind:document text:true"), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("agent response can send telegram files via @telegram-file directives", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-outbound-"));
+  const sentTexts: string[] = [];
+  const sentFiles: Array<{ kind: string; file: string; caption?: string }> = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramFileSender: async (_chatId, file) => {
+      sentFiles.push({
+        kind: file.kind,
+        file: file.file,
+        ...(file.caption ? { caption: file.caption } : {})
+      });
+      return true;
+    },
+    agentResponder: async () =>
+      [
+        "Uploaded your file.",
+        '@telegram-file {"kind":"document","file":"doc_abc123","caption":"analysis"}',
+        '@telegram-file {"kind":"photo","file":"https://example.com/chart.png"}'
+      ].join("\n")
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "send me the generated artifacts",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.equal(result.response, "Uploaded your file.");
+    assert.equal(sentTexts.includes("Uploaded your file."), true);
+    assert.equal(sentFiles.length, 2);
+    assert.deepEqual(sentFiles[0], { kind: "document", file: "doc_abc123", caption: "analysis" });
+    assert.deepEqual(sentFiles[1], { kind: "photo", file: "https://example.com/chart.png" });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("paired webhook can reset the session and create a new session folder", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-session-reset-"));
 

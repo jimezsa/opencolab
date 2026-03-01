@@ -12,7 +12,12 @@ import {
   readProjectState,
   writeProjectState
 } from "./project-config.js";
-import { TelegramGateway, type TelegramSender, type TelegramTypingSender } from "./gateway.js";
+import {
+  TelegramGateway,
+  type TelegramFileSender,
+  type TelegramSender,
+  type TelegramTypingSender
+} from "./gateway.js";
 import type {
   AgentConfig,
   GatewayResult,
@@ -25,6 +30,7 @@ import { ensureDir } from "./utils.js";
 export interface RuntimeOptions {
   telegramSender?: TelegramSender;
   telegramTypingSender?: TelegramTypingSender;
+  telegramFileSender?: TelegramFileSender;
   agentResponder?: (input: CodexAgentInput) => Promise<string>;
 }
 
@@ -74,7 +80,8 @@ export class OpenColabRuntime {
         return this.codex.respond(input);
       },
       telegramSender: this.options.telegramSender,
-      telegramTypingSender: this.options.telegramTypingSender
+      telegramTypingSender: this.options.telegramTypingSender,
+      telegramFileSender: this.options.telegramFileSender
     });
   }
 
