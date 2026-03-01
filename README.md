@@ -1,6 +1,14 @@
 # OpenColab
 
-OpenColab is a multi-project AI research copilot built to accelerate scientific discovery.
+<p align="center">
+  <img src="docs/assets/header.png" alt="OpenColab Header" width="550" />
+</p>
+
+OpenColab is a multi-ai-agent research copilot built to accelerate scientific discovery.
+
+## Why?
+
+Great research is not only intelligence. It needs structure: clear guidance, parallel investigation, rigorous synthesis, and human judgment at critical moments.
 
 Architecture:
 

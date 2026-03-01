@@ -6,6 +6,8 @@ import { createRuntime } from "./runtime.js";
 import { resolveSecretReference } from "./secrets.js";
 import type { OpenColabState, ProviderName } from "./types.js";
 
+const PROJECT_PET = "🐙";
+
 interface TelegramMenuCommand {
   command: string;
   description: string;
@@ -75,7 +77,7 @@ function parseCsv(value: string | undefined): string[] {
 
 function usage(): string {
   return [
-    "OpenColab CLI (multi-project v1)",
+    `OpenColab CLI (multi-project v1) ${PROJECT_PET}`,
     "",
     "Commands:",
     "  opencolab init",
@@ -271,6 +273,7 @@ async function main(): Promise<void> {
     const agent = runtime.getActiveAgent();
 
     console.log(`Initialized OpenColab at ${runtime.config.projectConfigPath}`);
+    console.log(`Project pet: ${PROJECT_PET}`);
     console.log(`Active project: ${state.activeProjectId} (${project.path})`);
     console.log(`Active agent: ${agent.id} (${agent.path})`);
     const autoSync = await autoSyncTelegramCommandsIfConfigured(state);
