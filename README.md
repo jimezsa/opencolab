@@ -70,7 +70,7 @@ Configure Anthropic provider with Claude for the active project:
 ```bash
 node dist/src/cli.js setup model \
   --provider claude_code \
-  --model claude-sonnet-4-5 \
+  --model claude-opus-4-6 \
   --api-key-env-var ANTHROPIC_API_KEY \
   --cli-command claude \
   --cli-args "-p,{prompt},--model,{model}"
@@ -136,6 +136,7 @@ Telegram (paired and authorized chat):
 Each agent directory must include:
 
 - `AGENTS.md`
+- `BOOTSTRAP.md`
 - `IDENTITY.md`
 - `SOUL.md`
 - `TOOLS.md`
@@ -143,6 +144,8 @@ Each agent directory must include:
 - `MEMORY.md` (long-term memory only)
 
 `AGENTS.md` is initialized from a built-in essential researcher template.
+`BOOTSTRAP.md` is initialized from a built-in first-run guide to help the agent discover identity and preferences.
+`IDENTITY.md` is initialized from a built-in identity scaffold.
 
 Default layout:
 

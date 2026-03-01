@@ -19,7 +19,15 @@ test("init creates required agent context files for active project", () => {
     assert.equal(agent.id, "researcher_agent");
     assert.equal(agent.path, "projects/default");
 
-    const required = ["AGENTS.md", "IDENTITY.md", "SOUL.md", "TOOLS.md", "USER.md", "MEMORY.md"];
+    const required = [
+      "AGENTS.md",
+      "BOOTSTRAP.md",
+      "IDENTITY.md",
+      "SOUL.md",
+      "TOOLS.md",
+      "USER.md",
+      "MEMORY.md"
+    ];
     for (const file of required) {
       assert.equal(fs.existsSync(path.join(agentDir, file)), true, `${file} should exist`);
     }
@@ -47,6 +55,23 @@ test("init and agent create seed AGENTS.md from built-in researcher template", (
     const subagentPath = path.join(tempDir, "projects", "default", "subagents", "scout", "AGENTS.md");
     const subagentDoc = fs.readFileSync(subagentPath, "utf8");
     assert.equal(subagentDoc, mainAgentDoc);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("init seeds BOOTSTRAP.md from built-in bootstrap template", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-bootstrap-template-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+
+    const bootstrapPath = path.join(tempDir, "projects", "default", "BOOTSTRAP.md");
+    const bootstrapDoc = fs.readFileSync(bootstrapPath, "utf8");
+    assert.equal(bootstrapDoc.includes("# BOOTSTRAP.md - Hello, World"), true);
+    assert.equal(bootstrapDoc.includes("Time to figure out who you are."), true);
+    assert.equal(bootstrapDoc.includes("Researcher Setup"), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -326,7 +351,9 @@ test("paired webhook can create and switch projects and agents", async () => {
     assert.equal(runtime.getActiveProject().activeAgentId, "researcher_agent");
 
     const projectRootAgentFile = path.join(tempDir, "projects", "alpha", "AGENTS.md");
+    const projectRootBootstrapFile = path.join(tempDir, "projects", "alpha", "BOOTSTRAP.md");
     assert.equal(fs.existsSync(projectRootAgentFile), true);
+    assert.equal(fs.existsSync(projectRootBootstrapFile), true);
 
     const createAgent = await runtime.handleTelegramWebhook({
       message: {
@@ -342,6 +369,7 @@ test("paired webhook can create and switch projects and agents", async () => {
 
     const createdAgentDir = path.join(tempDir, "projects", "alpha", "subagents", "scout");
     assert.equal(fs.existsSync(path.join(createdAgentDir, "AGENTS.md")), true);
+    assert.equal(fs.existsSync(path.join(createdAgentDir, "BOOTSTRAP.md")), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

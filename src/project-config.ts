@@ -17,6 +17,7 @@ export const DEFAULT_AGENT_ID = "researcher_agent";
 
 const DEFAULT_AGENT_FILES: AgentFiles = {
   agents: "AGENTS.md",
+  bootstrap: "BOOTSTRAP.md",
   identity: "IDENTITY.md",
   soul: "SOUL.md",
   tools: "TOOLS.md",
@@ -27,6 +28,7 @@ const DEFAULT_AGENT_FILES: AgentFiles = {
 function cloneAgentFiles(source: AgentFiles): AgentFiles {
   return {
     agents: source.agents,
+    bootstrap: source.bootstrap,
     identity: source.identity,
     soul: source.soul,
     tools: source.tools,
@@ -287,6 +289,7 @@ function normalizeLegacyState(
     path: agentPath,
     files: {
       agents: asString(sourceAgentFiles?.agents, DEFAULT_AGENT_FILES.agents),
+      bootstrap: asString(sourceAgentFiles?.bootstrap, DEFAULT_AGENT_FILES.bootstrap),
       identity: asString(sourceAgentFiles?.identity, DEFAULT_AGENT_FILES.identity),
       soul: asString(sourceAgentFiles?.soul, DEFAULT_AGENT_FILES.soul),
       tools: asString(sourceAgentFiles?.tools, DEFAULT_AGENT_FILES.tools),
@@ -376,6 +379,7 @@ function normalizeAgent(
     path: asString(source?.path, defaults.path),
     files: {
       agents: asString(sourceFiles?.agents, defaults.files.agents),
+      bootstrap: asString(sourceFiles?.bootstrap, defaults.files.bootstrap),
       identity: asString(sourceFiles?.identity, defaults.files.identity),
       soul: asString(sourceFiles?.soul, defaults.files.soul),
       tools: asString(sourceFiles?.tools, defaults.files.tools),

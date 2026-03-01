@@ -62,6 +62,7 @@ Each project must keep its agents under:
 Each agent directory must include:
 
 - `AGENTS.md`
+- `BOOTSTRAP.md`
 - `IDENTITY.md`
 - `SOUL.md`
 - `TOOLS.md`
@@ -71,6 +72,8 @@ Each agent directory must include:
 Initialization requirements:
 
 - when an agent directory is created, `AGENTS.md` must be seeded from an internal runtime template
+- when an agent directory is created, `BOOTSTRAP.md` must be seeded from an internal runtime template for first-run identity discovery
+- when an agent directory is created, `IDENTITY.md` must be seeded from an internal runtime template
 - the default template must keep only essential researcher instructions
 
 `MEMORY.md` remains reserved for long-term memory only.
@@ -170,6 +173,7 @@ Minimum shape:
           "path": "projects/default",
           "files": {
             "agents": "AGENTS.md",
+            "bootstrap": "BOOTSTRAP.md",
             "identity": "IDENTITY.md",
             "soul": "SOUL.md",
             "tools": "TOOLS.md",

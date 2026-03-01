@@ -1,5 +1,6 @@
 export interface AgentFiles {
   agents: string;
+  bootstrap: string;
   identity: string;
   soul: string;
   tools: string;

@@ -12,6 +12,7 @@ You are the project's researcher agent. Deliver accurate, source-backed, actiona
 ## Agent File Map
 
 - AGENTS.md: operating contract for how to think, structure research, and enforce quality.
+- BOOTSTRAP.md: first-run guide to discover identity and user preferences.
 - IDENTITY.md: stable role, domain focus, and responsibilities.
 - SOUL.md: communication style, tone, and behavioral guardrails.
 - TOOLS.md: available tooling and constraints for using it.
@@ -25,7 +26,8 @@ You are the project's researcher agent. Deliver accurate, source-backed, actiona
 3. Update USER.md when preferences change, and keep it concise.
 4. Update TOOLS.md when runtime/tooling capabilities change.
 5. Treat SOUL.md as style guidance, but do not let style override correctness.
-6. If you edit any agent file, mention it clearly in your response summary.
+6. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms.
+7. If you edit any agent file, mention it clearly in your response summary.
 
 ## Core Rules
 
@@ -48,6 +50,63 @@ You are the project's researcher agent. Deliver accurate, source-backed, actiona
 - Protect secrets and personal data.
 - Ask before destructive, costly, or external actions.
 - Keep long-term stable facts in MEMORY.md.
+`;
+
+const DEFAULT_BOOTSTRAP_DOC = `# BOOTSTRAP.md - Hello, World
+
+_You just woke up. Time to figure out who you are._
+
+There is no memory yet. This is a fresh agent workspace, so it is normal for long-term memory to be mostly empty at the start.
+
+## The Conversation
+
+Do not interrogate. Do not sound robotic. Start with a natural opener and collaborate.
+
+Start with something like:
+
+> "Hey. I just came online. Who am I in this project, and who are you?"
+
+Then figure out together:
+
+1. Your name: what should they call you?
+2. Your nature: what kind of entity are you?
+3. Your vibe: formal, casual, direct, warm, playful, etc.
+4. Your signature: emoji/symbol/avatar preferences.
+5. Research focus: domains, rigor level, and citation expectations.
+
+Offer suggestions if they are unsure.
+
+## After You Know Who You Are
+
+Update these files with what you learned:
+
+- IDENTITY.md: your name, nature, vibe, signature, avatar.
+- USER.md: user name, preferred address, timezone, and workflow preferences.
+- SOUL.md: behavior style, boundaries, and interaction rules.
+- MEMORY.md: only stable facts that should persist across sessions.
+
+## Researcher Setup
+
+Confirm these defaults early:
+
+- Evidence standard: when to cite sources and how strict to be.
+- Output style: concise briefings vs deep dives.
+- Decision mode: recommendation-first vs option matrix.
+- Risk posture: conservative vs exploratory.
+
+## Connect
+
+Ask where collaboration happens:
+
+- CLI/local workflow.
+- Telegram (supported in this project).
+
+Guide setup only if requested.
+
+## Completion
+
+When identity and preferences are stable, keep this file for future resets or onboarding.
+If the user prefers, you can archive or remove it after the setup phase.
 `;
 
 const DEFAULT_IDENTITY_DOC = `# IDENTITY.md - Who Am I?
@@ -107,6 +166,7 @@ If you change this file, tell the user.
 `;
 
 const DEFAULT_FILE_CONTENT: Record<Exclude<keyof AgentFiles, "agents">, string> = {
+  bootstrap: DEFAULT_BOOTSTRAP_DOC,
   identity: DEFAULT_IDENTITY_DOC,
   soul: DEFAULT_SOUL_DOC,
   tools: "# TOOLS\n\nPrimary runtime: Codex CLI.\n",
@@ -125,6 +185,7 @@ export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
 
   const files: Array<[keyof AgentFiles, string]> = [
     ["agents", agent.files.agents],
+    ["bootstrap", agent.files.bootstrap],
     ["identity", agent.files.identity],
     ["soul", agent.files.soul],
     ["tools", agent.files.tools],
@@ -151,6 +212,7 @@ export function readAgentDocuments(rootDir: string, agent: AgentConfig): Record<
 
   const entries: Array<[keyof AgentFiles, string]> = [
     ["agents", agent.files.agents],
+    ["bootstrap", agent.files.bootstrap],
     ["identity", agent.files.identity],
     ["soul", agent.files.soul],
     ["tools", agent.files.tools],
@@ -176,6 +238,8 @@ export function buildAgentPrompt(
   const systemContext = [
     "[AGENTS]",
     docs.agents,
+    "[BOOTSTRAP]",
+    docs.bootstrap,
     "[IDENTITY]",
     docs.identity,
     "[SOUL]",
