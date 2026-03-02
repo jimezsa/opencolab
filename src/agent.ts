@@ -217,6 +217,50 @@ const DEFAULT_FILE_CONTENT: Record<Exclude<keyof AgentFiles, "agents">, string> 
   memory: "# MEMORY\n\nLong-term memory for stable user/project facts.\n"
 };
 
+const DOC_KEYS: Array<keyof AgentFiles> = [
+  "agents",
+  "bootstrap",
+  "identity",
+  "soul",
+  "tools",
+  "user",
+  "memory"
+];
+
+const promptContextCache = new Map<string, { mtimes: number[]; systemContext: string }>();
+
+function getAgentEntries(agent: AgentConfig): Array<[keyof AgentFiles, string]> {
+  return DOC_KEYS.map((key) => [key, agent.files[key]]);
+}
+
+function readIfExists(filePath: string): string {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+}
+
+function mtimeIfExists(filePath: string): number {
+  return fs.existsSync(filePath) ? fs.statSync(filePath).mtimeMs : -1;
+}
+
+function getPromptContext(rootDir: string, agent: AgentConfig): { mtimes: number[]; systemContext: string } {
+  const agentDir = resolveAgentDirectory(rootDir, agent.path);
+  const entries = getAgentEntries(agent);
+  const cacheKey = `${agentDir}:${entries.map(([, file]) => file).join("|")}`;
+  const mtimes = entries.map(([, fileName]) => mtimeIfExists(path.join(agentDir, fileName)));
+
+  const cached = promptContextCache.get(cacheKey);
+  if (cached && cached.mtimes.every((mtime, index) => mtime === mtimes[index])) {
+    return cached;
+  }
+
+  const sections: string[] = [];
+  for (const [key, fileName] of entries) {
+    sections.push(`[${String(key).toUpperCase()}]`, readIfExists(path.join(agentDir, fileName)));
+  }
+  const next = { mtimes, systemContext: sections.join("\n\n") };
+  promptContextCache.set(cacheKey, next);
+  return next;
+}
+
 export function resolveAgentDirectory(rootDir: string, agentPath: string): string {
   return path.isAbsolute(agentPath) ? agentPath : path.join(rootDir, agentPath);
 }
@@ -224,77 +268,32 @@ export function resolveAgentDirectory(rootDir: string, agentPath: string): strin
 export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
   const agentDir = resolveAgentDirectory(rootDir, agent.path);
   ensureDir(agentDir);
-  const agentsContent = `${DEFAULT_AGENTS_DOC}\n`;
-
-  const files: Array<[keyof AgentFiles, string]> = [
-    ["agents", agent.files.agents],
-    ["bootstrap", agent.files.bootstrap],
-    ["identity", agent.files.identity],
-    ["soul", agent.files.soul],
-    ["tools", agent.files.tools],
-    ["user", agent.files.user],
-    ["memory", agent.files.memory]
-  ];
-
-  for (const [key, fileName] of files) {
+  const entries = getAgentEntries(agent);
+  for (const [key, fileName] of entries) {
     const filePath = path.join(agentDir, fileName);
     if (!fs.existsSync(filePath)) {
-      if (key === "agents") {
-        fs.writeFileSync(filePath, agentsContent, "utf8");
-      } else {
-        fs.writeFileSync(filePath, DEFAULT_FILE_CONTENT[key], "utf8");
-      }
+      const content = key === "agents" ? `${DEFAULT_AGENTS_DOC}\n` : DEFAULT_FILE_CONTENT[key];
+      fs.writeFileSync(filePath, content, "utf8");
     }
   }
-
   return agentDir;
 }
 
-export function readAgentDocuments(rootDir: string, agent: AgentConfig): Record<keyof AgentFiles, string> {
-  const agentDir = resolveAgentDirectory(rootDir, agent.path);
-
-  const entries: Array<[keyof AgentFiles, string]> = [
-    ["agents", agent.files.agents],
-    ["bootstrap", agent.files.bootstrap],
-    ["identity", agent.files.identity],
-    ["soul", agent.files.soul],
-    ["tools", agent.files.tools],
-    ["user", agent.files.user],
-    ["memory", agent.files.memory]
-  ];
-
-  const docs = {} as Record<keyof AgentFiles, string>;
-
-  for (const [key, fileName] of entries) {
-    const filePath = path.join(agentDir, fileName);
-    docs[key] = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
-  }
-
-  return docs;
-}
-
-export function buildAgentPrompt(
-  docs: Record<keyof AgentFiles, string>,
+export function buildAgentPromptForInput(
+  rootDir: string,
+  agent: AgentConfig,
   history: ConversationMessage[],
   userMessage: string
 ): string {
-  const systemContext = [
-    "[AGENTS]",
-    docs.agents,
-    "[BOOTSTRAP]",
-    docs.bootstrap,
-    "[IDENTITY]",
-    docs.identity,
-    "[SOUL]",
-    docs.soul,
-    "[TOOLS]",
-    docs.tools,
-    "[USER]",
-    docs.user,
-    "[MEMORY]",
-    docs.memory
-  ].join("\n\n");
+  const { systemContext } = getPromptContext(rootDir, agent);
+  return buildPromptFromSystemContext(systemContext, history, userMessage);
+}
 
+function buildPromptFromSystemContext(
+  systemContext: string,
+  history: ConversationMessage[],
+  userMessage: string
+): string {
   const transcript = history
     .slice(-8)
     .map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`)
