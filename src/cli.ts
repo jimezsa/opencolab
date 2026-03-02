@@ -164,35 +164,202 @@ function parseCsv(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
-function usage(): string {
-  return [
+function formatHelp(lines: string[]): string {
+  return lines.map((line) => styleCliText(line)).join("\n");
+}
+
+function usageMain(): string {
+  return formatHelp([
     `OpenColab CLI (multi-project v1) ${PROJECT_PET}`,
     "",
-    "Commands:",
+    "Usage:",
+    "  opencolab <command> [args]",
+    "",
+    "Top-level commands:",
     "  opencolab init",
     "  opencolab ignite",
-    "  opencolab setup model [--provider codex|claude_code] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
-    "  opencolab setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
-    "  opencolab setup telegram commands sync [--bot-token-env-var TELEGRAM_BOT_TOKEN] [--chat-id <id>]",
+    "  opencolab setup",
+    "  opencolab project",
+    "  opencolab agent",
+    "  opencolab gateway start",
+    "",
+    "Show detailed flags/options:",
+    "  opencolab <command> --help",
+    "  opencolab <command> <subcommand> --help",
+    "",
+    "Examples:",
+    "  opencolab setup --help",
+    "  opencolab setup model --help",
+    "  opencolab gateway start --help"
+  ]);
+}
+
+function usageGateway(): string {
+  return formatHelp([
+    "Usage:",
+    "  opencolab gateway start [--port 4646] [--telegram-polling true|false]",
+    "",
+    "Flags:",
+    "  --port <number>",
+    "  --telegram-polling true|false"
+  ]);
+}
+
+function usageIgnite(): string {
+  return formatHelp([
+    "Usage:",
+    "  opencolab ignite",
+    "",
+    "Notes:",
+    "  - Interactive setup for project/provider/telegram/agent.",
+    "  - Press Esc to skip the current step."
+  ]);
+}
+
+function usageInit(): string {
+  return formatHelp([
+    "Usage:",
+    "  opencolab init",
+    "",
+    "Notes:",
+    "  - Initializes project state and default agent files."
+  ]);
+}
+
+function usageSetup(): string {
+  return formatHelp([
+    "Usage:",
+    "  opencolab setup model [flags]",
+    "  opencolab setup telegram [flags]",
+    "  opencolab setup telegram commands sync [flags]",
     "  opencolab setup telegram pair start",
     "  opencolab setup telegram pair complete --code <pairing_code>",
+    "",
+    "Try:",
+    "  opencolab setup model --help",
+    "  opencolab setup telegram --help",
+    "  opencolab setup telegram commands sync --help",
+    "  opencolab setup telegram pair --help"
+  ]);
+}
+
+function usageSetupModel(): string {
+  return formatHelp([
+    "Usage:",
+    "  opencolab setup model [--provider codex|claude_code] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
+    "",
+    "Flags:",
+    "  --provider codex|claude_code",
+    "  --model <model>",
+    "  --api-key-env-var <env>",
+    "  --cli-command <cmd>",
+    "  --cli-args '<arg1,arg2>'"
+  ]);
+}
+
+function usageSetupTelegram(): string {
+  return formatHelp([
+    "Usage:",
+    "  opencolab setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
+    "",
+    "Flags:",
+    "  --bot-token-env-var <env>",
+    "  --chat-id <id>"
+  ]);
+}
+
+function usageSetupTelegramCommandsSync(): string {
+  return formatHelp([
+    "Usage:",
+    "  opencolab setup telegram commands sync [--bot-token-env-var TELEGRAM_BOT_TOKEN] [--chat-id <id>]",
+    "",
+    "Flags:",
+    "  --bot-token-env-var <env>",
+    "  --chat-id <id>"
+  ]);
+}
+
+function usageSetupTelegramPair(): string {
+  return formatHelp([
+    "Usage:",
+    "  opencolab setup telegram pair start",
+    "  opencolab setup telegram pair complete --code <pairing_code>",
+    "",
+    "Flags:",
+    "  --code <pairing_code>  (required for 'complete')"
+  ]);
+}
+
+function usageProject(): string {
+  return formatHelp([
+    "Usage:",
     "  opencolab project create --project-id <id>",
     "  opencolab project use --project-id <id>",
     "  opencolab project list",
-    "  opencolab project show",
+    "  opencolab project show"
+  ]);
+}
+
+function usageAgent(): string {
+  return formatHelp([
+    "Usage:",
     "  opencolab agent create --agent-id <id> [--path projects/<project_id>/subagents/<agent_id>]",
     "  opencolab agent use --agent-id <id>",
     "  opencolab agent list",
-    "  opencolab agent show",
-    "  opencolab gateway start [--port 4646] [--telegram-polling true|false]",
-    "",
-    "Notes:",
-    "  - State is stored in opencolab.json under projects and agents.",
-    "  - Telegram configuration and pairing are shared across all projects.",
-    "  - 'opencolab ignite' runs an interactive first-time setup."
-  ]
-    .map((line) => styleCliText(line))
-    .join("\n");
+    "  opencolab agent show"
+  ]);
+}
+
+function resolveHelp(argv: string[]): string | null {
+  const [command, subcommand, action] = argv;
+  const wantsHelp =
+    argv.length === 0 || command === "help" || argv.includes("--help") || argv.includes("-h");
+
+  if (!wantsHelp) {
+    return null;
+  }
+
+  if (!command || command === "help" || command === "--help" || command === "-h") {
+    return usageMain();
+  }
+
+  if (command === "init") {
+    return usageInit();
+  }
+
+  if (command === "ignite" || command === "onboard") {
+    return usageIgnite();
+  }
+
+  if (command === "gateway" || command === "getway" || command === "web") {
+    return usageGateway();
+  }
+
+  if (command === "setup") {
+    if (subcommand === "model") {
+      return usageSetupModel();
+    }
+    if (subcommand === "telegram") {
+      if (action === "commands") {
+        return usageSetupTelegramCommandsSync();
+      }
+      if (action === "pair") {
+        return usageSetupTelegramPair();
+      }
+      return usageSetupTelegram();
+    }
+    return usageSetup();
+  }
+
+  if (command === "project") {
+    return usageProject();
+  }
+
+  if (command === "agent") {
+    return usageAgent();
+  }
+
+  return usageMain();
 }
 
 function parseProviderName(value: string | undefined): ProviderName {
@@ -333,8 +500,9 @@ async function main(): Promise<void> {
   const [, , ...argv] = process.argv;
   const [command, subcommand, action, ...rest] = argv;
 
-  if (!command || command === "help" || command === "--help") {
-    console.log(usage());
+  const help = resolveHelp(argv);
+  if (help) {
+    console.log(help);
     return;
   }
 
