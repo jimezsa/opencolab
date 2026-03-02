@@ -52,22 +52,16 @@ pnpm install
 pnpm run build
 ```
 
-Initialize state and default project/agent files:
-
-```bash
-node dist/src/cli.js init
-```
-
-`AGENTS.md` is seeded from an internal essential researcher template.
-That template defaults to a workflow where the human defines the initial problem, then supports the agent group as an assistant.
-Fresh initialization defaults the active project provider to `claude_code` with model `claude-opus-4-6`.
-
-Run an interactive, step-by-step setup (project, model/provider, Telegram, pairing, and optional extra agent):
+Run an interactive, step-by-step first-run setup (state initialization, project, model/provider, Telegram, pairing, and optional extra agent):
 
 ```bash
 node dist/src/cli.js ignite
 ```
 
+`ignite` initializes state and default project/agent files automatically.
+`AGENTS.md` is seeded from an internal essential researcher template.
+That template defaults to a workflow where the human defines the initial problem, then supports the agent group as an assistant.
+Fresh initialization defaults the active project provider to `claude_code` with model `claude-opus-4-6`.
 `ignite` handles the main first-run setup (project, model/provider, Telegram, command sync, and optional pairing/extra agent).
 If you need to adjust settings later, rerun `ignite` or use `setup`, `project`, and `agent` commands directly.
 During `ignite`, press `Esc` to skip the current step and continue with the next one.

@@ -192,7 +192,6 @@ function usageMain(): string {
     `  ${accent("<command> [args]")}`,
     "",
     "Top-level commands:",
-    helpCommand("init", "Initialize state and default files"),
     helpCommand("ignite", "Interactive first-run setup"),
     helpCommand("setup", "Configure model/provider/telegram"),
     helpCommand("project", "Manage projects"),
@@ -229,16 +228,6 @@ function usageIgnite(): string {
     "Notes:",
     "  - Interactive setup for project/provider/telegram/agent.",
     "  - Press Esc to skip the current step."
-  ]);
-}
-
-function usageInit(): string {
-  return formatHelp([
-    "Usage:",
-    helpCommand("init", "Initialize state and active project/agent files"),
-    "",
-    "Notes:",
-    "  - Initializes project state and default agent files."
   ]);
 }
 
@@ -346,10 +335,6 @@ function resolveHelp(argv: string[]): string | null {
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
     return usageMain();
-  }
-
-  if (command === "init") {
-    return usageInit();
   }
 
   if (command === "ignite" || command === "onboard") {
@@ -553,6 +538,10 @@ async function main(): Promise<void> {
   const runtime = createRuntime();
   runtime.init();
 
+  if (command === "init") {
+    throw new Error(styleCliText("The 'init' command was removed. Use 'opencolab ignite'."));
+  }
+
   if (command === "ignite" || command === "onboard") {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       throw new Error("Interactive onboarding requires a TTY terminal.");
@@ -574,26 +563,6 @@ async function main(): Promise<void> {
     } finally {
       if (process.stdin.isTTY) {
         process.stdin.setRawMode(false);
-      }
-    }
-    return;
-  }
-
-  if (command === "init") {
-    const state = runtime.getState();
-    const project = runtime.getActiveProject();
-    const agent = runtime.getActiveAgent();
-
-    console.log(`Initialized OpenColab at ${runtime.config.projectConfigPath}`);
-    console.log(`Project pet: ${PROJECT_PET}`);
-    console.log(`Active project: ${state.activeProjectId} (${project.path})`);
-    console.log(`Active agent: ${agent.id} (${agent.path})`);
-    const autoSync = await autoSyncTelegramCommandsIfConfigured(state);
-    if (autoSync.attempted) {
-      if (autoSync.ok) {
-        console.log("Telegram bot commands synced.");
-      } else {
-        console.log(`Warning: could not sync Telegram commands (${autoSync.error ?? "unknown error"}).`);
       }
     }
     return;

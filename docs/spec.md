@@ -115,7 +115,6 @@ Requirements:
 
 Required command groups:
 
-- `opencolab init`
 - `opencolab ignite`
 - `opencolab setup model`
 - `opencolab setup telegram`
@@ -125,6 +124,7 @@ Required command groups:
 
 Responsibilities:
 
+- initialize state and default project/agent files when `ignite` runs
 - configure provider for the active project
 - configure one shared Telegram setup for all projects
 - create/list/select projects
