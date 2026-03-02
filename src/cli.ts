@@ -209,7 +209,7 @@ function formatHelp(lines: string[]): string {
 
 function usageMain(): string {
   return formatHelp([
-    bold(`${PROJECT_PET} OpenColab`) + " multi-agent research lab",
+    accent(bold(`${PROJECT_PET} OpenColab`)) + " multi-agent research lab",
     "",
     "Options:",
     helpCommand("<command> --help", "Show detailed options for a command"),
