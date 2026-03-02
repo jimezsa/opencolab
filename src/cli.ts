@@ -14,7 +14,7 @@ const ANSI_BOLD = "\u001b[1m";
 const ANSI_ORANGE = "\u001b[38;5;208m";
 const ANSI_WHITE = "\u001b[97m";
 const ANSI_RESET = "\u001b[0m";
-const HELP_DESCRIPTION_COLUMN = 56;
+const HELP_DESCRIPTION_COLUMN = 36;
 
 interface Keypress {
   name?: string;
@@ -84,7 +84,7 @@ function helpCommand(command: string, description: string): string {
     command.length >= HELP_DESCRIPTION_COLUMN
       ? `${command} `
       : command.padEnd(HELP_DESCRIPTION_COLUMN, " ");
-  return `  ${accent(paddedCommand)}${white(`- ${description}`)}`;
+  return `  ${accent(paddedCommand)}${white(description)}`;
 }
 
 function helpFlag(flag: string, description: string): string {
@@ -92,7 +92,7 @@ function helpFlag(flag: string, description: string): string {
     flag.length >= HELP_DESCRIPTION_COLUMN
       ? `${flag} `
       : flag.padEnd(HELP_DESCRIPTION_COLUMN, " ");
-  return `  ${accent(paddedFlag)}${white(`- ${description}`)}`;
+  return `  ${accent(paddedFlag)}${white(description)}`;
 }
 
 function styleCliText(value: string): string {
@@ -211,6 +211,13 @@ function usageMain(): string {
   return formatHelp([
     bold(`${PROJECT_PET} OpenColab`) + " multi-agent research lab",
     "",
+    "Options:",
+    helpCommand("<command> --help", "Show detailed options for a command"),
+    helpCommand(
+      "<command> <subcommand> --help",
+      "Show detailed options for a subcommand",
+    ),
+    "",
     "Usage:",
     `  ${accent("opencolab <command> [args]")}`,
     "",
@@ -220,13 +227,6 @@ function usageMain(): string {
     helpCommand("project", "Manage projects"),
     helpCommand("agent", "Manage agents"),
     helpCommand("gateway start", "Run local gateway server"),
-    "",
-    "Show detailed flags/options:",
-    helpCommand("<command> --help", "Show detailed options for a command"),
-    helpCommand(
-      "<command> <subcommand> --help",
-      "Show detailed options for a subcommand",
-    ),
     "",
     "Examples:",
     helpCommand("opencolab setup --help", "Show setup command help"),
