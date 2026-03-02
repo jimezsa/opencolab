@@ -4,7 +4,7 @@
   <img src="docs/assets/header.png" alt="OpenColab Header" width="550" />
 </p>
 
-OpenColab is a multi-ai-agent research copilot built to accelerate scientific discovery.
+OpenColab is a personal multi-agent AI research lab designed to help researchers and accelerate scientific discoveries.
 
 ## Why?
 

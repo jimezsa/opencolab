@@ -38,7 +38,10 @@ type TelegramCommandScope =
 
 const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
   { command: "project_list", description: "List projects" },
-  { command: "project_create", description: "Create project: /project_create <id>" },
+  {
+    command: "project_create",
+    description: "Create project: /project_create <id>",
+  },
   { command: "project_use", description: "Use project: /project_use <id>" },
   { command: "agent_list", description: "List agents" },
   { command: "agent_create", description: "Create agent: /agent_create <id>" },
@@ -46,7 +49,7 @@ const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
   { command: "session_reset", description: "Reset active session" },
   { command: "project", description: "Project command help" },
   { command: "agent", description: "Agent command help" },
-  { command: "session", description: "Session command help" }
+  { command: "session", description: "Session command help" },
 ];
 
 function supportsColor(): boolean {
@@ -78,7 +81,7 @@ function helpFlag(flag: string, description: string): string {
 function styleCliText(value: string): string {
   const withCommands = value.replace(
     /\bopencolab(?:\s+[a-z0-9_./<>\-|]+)+/gi,
-    (match) => accent(match)
+    (match) => accent(match),
   );
   return withCommands.replace(/--[a-z0-9-]+/gi, (match) => accent(match));
 }
@@ -142,7 +145,10 @@ async function askInteractive(prompt: string): Promise<string> {
   });
 }
 
-function parseFlags(args: string[]): { values: Record<string, string>; positionals: string[] } {
+function parseFlags(args: string[]): {
+  values: Record<string, string>;
+  positionals: string[];
+} {
   const values: Record<string, string> = {};
   const positionals: string[] = [];
 
@@ -186,7 +192,7 @@ function formatHelp(lines: string[]): string {
 
 function usageMain(): string {
   return formatHelp([
-    `OpenColab CLI (multi-project v1) ${PROJECT_PET}`,
+    `${PROJECT_PET} OpenColab CLI multi-agent research lab`,
     "",
     "Usage:",
     `  ${accent("<command> [args]")}`,
@@ -200,23 +206,29 @@ function usageMain(): string {
     "",
     "Show detailed flags/options:",
     helpCommand("<command> --help", "Show detailed options for a command"),
-    helpCommand("<command> <subcommand> --help", "Show detailed options for a subcommand"),
+    helpCommand(
+      "<command> <subcommand> --help",
+      "Show detailed options for a subcommand",
+    ),
     "",
     "Examples:",
     helpCommand("opencolab setup --help", "Show setup command help"),
     helpCommand("opencolab setup model --help", "Show setup model flags"),
-    helpCommand("opencolab gateway start --help", "Show gateway start flags")
+    helpCommand("opencolab gateway start --help", "Show gateway start flags"),
   ]);
 }
 
 function usageGateway(): string {
   return formatHelp([
     "Usage:",
-    helpCommand("gateway start [--port 4646] [--telegram-polling true|false]", "Start gateway server"),
+    helpCommand(
+      "gateway start [--port 4646] [--telegram-polling true|false]",
+      "Start gateway server",
+    ),
     "",
     "Flags:",
     helpFlag("--port <number>", "Gateway port (default: 4646)"),
-    helpFlag("--telegram-polling true|false", "Enable or disable polling mode")
+    helpFlag("--telegram-polling true|false", "Enable or disable polling mode"),
   ]);
 }
 
@@ -227,7 +239,7 @@ function usageIgnite(): string {
     "",
     "Notes:",
     "  - Interactive setup for project/provider/telegram/agent.",
-    "  - Press Esc to skip the current step."
+    "  - Press Esc to skip the current step.",
   ]);
 }
 
@@ -236,15 +248,21 @@ function usageSetup(): string {
     "Usage:",
     helpCommand("setup model [flags]", "Configure provider, model, and CLI"),
     helpCommand("setup telegram [flags]", "Configure Telegram bot token/chat"),
-    helpCommand("setup telegram commands sync [flags]", "Sync Telegram slash commands"),
+    helpCommand(
+      "setup telegram commands sync [flags]",
+      "Sync Telegram slash commands",
+    ),
     helpCommand("setup telegram pair start", "Start Telegram pairing"),
-    helpCommand("setup telegram pair complete --code <pairing_code>", "Complete Telegram pairing"),
+    helpCommand(
+      "setup telegram pair complete --code <pairing_code>",
+      "Complete Telegram pairing",
+    ),
     "",
     "Try:",
     helpCommand("setup model --help", "Show model setup flags"),
     helpCommand("setup telegram --help", "Show telegram setup flags"),
     helpCommand("setup telegram commands sync --help", "Show sync flags"),
-    helpCommand("setup telegram pair --help", "Show pairing command help")
+    helpCommand("setup telegram pair --help", "Show pairing command help"),
   ]);
 }
 
@@ -253,7 +271,7 @@ function usageSetupModel(): string {
     "Usage:",
     helpCommand(
       "setup model [--provider codex|claude_code] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
-      "Configure active project runtime"
+      "Configure active project runtime",
     ),
     "",
     "Flags:",
@@ -261,18 +279,21 @@ function usageSetupModel(): string {
     helpFlag("--model <model>", "Provider model name"),
     helpFlag("--api-key-env-var <env>", "Env var that stores provider API key"),
     helpFlag("--cli-command <cmd>", "Provider CLI executable"),
-    helpFlag("--cli-args '<arg1,arg2>'", "Comma-separated CLI args template")
+    helpFlag("--cli-args '<arg1,arg2>'", "Comma-separated CLI args template"),
   ]);
 }
 
 function usageSetupTelegram(): string {
   return formatHelp([
     "Usage:",
-    helpCommand("setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>", "Configure Telegram integration"),
+    helpCommand(
+      "setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
+      "Configure Telegram integration",
+    ),
     "",
     "Flags:",
     helpFlag("--bot-token-env-var <env>", "Env var for Telegram bot token"),
-    helpFlag("--chat-id <id>", "Authorized Telegram chat id")
+    helpFlag("--chat-id <id>", "Authorized Telegram chat id"),
   ]);
 }
 
@@ -281,12 +302,12 @@ function usageSetupTelegramCommandsSync(): string {
     "Usage:",
     helpCommand(
       "setup telegram commands sync [--bot-token-env-var TELEGRAM_BOT_TOKEN] [--chat-id <id>]",
-      "Sync Telegram slash command menu"
+      "Sync Telegram slash command menu",
     ),
     "",
     "Flags:",
     helpFlag("--bot-token-env-var <env>", "Env var for Telegram bot token"),
-    helpFlag("--chat-id <id>", "Specific chat for menu button setup")
+    helpFlag("--chat-id <id>", "Specific chat for menu button setup"),
   ]);
 }
 
@@ -294,20 +315,26 @@ function usageSetupTelegramPair(): string {
   return formatHelp([
     "Usage:",
     helpCommand("setup telegram pair start", "Send pairing code to Telegram"),
-    helpCommand("setup telegram pair complete --code <pairing_code>", "Complete pairing with code"),
+    helpCommand(
+      "setup telegram pair complete --code <pairing_code>",
+      "Complete pairing with code",
+    ),
     "",
     "Flags:",
-    helpFlag("--code <pairing_code>", "Required for 'complete'")
+    helpFlag("--code <pairing_code>", "Required for 'complete'"),
   ]);
 }
 
 function usageProject(): string {
   return formatHelp([
     "Usage:",
-    helpCommand("project create --project-id <id>", "Create and select a project"),
+    helpCommand(
+      "project create --project-id <id>",
+      "Create and select a project",
+    ),
     helpCommand("project use --project-id <id>", "Switch active project"),
     helpCommand("project list", "List all projects"),
-    helpCommand("project show", "Print active project JSON")
+    helpCommand("project show", "Print active project JSON"),
   ]);
 }
 
@@ -316,24 +343,32 @@ function usageAgent(): string {
     "Usage:",
     helpCommand(
       "agent create --agent-id <id> [--path projects/<project_id>/subagents/<agent_id>]",
-      "Create/update and select an agent"
+      "Create/update and select an agent",
     ),
     helpCommand("agent use --agent-id <id>", "Switch active agent"),
     helpCommand("agent list", "List project agents"),
-    helpCommand("agent show", "Print active agent JSON")
+    helpCommand("agent show", "Print active agent JSON"),
   ]);
 }
 
 function resolveHelp(argv: string[]): string | null {
   const [command, subcommand, action] = argv;
   const wantsHelp =
-    argv.length === 0 || command === "help" || argv.includes("--help") || argv.includes("-h");
+    argv.length === 0 ||
+    command === "help" ||
+    argv.includes("--help") ||
+    argv.includes("-h");
 
   if (!wantsHelp) {
     return null;
   }
 
-  if (!command || command === "help" || command === "--help" || command === "-h") {
+  if (
+    !command ||
+    command === "help" ||
+    command === "--help" ||
+    command === "-h"
+  ) {
     return usageMain();
   }
 
@@ -375,20 +410,22 @@ function resolveHelp(argv: string[]): string | null {
 function parseProviderName(value: string | undefined): ProviderName {
   const parsed = value ?? "codex";
   if (!isProviderName(parsed)) {
-    throw new Error(`Unsupported provider: ${parsed}. Use codex or claude_code.`);
+    throw new Error(
+      `Unsupported provider: ${parsed}. Use codex or claude_code.`,
+    );
   }
   return parsed;
 }
 
 async function syncTelegramBotCommands(
   botTokenReference: string,
-  chatId?: string | null
+  chatId?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   const token = resolveSecretReference(botTokenReference);
   if (!token) {
     return {
       ok: false,
-      error: `missing token value for reference '${botTokenReference}'`
+      error: `missing token value for reference '${botTokenReference}'`,
     };
   }
 
@@ -397,7 +434,7 @@ async function syncTelegramBotCommands(
       { type: "default" },
       { type: "all_private_chats" },
       { type: "all_group_chats" },
-      ...(chatId ? [{ type: "chat", chat_id: chatId } as const] : [])
+      ...(chatId ? [{ type: "chat", chat_id: chatId } as const] : []),
     ];
 
     for (const scope of scopes) {
@@ -408,22 +445,25 @@ async function syncTelegramBotCommands(
             ? { scope: { type: "chat", chat_id: scope.chat_id } }
             : { scope: { type: scope.type } };
 
-      const response = await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
+      const response = await fetch(
+        `https://api.telegram.org/bot${token}/setMyCommands`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            commands: TELEGRAM_MENU_COMMANDS,
+            ...scopePayload,
+          }),
         },
-        body: JSON.stringify({
-          commands: TELEGRAM_MENU_COMMANDS,
-          ...scopePayload
-        })
-      });
+      );
 
       if (!response.ok) {
         const message = await response.text();
         return {
           ok: false,
-          error: `[scope:${scope.type}] ${message || `telegram api status ${String(response.status)}`}`
+          error: `[scope:${scope.type}] ${message || `telegram api status ${String(response.status)}`}`,
         };
       }
 
@@ -431,17 +471,20 @@ async function syncTelegramBotCommands(
       if (body.ok !== true) {
         return {
           ok: false,
-          error: `[scope:${scope.type}] ${body.description ?? "telegram returned ok=false"}`
+          error: `[scope:${scope.type}] ${body.description ?? "telegram returned ok=false"}`,
         };
       }
     }
 
-    const menuTargets: Array<{ label: string; payload: Record<string, unknown> }> = [
+    const menuTargets: Array<{
+      label: string;
+      payload: Record<string, unknown>;
+    }> = [
       {
         label: "default",
         payload: {
-          menu_button: { type: "commands" }
-        }
+          menu_button: { type: "commands" },
+        },
       },
       ...(chatId
         ? [
@@ -449,27 +492,30 @@ async function syncTelegramBotCommands(
               label: "chat",
               payload: {
                 chat_id: chatId,
-                menu_button: { type: "commands" }
-              }
-            }
+                menu_button: { type: "commands" },
+              },
+            },
           ]
-        : [])
+        : []),
     ];
 
     for (const target of menuTargets) {
-      const menuResponse = await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
+      const menuResponse = await fetch(
+        `https://api.telegram.org/bot${token}/setChatMenuButton`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(target.payload),
         },
-        body: JSON.stringify(target.payload)
-      });
+      );
 
       if (!menuResponse.ok) {
         const message = await menuResponse.text();
         return {
           ok: false,
-          error: `[menu:${target.label}] ${message || `telegram api status ${String(menuResponse.status)}`}`
+          error: `[menu:${target.label}] ${message || `telegram api status ${String(menuResponse.status)}`}`,
         };
       }
 
@@ -477,7 +523,7 @@ async function syncTelegramBotCommands(
       if (menuBody.ok !== true) {
         return {
           ok: false,
-          error: `[menu:${target.label}] ${menuBody.description ?? "telegram returned ok=false"}`
+          error: `[menu:${target.label}] ${menuBody.description ?? "telegram returned ok=false"}`,
         };
       }
     }
@@ -486,23 +532,26 @@ async function syncTelegramBotCommands(
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
 
 async function autoSyncTelegramCommandsIfConfigured(
-  state: OpenColabState
+  state: OpenColabState,
 ): Promise<{ attempted: boolean; ok: boolean; error?: string }> {
   if (!state.telegram.chatId) {
     return { attempted: false, ok: true };
   }
 
-  const result = await syncTelegramBotCommands(state.telegram.botTokenEnvVar, state.telegram.chatId);
+  const result = await syncTelegramBotCommands(
+    state.telegram.botTokenEnvVar,
+    state.telegram.chatId,
+  );
   return {
     attempted: true,
     ok: result.ok,
-    ...(result.error ? { error: result.error } : {})
+    ...(result.error ? { error: result.error } : {}),
   };
 }
 
@@ -516,21 +565,30 @@ async function main(): Promise<void> {
     return;
   }
 
-  if ((command === "gateway" || command === "getway" || command === "web") && subcommand === "start") {
+  if (
+    (command === "gateway" || command === "getway" || command === "web") &&
+    subcommand === "start"
+  ) {
     const runtime = createRuntime();
     runtime.init();
-    const autoSync = await autoSyncTelegramCommandsIfConfigured(runtime.getState());
+    const autoSync = await autoSyncTelegramCommandsIfConfigured(
+      runtime.getState(),
+    );
     if (autoSync.attempted) {
       if (autoSync.ok) {
         console.log("Telegram bot commands synced.");
       } else {
-        console.log(`Warning: could not sync Telegram commands (${autoSync.error ?? "unknown error"}).`);
+        console.log(
+          `Warning: could not sync Telegram commands (${autoSync.error ?? "unknown error"}).`,
+        );
       }
     }
 
     const { values } = parseFlags([action, ...rest].filter(Boolean));
     const port = Number(values.port ?? "4646");
-    const telegramPolling = values["telegram-polling"] !== "false" && values["telegram-polling"] !== "0";
+    const telegramPolling =
+      values["telegram-polling"] !== "false" &&
+      values["telegram-polling"] !== "0";
     startHttpServer(port, process.cwd(), { telegramPolling });
     return;
   }
@@ -539,7 +597,9 @@ async function main(): Promise<void> {
   runtime.init();
 
   if (command === "init") {
-    throw new Error(styleCliText("The 'init' command was removed. Use 'opencolab ignite'."));
+    throw new Error(
+      styleCliText("The 'init' command was removed. Use 'opencolab ignite'."),
+    );
   }
 
   if (command === "ignite" || command === "onboard") {
@@ -554,11 +614,11 @@ async function main(): Promise<void> {
           ask: async (prompt) => askInteractive(prompt),
           write: (line) => {
             console.log(styleCliText(line));
-          }
+          },
         },
         {
-          syncTelegramCommands: syncTelegramBotCommands
-        }
+          syncTelegramCommands: syncTelegramBotCommands,
+        },
       );
     } finally {
       if (process.stdin.isTTY) {
@@ -577,7 +637,9 @@ async function main(): Promise<void> {
       model: values.model ?? providerDefaults.model,
       apiKeyEnvVar: values["api-key-env-var"] ?? providerDefaults.apiKeyEnvVar,
       cliCommand: values["cli-command"] ?? providerDefaults.cliCommand,
-      cliArgs: parseCsv(values["cli-args"] ?? providerDefaults.cliArgs.join(","))
+      cliArgs: parseCsv(
+        values["cli-args"] ?? providerDefaults.cliArgs.join(","),
+      ),
     });
 
     const project = runtime.getActiveProject();
@@ -585,29 +647,43 @@ async function main(): Promise<void> {
     console.log(`Provider configured: ${project.provider.name}`);
     console.log(`Model: ${project.provider.model}`);
     console.log(`API key env var: ${project.provider.apiKeyEnvVar}`);
-    console.log(`CLI: ${project.provider.cliCommand} ${project.provider.cliArgs.join(" ")}`);
+    console.log(
+      `CLI: ${project.provider.cliCommand} ${project.provider.cliArgs.join(" ")}`,
+    );
     return;
   }
 
-  if (command === "setup" && subcommand === "telegram" && action === "commands") {
+  if (
+    command === "setup" &&
+    subcommand === "telegram" &&
+    action === "commands"
+  ) {
     const syncAction = rest[0];
     if (syncAction !== "sync") {
       throw new Error("Unknown telegram commands command. Use 'sync'.");
     }
 
     const { values } = parseFlags(rest.slice(1));
-    const botTokenReference = values["bot-token-env-var"] ?? runtime.getState().telegram.botTokenEnvVar;
+    const botTokenReference =
+      values["bot-token-env-var"] ?? runtime.getState().telegram.botTokenEnvVar;
     const chatId = values["chat-id"] ?? runtime.getState().telegram.chatId;
     const syncResult = await syncTelegramBotCommands(botTokenReference, chatId);
     if (!syncResult.ok) {
-      throw new Error(`Could not sync Telegram commands: ${syncResult.error ?? "unknown error"}`);
+      throw new Error(
+        `Could not sync Telegram commands: ${syncResult.error ?? "unknown error"}`,
+      );
     }
 
     console.log("Telegram bot commands synced.");
     return;
   }
 
-  if (command === "setup" && subcommand === "telegram" && action !== "pair" && action !== "commands") {
+  if (
+    command === "setup" &&
+    subcommand === "telegram" &&
+    action !== "pair" &&
+    action !== "commands"
+  ) {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
     const chatId = values["chat-id"];
 
@@ -617,21 +693,34 @@ async function main(): Promise<void> {
 
     runtime.setupTelegram({
       botTokenEnvVar: values["bot-token-env-var"] ?? "TELEGRAM_BOT_TOKEN",
-      chatId
+      chatId,
     });
 
     const state = runtime.getState();
     console.log("Telegram configured.");
     console.log(`Chat ID: ${state.telegram.chatId}`);
     console.log(`Bot token env var: ${state.telegram.botTokenEnvVar}`);
-    const syncResult = await syncTelegramBotCommands(state.telegram.botTokenEnvVar, state.telegram.chatId);
+    const syncResult = await syncTelegramBotCommands(
+      state.telegram.botTokenEnvVar,
+      state.telegram.chatId,
+    );
     if (syncResult.ok) {
       console.log("Telegram bot commands synced.");
     } else {
-      console.log(`Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`);
-      console.log(styleCliText("Run 'opencolab setup telegram commands sync' after fixing token access."));
+      console.log(
+        `Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`,
+      );
+      console.log(
+        styleCliText(
+          "Run 'opencolab setup telegram commands sync' after fixing token access.",
+        ),
+      );
     }
-    console.log(styleCliText("Run 'opencolab setup telegram pair start' to begin pairing."));
+    console.log(
+      styleCliText(
+        "Run 'opencolab setup telegram pair start' to begin pairing.",
+      ),
+    );
     return;
   }
 
@@ -640,8 +729,14 @@ async function main(): Promise<void> {
 
     if (pairAction === "start") {
       const result = await runtime.startPairing();
-      console.log(`Pairing code sent to Telegram (expires ${result.expiresAt}).`);
-      console.log(styleCliText(`Enter in CLI: opencolab setup telegram pair complete --code ${result.code}`));
+      console.log(
+        `Pairing code sent to Telegram (expires ${result.expiresAt}).`,
+      );
+      console.log(
+        styleCliText(
+          `Enter in CLI: opencolab setup telegram pair complete --code ${result.code}`,
+        ),
+      );
       return;
     }
 
@@ -655,16 +750,25 @@ async function main(): Promise<void> {
       const result = runtime.completePairing(code);
       console.log(`Telegram pairing completed at ${result.pairedAt}`);
       const state = runtime.getState();
-      const syncResult = await syncTelegramBotCommands(state.telegram.botTokenEnvVar, state.telegram.chatId);
+      const syncResult = await syncTelegramBotCommands(
+        state.telegram.botTokenEnvVar,
+        state.telegram.chatId,
+      );
       if (syncResult.ok) {
         console.log("Telegram bot commands synced.");
       } else {
-        console.log(`Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`);
+        console.log(
+          `Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`,
+        );
       }
       return;
     }
 
-    throw new Error(styleCliText("Unknown pairing command. Use 'start' or 'complete --code <value>'."));
+    throw new Error(
+      styleCliText(
+        "Unknown pairing command. Use 'start' or 'complete --code <value>'.",
+      ),
+    );
   }
 
   if (command === "project") {
@@ -704,7 +808,9 @@ async function main(): Promise<void> {
       const projects = runtime.listProjects();
       for (const project of projects) {
         const marker = project.id === state.activeProjectId ? "*" : "-";
-        console.log(`${marker} ${project.id} (active agent: ${project.activeAgentId})`);
+        console.log(
+          `${marker} ${project.id} (active agent: ${project.activeAgentId})`,
+        );
       }
       return;
     }
