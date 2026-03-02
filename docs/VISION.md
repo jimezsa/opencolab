@@ -29,7 +29,9 @@ OpenColab adopts the academic lab model to operationalize this.
 
 ### Human in the Loop
 
-- The human researcher is the principal investigator.
+- By default, the human acts as an assistant to the research-agent group.
+- The human defines the initial problem, goals, and constraints.
+- Agents refine the problem framing, plan execution, and iterate on solutions.
 - Agents can ask the human for support, decisions, and clarifications.
 - The human can inspect all discussions and artifacts at any time.
 - The human can access the team directly via Telegram.
