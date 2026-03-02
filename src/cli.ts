@@ -14,7 +14,7 @@ const ANSI_BOLD = "\u001b[1m";
 const ANSI_ORANGE = "\u001b[38;5;208m";
 const ANSI_WHITE = "\u001b[97m";
 const ANSI_RESET = "\u001b[0m";
-const HELP_DESCRIPTION_COLUMN = 36;
+const HELP_DESCRIPTION_COLUMN = 20;
 
 interface Keypress {
   name?: string;
@@ -93,6 +93,10 @@ function helpFlag(flag: string, description: string): string {
       ? `${flag} `
       : flag.padEnd(HELP_DESCRIPTION_COLUMN, " ");
   return `  ${accent(paddedFlag)}${white(description)}`;
+}
+
+function helpExample(command: string, description: string): string[] {
+  return [`  ${accent(command)}`, `   ${white(description)}`];
 }
 
 function styleCliText(value: string): string {
@@ -212,11 +216,11 @@ function usageMain(): string {
     accent(bold(`${PROJECT_PET} OpenColab`)) + " multi-agent research lab",
     "",
     "Options:",
-    helpCommand("<command> --help", "Show detailed options for a command"),
     helpCommand(
-      "<command> <subcommand> --help",
-      "Show detailed options for a subcommand",
+      "<command> --help",
+      "Show detailed options for a command or subcommand",
     ),
+    helpCommand("<command> <subcommand> --help", ""),
     "",
     "Usage:",
     `  ${accent("opencolab <command> [args]")}`,
@@ -224,14 +228,17 @@ function usageMain(): string {
     "Top-level commands:",
     helpCommand("ignite", "Interactive first-run setup"),
     helpCommand("setup", "Configure model/provider/telegram"),
-    helpCommand("project", "Manage projects"),
-    helpCommand("agent", "Manage agents"),
+    helpCommand("project", "Manage/create projects"),
+    helpCommand("agent", "Manage/create agents"),
     helpCommand("gateway start", "Run local gateway server"),
     "",
     "Examples:",
-    helpCommand("opencolab setup --help", "Show setup command help"),
-    helpCommand("opencolab setup model --help", "Show setup model flags"),
-    helpCommand("opencolab gateway start --help", "Show gateway start flags"),
+    ...helpExample("opencolab setup --help", "Show setup command help"),
+    ...helpExample("opencolab setup model --help", "Show setup model flags"),
+    ...helpExample(
+      "opencolab gateway start --help",
+      "Show gateway start flags",
+    ),
   ]);
 }
 
