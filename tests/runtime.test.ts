@@ -23,7 +23,7 @@ test("init creates required agent context files for active project", () => {
       "AGENTS.md",
       "BOOTSTRAP.md",
       "IDENTITY.md",
-      "SOUL.md",
+      "ALMA.md",
       "TOOLS.md",
       "USER.md",
       "TODO.md",
@@ -48,7 +48,7 @@ test("init and agent create seed AGENTS.md from built-in researcher template", (
     const mainAgentDoc = fs.readFileSync(mainAgentPath, "utf8");
     assert.equal(mainAgentDoc.includes("# AGENTS.md - Researcher Essentials"), true);
     assert.equal(mainAgentDoc.includes("## Agent File Map"), true);
-    assert.equal(mainAgentDoc.includes("SOUL.md: communication style, tone, and behavioral guardrails."), true);
+    assert.equal(mainAgentDoc.includes("ALMA.md: communication style, tone, and behavioral guardrails."), true);
     assert.equal(mainAgentDoc.includes("MEMORY.md: durable facts learned over time"), true);
     assert.equal(mainAgentDoc.includes("Do not invent sources, data, or experiment results."), true);
 

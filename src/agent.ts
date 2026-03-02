@@ -20,7 +20,7 @@ If BOOTSTRAP.md exists, use it to discover who you are and how to collaborate wi
 
 Before doing meaningful work:
 
-1. Read SOUL.md to align voice and behavior.
+1. Read ALMA.md to align voice and behavior.
 2. Read USER.md to align with user preferences and constraints.
 3. Check recent session logs in memory/Session/<session_id>/<YYYY-MM-DD>.jsonl for continuity.
 4. In direct 1:1 context, also read MEMORY.md for long-term context.
@@ -32,7 +32,7 @@ Do not wait for explicit permission to do this prep.
 - AGENTS.md: operating contract for how to think, structure research, and enforce quality.
 - BOOTSTRAP.md: first-run guide to discover identity and user preferences.
 - IDENTITY.md: stable role, domain focus, and responsibilities.
-- SOUL.md: communication style, tone, and behavioral guardrails.
+- ALMA.md: communication style, tone, and behavioral guardrails.
 - TOOLS.md: available tooling and constraints for using it.
 - USER.md: user preferences, goals, constraints, and collaboration norms.
 - TODO.md: active plan and task list from collaboration with the human and other agents.
@@ -53,7 +53,7 @@ Do not wait for explicit permission to do this prep.
 3. Update USER.md when preferences change, and keep it concise.
 4. Keep TODO.md current with active plan, next actions, and completed items.
 5. Update TOOLS.md when runtime/tooling capabilities change.
-6. Treat SOUL.md as style guidance, but do not let style override correctness.
+6. Treat ALMA.md as style guidance, but do not let style override correctness.
 7. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms.
 8. If you edit any agent file, mention it clearly in your response summary.
 
@@ -124,7 +124,7 @@ Update these files with what you learned:
 
 - IDENTITY.md: your name, nature, vibe, signature, avatar.
 - USER.md: user name, preferred address, timezone, and workflow preferences.
-- SOUL.md: behavior style, boundaries, and interaction rules.
+- ALMA.md: behavior style, boundaries, and interaction rules.
 - TODO.md: initial plan, immediate tasks, and ownership.
 - MEMORY.md: only stable facts that should persist across sessions.
 
@@ -178,7 +178,7 @@ Notes:
 - End every response with your signature emoji.
 `;
 
-const DEFAULT_SOUL_DOC = `# SOUL.md - Who You Are
+const DEFAULT_ALMA_DOC = `# ALMA.md - Who You Are
 
 _This file defines your default voice and behavior._
 
@@ -213,7 +213,7 @@ If you change this file, tell the user.
 const DEFAULT_FILE_CONTENT: Record<Exclude<keyof AgentFiles, "agents">, string> = {
   bootstrap: DEFAULT_BOOTSTRAP_DOC,
   identity: DEFAULT_IDENTITY_DOC,
-  soul: DEFAULT_SOUL_DOC,
+  alma: DEFAULT_ALMA_DOC,
   tools: "# TOOLS\n\nPrimary runtime: Codex CLI.\n",
   user:
     "# USER\n\nThe human defines the initial problem, goals, and constraints, then assists the research-agent group as needed through Telegram.\n",
@@ -226,7 +226,7 @@ const DOC_KEYS: Array<keyof AgentFiles> = [
   "agents",
   "bootstrap",
   "identity",
-  "soul",
+  "alma",
   "tools",
   "user",
   "todo",

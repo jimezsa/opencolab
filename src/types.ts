@@ -2,7 +2,7 @@ export interface AgentFiles {
   agents: string;
   bootstrap: string;
   identity: string;
-  soul: string;
+  alma: string;
   tools: string;
   user: string;
   todo: string;

@@ -66,7 +66,7 @@ Each agent directory must include:
 - `AGENTS.md`
 - `BOOTSTRAP.md`
 - `IDENTITY.md`
-- `SOUL.md`
+- `ALMA.md`
 - `TOOLS.md`
 - `USER.md`
 - `TODO.md`
@@ -193,7 +193,7 @@ Minimum shape:
             "agents": "AGENTS.md",
             "bootstrap": "BOOTSTRAP.md",
             "identity": "IDENTITY.md",
-            "soul": "SOUL.md",
+            "alma": "ALMA.md",
             "tools": "TOOLS.md",
             "user": "USER.md",
             "todo": "TODO.md",

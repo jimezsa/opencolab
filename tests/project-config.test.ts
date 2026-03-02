@@ -24,7 +24,7 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(agent.files.agents, "AGENTS.md");
     assert.equal(agent.files.bootstrap, "BOOTSTRAP.md");
     assert.equal(agent.files.identity, "IDENTITY.md");
-    assert.equal(agent.files.soul, "SOUL.md");
+    assert.equal(agent.files.alma, "ALMA.md");
     assert.equal(agent.files.tools, "TOOLS.md");
     assert.equal(agent.files.user, "USER.md");
     assert.equal(agent.files.todo, "TODO.md");
@@ -59,7 +59,7 @@ test("project state normalizes supported provider name in nested project config"
                   agents: "AGENTS.md",
                   bootstrap: "BOOTSTRAP.md",
                   identity: "IDENTITY.md",
-                  soul: "SOUL.md",
+                  alma: "ALMA.md",
                   tools: "TOOLS.md",
                   user: "USER.md",
                   memory: "MEMORY.md"
@@ -147,7 +147,7 @@ test("project state migrates legacy single-agent shape", () => {
             agents: "AGENTS.md",
             bootstrap: "BOOTSTRAP.md",
             identity: "IDENTITY.md",
-            soul: "SOUL.md",
+            alma: "ALMA.md",
             tools: "TOOLS.md",
             user: "USER.md",
             memory: "MEMORY.md"
@@ -201,7 +201,7 @@ test("project state migrates legacy per-project telegram shape", () => {
                   agents: "AGENTS.md",
                   bootstrap: "BOOTSTRAP.md",
                   identity: "IDENTITY.md",
-                  soul: "SOUL.md",
+                  alma: "ALMA.md",
                   tools: "TOOLS.md",
                   user: "USER.md",
                   memory: "MEMORY.md"

@@ -125,7 +125,7 @@ Each agent directory must include:
 - `AGENTS.md`
 - `BOOTSTRAP.md`
 - `IDENTITY.md`
-- `SOUL.md`
+- `ALMA.md`
 - `TOOLS.md`
 - `USER.md`
 - `TODO.md` (active plan and task list)
