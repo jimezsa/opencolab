@@ -13,7 +13,7 @@ const ESC_INPUT = "\u001b";
 const ANSI_BOLD = "\u001b[1m";
 const ANSI_ORANGE = "\u001b[38;5;208m";
 const ANSI_WHITE = "\u001b[97m";
-const ANSI_SOFT_WHITE = "\u001b[38;5;252m";
+const ANSI_SOFT_WHITE = "\u001b[38;5;240m";
 const ANSI_RESET = "\u001b[0m";
 const HELP_DESCRIPTION_COLUMN = 20;
 
@@ -87,6 +87,13 @@ function bold(value: string): string {
   return `${ANSI_BOLD}${value}${ANSI_RESET}`;
 }
 
+function boldWhite(value: string): string {
+  if (!supportsColor()) {
+    return value;
+  }
+  return `${ANSI_BOLD}${ANSI_WHITE}${value}${ANSI_RESET}`;
+}
+
 function helpCommand(command: string, description: string): string {
   const paddedCommand =
     command.length >= HELP_DESCRIPTION_COLUMN
@@ -119,7 +126,11 @@ function styleCliText(value: string): string {
     })
     .replace(/^(\s*)\|\s*$/, (_match, lead: string) => `${lead}${accent("|")}`)
     .replace(/^(\s*)\*\s(.+)$/, (_match, lead: string, rest: string) => {
-      return `${lead}${accent("*")} ${softWhite(rest)}`;
+      const [firstWord, ...tail] = rest.trim().split(/\s+/);
+      const tailText = tail.join(" ");
+      const first = firstWord ? boldWhite(firstWord) : "";
+      const remainder = tailText ? ` ${softWhite(tailText)}` : "";
+      return `${lead}${accent("*")} ${first}${remainder}`;
     });
   return withFlags;
 }
