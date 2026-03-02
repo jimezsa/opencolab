@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createInterface } from "node:readline/promises";
+import { emitKeypressEvents } from "node:readline";
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
@@ -9,6 +9,15 @@ import { resolveSecretReference } from "./secrets.js";
 import type { OpenColabState, ProviderName } from "./types.js";
 
 const PROJECT_PET = "🐙";
+const ESC_INPUT = "\u001b";
+const ANSI_ORANGE = "\u001b[38;5;208m";
+const ANSI_RESET = "\u001b[0m";
+
+interface Keypress {
+  name?: string;
+  ctrl?: boolean;
+  meta?: boolean;
+}
 
 interface TelegramMenuCommand {
   command: string;
@@ -38,6 +47,84 @@ const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
   { command: "agent", description: "Agent command help" },
   { command: "session", description: "Session command help" }
 ];
+
+function supportsColor(): boolean {
+  return Boolean(process.stdout.isTTY) && process.env.NO_COLOR !== "1";
+}
+
+function accent(value: string): string {
+  if (!supportsColor()) {
+    return value;
+  }
+  return `${ANSI_ORANGE}${value}${ANSI_RESET}`;
+}
+
+function styleCliText(value: string): string {
+  const withCommands = value.replace(
+    /\bopencolab(?:\s+[a-z0-9_./<>\-|]+)+/gi,
+    (match) => accent(match)
+  );
+  return withCommands.replace(/--[a-z0-9-]+/gi, (match) => accent(match));
+}
+
+async function askInteractive(prompt: string): Promise<string> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error("Interactive onboarding requires a TTY terminal.");
+  }
+
+  return new Promise((resolve) => {
+    let value = "";
+
+    const cleanup = (): void => {
+      process.stdin.off("keypress", onKeypress);
+      process.stdin.setRawMode(false);
+    };
+
+    const onKeypress = (chunk: string, key: Keypress): void => {
+      if (key.ctrl && key.name === "c") {
+        cleanup();
+        process.stdout.write("^C\n");
+        process.kill(process.pid, "SIGINT");
+        return;
+      }
+
+      if (key.name === "escape") {
+        cleanup();
+        process.stdout.write("\n");
+        resolve(ESC_INPUT);
+        return;
+      }
+
+      if (key.name === "return" || key.name === "enter") {
+        cleanup();
+        process.stdout.write("\n");
+        resolve(value);
+        return;
+      }
+
+      if (key.name === "backspace") {
+        if (value.length > 0) {
+          value = value.slice(0, -1);
+          process.stdout.write("\b \b");
+        }
+        return;
+      }
+
+      if (key.ctrl || key.meta || !chunk) {
+        return;
+      }
+
+      value += chunk;
+      process.stdout.write(chunk);
+    };
+
+    process.stdout.write(styleCliText(prompt));
+    emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.on("keypress", onKeypress);
+  });
+}
 
 function parseFlags(args: string[]): { values: Record<string, string>; positionals: string[] } {
   const values: Record<string, string> = {};
@@ -103,7 +190,9 @@ function usage(): string {
     "  - State is stored in opencolab.json under projects and agents.",
     "  - Telegram configuration and pairing are shared across all projects.",
     "  - 'opencolab ignite' runs an interactive first-time setup."
-  ].join("\n");
+  ]
+    .map((line) => styleCliText(line))
+    .join("\n");
 }
 
 function parseProviderName(value: string | undefined): ProviderName {
@@ -276,18 +365,13 @@ async function main(): Promise<void> {
       throw new Error("Interactive onboarding requires a TTY terminal.");
     }
 
-    const reader = createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-
     try {
       await runIgnite(
         runtime,
         {
-          ask: async (prompt) => reader.question(prompt),
+          ask: async (prompt) => askInteractive(prompt),
           write: (line) => {
-            console.log(line);
+            console.log(styleCliText(line));
           }
         },
         {
@@ -295,7 +379,9 @@ async function main(): Promise<void> {
         }
       );
     } finally {
-      reader.close();
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(false);
+      }
     }
     return;
   }
@@ -364,7 +450,7 @@ async function main(): Promise<void> {
     const chatId = values["chat-id"];
 
     if (!chatId) {
-      throw new Error("--chat-id is required");
+      throw new Error(`${accent("--chat-id")} is required`);
     }
 
     runtime.setupTelegram({
@@ -381,9 +467,9 @@ async function main(): Promise<void> {
       console.log("Telegram bot commands synced.");
     } else {
       console.log(`Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`);
-      console.log("Run 'opencolab setup telegram commands sync' after fixing token access.");
+      console.log(styleCliText("Run 'opencolab setup telegram commands sync' after fixing token access."));
     }
-    console.log("Run 'opencolab setup telegram pair start' to begin pairing.");
+    console.log(styleCliText("Run 'opencolab setup telegram pair start' to begin pairing."));
     return;
   }
 
@@ -393,7 +479,7 @@ async function main(): Promise<void> {
     if (pairAction === "start") {
       const result = await runtime.startPairing();
       console.log(`Pairing code sent to Telegram (expires ${result.expiresAt}).`);
-      console.log(`Enter in CLI: opencolab setup telegram pair complete --code ${result.code}`);
+      console.log(styleCliText(`Enter in CLI: opencolab setup telegram pair complete --code ${result.code}`));
       return;
     }
 
@@ -401,7 +487,7 @@ async function main(): Promise<void> {
       const { values } = parseFlags(rest.slice(1));
       const code = values.code;
       if (!code) {
-        throw new Error("--code is required");
+        throw new Error(`${accent("--code")} is required`);
       }
 
       const result = runtime.completePairing(code);
@@ -416,7 +502,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    throw new Error("Unknown pairing command. Use 'start' or 'complete --code <value>'.");
+    throw new Error(styleCliText("Unknown pairing command. Use 'start' or 'complete --code <value>'."));
   }
 
   if (command === "project") {
@@ -425,7 +511,7 @@ async function main(): Promise<void> {
     if (subcommand === "create" || subcommand === "init") {
       const projectId = values["project-id"];
       if (!projectId) {
-        throw new Error("--project-id is required");
+        throw new Error(`${accent("--project-id")} is required`);
       }
 
       runtime.createProject(projectId);
@@ -440,7 +526,7 @@ async function main(): Promise<void> {
     if (subcommand === "use") {
       const projectId = values["project-id"];
       if (!projectId) {
-        throw new Error("--project-id is required");
+        throw new Error(`${accent("--project-id")} is required`);
       }
 
       runtime.useProject(projectId);
@@ -486,7 +572,7 @@ async function main(): Promise<void> {
     if (subcommand === "use") {
       const agentId = values["agent-id"];
       if (!agentId) {
-        throw new Error("--agent-id is required");
+        throw new Error(`${accent("--agent-id")} is required`);
       }
 
       runtime.useAgent(agentId);

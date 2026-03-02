@@ -131,6 +131,7 @@ Responsibilities:
 - create/list/select agents inside active project
 - show active project/agent/provider status
 - provide an interactive onboarding flow for first-time setup of project selection, provider/model, Telegram setup, and optional pairing/extra agent creation
+- `ignite` onboarding should allow skipping the current step with `Esc` and continue to the next step
 
 ## 8. Telegram Management Commands
 

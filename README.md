@@ -70,6 +70,7 @@ node dist/src/cli.js ignite
 
 `ignite` handles the main first-run setup (project, model/provider, Telegram, command sync, and optional pairing/extra agent).
 If you need to adjust settings later, rerun `ignite` or use `setup`, `project`, and `agent` commands directly.
+During `ignite`, press `Esc` to skip the current step and continue with the next one.
 
 Start local gateway server:
 

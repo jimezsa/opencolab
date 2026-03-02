@@ -2,6 +2,14 @@ import { getProviderSetupDefaults, isProviderName } from "./provider.js";
 import type { OpenColabRuntime } from "./runtime.js";
 import type { ProviderName } from "./types.js";
 
+const ESC_INPUT = "\u001b";
+
+class StepSkippedError extends Error {
+  constructor() {
+    super("step_skipped");
+  }
+}
+
 interface SyncTelegramCommandsResult {
   ok: boolean;
   error?: string;
@@ -27,22 +35,12 @@ export async function runIgnite(
   io.write("OpenColab interactive onboarding");
   io.write(`Config path: ${runtime.config.projectConfigPath}`);
   io.write("Press Enter to accept defaults shown in brackets.");
-  io.write("");
+  io.write("Press Esc to skip the current step and continue.");
 
-  io.write("Step 1/4: project");
-  await selectProject(runtime, io);
-
-  io.write("");
-  io.write("Step 2/4: model provider");
-  await configureProvider(runtime, io);
-
-  io.write("");
-  io.write("Step 3/4: Telegram");
-  await configureTelegram(runtime, io, deps);
-
-  io.write("");
-  io.write("Step 4/4: additional agent");
-  await configureAdditionalAgent(runtime, io);
+  await runStep(io, "Step 1/4: project", async () => selectProject(runtime, io));
+  await runStep(io, "Step 2/4: model provider", async () => configureProvider(runtime, io));
+  await runStep(io, "Step 3/4: Telegram", async () => configureTelegram(runtime, io, deps));
+  await runStep(io, "Step 4/4: additional agent", async () => configureAdditionalAgent(runtime, io));
 
   const state = runtime.getState();
   const project = runtime.getActiveProject();
@@ -55,6 +53,20 @@ export async function runIgnite(
   io.write(`Telegram chat: ${state.telegram.chatId ?? "not configured"}`);
   io.write(`Telegram paired: ${state.telegram.paired ? "yes" : "no"}`);
   io.write("Next: opencolab gateway start --port 4646");
+}
+
+async function runStep(io: IgniteIo, title: string, run: () => Promise<void>): Promise<void> {
+  io.write("");
+  io.write(title);
+  try {
+    await run();
+  } catch (error) {
+    if (error instanceof StepSkippedError) {
+      io.write("Step skipped.");
+      return;
+    }
+    throw error;
+  }
 }
 
 async function selectProject(runtime: OpenColabRuntime, io: IgniteIo): Promise<void> {
@@ -221,6 +233,7 @@ async function askProviderName(io: IgniteIo, fallback: ProviderName): Promise<Pr
 
 async function askWithDefault(io: IgniteIo, label: string, defaultValue: string): Promise<string> {
   const answer = await io.ask(`${label} [${defaultValue}]: `);
+  throwIfEsc(answer);
   const trimmed = answer.trim();
   if (trimmed) {
     return trimmed;
@@ -236,6 +249,7 @@ async function askRequiredWithOptionalDefault(
   while (true) {
     const suffix = defaultValue ? ` [${defaultValue}]` : "";
     const answer = await io.ask(`${label}${suffix}: `);
+    throwIfEsc(answer);
     const trimmed = answer.trim();
     if (trimmed) {
       return trimmed;
@@ -251,13 +265,16 @@ async function askRequiredWithOptionalDefault(
 
 async function askOptional(io: IgniteIo, label: string): Promise<string | null> {
   const answer = await io.ask(`${label}: `);
+  throwIfEsc(answer);
   const trimmed = answer.trim();
   return trimmed ? trimmed : null;
 }
 
 async function askYesNo(io: IgniteIo, label: string, defaultValue: boolean): Promise<boolean> {
   const fallback = defaultValue ? "Y/n" : "y/N";
-  const answer = (await io.ask(`${label} [${fallback}]: `)).trim().toLowerCase();
+  const raw = await io.ask(`${label} [${fallback}]: `);
+  throwIfEsc(raw);
+  const answer = raw.trim().toLowerCase();
   if (!answer) {
     return defaultValue;
   }
@@ -285,4 +302,10 @@ function parseCsvInput(value: string, fallback: string[]): string[] {
   }
 
   return parsed;
+}
+
+function throwIfEsc(answer: string): void {
+  if (answer === ESC_INPUT) {
+    throw new StepSkippedError();
+  }
 }
