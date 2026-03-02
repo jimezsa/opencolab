@@ -28,6 +28,7 @@ Definitions:
 
 - `Project`: isolated workspace entry persisted in `opencolab.json`.
 - `Agent`: assistant instance under a project, with prompt-definition files.
+- `Human`: defines the initial problem, goals, and constraints, then supports the agent group as an assistant.
 - `Gateway`: local service that validates Telegram pairing and routes messages to the active project/agent.
 
 ## 4. Core Capabilities
@@ -75,6 +76,7 @@ Initialization requirements:
 - when an agent directory is created, `AGENTS.md` must be seeded from an internal runtime template
 - when an agent directory is created, `BOOTSTRAP.md` must be seeded from an internal runtime template for first-run identity discovery
 - when an agent directory is created, `IDENTITY.md` must be seeded from an internal runtime template
+- default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - the default template must keep only essential researcher instructions
 
 `MEMORY.md` remains reserved for long-term memory only.

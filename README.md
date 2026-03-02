@@ -10,6 +10,12 @@ OpenColab is a multi-ai-agent research copilot built to accelerate scientific di
 
 Great research is not only intelligence. It needs structure: clear guidance, parallel investigation, rigorous synthesis, and human judgment at critical moments.
 
+Default collaboration model:
+
+- the human defines the initial problem, goals, and constraints
+- the agent group refines framing, runs investigation, and iterates
+- the human then acts as an assistant to unblock execution and make key decisions
+
 Architecture:
 
 `Telegram -> Gateway -> Active Project -> Active Agent`
@@ -53,6 +59,7 @@ node dist/src/cli.js init
 ```
 
 `AGENTS.md` is seeded from an internal essential researcher template.
+That template defaults to a workflow where the human defines the initial problem, then supports the agent group as an assistant.
 Fresh initialization defaults the active project provider to `claude_code` with model `claude-opus-4-6`.
 
 Run an interactive, step-by-step setup (project, model/provider, Telegram, pairing, and optional extra agent):
