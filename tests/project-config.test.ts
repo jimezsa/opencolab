@@ -27,6 +27,7 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(agent.files.soul, "SOUL.md");
     assert.equal(agent.files.tools, "TOOLS.md");
     assert.equal(agent.files.user, "USER.md");
+    assert.equal(agent.files.todo, "TODO.md");
     assert.equal(agent.files.memory, "MEMORY.md");
 
     assert.equal(project.provider.name, "claude_code");

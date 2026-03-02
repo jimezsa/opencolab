@@ -26,6 +26,7 @@ test("init creates required agent context files for active project", () => {
       "SOUL.md",
       "TOOLS.md",
       "USER.md",
+      "TODO.md",
       "MEMORY.md"
     ];
     for (const file of required) {
@@ -454,8 +455,10 @@ test("paired webhook can create and switch projects and agents", async () => {
 
     const projectRootAgentFile = path.join(tempDir, "projects", "alpha", "AGENTS.md");
     const projectRootBootstrapFile = path.join(tempDir, "projects", "alpha", "BOOTSTRAP.md");
+    const projectRootTodoFile = path.join(tempDir, "projects", "alpha", "TODO.md");
     assert.equal(fs.existsSync(projectRootAgentFile), true);
     assert.equal(fs.existsSync(projectRootBootstrapFile), true);
+    assert.equal(fs.existsSync(projectRootTodoFile), true);
 
     const createAgent = await runtime.handleTelegramWebhook({
       message: {
@@ -472,6 +475,7 @@ test("paired webhook can create and switch projects and agents", async () => {
     const createdAgentDir = path.join(tempDir, "projects", "alpha", "subagents", "scout");
     assert.equal(fs.existsSync(path.join(createdAgentDir, "AGENTS.md")), true);
     assert.equal(fs.existsSync(path.join(createdAgentDir, "BOOTSTRAP.md")), true);
+    assert.equal(fs.existsSync(path.join(createdAgentDir, "TODO.md")), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

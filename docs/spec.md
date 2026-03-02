@@ -69,6 +69,7 @@ Each agent directory must include:
 - `SOUL.md`
 - `TOOLS.md`
 - `USER.md`
+- `TODO.md`
 - `MEMORY.md`
 
 Initialization requirements:
@@ -78,6 +79,7 @@ Initialization requirements:
 - when an agent directory is created, `IDENTITY.md` must be seeded from an internal runtime template
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - the default template must keep only essential researcher instructions
+- `TODO.md` must be used for active planning and task tracking based on interactions with the human and other agents
 
 `MEMORY.md` remains reserved for long-term memory only.
 
@@ -194,6 +196,7 @@ Minimum shape:
             "soul": "SOUL.md",
             "tools": "TOOLS.md",
             "user": "USER.md",
+            "todo": "TODO.md",
             "memory": "MEMORY.md"
           }
         }

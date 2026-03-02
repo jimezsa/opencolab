@@ -128,6 +128,7 @@ Each agent directory must include:
 - `SOUL.md`
 - `TOOLS.md`
 - `USER.md`
+- `TODO.md` (active plan and task list)
 - `MEMORY.md` (long-term memory only)
 
 `AGENTS.md` is initialized from a built-in essential researcher template.

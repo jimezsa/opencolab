@@ -22,6 +22,7 @@ const DEFAULT_AGENT_FILES: AgentFiles = {
   soul: "SOUL.md",
   tools: "TOOLS.md",
   user: "USER.md",
+  todo: "TODO.md",
   memory: "MEMORY.md"
 };
 
@@ -33,6 +34,7 @@ function cloneAgentFiles(source: AgentFiles): AgentFiles {
     soul: source.soul,
     tools: source.tools,
     user: source.user,
+    todo: source.todo,
     memory: source.memory
   };
 }
@@ -294,6 +296,7 @@ function normalizeLegacyState(
       soul: asString(sourceAgentFiles?.soul, DEFAULT_AGENT_FILES.soul),
       tools: asString(sourceAgentFiles?.tools, DEFAULT_AGENT_FILES.tools),
       user: asString(sourceAgentFiles?.user, DEFAULT_AGENT_FILES.user),
+      todo: asString(sourceAgentFiles?.todo, DEFAULT_AGENT_FILES.todo),
       memory: asString(sourceAgentFiles?.memory, DEFAULT_AGENT_FILES.memory)
     }
   };
@@ -384,6 +387,7 @@ function normalizeAgent(
       soul: asString(sourceFiles?.soul, defaults.files.soul),
       tools: asString(sourceFiles?.tools, defaults.files.tools),
       user: asString(sourceFiles?.user, defaults.files.user),
+      todo: asString(sourceFiles?.todo, defaults.files.todo),
       memory: asString(sourceFiles?.memory, defaults.files.memory)
     }
   };

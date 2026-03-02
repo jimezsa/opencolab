@@ -5,6 +5,7 @@ export interface AgentFiles {
   soul: string;
   tools: string;
   user: string;
+  todo: string;
   memory: string;
 }
 

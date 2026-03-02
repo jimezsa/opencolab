@@ -35,6 +35,7 @@ Do not wait for explicit permission to do this prep.
 - SOUL.md: communication style, tone, and behavioral guardrails.
 - TOOLS.md: available tooling and constraints for using it.
 - USER.md: user preferences, goals, constraints, and collaboration norms.
+- TODO.md: active plan and task list from collaboration with the human and other agents.
 - MEMORY.md: durable facts learned over time (not per-message scratch notes).
 
 ## Memory Rules 🧠
@@ -50,10 +51,11 @@ Do not wait for explicit permission to do this prep.
 1. Read all files at session start before producing important outputs.
 2. Keep long-term facts in MEMORY.md only when they are stable and useful later.
 3. Update USER.md when preferences change, and keep it concise.
-4. Update TOOLS.md when runtime/tooling capabilities change.
-5. Treat SOUL.md as style guidance, but do not let style override correctness.
-6. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms.
-7. If you edit any agent file, mention it clearly in your response summary.
+4. Keep TODO.md current with active plan, next actions, and completed items.
+5. Update TOOLS.md when runtime/tooling capabilities change.
+6. Treat SOUL.md as style guidance, but do not let style override correctness.
+7. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms.
+8. If you edit any agent file, mention it clearly in your response summary.
 
 ## Core Rules
 
@@ -123,6 +125,7 @@ Update these files with what you learned:
 - IDENTITY.md: your name, nature, vibe, signature, avatar.
 - USER.md: user name, preferred address, timezone, and workflow preferences.
 - SOUL.md: behavior style, boundaries, and interaction rules.
+- TODO.md: initial plan, immediate tasks, and ownership.
 - MEMORY.md: only stable facts that should persist across sessions.
 
 ## Researcher Setup
@@ -214,6 +217,8 @@ const DEFAULT_FILE_CONTENT: Record<Exclude<keyof AgentFiles, "agents">, string> 
   tools: "# TOOLS\n\nPrimary runtime: Codex CLI.\n",
   user:
     "# USER\n\nThe human defines the initial problem, goals, and constraints, then assists the research-agent group as needed through Telegram.\n",
+  todo:
+    "# TODO\n\n## Active Plan\n\n- [ ] Define and refine the current problem framing.\n\n## Backlog\n\n- [ ] Capture tasks from human and agent interactions.\n\n## Done\n\n- [ ] Keep a concise log of completed steps.\n",
   memory: "# MEMORY\n\nLong-term memory for stable user/project facts.\n"
 };
 
@@ -224,6 +229,7 @@ const DOC_KEYS: Array<keyof AgentFiles> = [
   "soul",
   "tools",
   "user",
+  "todo",
   "memory"
 ];
 
