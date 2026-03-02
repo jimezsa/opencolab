@@ -11,6 +11,7 @@ import type { OpenColabState, ProviderName } from "./types.js";
 const PROJECT_PET = "🐙";
 const ESC_INPUT = "\u001b";
 const ANSI_ORANGE = "\u001b[38;5;208m";
+const ANSI_WHITE = "\u001b[97m";
 const ANSI_RESET = "\u001b[0m";
 
 interface Keypress {
@@ -57,6 +58,21 @@ function accent(value: string): string {
     return value;
   }
   return `${ANSI_ORANGE}${value}${ANSI_RESET}`;
+}
+
+function white(value: string): string {
+  if (!supportsColor()) {
+    return value;
+  }
+  return `${ANSI_WHITE}${value}${ANSI_RESET}`;
+}
+
+function helpCommand(command: string, description: string): string {
+  return `  ${command} ${white(`- ${description}`)}`;
+}
+
+function helpFlag(flag: string, description: string): string {
+  return `  ${flag} ${white(`- ${description}`)}`;
 }
 
 function styleCliText(value: string): string {
@@ -176,39 +192,42 @@ function usageMain(): string {
     "  opencolab <command> [args]",
     "",
     "Top-level commands:",
-    "  opencolab init",
-    "  opencolab ignite",
-    "  opencolab setup",
-    "  opencolab project",
-    "  opencolab agent",
-    "  opencolab gateway start",
+    helpCommand("opencolab init", "Initialize state and default files"),
+    helpCommand("opencolab ignite", "Interactive first-run setup"),
+    helpCommand("opencolab setup", "Configure model/provider/telegram"),
+    helpCommand("opencolab project", "Manage projects"),
+    helpCommand("opencolab agent", "Manage agents"),
+    helpCommand("opencolab gateway start", "Run local gateway server"),
     "",
     "Show detailed flags/options:",
-    "  opencolab <command> --help",
-    "  opencolab <command> <subcommand> --help",
+    helpCommand("opencolab <command> --help", "Show detailed options for a command"),
+    helpCommand("opencolab <command> <subcommand> --help", "Show detailed options for a subcommand"),
     "",
     "Examples:",
-    "  opencolab setup --help",
-    "  opencolab setup model --help",
-    "  opencolab gateway start --help"
+    helpCommand("opencolab setup --help", "Show setup command help"),
+    helpCommand("opencolab setup model --help", "Show setup model flags"),
+    helpCommand("opencolab gateway start --help", "Show gateway start flags")
   ]);
 }
 
 function usageGateway(): string {
   return formatHelp([
     "Usage:",
-    "  opencolab gateway start [--port 4646] [--telegram-polling true|false]",
+    helpCommand(
+      "opencolab gateway start [--port 4646] [--telegram-polling true|false]",
+      "Start gateway server"
+    ),
     "",
     "Flags:",
-    "  --port <number>",
-    "  --telegram-polling true|false"
+    helpFlag("--port <number>", "Gateway port (default: 4646)"),
+    helpFlag("--telegram-polling true|false", "Enable or disable polling mode")
   ]);
 }
 
 function usageIgnite(): string {
   return formatHelp([
     "Usage:",
-    "  opencolab ignite",
+    helpCommand("opencolab ignite", "Run interactive onboarding"),
     "",
     "Notes:",
     "  - Interactive setup for project/provider/telegram/agent.",
@@ -219,7 +238,7 @@ function usageIgnite(): string {
 function usageInit(): string {
   return formatHelp([
     "Usage:",
-    "  opencolab init",
+    helpCommand("opencolab init", "Initialize state and active project/agent files"),
     "",
     "Notes:",
     "  - Initializes project state and default agent files."
@@ -229,84 +248,96 @@ function usageInit(): string {
 function usageSetup(): string {
   return formatHelp([
     "Usage:",
-    "  opencolab setup model [flags]",
-    "  opencolab setup telegram [flags]",
-    "  opencolab setup telegram commands sync [flags]",
-    "  opencolab setup telegram pair start",
-    "  opencolab setup telegram pair complete --code <pairing_code>",
+    helpCommand("opencolab setup model [flags]", "Configure provider, model, and CLI"),
+    helpCommand("opencolab setup telegram [flags]", "Configure Telegram bot token/chat"),
+    helpCommand("opencolab setup telegram commands sync [flags]", "Sync Telegram slash commands"),
+    helpCommand("opencolab setup telegram pair start", "Start Telegram pairing"),
+    helpCommand("opencolab setup telegram pair complete --code <pairing_code>", "Complete Telegram pairing"),
     "",
     "Try:",
-    "  opencolab setup model --help",
-    "  opencolab setup telegram --help",
-    "  opencolab setup telegram commands sync --help",
-    "  opencolab setup telegram pair --help"
+    helpCommand("opencolab setup model --help", "Show model setup flags"),
+    helpCommand("opencolab setup telegram --help", "Show telegram setup flags"),
+    helpCommand("opencolab setup telegram commands sync --help", "Show sync flags"),
+    helpCommand("opencolab setup telegram pair --help", "Show pairing command help")
   ]);
 }
 
 function usageSetupModel(): string {
   return formatHelp([
     "Usage:",
-    "  opencolab setup model [--provider codex|claude_code] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
+    helpCommand(
+      "opencolab setup model [--provider codex|claude_code] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
+      "Configure active project runtime"
+    ),
     "",
     "Flags:",
-    "  --provider codex|claude_code",
-    "  --model <model>",
-    "  --api-key-env-var <env>",
-    "  --cli-command <cmd>",
-    "  --cli-args '<arg1,arg2>'"
+    helpFlag("--provider codex|claude_code", "Provider identifier"),
+    helpFlag("--model <model>", "Provider model name"),
+    helpFlag("--api-key-env-var <env>", "Env var that stores provider API key"),
+    helpFlag("--cli-command <cmd>", "Provider CLI executable"),
+    helpFlag("--cli-args '<arg1,arg2>'", "Comma-separated CLI args template")
   ]);
 }
 
 function usageSetupTelegram(): string {
   return formatHelp([
     "Usage:",
-    "  opencolab setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
+    helpCommand(
+      "opencolab setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
+      "Configure Telegram integration"
+    ),
     "",
     "Flags:",
-    "  --bot-token-env-var <env>",
-    "  --chat-id <id>"
+    helpFlag("--bot-token-env-var <env>", "Env var for Telegram bot token"),
+    helpFlag("--chat-id <id>", "Authorized Telegram chat id")
   ]);
 }
 
 function usageSetupTelegramCommandsSync(): string {
   return formatHelp([
     "Usage:",
-    "  opencolab setup telegram commands sync [--bot-token-env-var TELEGRAM_BOT_TOKEN] [--chat-id <id>]",
+    helpCommand(
+      "opencolab setup telegram commands sync [--bot-token-env-var TELEGRAM_BOT_TOKEN] [--chat-id <id>]",
+      "Sync Telegram slash command menu"
+    ),
     "",
     "Flags:",
-    "  --bot-token-env-var <env>",
-    "  --chat-id <id>"
+    helpFlag("--bot-token-env-var <env>", "Env var for Telegram bot token"),
+    helpFlag("--chat-id <id>", "Specific chat for menu button setup")
   ]);
 }
 
 function usageSetupTelegramPair(): string {
   return formatHelp([
     "Usage:",
-    "  opencolab setup telegram pair start",
-    "  opencolab setup telegram pair complete --code <pairing_code>",
+    helpCommand("opencolab setup telegram pair start", "Send pairing code to Telegram"),
+    helpCommand("opencolab setup telegram pair complete --code <pairing_code>", "Complete pairing with code"),
     "",
     "Flags:",
-    "  --code <pairing_code>  (required for 'complete')"
+    helpFlag("--code <pairing_code>", "Required for 'complete'")
   ]);
 }
 
 function usageProject(): string {
   return formatHelp([
     "Usage:",
-    "  opencolab project create --project-id <id>",
-    "  opencolab project use --project-id <id>",
-    "  opencolab project list",
-    "  opencolab project show"
+    helpCommand("opencolab project create --project-id <id>", "Create and select a project"),
+    helpCommand("opencolab project use --project-id <id>", "Switch active project"),
+    helpCommand("opencolab project list", "List all projects"),
+    helpCommand("opencolab project show", "Print active project JSON")
   ]);
 }
 
 function usageAgent(): string {
   return formatHelp([
     "Usage:",
-    "  opencolab agent create --agent-id <id> [--path projects/<project_id>/subagents/<agent_id>]",
-    "  opencolab agent use --agent-id <id>",
-    "  opencolab agent list",
-    "  opencolab agent show"
+    helpCommand(
+      "opencolab agent create --agent-id <id> [--path projects/<project_id>/subagents/<agent_id>]",
+      "Create/update and select an agent"
+    ),
+    helpCommand("opencolab agent use --agent-id <id>", "Switch active agent"),
+    helpCommand("opencolab agent list", "List project agents"),
+    helpCommand("opencolab agent show", "Print active agent JSON")
   ]);
 }
 
