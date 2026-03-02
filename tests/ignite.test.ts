@@ -126,7 +126,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     assert.equal(state.telegram.chatId, null);
     assert.equal(agent.id, "researcher_agent");
     assert.equal(syncCalls, 0);
-    assert.equal(outputs.includes("Step skipped."), true);
+    assert.equal(outputs.some((line) => line.trim() === "Step skipped."), true);
     assert.equal(outputs.includes("Onboarding complete."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

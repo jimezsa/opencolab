@@ -13,6 +13,7 @@ const ESC_INPUT = "\u001b";
 const ANSI_BOLD = "\u001b[1m";
 const ANSI_ORANGE = "\u001b[38;5;208m";
 const ANSI_WHITE = "\u001b[97m";
+const ANSI_SOFT_WHITE = "\u001b[38;5;252m";
 const ANSI_RESET = "\u001b[0m";
 const HELP_DESCRIPTION_COLUMN = 20;
 
@@ -72,6 +73,13 @@ function white(value: string): string {
   return `${ANSI_WHITE}${value}${ANSI_RESET}`;
 }
 
+function softWhite(value: string): string {
+  if (!supportsColor()) {
+    return value;
+  }
+  return `${ANSI_SOFT_WHITE}${value}${ANSI_RESET}`;
+}
+
 function bold(value: string): string {
   if (!supportsColor()) {
     return value;
@@ -104,9 +112,12 @@ function styleCliText(value: string): string {
     /\bopencolab(?:\s+[a-z0-9_./<>\-|]+)+/gi,
     (match) => accent(match),
   );
-  return withCommands
+  const withFlags = withCommands
     .replace(/--[a-z0-9-]+/gi, (match) => accent(match))
-    .replace(/^(\s*)\*\s/, (_match, lead: string) => `${lead}${accent("*")} `);
+    .replace(/^(\s*)\*\s(.+)$/, (_match, lead: string, rest: string) => {
+      return `${lead}${accent("*")} ${softWhite(rest)}`;
+    });
+  return withFlags;
 }
 
 async function askInteractive(prompt: string): Promise<string> {

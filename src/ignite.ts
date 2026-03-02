@@ -35,10 +35,18 @@ export async function runIgnite(
   io.write("Onboarding");
   io.write("Enter = accept defaults. Esc = skip section.");
 
-  await runStep(io, "* Project", async () => selectProject(runtime, io));
-  await runStep(io, "* Provider", async () => configureProvider(runtime, io));
-  await runStep(io, "* Telegram", async () => configureTelegram(runtime, io, deps));
-  await runStep(io, "* Additional agent", async () => configureAdditionalAgent(runtime, io));
+  await runStep(io, "* Project create or select active project", async (stepIo) =>
+    selectProject(runtime, stepIo)
+  );
+  await runStep(io, "* Provider configure model and runtime", async (stepIo) =>
+    configureProvider(runtime, stepIo)
+  );
+  await runStep(io, "* Telegram configure chat and pairing", async (stepIo) =>
+    configureTelegram(runtime, stepIo, deps)
+  );
+  await runStep(io, "* Additional agent optional extra agent setup", async (stepIo) =>
+    configureAdditionalAgent(runtime, stepIo)
+  );
 
   const state = runtime.getState();
   const project = runtime.getActiveProject();
@@ -53,14 +61,22 @@ export async function runIgnite(
   io.write("Next: opencolab gateway start --port 4646");
 }
 
-async function runStep(io: IgniteIo, title: string, run: () => Promise<void>): Promise<void> {
+async function runStep(
+  io: IgniteIo,
+  title: string,
+  run: (stepIo: IgniteIo) => Promise<void>
+): Promise<void> {
   io.write("");
   io.write(title);
+  const stepIo: IgniteIo = {
+    ask: async (prompt) => io.ask(`  ${prompt}`),
+    write: (line) => io.write(`  ${line}`)
+  };
   try {
-    await run();
+    await run(stepIo);
   } catch (error) {
     if (error instanceof StepSkippedError) {
-      io.write("Step skipped.");
+      io.write("  Step skipped.");
       return;
     }
     throw error;
