@@ -204,9 +204,9 @@ function usageMain(): string {
     helpCommand("opencolab <command> <subcommand> --help", "Show detailed options for a subcommand"),
     "",
     "Examples:",
-    helpCommand("opencolab setup --help", "Show setup command help"),
-    helpCommand("opencolab setup model --help", "Show setup model flags"),
-    helpCommand("opencolab gateway start --help", "Show gateway start flags")
+    helpCommand("setup --help", "Show setup command help"),
+    helpCommand("setup model --help", "Show setup model flags"),
+    helpCommand("gateway start --help", "Show gateway start flags")
   ]);
 }
 
