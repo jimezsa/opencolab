@@ -194,6 +194,116 @@ async function askInteractive(prompt: string): Promise<string> {
   });
 }
 
+async function chooseInteractive(
+  prompt: string,
+  options: string[],
+  defaultValue: string,
+): Promise<string> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error("Interactive onboarding requires a TTY terminal.");
+  }
+
+  const normalizedOptions =
+    options.length > 0 ? options : [defaultValue];
+  const selectedDefaultIndex = normalizedOptions.indexOf(defaultValue);
+
+  return new Promise((resolve) => {
+    let selectedIndex =
+      selectedDefaultIndex >= 0 ? selectedDefaultIndex : 0;
+    let renderedLines = 0;
+
+    const clearRender = (): void => {
+      if (renderedLines <= 0) {
+        return;
+      }
+
+      if (renderedLines > 1) {
+        process.stdout.write(`\u001b[${renderedLines - 1}A`);
+      }
+      for (let index = 0; index < renderedLines; index += 1) {
+        process.stdout.write("\u001b[2K\r");
+        if (index < renderedLines - 1) {
+          process.stdout.write("\u001b[1B");
+        }
+      }
+      if (renderedLines > 1) {
+        process.stdout.write(`\u001b[${renderedLines - 1}A`);
+      }
+      renderedLines = 0;
+    };
+
+    const render = (): void => {
+      clearRender();
+      const lines = [
+        styleCliText(prompt),
+        ...normalizedOptions.map((option, index) => {
+          const text = `${index === selectedIndex ? ">" : " "} ${option}`;
+          return index === selectedIndex ? white(text) : softWhite(text);
+        }),
+      ];
+
+      lines.forEach((line, index) => {
+        process.stdout.write(`${line}${index < lines.length - 1 ? "\n" : ""}`);
+      });
+      renderedLines = lines.length;
+    };
+
+    const cleanup = (): void => {
+      process.stdin.off("keypress", onKeypress);
+      process.stdin.setRawMode(false);
+      clearRender();
+    };
+
+    const onKeypress = (chunk: string, key: Keypress): void => {
+      if (key.ctrl && key.name === "c") {
+        cleanup();
+        process.stdout.write("^C\n");
+        process.kill(process.pid, "SIGINT");
+        return;
+      }
+
+      if (key.name === "escape") {
+        cleanup();
+        process.stdout.write("\n");
+        resolve(ESC_INPUT);
+        return;
+      }
+
+      if (key.name === "up") {
+        selectedIndex =
+          selectedIndex <= 0 ? normalizedOptions.length - 1 : selectedIndex - 1;
+        render();
+        return;
+      }
+
+      if (key.name === "down") {
+        selectedIndex =
+          selectedIndex >= normalizedOptions.length - 1 ? 0 : selectedIndex + 1;
+        render();
+        return;
+      }
+
+      if (key.name === "return" || key.name === "enter") {
+        const selected = normalizedOptions[selectedIndex] ?? defaultValue;
+        cleanup();
+        process.stdout.write(`${styleCliText(prompt)} ${white(selected)}\n`);
+        resolve(selected);
+        return;
+      }
+
+      if (key.ctrl || key.meta || !chunk) {
+        return;
+      }
+    };
+
+    emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.on("keypress", onKeypress);
+    render();
+  });
+}
+
 function parseFlags(args: string[]): {
   values: Record<string, string>;
   positionals: string[];
@@ -679,6 +789,8 @@ async function main(): Promise<void> {
         runtime,
         {
           ask: async (prompt) => askInteractive(prompt),
+          choose: async (prompt, options, defaultValue) =>
+            chooseInteractive(prompt, options, defaultValue),
           write: (line) => {
             console.log(styleCliText(line));
           },

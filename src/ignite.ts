@@ -17,8 +17,14 @@ interface SyncTelegramCommandsResult {
 
 export interface IgniteIo {
   ask(prompt: string): Promise<string>;
+  choose?(prompt: string, options: string[], defaultValue: string): Promise<string>;
   write(line: string): void;
 }
+
+const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
+  codex: ["gpt-5.3-codex", "gpt-5-codex", "gpt-5"],
+  claude_code: ["claude-opus-4-6", "claude-sonnet-4-5"]
+};
 
 export interface IgniteDependencies {
   syncTelegramCommands: (
@@ -71,8 +77,13 @@ async function runStep(
   run: (stepIo: IgniteIo) => Promise<void>
 ): Promise<void> {
   io.write(title);
+  const choose = io.choose;
   const stepIo: IgniteIo = {
     ask: async (prompt) => io.ask(`| ${prompt}`),
+    choose: choose
+      ? async (prompt, options, defaultValue) =>
+          choose(`| ${prompt}`, options, defaultValue)
+      : undefined,
     write: (line) => io.write(`| ${line}`)
   };
   try {
@@ -122,8 +133,9 @@ async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promi
     ? currentProvider.cliCommand
     : providerDefaults.cliCommand;
   const defaultCliArgs = useCurrentProviderDefaults ? currentProvider.cliArgs : providerDefaults.cliArgs;
+  const modelOptions = withFallbackOption(PROVIDER_MODEL_OPTIONS[providerName], defaultModel);
 
-  const model = await askWithDefault(io, "Model", defaultModel);
+  const model = await askFromOptions(io, "Model", modelOptions, defaultModel);
   const apiKeyEnvVar = await askWithDefault(io, "API key env var", defaultApiKeyEnvVar);
   const cliCommand = await askWithDefault(io, "CLI command", defaultCliCommand);
   const cliArgsInput = await askWithDefault(io, "CLI args (comma-separated)", defaultCliArgs.join(","));
@@ -238,14 +250,30 @@ async function configureAdditionalAgent(runtime: OpenColabRuntime, io: IgniteIo)
 }
 
 async function askProviderName(io: IgniteIo, fallback: ProviderName): Promise<ProviderName> {
+  const options: ProviderName[] = ["codex", "claude_code"];
   while (true) {
-    const answer = (await askWithDefault(io, "Provider (codex|claude_code)", fallback)).toLowerCase();
+    const answer = (await askFromOptions(io, "Provider", options, fallback)).toLowerCase();
     if (isProviderName(answer)) {
       return answer;
     }
 
     io.write("Invalid provider. Use 'codex' or 'claude_code'.");
   }
+}
+
+async function askFromOptions(
+  io: IgniteIo,
+  label: string,
+  options: string[],
+  defaultValue: string
+): Promise<string> {
+  if (io.choose) {
+    const selected = await io.choose(`${label}:`, options, defaultValue);
+    throwIfEsc(selected);
+    return selected;
+  }
+
+  return askWithDefault(io, `${label} (${options.join("|")})`, defaultValue);
 }
 
 async function askWithDefault(io: IgniteIo, label: string, defaultValue: string): Promise<string> {
@@ -319,6 +347,14 @@ function parseCsvInput(value: string, fallback: string[]): string[] {
   }
 
   return parsed;
+}
+
+function withFallbackOption(options: string[], value: string): string[] {
+  if (options.includes(value)) {
+    return options;
+  }
+
+  return [value, ...options];
 }
 
 function throwIfEsc(answer: string): void {
