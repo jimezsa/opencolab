@@ -34,16 +34,20 @@ export async function runIgnite(
 ): Promise<void> {
   io.write("Onboarding");
   io.write("Enter = accept defaults. Esc = skip section.");
+  io.write("");
 
   await runStep(io, "* Project create or select active project", async (stepIo) =>
     selectProject(runtime, stepIo)
   );
+  io.write("|");
   await runStep(io, "* Provider configure model and runtime", async (stepIo) =>
     configureProvider(runtime, stepIo)
   );
+  io.write("|");
   await runStep(io, "* Telegram configure chat and pairing", async (stepIo) =>
     configureTelegram(runtime, stepIo, deps)
   );
+  io.write("|");
   await runStep(io, "* Additional agent optional extra agent setup", async (stepIo) =>
     configureAdditionalAgent(runtime, stepIo)
   );
@@ -66,17 +70,16 @@ async function runStep(
   title: string,
   run: (stepIo: IgniteIo) => Promise<void>
 ): Promise<void> {
-  io.write("");
   io.write(title);
   const stepIo: IgniteIo = {
-    ask: async (prompt) => io.ask(`  ${prompt}`),
-    write: (line) => io.write(`  ${line}`)
+    ask: async (prompt) => io.ask(`| ${prompt}`),
+    write: (line) => io.write(`| ${line}`)
   };
   try {
     await run(stepIo);
   } catch (error) {
     if (error instanceof StepSkippedError) {
-      io.write("  Step skipped.");
+      io.write("| Step skipped.");
       return;
     }
     throw error;
