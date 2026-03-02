@@ -10,6 +10,7 @@ import type { OpenColabState, ProviderName } from "./types.js";
 
 const PROJECT_PET = "🐙";
 const ESC_INPUT = "\u001b";
+const ANSI_BOLD = "\u001b[1m";
 const ANSI_ORANGE = "\u001b[38;5;208m";
 const ANSI_WHITE = "\u001b[97m";
 const ANSI_RESET = "\u001b[0m";
@@ -69,6 +70,13 @@ function white(value: string): string {
     return value;
   }
   return `${ANSI_WHITE}${value}${ANSI_RESET}`;
+}
+
+function bold(value: string): string {
+  if (!supportsColor()) {
+    return value;
+  }
+  return `${ANSI_BOLD}${value}${ANSI_RESET}`;
 }
 
 function helpCommand(command: string, description: string): string {
@@ -201,7 +209,7 @@ function formatHelp(lines: string[]): string {
 
 function usageMain(): string {
   return formatHelp([
-    `${PROJECT_PET} OpenColab CLI multi-agent research lab`,
+    bold(`${PROJECT_PET} OpenColab`) + " multi-agent research lab",
     "",
     "Usage:",
     `  ${accent("opencolab <command> [args]")}`,
@@ -267,7 +275,10 @@ function usageSetup(): string {
       "opencolab setup telegram commands sync [flags]",
       "Sync Telegram slash commands",
     ),
-    helpCommand("opencolab setup telegram pair start", "Start Telegram pairing"),
+    helpCommand(
+      "opencolab setup telegram pair start",
+      "Start Telegram pairing",
+    ),
     helpCommand(
       "opencolab setup telegram pair complete --code <pairing_code>",
       "Complete Telegram pairing",
@@ -350,7 +361,10 @@ function usageProject(): string {
       "opencolab project create --project-id <id>",
       "Create and select a project",
     ),
-    helpCommand("opencolab project use --project-id <id>", "Switch active project"),
+    helpCommand(
+      "opencolab project use --project-id <id>",
+      "Switch active project",
+    ),
     helpCommand("opencolab project list", "List all projects"),
     helpCommand("opencolab project show", "Print active project JSON"),
   ]);
