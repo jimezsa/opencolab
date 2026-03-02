@@ -32,15 +32,13 @@ export async function runIgnite(
   io: IgniteIo,
   deps: IgniteDependencies
 ): Promise<void> {
-  io.write("OpenColab interactive onboarding");
-  io.write(`Config path: ${runtime.config.projectConfigPath}`);
-  io.write("Press Enter to accept defaults shown in brackets.");
-  io.write("Press Esc to skip the current step and continue.");
+  io.write("Onboarding");
+  io.write("Enter = accept defaults. Esc = skip section.");
 
-  await runStep(io, "Step 1/4: project", async () => selectProject(runtime, io));
-  await runStep(io, "Step 2/4: model provider", async () => configureProvider(runtime, io));
-  await runStep(io, "Step 3/4: Telegram", async () => configureTelegram(runtime, io, deps));
-  await runStep(io, "Step 4/4: additional agent", async () => configureAdditionalAgent(runtime, io));
+  await runStep(io, "* Project", async () => selectProject(runtime, io));
+  await runStep(io, "* Provider", async () => configureProvider(runtime, io));
+  await runStep(io, "* Telegram", async () => configureTelegram(runtime, io, deps));
+  await runStep(io, "* Additional agent", async () => configureAdditionalAgent(runtime, io));
 
   const state = runtime.getState();
   const project = runtime.getActiveProject();

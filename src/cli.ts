@@ -104,7 +104,9 @@ function styleCliText(value: string): string {
     /\bopencolab(?:\s+[a-z0-9_./<>\-|]+)+/gi,
     (match) => accent(match),
   );
-  return withCommands.replace(/--[a-z0-9-]+/gi, (match) => accent(match));
+  return withCommands
+    .replace(/--[a-z0-9-]+/gi, (match) => accent(match))
+    .replace(/^(\s*)\*\s/, (_match, lead: string) => `${lead}${accent("*")} `);
 }
 
 async function askInteractive(prompt: string): Promise<string> {
