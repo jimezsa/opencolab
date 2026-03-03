@@ -122,9 +122,9 @@ function styleCliText(value: string): string {
   const withFlags = withCommands
     .replace(/--[a-z0-9-]+/gi, (match) => accent(match))
     .replace(/^(\s*)\|\s(.+)$/, (_match, lead: string, rest: string) => {
-      return `${lead}${accent("|")} ${softWhite(rest)}`;
+      return `${lead}${softWhite("|")} ${softWhite(rest)}`;
     })
-    .replace(/^(\s*)\|\s*$/, (_match, lead: string) => `${lead}${accent("|")}`)
+    .replace(/^(\s*)\|\s*$/, (_match, lead: string) => `${lead}${softWhite("|")}`)
     .replace(/^(\s*)\*\s(.+)$/, (_match, lead: string, rest: string) => {
       const [firstWord, ...tail] = rest.trim().split(/\s+/);
       const tailText = tail.join(" ");
