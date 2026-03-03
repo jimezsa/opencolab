@@ -1,4 +1,4 @@
-import { getProviderSetupDefaults, isProviderName } from "./provider.js";
+import { getProviderSetupDefaults, normalizeProviderName } from "./provider.js";
 import type { OpenColabRuntime } from "./runtime.js";
 import type { ProviderName } from "./types.js";
 
@@ -22,8 +22,8 @@ export interface IgniteIo {
 }
 
 const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
-  codex: ["gpt-5.3-codex", "gpt-5-codex", "gpt-5"],
-  claude_code: ["claude-opus-4-6", "claude-sonnet-4-5"]
+  openai: ["gpt-5.3-codex", "gpt-5-codex", "gpt-5"],
+  anthropic: ["claude-opus-4-6", "claude-sonnet-4-5"]
 };
 
 export interface IgniteDependencies {
@@ -250,14 +250,15 @@ async function configureAdditionalAgent(runtime: OpenColabRuntime, io: IgniteIo)
 }
 
 async function askProviderName(io: IgniteIo, fallback: ProviderName): Promise<ProviderName> {
-  const options: ProviderName[] = ["codex", "claude_code"];
+  const options: ProviderName[] = ["openai", "anthropic"];
   while (true) {
     const answer = (await askFromOptions(io, "Provider", options, fallback)).toLowerCase();
-    if (isProviderName(answer)) {
-      return answer;
+    const normalized = normalizeProviderName(answer);
+    if (normalized) {
+      return normalized;
     }
 
-    io.write("Invalid provider. Use 'codex' or 'claude_code'.");
+    io.write("Invalid provider. Use 'openai' or 'anthropic'.");
   }
 }
 

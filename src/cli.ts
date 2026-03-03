@@ -3,7 +3,7 @@ import { emitKeypressEvents } from "node:readline";
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
-import { getProviderSetupDefaults, isProviderName } from "./provider.js";
+import { getProviderSetupDefaults, normalizeProviderName } from "./provider.js";
 import { createRuntime } from "./runtime.js";
 import { resolveSecretReference } from "./secrets.js";
 import type { OpenColabState, ProviderName } from "./types.js";
@@ -441,12 +441,12 @@ function usageSetupModel(): string {
   return formatHelp([
     "Usage:",
     helpCommand(
-      "opencolab setup model [--provider codex|claude_code] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
+      "opencolab setup model [--provider openai|anthropic] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
       "Configure active project runtime",
     ),
     "",
     "Flags:",
-    helpFlag("--provider codex|claude_code", "Provider identifier"),
+    helpFlag("--provider openai|anthropic", "Provider identifier"),
     helpFlag("--model <model>", "Provider model name"),
     helpFlag("--api-key-env-var <env>", "Env var that stores provider API key"),
     helpFlag("--cli-command <cmd>", "Provider CLI executable"),
@@ -585,10 +585,10 @@ function resolveHelp(argv: string[]): string | null {
 }
 
 function parseProviderName(value: string | undefined): ProviderName {
-  const parsed = value ?? "codex";
-  if (!isProviderName(parsed)) {
+  const parsed = normalizeProviderName(value ?? "openai");
+  if (!parsed) {
     throw new Error(
-      `Unsupported provider: ${parsed}. Use codex or claude_code.`,
+      `Unsupported provider: ${value}. Use openai or anthropic.`,
     );
   }
   return parsed;

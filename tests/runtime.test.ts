@@ -95,14 +95,14 @@ test("init seeds IDENTITY.md from built-in identity template", () => {
   }
 });
 
-test("setupModel supports claude_code provider defaults for active project", () => {
+test("setupModel supports anthropic provider defaults for active project", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-runtime-"));
   const runtime = createRuntime(tempDir);
 
   try {
     runtime.init();
     runtime.setupModel({
-      providerName: "claude_code",
+      providerName: "anthropic",
       model: "claude-sonnet-4-5",
       apiKeyEnvVar: "ANTHROPIC_API_KEY",
       cliCommand: "claude",
@@ -110,7 +110,7 @@ test("setupModel supports claude_code provider defaults for active project", () 
     });
 
     const project = runtime.getActiveProject();
-    assert.equal(project.provider.name, "claude_code");
+    assert.equal(project.provider.name, "anthropic");
     assert.equal(project.provider.apiKeyEnvVar, "ANTHROPIC_API_KEY");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

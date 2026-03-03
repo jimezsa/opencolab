@@ -214,7 +214,7 @@ const DEFAULT_FILE_CONTENT: Record<Exclude<keyof AgentFiles, "agents">, string> 
   bootstrap: DEFAULT_BOOTSTRAP_DOC,
   identity: DEFAULT_IDENTITY_DOC,
   alma: DEFAULT_ALMA_DOC,
-  tools: "# TOOLS\n\nPrimary runtime: Codex CLI.\n",
+  tools: "# TOOLS\n\nPrimary runtime: provider CLI (openai or anthropic).\n",
   user:
     "# USER\n\nThe human defines the initial problem, goals, and constraints, then assists the research-agent group as needed through Telegram.\n",
   todo:

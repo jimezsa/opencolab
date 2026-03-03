@@ -30,7 +30,7 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(agent.files.todo, "TODO.md");
     assert.equal(agent.files.memory, "MEMORY.md");
 
-    assert.equal(project.provider.name, "claude_code");
+    assert.equal(project.provider.name, "anthropic");
     assert.equal(project.provider.apiKeyEnvVar, "ANTHROPIC_API_KEY");
     assert.equal(state.telegram.paired, false);
   } finally {
@@ -82,7 +82,7 @@ test("project state normalizes supported provider name in nested project config"
 
     const loaded = readProjectState(config);
     const project = loaded.projects[loaded.activeProjectId];
-    assert.equal(project.provider.name, "claude_code");
+    assert.equal(project.provider.name, "anthropic");
     assert.equal(project.provider.apiKeyEnvVar, "ANTHROPIC_API_KEY");
     assert.equal(project.provider.cliCommand, "claude");
   } finally {
@@ -172,7 +172,7 @@ test("project state migrates legacy single-agent shape", () => {
     assert.equal(loaded.activeProjectId, "default");
     assert.equal(project.activeAgentId, "legacy_agent");
     assert.equal(project.agents.legacy_agent.path, "agents/legacy_agent");
-    assert.equal(project.provider.name, "codex");
+    assert.equal(project.provider.name, "openai");
     assert.equal(loaded.telegram.chatId, "10001");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -225,6 +225,7 @@ test("project state migrates legacy per-project telegram shape", () => {
 
     const loaded = readProjectState(config);
     assert.equal(loaded.activeProjectId, "alpha");
+    assert.equal(loaded.projects.alpha.provider.name, "openai");
     assert.equal(loaded.telegram.chatId, "55555");
     assert.equal(loaded.telegram.paired, true);
   } finally {

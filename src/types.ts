@@ -15,7 +15,7 @@ export interface AgentConfig {
   files: AgentFiles;
 }
 
-export type ProviderName = "codex" | "claude_code";
+export type ProviderName = "openai" | "anthropic";
 
 export interface ProviderConfig {
   name: ProviderName;

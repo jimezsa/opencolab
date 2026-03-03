@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import type { OpenColabConfig } from "./config.js";
-import { getProviderSetupDefaults, isProviderName } from "./provider.js";
+import { getProviderSetupDefaults, normalizeProviderName } from "./provider.js";
 import type {
   AgentConfig,
   AgentFiles,
@@ -76,8 +76,8 @@ export function createDefaultProjectState(projectId = DEFAULT_PROJECT_ID): Proje
       [defaultAgent.id]: defaultAgent
     },
     provider: {
-      name: "claude_code",
-      ...getProviderSetupDefaults("claude_code")
+      name: "anthropic",
+      ...getProviderSetupDefaults("anthropic")
     }
   };
 }
@@ -474,8 +474,11 @@ function asNullableString(value: unknown): string | null {
 }
 
 function asProviderName(value: unknown, fallback: ProviderConfig["name"]) {
-  if (typeof value === "string" && isProviderName(value)) {
-    return value;
+  if (typeof value === "string") {
+    const normalized = normalizeProviderName(value);
+    if (normalized) {
+      return normalized;
+    }
   }
   return fallback;
 }

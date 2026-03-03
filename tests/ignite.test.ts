@@ -15,7 +15,7 @@ test("ignite configures project, provider, telegram, and optional agent", async 
 
   const answers = [
     "science",
-    "codex",
+    "openai",
     "gpt-5.3-codex",
     "OPENAI_API_KEY",
     "codex",
@@ -60,7 +60,7 @@ test("ignite configures project, provider, telegram, and optional agent", async 
     const agent = runtime.getActiveAgent();
 
     assert.equal(state.activeProjectId, "science");
-    assert.equal(project.provider.name, "codex");
+    assert.equal(project.provider.name, "openai");
     assert.equal(project.provider.model, "gpt-5.3-codex");
     assert.equal(project.provider.apiKeyEnvVar, "OPENAI_API_KEY");
     assert.equal(project.provider.cliCommand, "codex");
@@ -87,7 +87,7 @@ test("ignite lets Esc skip a step and continue", async () => {
 
   const answers = [
     ESC_INPUT,
-    "codex",
+    "openai",
     "gpt-5.3-codex",
     "OPENAI_API_KEY",
     "codex",
@@ -120,7 +120,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     const agent = runtime.getActiveAgent();
 
     assert.equal(state.activeProjectId, "default");
-    assert.equal(project.provider.name, "codex");
+    assert.equal(project.provider.name, "openai");
     assert.equal(project.provider.model, "gpt-5.3-codex");
     assert.equal(project.provider.apiKeyEnvVar, "OPENAI_API_KEY");
     assert.equal(state.telegram.chatId, null);

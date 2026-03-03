@@ -12,7 +12,7 @@ v1 supports:
 - multiple agents per project
 - one active project at a time
 - one active agent inside the active project
-- one provider runtime per project: `codex` or `claude_code`
+- one provider runtime per project: `openai` or `anthropic`
 - one user channel: Telegram
 - one operator channel: OpenColab CLI
 
@@ -165,8 +165,8 @@ Menu alias compatibility (for Telegram slash command popup):
 
 Supported provider identifiers:
 
-- `codex`
-- `claude_code`
+- `openai`
+- `anthropic`
 
 No `gemini` adapter in scope for v1.
 
@@ -202,7 +202,7 @@ Minimum shape:
         }
       },
       "provider": {
-        "name": "claude_code",
+        "name": "anthropic",
         "model": "<model-name>",
         "apiKeyEnvVar": "ANTHROPIC_API_KEY"
       }
