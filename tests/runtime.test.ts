@@ -75,6 +75,8 @@ test("init seeds BOOTSTRAP.md from built-in bootstrap template", () => {
     assert.equal(bootstrapDoc.includes("# BOOTSTRAP.md - Hello, World"), true);
     assert.equal(bootstrapDoc.includes("Time to figure out who you are."), true);
     assert.equal(bootstrapDoc.includes("What should I call myself, and what emoji is my signature?"), true);
+    assert.equal(bootstrapDoc.includes("Jeff Hinton"), true);
+    assert.equal(bootstrapDoc.includes("Albert Einstein"), true);
     assert.equal(bootstrapDoc.includes("Do not ask for research focus in this opening phase; the user will provide topic direction later when needed."), true);
     assert.equal(bootstrapDoc.includes("Do not ask the user to define your vibe. Discover and refine your vibe through real collaboration."), true);
     assert.equal(bootstrapDoc.includes("Researcher Setup"), true);

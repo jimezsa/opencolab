@@ -116,7 +116,10 @@ Then align quickly:
 1. Your name: what should they call you?
 2. Your signature emoji: pick one symbol that fits.
 
-Offer suggestions if they are unsure.
+Offer ideas of names in a lighthearted way:
+
+> "How about Hinton, Karpathy, Sutskever, Hassabis, LeCun, Li, Alan Turing, Marie Curie, Einstein, Newton?"
+
 Do not ask for research focus in this opening phase; the user will provide topic direction later when needed.
 Do not ask the user to define your vibe. Discover and refine your vibe through real collaboration.
 
@@ -223,16 +226,17 @@ Treat these agent files as persistent memory. Read them each session. Update the
 If you change this file, tell the user.
 `;
 
-const DEFAULT_FILE_CONTENT: Record<Exclude<keyof AgentFiles, "agents">, string> = {
+const DEFAULT_FILE_CONTENT: Record<
+  Exclude<keyof AgentFiles, "agents">,
+  string
+> = {
   bootstrap: DEFAULT_BOOTSTRAP_DOC,
   identity: DEFAULT_IDENTITY_DOC,
   alma: DEFAULT_ALMA_DOC,
   tools: "# TOOLS\n\nPrimary runtime: provider CLI (openai or anthropic).\n",
-  user:
-    "# USER\n\nThe human defines the initial problem, goals, and constraints, then assists the research-agent group with key decisions and key activities through Telegram.\n",
-  todo:
-    "# TODO\n\n## Active Plan\n\n- [ ] Define and refine the current problem framing.\n\n## Backlog\n\n- [ ] Capture tasks from human and agent interactions.\n\n## Done\n\n- [ ] Keep a concise log of completed steps.\n",
-  memory: "# MEMORY\n\nLong-term memory for stable user/project facts.\n"
+  user: "# USER\n\nThe human defines the initial problem, goals, and constraints, then assists the research-agent group with key decisions and key activities through Telegram.\n",
+  todo: "# TODO\n\n## Active Plan\n\n- [ ] Define and refine the current problem framing.\n\n## Backlog\n\n- [ ] Capture tasks from human and agent interactions.\n\n## Done\n\n- [ ] Keep a concise log of completed steps.\n",
+  memory: "# MEMORY\n\nLong-term memory for stable user/project facts.\n",
 };
 
 const DOC_KEYS: Array<keyof AgentFiles> = [
@@ -243,12 +247,17 @@ const DOC_KEYS: Array<keyof AgentFiles> = [
   "tools",
   "user",
   "todo",
-  "memory"
+  "memory",
 ];
 
-const promptContextCache = new Map<string, { mtimes: number[]; systemContext: string }>();
+const promptContextCache = new Map<
+  string,
+  { mtimes: number[]; systemContext: string }
+>();
 
-function getAgentEntries(agent: AgentConfig): Array<[keyof AgentFiles, string]> {
+function getAgentEntries(
+  agent: AgentConfig,
+): Array<[keyof AgentFiles, string]> {
   return DOC_KEYS.map((key) => [key, agent.files[key]]);
 }
 
@@ -260,27 +269,41 @@ function mtimeIfExists(filePath: string): number {
   return fs.existsSync(filePath) ? fs.statSync(filePath).mtimeMs : -1;
 }
 
-function getPromptContext(rootDir: string, agent: AgentConfig): { mtimes: number[]; systemContext: string } {
+function getPromptContext(
+  rootDir: string,
+  agent: AgentConfig,
+): { mtimes: number[]; systemContext: string } {
   const agentDir = resolveAgentDirectory(rootDir, agent.path);
   const entries = getAgentEntries(agent);
   const cacheKey = `${agentDir}:${entries.map(([, file]) => file).join("|")}`;
-  const mtimes = entries.map(([, fileName]) => mtimeIfExists(path.join(agentDir, fileName)));
+  const mtimes = entries.map(([, fileName]) =>
+    mtimeIfExists(path.join(agentDir, fileName)),
+  );
 
   const cached = promptContextCache.get(cacheKey);
-  if (cached && cached.mtimes.every((mtime, index) => mtime === mtimes[index])) {
+  if (
+    cached &&
+    cached.mtimes.every((mtime, index) => mtime === mtimes[index])
+  ) {
     return cached;
   }
 
   const sections: string[] = [];
   for (const [key, fileName] of entries) {
-    sections.push(`[${String(key).toUpperCase()}]`, readIfExists(path.join(agentDir, fileName)));
+    sections.push(
+      `[${String(key).toUpperCase()}]`,
+      readIfExists(path.join(agentDir, fileName)),
+    );
   }
   const next = { mtimes, systemContext: sections.join("\n\n") };
   promptContextCache.set(cacheKey, next);
   return next;
 }
 
-export function resolveAgentDirectory(rootDir: string, agentPath: string): string {
+export function resolveAgentDirectory(
+  rootDir: string,
+  agentPath: string,
+): string {
   return path.isAbsolute(agentPath) ? agentPath : path.join(rootDir, agentPath);
 }
 
@@ -291,7 +314,10 @@ export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
   for (const [key, fileName] of entries) {
     const filePath = path.join(agentDir, fileName);
     if (!fs.existsSync(filePath)) {
-      const content = key === "agents" ? `${DEFAULT_AGENTS_DOC}\n` : DEFAULT_FILE_CONTENT[key];
+      const content =
+        key === "agents"
+          ? `${DEFAULT_AGENTS_DOC}\n`
+          : DEFAULT_FILE_CONTENT[key];
       fs.writeFileSync(filePath, content, "utf8");
     }
   }
@@ -302,7 +328,7 @@ export function buildAgentPromptForInput(
   rootDir: string,
   agent: AgentConfig,
   history: ConversationMessage[],
-  userMessage: string
+  userMessage: string,
 ): string {
   const { systemContext } = getPromptContext(rootDir, agent);
   return buildPromptFromSystemContext(systemContext, history, userMessage);
@@ -311,7 +337,7 @@ export function buildAgentPromptForInput(
 function buildPromptFromSystemContext(
   systemContext: string,
   history: ConversationMessage[],
-  userMessage: string
+  userMessage: string,
 ): string {
   const transcript = history
     .slice(-8)
@@ -328,7 +354,7 @@ function buildPromptFromSystemContext(
     transcript,
     "",
     `USER: ${userMessage}`,
-    "ASSISTANT:"
+    "ASSISTANT:",
   ]
     .filter(Boolean)
     .join("\n");
