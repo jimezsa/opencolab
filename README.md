@@ -13,8 +13,9 @@ Great research is not only intelligence. It needs structure: clear guidance, par
 Default collaboration model:
 
 - the human defines the initial problem, goals, and constraints
+- before deep research, agents clarify the human's true intention for the topic
 - the agent group refines framing, runs investigation, and iterates
-- the human then acts as an assistant to unblock execution and make key decisions
+- the agent group is the expert; the human assists key decisions and key activities
 
 Architecture:
 
@@ -60,7 +61,7 @@ node dist/src/cli.js ignite
 
 `ignite` initializes state and default project/agent files automatically.
 `AGENTS.md` is seeded from an internal essential researcher template.
-That template defaults to a workflow where the human defines the initial problem, then supports the agent group as an assistant.
+That template defaults to a workflow where the human defines the initial problem, the agents clarify true intent before deep research, and the human supports the expert agent group as an assistant.
 Fresh initialization defaults the active project provider to `anthropic` with model `claude-opus-4-6`.
 `ignite` handles the main first-run setup (project, model/provider, Telegram, command sync, and optional pairing/extra agent).
 If you need to adjust settings later, rerun `ignite` or use `setup`, `project`, and `agent` commands directly.

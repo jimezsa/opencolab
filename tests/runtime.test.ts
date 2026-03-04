@@ -50,6 +50,8 @@ test("init and agent create seed AGENTS.md from built-in researcher template", (
     assert.equal(mainAgentDoc.includes("## Agent File Map"), true);
     assert.equal(mainAgentDoc.includes("ALMA.md: communication style, tone, and behavioral guardrails."), true);
     assert.equal(mainAgentDoc.includes("MEMORY.md: durable facts learned over time"), true);
+    assert.equal(mainAgentDoc.includes("Before deep research, clarify the human's true intention behind the topic."), true);
+    assert.equal(mainAgentDoc.includes("The agent group is the expert. Do not offload expert reasoning to the human."), true);
     assert.equal(mainAgentDoc.includes("Do not invent sources, data, or experiment results."), true);
 
     runtime.configureAgent("scout");
@@ -89,7 +91,25 @@ test("init seeds IDENTITY.md from built-in identity template", () => {
     const identityDoc = fs.readFileSync(identityPath, "utf8");
     assert.equal(identityDoc.includes("# IDENTITY.md - Who Am I?"), true);
     assert.equal(identityDoc.includes("Fill this in during your first conversation."), true);
+    assert.equal(identityDoc.includes("Before investigating deeply, you must clarify the human's true intention for the topic."), true);
     assert.equal(identityDoc.includes("Save this file in the active agent directory as IDENTITY.md."), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("init seeds ALMA.md from built-in alma template", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-alma-template-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+
+    const almaPath = path.join(tempDir, "projects", "default", "ALMA.md");
+    const almaDoc = fs.readFileSync(almaPath, "utf8");
+    assert.equal(almaDoc.includes("# ALMA.md - Who You Are"), true);
+    assert.equal(almaDoc.includes("Before deep research, ask concise clarifying questions to uncover the human's true intention."), true);
+    assert.equal(almaDoc.includes("Operate as the expert; involve the human for key decisions and support activities."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
