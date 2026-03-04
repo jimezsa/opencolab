@@ -4,7 +4,9 @@
   <img src="docs/assets/header.png" alt="OpenColab Header" width="550" />
 </p>
 
-OpenColab is a personal multi-agent AI research lab designed to help researchers and accelerate scientific discoveries.
+OpenColab is a personal multi-agent AI research lab that turns one researcher into a coordinated scientific team.
+It combines strategic guidance, parallel investigation, and rigorous synthesis so ideas can move from hypothesis to evidence faster.
+The vision is an always-on lab where the research-agent expert group leads execution with discipline, while the human defines initial goals and supports with coordination, key decisions, and key activities.
 
 ## Why?
 
@@ -15,7 +17,7 @@ Default collaboration model:
 - the human defines the initial problem, goals, and constraints
 - before deep research, agents clarify the human's true intention for the topic
 - the agent group refines framing, runs investigation, and iterates
-- the agent group is the expert; the human assists key decisions and key activities
+- the agent group is the expert and does not offload expert reasoning; the human assists coordination, key decisions, and key activities
 
 Architecture:
 

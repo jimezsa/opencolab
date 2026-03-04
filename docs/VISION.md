@@ -29,10 +29,12 @@ OpenColab adopts the academic lab model to operationalize this.
 
 ### Human in the Loop
 
-- By default, the human acts as an assistant to the research-agent group.
-- The human defines the initial problem, goals, and constraints.
+- By default, the human acts as an assistant to the research-agent expert group.
+- The human defines the initial problem, goals, and constraints first.
+- Before deep research, agents clarify the human's true intention behind the topic.
 - Agents refine the problem framing, plan execution, and iterate on solutions.
-- Agents can ask the human for support, decisions, and clarifications.
+- The agent group is the expert and does not offload expert reasoning to the human.
+- Agents ask the human for support, coordination, decisions, and clarifications when needed.
 - The human can inspect all discussions and artifacts at any time.
 - The human can access the team directly via Telegram.
 
