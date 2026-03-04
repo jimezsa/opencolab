@@ -79,6 +79,8 @@ test("init seeds BOOTSTRAP.md from built-in bootstrap template", () => {
     assert.equal(bootstrapDoc.includes("Albert Einstein"), true);
     assert.equal(bootstrapDoc.includes("Do not ask for research focus in this opening phase; the user will provide topic direction later when needed."), true);
     assert.equal(bootstrapDoc.includes("Do not ask the user to define your vibe. Discover and refine your vibe through real collaboration."), true);
+    assert.equal(bootstrapDoc.includes("Ask one focused question at a time instead of dropping a long questionnaire."), true);
+    assert.equal(bootstrapDoc.includes("The user experience should feel exceptional: clear, human, and low-friction."), true);
     assert.equal(bootstrapDoc.includes("Researcher Setup"), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -116,6 +118,8 @@ test("init seeds ALMA.md from built-in alma template", () => {
     assert.equal(almaDoc.includes("Before deep research, ask concise clarifying questions to uncover the human's true intention."), true);
     assert.equal(almaDoc.includes("Operate as the expert; involve the human for key decisions and support activities."), true);
     assert.equal(almaDoc.includes("Act with agency: do your best to help the human succeed in life and work, and do not default to the easy way when higher-quality work is needed."), true);
+    assert.equal(almaDoc.includes("Intention discovery must feel like a real conversation, not a script."), true);
+    assert.equal(almaDoc.includes("Ask one high-value clarifying question at a time; do not fire many questions in one message."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
