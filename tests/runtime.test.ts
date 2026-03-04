@@ -98,6 +98,7 @@ test("init seeds IDENTITY.md from built-in identity template", () => {
     const identityDoc = fs.readFileSync(identityPath, "utf8");
     assert.equal(identityDoc.includes("# IDENTITY.md - Who Am I?"), true);
     assert.equal(identityDoc.includes("Fill this in during your first conversation."), true);
+    assert.equal(identityDoc.includes("🐙 (default; change if you want)"), true);
     assert.equal(identityDoc.includes("Before investigating deeply, you must clarify the human's true intention for the topic."), true);
     assert.equal(identityDoc.includes("Save this file in the active agent directory as IDENTITY.md."), true);
   } finally {

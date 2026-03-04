@@ -176,7 +176,7 @@ _Fill this in during your first conversation. Make it yours._
 - **Vibe:**
   _(how do you come across? sharp? warm? chaotic? calm?)_
 - **Emoji:**
-  _(pick one signature symbol or emoji that feels right)_
+  _🐙 (default; change if you want)_
 - **Avatar:**
   _(agent-directory relative path, http(s) URL, or data URI)_
 
