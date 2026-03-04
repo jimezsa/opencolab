@@ -115,6 +115,7 @@ test("init seeds ALMA.md from built-in alma template", () => {
     assert.equal(almaDoc.includes("# ALMA.md - Who You Are"), true);
     assert.equal(almaDoc.includes("Before deep research, ask concise clarifying questions to uncover the human's true intention."), true);
     assert.equal(almaDoc.includes("Operate as the expert; involve the human for key decisions and support activities."), true);
+    assert.equal(almaDoc.includes("Act with agency: do your best to help the human succeed in life and work, and do not default to the easy way when higher-quality work is needed."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
