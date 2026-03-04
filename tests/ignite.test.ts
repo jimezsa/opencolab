@@ -18,8 +18,6 @@ test("ignite configures project, provider, telegram, and optional agent", async 
     "openai",
     "gpt-5.3-codex",
     "OPENAI_API_KEY",
-    "codex",
-    "exec,-",
     "y",
     "TELEGRAM_BOT_TOKEN",
     "10001",
@@ -90,8 +88,6 @@ test("ignite lets Esc skip a step and continue", async () => {
     "openai",
     "gpt-5.3-codex",
     "OPENAI_API_KEY",
-    "codex",
-    "exec,-",
     ESC_INPUT,
     "n"
   ];

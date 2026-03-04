@@ -12,6 +12,7 @@ import {
   readProjectState,
   writeProjectState
 } from "./project-config.js";
+import { getProviderSetupDefaults } from "./provider.js";
 import {
   TelegramGateway,
   type TelegramFileSender,
@@ -38,8 +39,8 @@ export interface ModelSetupInput {
   providerName: ProviderName;
   model: string;
   apiKeyEnvVar: string;
-  cliCommand: string;
-  cliArgs: string[];
+  cliCommand?: string;
+  cliArgs?: string[];
 }
 
 export interface TelegramSetupInput {
@@ -159,6 +160,10 @@ export class OpenColabRuntime {
 
   setupModel(input: ModelSetupInput): OpenColabState {
     const project = this.getActiveProject();
+    const providerDefaults = getProviderSetupDefaults(input.providerName);
+    const cliCommand = input.cliCommand?.trim() || providerDefaults.cliCommand;
+    const cliArgs =
+      input.cliArgs && input.cliArgs.length > 0 ? input.cliArgs : providerDefaults.cliArgs;
 
     this.state = {
       ...this.state,
@@ -170,8 +175,8 @@ export class OpenColabRuntime {
             name: input.providerName,
             model: input.model,
             apiKeyEnvVar: input.apiKeyEnvVar,
-            cliCommand: input.cliCommand,
-            cliArgs: input.cliArgs
+            cliCommand,
+            cliArgs
           }
         }
       }

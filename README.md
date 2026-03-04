@@ -63,6 +63,7 @@ node dist/src/cli.js ignite
 `AGENTS.md` is seeded from an internal essential researcher template.
 That template defaults to a workflow where the human defines the initial problem, the agents clarify true intent before deep research, and the human supports the expert agent group as an assistant.
 Fresh initialization defaults the active project provider to `anthropic` with model `claude-opus-4-6`.
+Provider setup asks for provider, model, and API key env var; CLI command/args are auto-set from provider defaults.
 `ignite` handles the main first-run setup (project, model/provider, Telegram, command sync, and optional pairing/extra agent).
 If you need to adjust settings later, rerun `ignite` or use `setup`, `project`, and `agent` commands directly.
 During `ignite`, press `Esc` to skip the current step and continue with the next one.

@@ -46,7 +46,7 @@ export async function runIgnite(
     selectProject(runtime, stepIo)
   );
   io.write("|");
-  await runStep(io, "* Provider configure model and runtime", async (stepIo) =>
+  await runStep(io, "* Provider configure model and key", async (stepIo) =>
     configureProvider(runtime, stepIo)
   );
   io.write("|");
@@ -129,24 +129,15 @@ async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promi
   const defaultApiKeyEnvVar = useCurrentProviderDefaults
     ? currentProvider.apiKeyEnvVar
     : providerDefaults.apiKeyEnvVar;
-  const defaultCliCommand = useCurrentProviderDefaults
-    ? currentProvider.cliCommand
-    : providerDefaults.cliCommand;
-  const defaultCliArgs = useCurrentProviderDefaults ? currentProvider.cliArgs : providerDefaults.cliArgs;
   const modelOptions = withFallbackOption(PROVIDER_MODEL_OPTIONS[providerName], defaultModel);
 
   const model = await askFromOptions(io, "Model", modelOptions, defaultModel);
   const apiKeyEnvVar = await askWithDefault(io, "API key env var", defaultApiKeyEnvVar);
-  const cliCommand = await askWithDefault(io, "CLI command", defaultCliCommand);
-  const cliArgsInput = await askWithDefault(io, "CLI args (comma-separated)", defaultCliArgs.join(","));
-  const cliArgs = parseCsvInput(cliArgsInput, defaultCliArgs);
 
   runtime.setupModel({
     providerName,
     model,
-    apiKeyEnvVar,
-    cliCommand,
-    cliArgs
+    apiKeyEnvVar
   });
 
   io.write(`Provider configured for project '${project.id}': ${providerName}`);
@@ -335,19 +326,6 @@ async function askYesNo(io: IgniteIo, label: string, defaultValue: boolean): Pro
 
   io.write("Please answer 'y' or 'n'.");
   return askYesNo(io, label, defaultValue);
-}
-
-function parseCsvInput(value: string, fallback: string[]): string[] {
-  const parsed = value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  if (parsed.length === 0) {
-    return [...fallback];
-  }
-
-  return parsed;
 }
 
 function withFallbackOption(options: string[], value: string): string[] {

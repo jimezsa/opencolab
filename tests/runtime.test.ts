@@ -121,7 +121,7 @@ test("init seeds ALMA.md from built-in alma template", () => {
   }
 });
 
-test("setupModel supports anthropic provider defaults for active project", () => {
+test("setupModel auto-sets provider CLI defaults for active project", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-runtime-"));
   const runtime = createRuntime(tempDir);
 
@@ -130,14 +130,14 @@ test("setupModel supports anthropic provider defaults for active project", () =>
     runtime.setupModel({
       providerName: "anthropic",
       model: "claude-sonnet-4-5",
-      apiKeyEnvVar: "ANTHROPIC_API_KEY",
-      cliCommand: "claude",
-      cliArgs: ["-p", "{prompt}", "--model", "{model}"]
+      apiKeyEnvVar: "ANTHROPIC_API_KEY"
     });
 
     const project = runtime.getActiveProject();
     assert.equal(project.provider.name, "anthropic");
     assert.equal(project.provider.apiKeyEnvVar, "ANTHROPIC_API_KEY");
+    assert.equal(project.provider.cliCommand, "claude");
+    assert.deepEqual(project.provider.cliArgs, ["-p", "{prompt}", "--model", "{model}"]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

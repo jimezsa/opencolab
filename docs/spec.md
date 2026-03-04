@@ -130,6 +130,7 @@ Responsibilities:
 
 - initialize state and default project/agent files when `ignite` runs
 - configure provider for the active project
+- provider configuration must ask only for provider, model, and API key env var; provider CLI command/args must be auto-derived from internal defaults
 - configure one shared Telegram setup for all projects
 - create/list/select projects
 - create/list/select agents inside active project

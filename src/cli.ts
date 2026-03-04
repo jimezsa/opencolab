@@ -334,17 +334,6 @@ function parseFlags(args: string[]): {
   return { values, positionals };
 }
 
-function parseCsv(value: string | undefined): string[] {
-  if (!value) {
-    return [];
-  }
-
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function formatHelp(lines: string[]): string {
   return lines.join("\n");
 }
@@ -410,7 +399,7 @@ function usageSetup(): string {
     "Usage:",
     helpCommand(
       "opencolab setup model [flags]",
-      "Configure provider, model, and CLI",
+      "Configure provider, model, and API key env var",
     ),
     helpCommand(
       "opencolab setup telegram [flags]",
@@ -441,7 +430,7 @@ function usageSetupModel(): string {
   return formatHelp([
     "Usage:",
     helpCommand(
-      "opencolab setup model [--provider openai|anthropic] [--model <model>] [--api-key-env-var <env>] [--cli-command <cmd>] [--cli-args '<arg1,arg2>']",
+      "opencolab setup model [--provider openai|anthropic] [--model <model>] [--api-key-env-var <env>]",
       "Configure active project runtime",
     ),
     "",
@@ -449,8 +438,6 @@ function usageSetupModel(): string {
     helpFlag("--provider openai|anthropic", "Provider identifier"),
     helpFlag("--model <model>", "Provider model name"),
     helpFlag("--api-key-env-var <env>", "Env var that stores provider API key"),
-    helpFlag("--cli-command <cmd>", "Provider CLI executable"),
-    helpFlag("--cli-args '<arg1,arg2>'", "Comma-separated CLI args template"),
   ]);
 }
 
@@ -815,10 +802,6 @@ async function main(): Promise<void> {
       providerName,
       model: values.model ?? providerDefaults.model,
       apiKeyEnvVar: values["api-key-env-var"] ?? providerDefaults.apiKeyEnvVar,
-      cliCommand: values["cli-command"] ?? providerDefaults.cliCommand,
-      cliArgs: parseCsv(
-        values["cli-args"] ?? providerDefaults.cliArgs.join(","),
-      ),
     });
 
     const project = runtime.getActiveProject();
