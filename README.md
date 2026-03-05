@@ -1,4 +1,4 @@
-# OpenColab
+# 🐙 OpenColab
 
 <p align="center">
   <img src="docs/assets/header.png" alt="OpenColab Header" width="550" />
@@ -6,8 +6,12 @@
 
 _Accelerating Scientific Discovery_ — Turn one researcher into an autonomous research army that never sleeps
 
+**Note:** OpenColab is an early-stage, actively evolving project. Features and documentation are rapidly improving—feedback and contributions are welcome!
+
 It combines strategic guidance, parallel investigation, and rigorous synthesis so ideas can move from hypothesis to evidence faster.
 The vision is an always-on lab where the research-agent expert group leads execution with discipline, while the human defines initial goals and supports with coordination, key decisions, and key activities.
+
+Check [docs/VISION.md](docs/VISION.md) to see project direction.
 
 ## Why?
 
