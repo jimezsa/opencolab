@@ -4,7 +4,7 @@
   <img src="docs/assets/header.png" alt="OpenColab Header" width="550" />
 </p>
 
-_Accelerating Scientific Discovery_ — Turn one researcher into an autonomous research army that never sleeps
+_Accelerating Scientific Discovery_ — Turn one researcher into an always-on autonomous research lab that investigates, builds, and publishes.
 
 **Note:** OpenColab is an early-stage, actively evolving project. Features and documentation are rapidly improving—feedback and contributions are welcome!
 
