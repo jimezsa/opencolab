@@ -50,5 +50,6 @@ test("renderSystemdUnit includes foreground gateway command and restart policy",
   assert.equal(output.includes("--foreground"), true);
   assert.equal(output.includes("Restart=always"), true);
   assert.equal(output.includes("Environment=\"OPENCOLAB_ROOT="), true);
-  assert.equal(output.includes("gateway.stderr.log"), true);
+  assert.equal(output.includes("StandardOutput=journal"), true);
+  assert.equal(output.includes("StandardError=journal"), true);
 });
