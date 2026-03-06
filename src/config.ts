@@ -1,3 +1,7 @@
+/**
+ * Runtime configuration loader.
+ * Resolves repository paths and imports environment values from local env files.
+ */
 import fs from "node:fs";
 import path from "node:path";
 
