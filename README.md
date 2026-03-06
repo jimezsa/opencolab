@@ -81,6 +81,20 @@ Start local gateway server:
 opencolab gateway start --port 4646
 ```
 
+`gateway start` runs as a background service by default on macOS/Linux.
+Useful commands:
+
+- `opencolab gateway status`
+- `opencolab gateway logs`
+- `opencolab gateway stop`
+- `opencolab gateway restart --port 4646`
+
+If you want to run it in the active terminal process:
+
+```bash
+opencolab gateway start --foreground true --port 4646
+```
+
 ## Hacky Manual Run (git clone + node)
 
 If you prefer not to use the installer command shim:
@@ -91,7 +105,7 @@ cd opencolab
 pnpm install
 pnpm run build
 node dist/src/cli.js ignite
-node dist/src/cli.js gateway start --port 4646
+node dist/src/cli.js gateway start --foreground true --port 4646
 ```
 
 Telegram webhook endpoint:
