@@ -590,6 +590,14 @@ function parseProviderName(value: string | undefined): ProviderName {
   return parsed;
 }
 
+function resolveRuntimeRootDir(): string {
+  const configured = process.env.OPENCOLAB_ROOT?.trim();
+  if (configured) {
+    return configured;
+  }
+  return process.cwd();
+}
+
 async function syncTelegramBotCommands(
   chatId?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -738,7 +746,8 @@ async function main(): Promise<void> {
     (command === "gateway" || command === "getway" || command === "web") &&
     subcommand === "start"
   ) {
-    const runtime = createRuntime();
+    const runtimeRootDir = resolveRuntimeRootDir();
+    const runtime = createRuntime(runtimeRootDir);
     runtime.init();
     const autoSync = await autoSyncTelegramCommandsIfConfigured(
       runtime.getState(),
@@ -758,11 +767,11 @@ async function main(): Promise<void> {
     const telegramPolling =
       values["telegram-polling"] !== "false" &&
       values["telegram-polling"] !== "0";
-    startHttpServer(port, process.cwd(), { telegramPolling });
+    startHttpServer(port, runtimeRootDir, { telegramPolling });
     return;
   }
 
-  const runtime = createRuntime();
+  const runtime = createRuntime(resolveRuntimeRootDir());
   runtime.init();
 
   if (command === "init") {

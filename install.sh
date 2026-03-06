@@ -238,6 +238,8 @@ install_cli_shim() {
   cat > "${BIN_DIR}/opencolab" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+cd "${INSTALL_DIR}"
+export OPENCOLAB_ROOT="${INSTALL_DIR}"
 exec node "${INSTALL_DIR}/dist/src/cli.js" "\$@"
 EOF
   chmod +x "${BIN_DIR}/opencolab"
