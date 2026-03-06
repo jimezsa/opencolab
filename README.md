@@ -67,17 +67,12 @@ On macOS, if `opencolab` is not immediately available, run:
 source ~/.zprofile
 ```
 
-## Quickstart
+## Quickstart (Recommended)
+
+Run interactive first-run setup (state initialization, project, model/provider, Telegram, pairing, and optional extra agent):
 
 ```bash
-pnpm install
-pnpm run build
-```
-
-Run an interactive, step-by-step first-run setup (state initialization, project, model/provider, Telegram, pairing, and optional extra agent):
-
-```bash
-node dist/src/cli.js ignite
+opencolab ignite
 ```
 
 `ignite` initializes state and default project/agent files automatically.
@@ -93,6 +88,19 @@ During `ignite`, press `Esc` to skip the current step and continue with the next
 Start local gateway server:
 
 ```bash
+opencolab gateway start --port 4646
+```
+
+## Hacky Manual Run (git clone + node)
+
+If you prefer not to use the installer command shim:
+
+```bash
+git clone https://github.com/jimezsa/opencolab.git
+cd opencolab
+pnpm install
+pnpm run build
+node dist/src/cli.js ignite
 node dist/src/cli.js gateway start --port 4646
 ```
 
