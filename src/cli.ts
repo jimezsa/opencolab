@@ -164,6 +164,7 @@ async function askInteractive(prompt: string): Promise<string> {
     const cleanup = (): void => {
       process.stdin.off("keypress", onKeypress);
       process.stdin.setRawMode(false);
+      process.stdin.pause();
     };
 
     const onKeypress = (chunk: string, key: Keypress): void => {
@@ -269,6 +270,7 @@ async function chooseInteractive(
     const cleanup = (): void => {
       process.stdin.off("keypress", onKeypress);
       process.stdin.setRawMode(false);
+      process.stdin.pause();
       clearRender();
     };
 
@@ -932,6 +934,7 @@ async function main(): Promise<void> {
       if (process.stdin.isTTY) {
         process.stdin.setRawMode(false);
       }
+      process.stdin.pause();
     }
     return;
   }
