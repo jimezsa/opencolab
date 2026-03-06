@@ -1,3 +1,7 @@
+/**
+ * Provider CLI adapter for agent responses.
+ * Builds prompts, invokes provider CLIs, and normalizes command output/errors.
+ */
 import { spawn } from "node:child_process";
 import type { OpenColabConfig } from "./config.js";
 import { buildAgentPromptForInput, resolveAgentDirectory } from "./agent.js";
