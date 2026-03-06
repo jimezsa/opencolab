@@ -75,16 +75,6 @@ Run interactive first-run setup (state initialization, project, model/provider, 
 opencolab ignite
 ```
 
-`ignite` initializes state and default project/agent files automatically.
-`AGENTS.md` is seeded from an internal essential researcher template.
-That template defaults to a workflow where the human defines the initial problem, the agents clarify true intent before deep research, and the human supports the expert agent group as an assistant.
-Fresh initialization defaults the active project provider to `anthropic` with model `claude-opus-4-6`.
-Provider setup asks for provider, model, and API key value; `ignite` writes keys to `.env.local` automatically.
-If a provider key already exists in `.env.local`, `ignite` detects it and lets you keep or update it.
-`ignite` handles the main first-run setup (project, model/provider, Telegram, command sync, and optional pairing/extra agent).
-If you need to adjust settings later, rerun `ignite` or use `setup`, `project`, and `agent` commands directly.
-During `ignite`, press `Esc` to skip the current step and continue with the next one.
-
 Start local gateway server:
 
 ```bash
@@ -102,15 +92,6 @@ pnpm install
 pnpm run build
 node dist/src/cli.js ignite
 node dist/src/cli.js gateway start --port 4646
-```
-
-During response generation, the gateway sends Telegram `typing...` feedback automatically.
-Telegram inbound supports text plus file/media messages (document, photo, audio, video, voice, video note, animation, sticker).
-
-Agent responses can send Telegram files with directive lines:
-
-```text
-@telegram-file {"kind":"document","file":"<file_id_or_url>","caption":"optional"}
 ```
 
 Telegram webhook endpoint:
