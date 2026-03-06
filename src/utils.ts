@@ -1,3 +1,7 @@
+/**
+ * Small shared utility helpers.
+ * Includes filesystem safety helpers and common time/random/json operations.
+ */
 import { randomInt } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
