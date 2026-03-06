@@ -123,6 +123,7 @@ Required command groups:
 - `opencolab setup model`
 - `opencolab setup telegram`
 - `opencolab setup telegram pair`
+- `opencolab gateway`
 - `opencolab project`
 - `opencolab agent`
 
@@ -137,6 +138,11 @@ Responsibilities:
 - create/list/select projects
 - create/list/select agents inside active project
 - show active project/agent/provider status
+- `opencolab gateway start` should start a persistent background service by default and return immediately
+- `opencolab gateway start --foreground` should run the gateway in the current terminal process
+- `opencolab gateway` should support lifecycle commands: `start`, `stop`, `restart`, `status`, and `logs`
+- on macOS, gateway background mode should be managed via user `launchd` agent
+- on Linux, gateway background mode should be managed via user `systemd` service
 - provide an interactive onboarding flow for first-time setup of project selection, provider/model, Telegram setup, and optional pairing/extra agent creation
 - `ignite` onboarding should allow skipping the current step with `Esc` and continue to the next step
 - `ignite` onboarding should detect existing provider setup and allow keeping or updating it
