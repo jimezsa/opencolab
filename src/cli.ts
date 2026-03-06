@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+/**
+ * OpenColab CLI entrypoint.
+ * Parses commands, runs onboarding/setup flows, and starts gateway services.
+ */
 import { emitKeypressEvents } from "node:readline";
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
