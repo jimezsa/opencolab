@@ -10,6 +10,7 @@ opencolab.json
 projects/
 coverage/
 .tmp/
+.env
 .env.local
 .opencolab/
 agents/

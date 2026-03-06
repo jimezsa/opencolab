@@ -16,7 +16,7 @@ import type {
   TelegramInbound,
   TelegramOutboundFile
 } from "./types.js";
-import { resolveSecretReference } from "./secrets.js";
+import { resolveTelegramBotToken } from "./secrets.js";
 import { nowIso, randomDigits } from "./utils.js";
 
 export type TelegramSender = (
@@ -503,7 +503,8 @@ export async function defaultTelegramSender(
   text: string,
   state: OpenColabState
 ): Promise<boolean> {
-  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
+  void state;
+  const token = resolveTelegramBotToken();
   if (!token) {
     return false;
   }
@@ -530,7 +531,8 @@ export async function defaultTelegramTypingSender(
   chatId: string,
   state: OpenColabState
 ): Promise<boolean> {
-  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
+  void state;
+  const token = resolveTelegramBotToken();
   if (!token) {
     return false;
   }
@@ -558,7 +560,8 @@ export async function defaultTelegramFileSender(
   file: TelegramOutboundFile,
   state: OpenColabState
 ): Promise<boolean> {
-  const token = resolveSecretReference(state.telegram.botTokenEnvVar);
+  void state;
+  const token = resolveTelegramBotToken();
   if (!token) {
     return false;
   }

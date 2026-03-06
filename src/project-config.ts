@@ -67,6 +67,7 @@ export function createDefaultAgentConfig(projectId: string, agentId = DEFAULT_AG
 
 export function createDefaultProjectState(projectId = DEFAULT_PROJECT_ID): ProjectState {
   const defaultAgent = createDefaultAgentConfig(projectId, DEFAULT_AGENT_ID);
+  const providerDefaults = getProviderSetupDefaults("anthropic");
 
   return {
     id: projectId,
@@ -77,14 +78,15 @@ export function createDefaultProjectState(projectId = DEFAULT_PROJECT_ID): Proje
     },
     provider: {
       name: "anthropic",
-      ...getProviderSetupDefaults("anthropic")
+      model: providerDefaults.model,
+      cliCommand: providerDefaults.cliCommand,
+      cliArgs: [...providerDefaults.cliArgs]
     }
   };
 }
 
 export function createDefaultTelegramConfig(): TelegramConfig {
   return {
-    botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
     chatId: null,
     paired: false,
     pairedAt: null,
@@ -406,7 +408,6 @@ function normalizeProvider(
   return {
     name: providerName,
     model: asString(sourceProvider?.model, providerDefaults.model),
-    apiKeyEnvVar: asString(sourceProvider?.apiKeyEnvVar, providerDefaults.apiKeyEnvVar),
     cliCommand: asString(sourceProvider?.cliCommand, providerDefaults.cliCommand),
     cliArgs
   };
@@ -445,7 +446,6 @@ function normalizeTelegram(
   defaults: TelegramConfig
 ): TelegramConfig {
   return {
-    botTokenEnvVar: asString(sourceTelegram?.botTokenEnvVar, defaults.botTokenEnvVar),
     chatId: asNullableString(sourceTelegram?.chatId),
     paired: Boolean(sourceTelegram?.paired),
     pairedAt: asNullableString(sourceTelegram?.pairedAt),

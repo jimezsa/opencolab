@@ -2,8 +2,7 @@ import { spawn } from "node:child_process";
 import type { OpenColabConfig } from "./config.js";
 import { buildAgentPromptForInput, resolveAgentDirectory } from "./agent.js";
 import { getActiveAgent, getActiveProject } from "./project-config.js";
-import { getCanonicalProviderKeyEnvVar } from "./provider.js";
-import { isLiteralSecretReference, resolveSecretReference } from "./secrets.js";
+import { getProviderApiKeyEnvVar, resolveProviderApiKey } from "./secrets.js";
 import type { ConversationMessage, OpenColabState, TelegramFilePayload } from "./types.js";
 
 const MAX_CLI_CAPTURE_CHARS = 200_000;
@@ -48,15 +47,13 @@ export class CodexAgent {
     provider: OpenColabState["projects"][string]["provider"],
     agentPath: string
   ): Promise<string> {
-    const apiKey = resolveSecretReference(provider.apiKeyEnvVar);
+    const canonicalKeyName = getProviderApiKeyEnvVar(provider.name);
+    const apiKey = resolveProviderApiKey(provider.name);
     if (!apiKey) {
-      throw new Error("Missing required provider API key (env var or literal value).");
+      throw new Error(
+        `Missing required provider API key (${canonicalKeyName}). Set it in .env.local or in the shell environment.`
+      );
     }
-    const configuredReference = provider.apiKeyEnvVar.trim();
-    const canonicalKeyName = getCanonicalProviderKeyEnvVar(provider.name);
-    const preferredKeyName = isLiteralSecretReference(configuredReference)
-      ? canonicalKeyName
-      : configuredReference;
 
     const cwd = resolveAgentDirectory(this.config.rootDir, agentPath);
     const resolvedArgs = provider.cliArgs.map((arg) => arg.replaceAll("{model}", provider.model));
@@ -69,7 +66,6 @@ export class CodexAgent {
         env: {
           ...process.env,
           [canonicalKeyName]: apiKey,
-          ...(preferredKeyName !== canonicalKeyName ? { [preferredKeyName]: apiKey } : {}),
           OPENCOLAB_MODEL: provider.model
         },
         stdio: ["pipe", "pipe", "pipe"]

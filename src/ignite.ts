@@ -1,5 +1,12 @@
 import { getProviderSetupDefaults, normalizeProviderName } from "./provider.js";
 import type { OpenColabRuntime } from "./runtime.js";
+import {
+  getProviderApiKeyEnvVar,
+  resolveProviderApiKey,
+  resolveTelegramBotToken,
+  TELEGRAM_BOT_TOKEN_ENV_VAR,
+  writeSecretToLocalEnv
+} from "./secrets.js";
 import type { ProviderName } from "./types.js";
 
 const ESC_INPUT = "\u001b";
@@ -27,10 +34,7 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
 };
 
 export interface IgniteDependencies {
-  syncTelegramCommands: (
-    botTokenReference: string,
-    chatId?: string | null
-  ) => Promise<SyncTelegramCommandsResult>;
+  syncTelegramCommands: (chatId?: string | null) => Promise<SyncTelegramCommandsResult>;
 }
 
 export async function runIgnite(
@@ -121,26 +125,60 @@ async function selectProject(runtime: OpenColabRuntime, io: IgniteIo): Promise<v
 async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promise<void> {
   const project = runtime.getActiveProject();
   const currentProvider = project.provider;
+  const currentProviderEnvVar = getProviderApiKeyEnvVar(currentProvider.name);
+  const hasCurrentProviderKey = resolveProviderApiKey(currentProvider.name) !== null;
+
+  if (hasCurrentProviderKey) {
+    const keepCurrent = await askYesNo(
+      io,
+      `Provider already configured (${currentProvider.name}/${currentProvider.model}). Keep current setup?`,
+      true
+    );
+    if (keepCurrent) {
+      io.write(
+        `Provider unchanged for project '${project.id}': ${currentProvider.name} (${currentProvider.model}).`
+      );
+      return;
+    }
+  } else {
+    io.write(`Provider key not found in environment: ${currentProviderEnvVar}`);
+  }
+
   const providerName = await askProviderName(io, currentProvider.name);
   const providerDefaults = getProviderSetupDefaults(providerName);
   const useCurrentProviderDefaults = providerName === currentProvider.name;
 
   const defaultModel = useCurrentProviderDefaults ? currentProvider.model : providerDefaults.model;
-  const defaultApiKeyEnvVar = useCurrentProviderDefaults
-    ? currentProvider.apiKeyEnvVar
-    : providerDefaults.apiKeyEnvVar;
   const modelOptions = withFallbackOption(PROVIDER_MODEL_OPTIONS[providerName], defaultModel);
+  const providerApiKeyEnvVar = getProviderApiKeyEnvVar(providerName);
 
   const model = await askFromOptions(io, "Model", modelOptions, defaultModel);
-  const apiKeyEnvVar = await askWithDefault(io, "API key env var", defaultApiKeyEnvVar);
+  const existingProviderKey = resolveProviderApiKey(providerName);
+  let shouldWriteProviderKey = true;
+
+  if (existingProviderKey) {
+    shouldWriteProviderKey = !(await askYesNo(
+      io,
+      `${providerApiKeyEnvVar} already has a value. Keep it?`,
+      true
+    ));
+  }
+
+  if (shouldWriteProviderKey) {
+    const providerApiKey = await askRequiredWithOptionalDefault(
+      io,
+      `${providerApiKeyEnvVar} value`
+    );
+    writeSecretToLocalEnv(runtime.config.rootDir, providerApiKeyEnvVar, providerApiKey);
+    io.write(`Saved ${providerApiKeyEnvVar} in .env.local.`);
+  }
 
   runtime.setupModel({
     providerName,
-    model,
-    apiKeyEnvVar
+    model
   });
 
-  io.write(`Provider configured for project '${project.id}': ${providerName}`);
+  io.write(`Provider configured for project '${project.id}': ${providerName} (${model})`);
 }
 
 async function configureTelegram(
@@ -150,15 +188,32 @@ async function configureTelegram(
 ): Promise<void> {
   const telegram = runtime.getState().telegram;
   const hasChat = Boolean(telegram.chatId);
+  const hasToken = resolveTelegramBotToken() !== null;
+  const fullyConfigured = hasChat && hasToken;
 
   const shouldConfigure = await askYesNo(
     io,
-    hasChat ? "Update Telegram settings?" : "Configure Telegram now?",
-    !hasChat
+    fullyConfigured ? "Telegram already configured. Update settings?" : "Configure Telegram now?",
+    !fullyConfigured
   );
 
   if (shouldConfigure) {
-    const botTokenEnvVar = await askWithDefault(io, "Telegram bot token env var", telegram.botTokenEnvVar);
+    const keepExistingToken =
+      hasToken &&
+      (await askYesNo(
+        io,
+        `${TELEGRAM_BOT_TOKEN_ENV_VAR} already has a value. Keep it?`,
+        true
+      ));
+    if (!keepExistingToken) {
+      const botToken = await askRequiredWithOptionalDefault(
+        io,
+        `${TELEGRAM_BOT_TOKEN_ENV_VAR} value`
+      );
+      writeSecretToLocalEnv(runtime.config.rootDir, TELEGRAM_BOT_TOKEN_ENV_VAR, botToken);
+      io.write(`Saved ${TELEGRAM_BOT_TOKEN_ENV_VAR} in .env.local.`);
+    }
+
     const chatId = await askRequiredWithOptionalDefault(
       io,
       "Telegram chat id",
@@ -166,15 +221,11 @@ async function configureTelegram(
     );
 
     runtime.setupTelegram({
-      botTokenEnvVar,
       chatId
     });
     io.write(`Telegram configured for chat: ${chatId}`);
 
-    const syncResult = await deps.syncTelegramCommands(
-      runtime.getState().telegram.botTokenEnvVar,
-      runtime.getState().telegram.chatId
-    );
+    const syncResult = await deps.syncTelegramCommands(runtime.getState().telegram.chatId);
     if (syncResult.ok) {
       io.write("Telegram bot commands synced.");
     } else {

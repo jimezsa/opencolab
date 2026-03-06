@@ -70,3 +70,24 @@ test("loadConfig defaults to real codex mode", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("loadConfig reads .env values when .env.local is missing", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-config-env-file-"));
+  const envPath = path.join(tempDir, ".env");
+  fs.writeFileSync(envPath, "ANTHROPIC_API_KEY=anthropic_test_key\n", "utf8");
+
+  const oldAnthropic = process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
+
+  try {
+    loadConfig(tempDir);
+    assert.equal(process.env.ANTHROPIC_API_KEY, "anthropic_test_key");
+  } finally {
+    if (oldAnthropic === undefined) {
+      delete process.env.ANTHROPIC_API_KEY;
+    } else {
+      process.env.ANTHROPIC_API_KEY = oldAnthropic;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

@@ -20,13 +20,11 @@ export type ProviderName = "openai" | "anthropic";
 export interface ProviderConfig {
   name: ProviderName;
   model: string;
-  apiKeyEnvVar: string;
   cliCommand: string;
   cliArgs: string[];
 }
 
 export interface TelegramConfig {
-  botTokenEnvVar: string;
   chatId: string | null;
   paired: boolean;
   pairedAt: string | null;

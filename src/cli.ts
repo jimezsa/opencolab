@@ -5,7 +5,13 @@ import { runIgnite } from "./ignite.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
 import { getProviderSetupDefaults, normalizeProviderName } from "./provider.js";
 import { createRuntime } from "./runtime.js";
-import { resolveSecretReference } from "./secrets.js";
+import {
+  getProviderApiKeyEnvVar,
+  resolveProviderApiKey,
+  resolveTelegramBotToken,
+  TELEGRAM_BOT_TOKEN_ENV_VAR,
+  writeSecretToLocalEnv
+} from "./secrets.js";
 import type { OpenColabState, ProviderName } from "./types.js";
 
 const PROJECT_PET = "🐙";
@@ -399,7 +405,7 @@ function usageSetup(): string {
     "Usage:",
     helpCommand(
       "opencolab setup model [flags]",
-      "Configure provider, model, and API key env var",
+      "Configure provider, model, and API key",
     ),
     helpCommand(
       "opencolab setup telegram [flags]",
@@ -430,14 +436,14 @@ function usageSetupModel(): string {
   return formatHelp([
     "Usage:",
     helpCommand(
-      "opencolab setup model [--provider openai|anthropic] [--model <model>] [--api-key-env-var <env>]",
+      "opencolab setup model [--provider openai|anthropic] [--model <model>] [--api-key <value>]",
       "Configure active project runtime",
     ),
     "",
     "Flags:",
     helpFlag("--provider openai|anthropic", "Provider identifier"),
     helpFlag("--model <model>", "Provider model name"),
-    helpFlag("--api-key-env-var <env>", "Env var that stores provider API key"),
+    helpFlag("--api-key <value>", "Provider API key value (saved to .env.local)"),
   ]);
 }
 
@@ -445,12 +451,12 @@ function usageSetupTelegram(): string {
   return formatHelp([
     "Usage:",
     helpCommand(
-      "opencolab setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <id>",
+      "opencolab setup telegram --bot-token <value> --chat-id <id>",
       "Configure Telegram integration",
     ),
     "",
     "Flags:",
-    helpFlag("--bot-token-env-var <env>", "Env var for Telegram bot token"),
+    helpFlag("--bot-token <value>", "Telegram bot token value (saved to .env.local)"),
     helpFlag("--chat-id <id>", "Authorized Telegram chat id"),
   ]);
 }
@@ -459,12 +465,11 @@ function usageSetupTelegramCommandsSync(): string {
   return formatHelp([
     "Usage:",
     helpCommand(
-      "opencolab setup telegram commands sync [--bot-token-env-var TELEGRAM_BOT_TOKEN] [--chat-id <id>]",
+      "opencolab setup telegram commands sync [--chat-id <id>]",
       "Sync Telegram slash command menu",
     ),
     "",
     "Flags:",
-    helpFlag("--bot-token-env-var <env>", "Env var for Telegram bot token"),
     helpFlag("--chat-id <id>", "Specific chat for menu button setup"),
   ]);
 }
@@ -582,14 +587,13 @@ function parseProviderName(value: string | undefined): ProviderName {
 }
 
 async function syncTelegramBotCommands(
-  botTokenReference: string,
   chatId?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
-  const token = resolveSecretReference(botTokenReference);
+  const token = resolveTelegramBotToken();
   if (!token) {
     return {
       ok: false,
-      error: `missing token value for reference '${botTokenReference}'`,
+      error: `missing Telegram bot token (${TELEGRAM_BOT_TOKEN_ENV_VAR})`,
     };
   }
 
@@ -708,10 +712,7 @@ async function autoSyncTelegramCommandsIfConfigured(
     return { attempted: false, ok: true };
   }
 
-  const result = await syncTelegramBotCommands(
-    state.telegram.botTokenEnvVar,
-    state.telegram.chatId,
-  );
+  const result = await syncTelegramBotCommands(state.telegram.chatId);
   return {
     attempted: true,
     ok: result.ok,
@@ -798,17 +799,26 @@ async function main(): Promise<void> {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
     const providerName = parseProviderName(values.provider);
     const providerDefaults = getProviderSetupDefaults(providerName);
+    const keyEnvVar = getProviderApiKeyEnvVar(providerName);
+    const apiKey = values["api-key"]?.trim() ?? "";
+    if (apiKey) {
+      writeSecretToLocalEnv(runtime.config.rootDir, keyEnvVar, apiKey);
+    } else if (!resolveProviderApiKey(providerName)) {
+      throw new Error(
+        `Missing provider API key. Set ${keyEnvVar} in .env.local or pass ${accent("--api-key")} to save it automatically.`,
+      );
+    }
+
     runtime.setupModel({
       providerName,
       model: values.model ?? providerDefaults.model,
-      apiKeyEnvVar: values["api-key-env-var"] ?? providerDefaults.apiKeyEnvVar,
     });
 
     const project = runtime.getActiveProject();
     console.log(`Project: ${project.id}`);
     console.log(`Provider configured: ${project.provider.name}`);
     console.log(`Model: ${project.provider.model}`);
-    console.log(`API key env var: ${project.provider.apiKeyEnvVar}`);
+    console.log(`API key env var: ${keyEnvVar}`);
     console.log(
       `CLI: ${project.provider.cliCommand} ${project.provider.cliArgs.join(" ")}`,
     );
@@ -826,10 +836,8 @@ async function main(): Promise<void> {
     }
 
     const { values } = parseFlags(rest.slice(1));
-    const botTokenReference =
-      values["bot-token-env-var"] ?? runtime.getState().telegram.botTokenEnvVar;
     const chatId = values["chat-id"] ?? runtime.getState().telegram.chatId;
-    const syncResult = await syncTelegramBotCommands(botTokenReference, chatId);
+    const syncResult = await syncTelegramBotCommands(chatId);
     if (!syncResult.ok) {
       throw new Error(
         `Could not sync Telegram commands: ${syncResult.error ?? "unknown error"}`,
@@ -848,24 +856,32 @@ async function main(): Promise<void> {
   ) {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
     const chatId = values["chat-id"];
+    const botToken = values["bot-token"]?.trim() ?? "";
 
     if (!chatId) {
       throw new Error(`${accent("--chat-id")} is required`);
     }
+    if (botToken) {
+      writeSecretToLocalEnv(
+        runtime.config.rootDir,
+        TELEGRAM_BOT_TOKEN_ENV_VAR,
+        botToken,
+      );
+    } else if (!resolveTelegramBotToken()) {
+      throw new Error(
+        `Missing Telegram bot token. Set ${TELEGRAM_BOT_TOKEN_ENV_VAR} in .env.local or pass ${accent("--bot-token")} to save it automatically.`,
+      );
+    }
 
     runtime.setupTelegram({
-      botTokenEnvVar: values["bot-token-env-var"] ?? "TELEGRAM_BOT_TOKEN",
       chatId,
     });
 
     const state = runtime.getState();
     console.log("Telegram configured.");
     console.log(`Chat ID: ${state.telegram.chatId}`);
-    console.log(`Bot token env var: ${state.telegram.botTokenEnvVar}`);
-    const syncResult = await syncTelegramBotCommands(
-      state.telegram.botTokenEnvVar,
-      state.telegram.chatId,
-    );
+    console.log(`Bot token env var: ${TELEGRAM_BOT_TOKEN_ENV_VAR}`);
+    const syncResult = await syncTelegramBotCommands(state.telegram.chatId);
     if (syncResult.ok) {
       console.log("Telegram bot commands synced.");
     } else {
@@ -912,10 +928,7 @@ async function main(): Promise<void> {
       const result = runtime.completePairing(code);
       console.log(`Telegram pairing completed at ${result.pairedAt}`);
       const state = runtime.getState();
-      const syncResult = await syncTelegramBotCommands(
-        state.telegram.botTokenEnvVar,
-        state.telegram.chatId,
-      );
+      const syncResult = await syncTelegramBotCommands(state.telegram.chatId);
       if (syncResult.ok) {
         console.log("Telegram bot commands synced.");
       } else {

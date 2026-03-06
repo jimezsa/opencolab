@@ -134,15 +134,40 @@ test("setupModel auto-sets provider CLI defaults for active project", () => {
     runtime.init();
     runtime.setupModel({
       providerName: "anthropic",
-      model: "claude-sonnet-4-5",
-      apiKeyEnvVar: "ANTHROPIC_API_KEY"
+      model: "claude-sonnet-4-5"
     });
 
     const project = runtime.getActiveProject();
     assert.equal(project.provider.name, "anthropic");
-    assert.equal(project.provider.apiKeyEnvVar, "ANTHROPIC_API_KEY");
     assert.equal(project.provider.cliCommand, "claude");
     assert.deepEqual(project.provider.cliArgs, ["-p", "{prompt}", "--model", "{model}"]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runtime persistence excludes secret references from opencolab.json", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-secrets-shape-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "openai",
+      model: "gpt-5.3-codex"
+    });
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const raw = JSON.parse(fs.readFileSync(path.join(tempDir, "opencolab.json"), "utf8")) as {
+      projects: Record<string, { provider: Record<string, unknown> }>;
+      telegram: Record<string, unknown>;
+      activeProjectId: string;
+    };
+    const provider = raw.projects[raw.activeProjectId].provider;
+    assert.equal(Object.hasOwn(provider, "apiKeyEnvVar"), false);
+    assert.equal(Object.hasOwn(raw.telegram, "botTokenEnvVar"), false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -163,7 +188,6 @@ test("pairing start sends code and complete validates it for active project", as
   try {
     runtime.init();
     runtime.setupTelegram({
-      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
       chatId: "10001"
     });
 
@@ -193,7 +217,6 @@ test("webhook rejects unauthorized chat id", async () => {
   try {
     runtime.init();
     runtime.setupTelegram({
-      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
       chatId: "10001"
     });
 
@@ -232,7 +255,6 @@ test("paired webhook routes message to the active agent and stores conversation"
   try {
     runtime.init();
     runtime.setupTelegram({
-      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
       chatId: "10001"
     });
 
@@ -290,7 +312,6 @@ test("paired webhook routes document-only inbound message to the agent", async (
   try {
     runtime.init();
     runtime.setupTelegram({
-      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
       chatId: "10001"
     });
 
@@ -349,7 +370,6 @@ test("agent response can send telegram files via @telegram-file directives", asy
   try {
     runtime.init();
     runtime.setupTelegram({
-      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
       chatId: "10001"
     });
 
@@ -387,7 +407,6 @@ test("paired webhook can reset the session and create a new session folder", asy
   try {
     runtime.init();
     runtime.setupTelegram({
-      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
       chatId: "10001"
     });
 
@@ -464,7 +483,6 @@ test("paired webhook can create and switch projects and agents", async () => {
   try {
     runtime.init();
     runtime.setupTelegram({
-      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
       chatId: "10001"
     });
 
@@ -523,7 +541,6 @@ test("paired webhook supports telegram menu alias commands", async () => {
   try {
     runtime.init();
     runtime.setupTelegram({
-      botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
       chatId: "10001"
     });
 

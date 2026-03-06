@@ -27,7 +27,11 @@ export function loadConfig(cwd = process.cwd()): OpenColabConfig {
 }
 
 function loadLocalEnv(rootDir: string): void {
-  const envPath = path.join(rootDir, ".env.local");
+  loadEnvFile(path.join(rootDir, ".env.local"));
+  loadEnvFile(path.join(rootDir, ".env"));
+}
+
+function loadEnvFile(envPath: string): void {
   if (!fs.existsSync(envPath)) {
     return;
   }

@@ -130,13 +130,16 @@ Responsibilities:
 
 - initialize state and default project/agent files when `ignite` runs
 - configure provider for the active project
-- provider configuration must ask only for provider, model, and API key env var; provider CLI command/args must be auto-derived from internal defaults
+- provider configuration must ask only for provider, model, and API key value; API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`)
+- provider CLI command/args must be auto-derived from internal defaults
 - configure one shared Telegram setup for all projects
+- Telegram token values must be persisted in `.env.local` under `TELEGRAM_BOT_TOKEN`
 - create/list/select projects
 - create/list/select agents inside active project
 - show active project/agent/provider status
 - provide an interactive onboarding flow for first-time setup of project selection, provider/model, Telegram setup, and optional pairing/extra agent creation
 - `ignite` onboarding should allow skipping the current step with `Esc` and continue to the next step
+- `ignite` onboarding should detect existing provider setup and allow keeping or updating it
 
 ## 8. Telegram Management Commands
 
@@ -206,13 +209,11 @@ Minimum shape:
       },
       "provider": {
         "name": "anthropic",
-        "model": "<model-name>",
-        "apiKeyEnvVar": "ANTHROPIC_API_KEY"
+        "model": "<model-name>"
       }
     }
   },
   "telegram": {
-    "botTokenEnvVar": "TELEGRAM_BOT_TOKEN",
     "chatId": "<telegram-chat-id>",
     "paired": true,
     "pairedAt": "2026-02-27T00:00:00.000Z"
@@ -222,7 +223,8 @@ Minimum shape:
 
 Notes:
 
-- secrets are referenced by environment variable names
+- secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`)
+- `opencolab.json` must not store raw secret values or env-var secret references
 - extra fields are allowed if they do not break the minimum contract
 
 ## 11. Message Handling Rules

@@ -2,7 +2,6 @@ import type { ProviderName } from "./types.js";
 
 export interface ProviderSetupDefaults {
   model: string;
-  apiKeyEnvVar: string;
   cliCommand: string;
   cliArgs: string[];
 }
@@ -32,7 +31,6 @@ export function getProviderSetupDefaults(providerName: ProviderName): ProviderSe
   if (providerName === "anthropic") {
     return {
       model: "claude-opus-4-6",
-      apiKeyEnvVar: "ANTHROPIC_API_KEY",
       cliCommand: "claude",
       cliArgs: ["-p", "{prompt}", "--model", "{model}"]
     };
@@ -40,7 +38,6 @@ export function getProviderSetupDefaults(providerName: ProviderName): ProviderSe
 
   return {
     model: "gpt-5.3-codex",
-    apiKeyEnvVar: "OPENAI_API_KEY",
     cliCommand: "codex",
     cliArgs: ["exec", "-"]
   };

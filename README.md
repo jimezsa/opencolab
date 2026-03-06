@@ -51,8 +51,8 @@ Architecture:
 
 - Node.js 22+
 - pnpm 9+
-- Telegram bot token (exported in env var)
-- OpenAI Codex CLI or Claude Code CLI + provider API key env var (or mock mode)
+- Telegram bot token (stored in `.env.local` as `TELEGRAM_BOT_TOKEN`)
+- OpenAI Codex CLI or Claude Code CLI + provider API key (stored in `.env.local` as `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`) (or mock mode)
 
 ## Install
 
@@ -77,7 +77,8 @@ node dist/src/cli.js ignite
 `AGENTS.md` is seeded from an internal essential researcher template.
 That template defaults to a workflow where the human defines the initial problem, the agents clarify true intent before deep research, and the human supports the expert agent group as an assistant.
 Fresh initialization defaults the active project provider to `anthropic` with model `claude-opus-4-6`.
-Provider setup asks for provider, model, and API key env var; CLI command/args are auto-set from provider defaults.
+Provider setup asks for provider, model, and API key value; `ignite` writes keys to `.env.local` automatically.
+If a provider key already exists in `.env.local`, `ignite` detects it and lets you keep or update it.
 `ignite` handles the main first-run setup (project, model/provider, Telegram, command sync, and optional pairing/extra agent).
 If you need to adjust settings later, rerun `ignite` or use `setup`, `project`, and `agent` commands directly.
 During `ignite`, press `Esc` to skip the current step and continue with the next one.
@@ -172,7 +173,8 @@ Conversation history layout:
 - per-project provider config (`openai` or `anthropic`)
 - shared Telegram settings and pairing state
 
-Secrets are referenced by env var names and should not be committed to git.
+Secret values are stored in `.env.local` and should not be committed to git.
+`opencolab.json` stores only non-secret runtime state.
 
 ## Development
 

@@ -38,13 +38,11 @@ export interface RuntimeOptions {
 export interface ModelSetupInput {
   providerName: ProviderName;
   model: string;
-  apiKeyEnvVar: string;
   cliCommand?: string;
   cliArgs?: string[];
 }
 
 export interface TelegramSetupInput {
-  botTokenEnvVar: string;
   chatId: string;
 }
 
@@ -174,7 +172,6 @@ export class OpenColabRuntime {
           provider: {
             name: input.providerName,
             model: input.model,
-            apiKeyEnvVar: input.apiKeyEnvVar,
             cliCommand,
             cliArgs
           }
@@ -193,7 +190,6 @@ export class OpenColabRuntime {
       ...this.state,
       telegram: {
         ...this.state.telegram,
-        botTokenEnvVar: input.botTokenEnvVar,
         chatId: input.chatId,
         paired: chatChanged ? false : this.state.telegram.paired,
         pairedAt: chatChanged ? null : this.state.telegram.pairedAt,
