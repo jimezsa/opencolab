@@ -9,7 +9,7 @@ import {
   createDefaultAgentConfig,
   createDefaultProjectState,
   ensureProjectAndAgent,
-  getActiveProject
+  getActiveProject,
 } from "./project-config.js";
 import type {
   ConversationMessage,
@@ -18,7 +18,7 @@ import type {
   TelegramFileKind,
   TelegramFilePayload,
   TelegramInbound,
-  TelegramOutboundFile
+  TelegramOutboundFile,
 } from "./types.js";
 import { resolveTelegramBotToken } from "./secrets.js";
 import { nowIso, randomDigits } from "./utils.js";
@@ -26,14 +26,17 @@ import { nowIso, randomDigits } from "./utils.js";
 export type TelegramSender = (
   chatId: string,
   text: string,
-  state: OpenColabState
+  state: OpenColabState,
 ) => Promise<boolean>;
 
-export type TelegramTypingSender = (chatId: string, state: OpenColabState) => Promise<boolean>;
+export type TelegramTypingSender = (
+  chatId: string,
+  state: OpenColabState,
+) => Promise<boolean>;
 export type TelegramFileSender = (
   chatId: string,
   file: TelegramOutboundFile,
-  state: OpenColabState
+  state: OpenColabState,
 ) => Promise<boolean>;
 
 interface GatewayDependencies {
@@ -55,19 +58,26 @@ export class TelegramGateway {
 
   constructor(
     private readonly config: OpenColabConfig,
-    private readonly deps: GatewayDependencies
+    private readonly deps: GatewayDependencies,
   ) {
     this.sender = deps.telegramSender ?? defaultTelegramSender;
-    this.typingSender = deps.telegramTypingSender ?? defaultTelegramTypingSender;
+    this.typingSender =
+      deps.telegramTypingSender ?? defaultTelegramTypingSender;
     this.fileSender = deps.telegramFileSender ?? defaultTelegramFileSender;
   }
 
-  async startPairing(): Promise<{ code: string; expiresAt: string; sent: boolean }> {
+  async startPairing(): Promise<{
+    code: string;
+    expiresAt: string;
+    sent: boolean;
+  }> {
     const state = ensureProjectAndAgent(this.deps.getState());
     const project = getActiveProject(state);
 
     if (!state.telegram.chatId) {
-      throw new Error("Telegram chatId is not configured. Run 'opencolab setup telegram'.");
+      throw new Error(
+        "Telegram chatId is not configured. Run 'opencolab setup telegram'.",
+      );
     }
 
     const code = randomDigits(6);
@@ -79,8 +89,8 @@ export class TelegramGateway {
         paired: false,
         pairedAt: null,
         pendingPairingCode: code,
-        pendingPairingExpiresAt: expiresAt
-      }
+        pendingPairingExpiresAt: expiresAt,
+      },
     };
 
     this.deps.saveState(next);
@@ -88,19 +98,18 @@ export class TelegramGateway {
     const sent = await this.sender(
       state.telegram.chatId,
       [
-        "OpenColab pairing request",
-        `Project: ${project.id}`,
-        `Code: ${code}`,
-        "Enter this code in your terminal:",
-        `opencolab setup telegram pair complete --code ${code}`,
-        `Expires: ${expiresAt}`
+        "✨🚀 Welcome to OpenColab Pairing! 🚀✨",
+        "You've unlocked the first step of your research adventure! 🌊🐙",
+        `🔑 Pairing Code: ${code}`,
+        `➡️ To connect, run:\n  opencolab setup telegram pair complete --code ${code}`,
+        "⏰ Code valid for 10 minutes. Let’s dive in! 🌟",
       ].join("\n"),
-      next
+      next,
     );
 
     if (!sent) {
       throw new Error(
-        "Could not send pairing code to Telegram. Ensure bot token is configured (env var or literal token)."
+        "Could not send pairing code to Telegram. Ensure bot token is configured (env var or literal token).",
       );
     }
 
@@ -113,7 +122,9 @@ export class TelegramGateway {
     const pendingExpiresAt = state.telegram.pendingPairingExpiresAt;
 
     if (!pendingCode || !pendingExpiresAt) {
-      throw new Error("No active pairing code. Run 'opencolab setup telegram pair start' first.");
+      throw new Error(
+        "No active pairing code. Run 'opencolab setup telegram pair start' first.",
+      );
     }
 
     if (Date.parse(pendingExpiresAt) < Date.now()) {
@@ -132,8 +143,8 @@ export class TelegramGateway {
         paired: true,
         pairedAt,
         pendingPairingCode: null,
-        pendingPairingExpiresAt: null
-      }
+        pendingPairingExpiresAt: null,
+      },
     };
 
     this.deps.saveState(next);
@@ -147,7 +158,7 @@ export class TelegramGateway {
         ok: true,
         action: "ignored",
         response: "",
-        sent: false
+        sent: false,
       };
     }
 
@@ -159,27 +170,29 @@ export class TelegramGateway {
         ok: false,
         action: "unauthorized_chat",
         response: "Unauthorized chat id",
-        sent: false
+        sent: false,
       };
     }
 
     if (!state.telegram.paired) {
-      const response = "Pairing required. Run 'opencolab setup telegram pair start' in your terminal.";
+      const response =
+        "Pairing required. Run 'opencolab setup telegram pair start' in your terminal.";
       const sent = await this.sender(inbound.chatId, response, state);
       return {
         ok: false,
         action: "pairing_required",
         response,
-        sent
+        sent,
       };
     }
 
-    let commandResult: { nextState?: OpenColabState; response: string } | null = null;
+    let commandResult: { nextState?: OpenColabState; response: string } | null =
+      null;
     try {
       commandResult = this.tryHandleManagementCommand(inbound, state);
     } catch (error) {
       commandResult = {
-        response: error instanceof Error ? error.message : String(error)
+        response: error instanceof Error ? error.message : String(error),
       };
     }
     if (commandResult) {
@@ -187,12 +200,16 @@ export class TelegramGateway {
         this.deps.saveState(commandResult.nextState);
       }
 
-      const sent = await this.sender(inbound.chatId, commandResult.response, state);
+      const sent = await this.sender(
+        inbound.chatId,
+        commandResult.response,
+        state,
+      );
       return {
         ok: true,
         action: "management_command",
         response: commandResult.response,
-        sent
+        sent,
       };
     }
 
@@ -206,25 +223,28 @@ export class TelegramGateway {
         sender: inbound.sender,
         text: inbound.text,
         files: inbound.files,
-        history
+        history,
       });
     } finally {
       stopTyping();
     }
 
     const outbound = parseOutboundAgentResponse(response);
-    const assistantLog = buildAssistantLogContent(outbound.text, outbound.files);
+    const assistantLog = buildAssistantLogContent(
+      outbound.text,
+      outbound.files,
+    );
 
     this.deps.appendConversation(inbound.chatId, {
       role: "user",
       content: inbound.text,
-      at: nowIso()
+      at: nowIso(),
     });
 
     this.deps.appendConversation(inbound.chatId, {
       role: "assistant",
       content: assistantLog,
-      at: nowIso()
+      at: nowIso(),
     });
 
     let sent = true;
@@ -248,19 +268,20 @@ export class TelegramGateway {
       sent = false;
     }
 
-    const responseText = outbound.text || summarizeOutboundFiles(outbound.files);
+    const responseText =
+      outbound.text || summarizeOutboundFiles(outbound.files);
 
     return {
       ok: true,
       action: "agent_response",
       response: responseText,
-      sent
+      sent,
     };
   }
 
   private tryHandleManagementCommand(
     inbound: TelegramInbound,
-    state: OpenColabState
+    state: OpenColabState,
   ): { nextState?: OpenColabState; response: string } | null {
     const text = normalizeManagementInput(inbound.commandText);
     if (!text.startsWith("/")) {
@@ -275,21 +296,21 @@ export class TelegramGateway {
     if (scope === "/project") {
       if (action === "list") {
         return {
-          response: this.renderProjectList(state)
+          response: this.renderProjectList(state),
         };
       }
 
       if (action === "create") {
         if (!value) {
           return {
-            response: "Usage: /project create <project_id>"
+            response: "Usage: /project create <project_id>",
           };
         }
 
         const projectId = normalizeEntityId(value);
         if (state.projects[projectId]) {
           return {
-            response: `Project already exists: ${projectId}`
+            response: `Project already exists: ${projectId}`,
           };
         }
 
@@ -302,8 +323,8 @@ export class TelegramGateway {
           activeProjectId: project.id,
           projects: {
             ...state.projects,
-            [project.id]: project
-          }
+            [project.id]: project,
+          },
         });
 
         const activeAgent = project.agents[project.activeAgentId];
@@ -311,14 +332,14 @@ export class TelegramGateway {
 
         return {
           nextState,
-          response: `Project created and selected: ${project.id}`
+          response: `Project created and selected: ${project.id}`,
         };
       }
 
       if (action === "use") {
         if (!value) {
           return {
-            response: "Usage: /project use <project_id>"
+            response: "Usage: /project use <project_id>",
           };
         }
 
@@ -326,28 +347,31 @@ export class TelegramGateway {
         const target = state.projects[projectId];
         if (!target) {
           return {
-            response: `Unknown project: ${projectId}`
+            response: `Unknown project: ${projectId}`,
           };
         }
 
         const nextState = ensureProjectAndAgent({
           ...state,
-          activeProjectId: projectId
+          activeProjectId: projectId,
         });
 
-        const activeAgent = target.agents[target.activeAgentId] ?? Object.values(target.agents)[0];
+        const activeAgent =
+          target.agents[target.activeAgentId] ??
+          Object.values(target.agents)[0];
         if (activeAgent) {
           ensureAgentFiles(this.config.rootDir, activeAgent);
         }
 
         return {
           nextState,
-          response: `Active project: ${projectId}`
+          response: `Active project: ${projectId}`,
         };
       }
 
       return {
-        response: "Project commands: /project list | /project create <project_id> | /project use <project_id>"
+        response:
+          "Project commands: /project list | /project create <project_id> | /project use <project_id>",
       };
     }
 
@@ -356,21 +380,21 @@ export class TelegramGateway {
 
       if (action === "list") {
         return {
-          response: this.renderAgentList(project)
+          response: this.renderAgentList(project),
         };
       }
 
       if (action === "create") {
         if (!value) {
           return {
-            response: "Usage: /agent create <agent_id>"
+            response: "Usage: /agent create <agent_id>",
           };
         }
 
         const agentId = normalizeEntityId(value);
         if (project.agents[agentId]) {
           return {
-            response: `Agent already exists in project '${project.id}': ${agentId}`
+            response: `Agent already exists in project '${project.id}': ${agentId}`,
           };
         }
 
@@ -384,31 +408,31 @@ export class TelegramGateway {
               activeAgentId: agent.id,
               agents: {
                 ...project.agents,
-                [agent.id]: agent
-              }
-            }
-          }
+                [agent.id]: agent,
+              },
+            },
+          },
         });
 
         ensureAgentFiles(this.config.rootDir, agent);
 
         return {
           nextState,
-          response: `Agent created and selected: ${agent.id} (project ${project.id})`
+          response: `Agent created and selected: ${agent.id} (project ${project.id})`,
         };
       }
 
       if (action === "use") {
         if (!value) {
           return {
-            response: "Usage: /agent use <agent_id>"
+            response: "Usage: /agent use <agent_id>",
           };
         }
 
         const agentId = normalizeEntityId(value);
         if (!project.agents[agentId]) {
           return {
-            response: `Unknown agent in project '${project.id}': ${agentId}`
+            response: `Unknown agent in project '${project.id}': ${agentId}`,
           };
         }
 
@@ -418,21 +442,22 @@ export class TelegramGateway {
             ...state.projects,
             [project.id]: {
               ...project,
-              activeAgentId: agentId
-            }
-          }
+              activeAgentId: agentId,
+            },
+          },
         });
 
         ensureAgentFiles(this.config.rootDir, project.agents[agentId]);
 
         return {
           nextState,
-          response: `Active agent: ${agentId} (project ${project.id})`
+          response: `Active agent: ${agentId} (project ${project.id})`,
         };
       }
 
       return {
-        response: "Agent commands: /agent list | /agent create <agent_id> | /agent use <agent_id>"
+        response:
+          "Agent commands: /agent list | /agent create <agent_id> | /agent use <agent_id>",
       };
     }
 
@@ -440,23 +465,25 @@ export class TelegramGateway {
       if (action === "reset") {
         const sessionId = this.deps.resetConversationSession();
         return {
-          response: `Session reset. New session: ${sessionId}`
+          response: `Session reset. New session: ${sessionId}`,
         };
       }
 
       return {
-        response: "Session commands: /session reset"
+        response: "Session commands: /session reset",
       };
     }
 
     return {
       response:
-        "Supported commands: /project list | /project create <project_id> | /project use <project_id> | /agent list | /agent create <agent_id> | /agent use <agent_id> | /session reset"
+        "Supported commands: /project list | /project create <project_id> | /project use <project_id> | /agent list | /agent create <agent_id> | /agent use <agent_id> | /session reset",
     };
   }
 
   private renderProjectList(state: OpenColabState): string {
-    const entries = Object.values(state.projects).sort((a, b) => a.id.localeCompare(b.id));
+    const entries = Object.values(state.projects).sort((a, b) =>
+      a.id.localeCompare(b.id),
+    );
     const lines = entries.map((project) => {
       const marker = project.id === state.activeProjectId ? "*" : "-";
       return `${marker} ${project.id} (active agent: ${project.activeAgentId})`;
@@ -466,7 +493,9 @@ export class TelegramGateway {
   }
 
   private renderAgentList(project: OpenColabState["projects"][string]): string {
-    const entries = Object.values(project.agents).sort((a, b) => a.id.localeCompare(b.id));
+    const entries = Object.values(project.agents).sort((a, b) =>
+      a.id.localeCompare(b.id),
+    );
     const lines = entries.map((agent) => {
       const marker = agent.id === project.activeAgentId ? "*" : "-";
       return `${marker} ${agent.id} (${agent.path})`;
@@ -475,7 +504,10 @@ export class TelegramGateway {
     return [`Agents in ${project.id} (${entries.length})`, ...lines].join("\n");
   }
 
-  private startTypingFeedback(chatId: string, state: OpenColabState): () => void {
+  private startTypingFeedback(
+    chatId: string,
+    state: OpenColabState,
+  ): () => void {
     let running = true;
 
     const tick = async (): Promise<void> => {
@@ -505,7 +537,7 @@ export class TelegramGateway {
 export async function defaultTelegramSender(
   chatId: string,
   text: string,
-  state: OpenColabState
+  state: OpenColabState,
 ): Promise<boolean> {
   void state;
   const token = resolveTelegramBotToken();
@@ -514,16 +546,19 @@ export async function defaultTelegramSender(
   }
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+        }),
       },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text
-      })
-    });
+    );
 
     return response.ok;
   } catch {
@@ -533,7 +568,7 @@ export async function defaultTelegramSender(
 
 export async function defaultTelegramTypingSender(
   chatId: string,
-  state: OpenColabState
+  state: OpenColabState,
 ): Promise<boolean> {
   void state;
   const token = resolveTelegramBotToken();
@@ -542,16 +577,19 @@ export async function defaultTelegramTypingSender(
   }
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendChatAction`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/sendChatAction`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          action: "typing",
+        }),
       },
-      body: JSON.stringify({
-        chat_id: chatId,
-        action: "typing"
-      })
-    });
+    );
 
     return response.ok;
   } catch {
@@ -562,7 +600,7 @@ export async function defaultTelegramTypingSender(
 export async function defaultTelegramFileSender(
   chatId: string,
   file: TelegramOutboundFile,
-  state: OpenColabState
+  state: OpenColabState,
 ): Promise<boolean> {
   void state;
   const token = resolveTelegramBotToken();
@@ -575,7 +613,7 @@ export async function defaultTelegramFileSender(
 
   const payload: Record<string, unknown> = {
     chat_id: chatId,
-    [fileField]: file.file
+    [fileField]: file.file,
   };
 
   if (file.caption && supportsCaption(file.kind)) {
@@ -583,13 +621,16 @@ export async function defaultTelegramFileSender(
   }
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/${method}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload)
-    });
+    );
 
     return response.ok;
   } catch {
@@ -624,7 +665,7 @@ function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {
     sender: parseSender(asRecord(message.from)),
     commandText: text,
     text: buildInboundText(text, files),
-    files
+    files,
   };
 }
 
@@ -665,7 +706,7 @@ function normalizeEntityId(value: string): string {
 
   if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
     throw new Error(
-      `Invalid identifier '${trimmed}'. Use only letters, numbers, underscore, or hyphen.`
+      `Invalid identifier '${trimmed}'. Use only letters, numbers, underscore, or hyphen.`,
     );
   }
 
@@ -689,7 +730,7 @@ function normalizeManagementInput(raw: string): string {
     "/agent_list": "/agent list",
     "/agent_create": "/agent create",
     "/agent_use": "/agent use",
-    "/session_reset": "/session reset"
+    "/session_reset": "/session reset",
   };
 
   const expanded = aliases[scope];
@@ -708,7 +749,9 @@ function normalizeCommandToken(token: string | undefined): string {
   return token.split("@")[0] ?? token;
 }
 
-function parseInboundFiles(message: Record<string, unknown>): TelegramFilePayload[] {
+function parseInboundFiles(
+  message: Record<string, unknown>,
+): TelegramFilePayload[] {
   const payloads: TelegramFilePayload[] = [];
 
   const document = asRecord(message.document);
@@ -767,7 +810,9 @@ function parseInboundFiles(message: Record<string, unknown>): TelegramFilePayloa
     }
   }
 
-  const photos = Array.isArray(message.photo) ? message.photo.map(asRecord).filter(Boolean) : [];
+  const photos = Array.isArray(message.photo)
+    ? message.photo.map(asRecord).filter(Boolean)
+    : [];
   const bestPhoto = photos[photos.length - 1];
   if (bestPhoto) {
     const payload = buildFilePayload("photo", bestPhoto);
@@ -779,7 +824,10 @@ function parseInboundFiles(message: Record<string, unknown>): TelegramFilePayloa
   return payloads;
 }
 
-function buildFilePayload(kind: TelegramFileKind, source: Record<string, unknown>): TelegramFilePayload | null {
+function buildFilePayload(
+  kind: TelegramFileKind,
+  source: Record<string, unknown>,
+): TelegramFilePayload | null {
   const fileId = asStringValue(source.file_id);
   if (!fileId) {
     return null;
@@ -787,7 +835,7 @@ function buildFilePayload(kind: TelegramFileKind, source: Record<string, unknown
 
   const payload: TelegramFilePayload = {
     kind,
-    fileId
+    fileId,
   };
 
   const uniqueId = asStringValue(source.file_unique_id);
@@ -828,7 +876,10 @@ function buildFilePayload(kind: TelegramFileKind, source: Record<string, unknown
   return payload;
 }
 
-function buildInboundText(baseText: string, files: TelegramFilePayload[]): string {
+function buildInboundText(
+  baseText: string,
+  files: TelegramFilePayload[],
+): string {
   const lines: string[] = [];
 
   if (baseText) {
@@ -842,7 +893,9 @@ function buildInboundText(baseText: string, files: TelegramFilePayload[]): strin
         `${index + 1}. kind=${file.kind} file_id=${file.fileId}` +
           (file.fileName ? ` file_name=${file.fileName}` : "") +
           (file.mimeType ? ` mime_type=${file.mimeType}` : "") +
-          (file.fileSize !== undefined ? ` file_size=${String(file.fileSize)}` : "")
+          (file.fileSize !== undefined
+            ? ` file_size=${String(file.fileSize)}`
+            : ""),
       );
     });
   }
@@ -850,7 +903,10 @@ function buildInboundText(baseText: string, files: TelegramFilePayload[]): strin
   return lines.join("\n").trim();
 }
 
-function parseOutboundAgentResponse(raw: string): { text: string; files: TelegramOutboundFile[] } {
+function parseOutboundAgentResponse(raw: string): {
+  text: string;
+  files: TelegramOutboundFile[];
+} {
   const lines = raw.split(/\r?\n/);
   const remaining: string[] = [];
   const files: TelegramOutboundFile[] = [];
@@ -880,11 +936,13 @@ function parseOutboundAgentResponse(raw: string): { text: string; files: Telegra
 
   return {
     text: remaining.join("\n").trim(),
-    files
+    files,
   };
 }
 
-function normalizeOutboundFile(source: Record<string, unknown>): TelegramOutboundFile | null {
+function normalizeOutboundFile(
+  source: Record<string, unknown>,
+): TelegramOutboundFile | null {
   const kind = asOutboundKind(source.kind);
   if (!kind) {
     return null;
@@ -899,7 +957,7 @@ function normalizeOutboundFile(source: Record<string, unknown>): TelegramOutboun
   return {
     kind,
     file,
-    ...(caption ? { caption } : {})
+    ...(caption ? { caption } : {}),
   };
 }
 
@@ -925,7 +983,10 @@ function isTelegramFileKind(value: string): value is TelegramFileKind {
   );
 }
 
-function buildAssistantLogContent(text: string, files: TelegramOutboundFile[]): string {
+function buildAssistantLogContent(
+  text: string,
+  files: TelegramOutboundFile[],
+): string {
   if (files.length === 0) {
     return text;
   }
@@ -938,7 +999,7 @@ function buildAssistantLogContent(text: string, files: TelegramOutboundFile[]): 
   files.forEach((file, index) => {
     lines.push(
       `${index + 1}. kind=${file.kind} file=${file.file}` +
-        (file.caption ? ` caption=${file.caption}` : "")
+        (file.caption ? ` caption=${file.caption}` : ""),
     );
   });
 
