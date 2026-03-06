@@ -1,3 +1,7 @@
+/**
+ * Conversation history storage.
+ * Persists and reads per-agent session JSONL logs under project memory folders.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import type { ConversationMessage } from "./types.js";
