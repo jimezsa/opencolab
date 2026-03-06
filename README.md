@@ -4,6 +4,13 @@
   <img src="docs/assets/header.png" alt="OpenColab Header" width="550" />
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-In%20Progress-orange?style=for-the-badge" alt="Project status: In progress">
+  <img src="https://img.shields.io/badge/Node-22%2B-339933?logo=node.js&logoColor=white&style=for-the-badge" alt="Node.js 22+">
+  <img src="https://img.shields.io/badge/pnpm-9%2B-F69220?logo=pnpm&logoColor=white&style=for-the-badge" alt="pnpm 9+">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
+</p>
+
 _Accelerating Scientific Discovery_ — Turn one researcher into an always-on autonomous research lab that investigates, builds, and publishes.
 
 ## Coming Features
@@ -41,18 +48,6 @@ Architecture:
 - one provider runtime per project: OpenAI or Anthropic
 - setup and control via CLI and Telegram commands
 - persistence in `opencolab.json`
-
-## Stack
-
-- TypeScript (Node.js ESM)
-- pnpm
-
-## Requirements
-
-- Node.js 22+
-- pnpm 9+
-- Telegram bot token (stored in `.env.local` as `TELEGRAM_BOT_TOKEN`)
-- OpenAI Codex CLI or Claude Code CLI + provider API key (stored in `.env.local` as `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`) (or mock mode)
 
 ## Install
 
