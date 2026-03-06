@@ -1,3 +1,7 @@
+/**
+ * Provider configuration primitives.
+ * Maps provider identifiers to canonical defaults and setup-time aliases.
+ */
 import type { ProviderName } from "./types.js";
 
 export interface ProviderSetupDefaults {
