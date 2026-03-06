@@ -60,6 +60,13 @@ Architecture:
 curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh | bash
 ```
 
+The installer clones OpenColab to `~/.opencolab`, creates `~/.local/bin/opencolab`, and updates your shell PATH profile when needed.
+On macOS, if `opencolab` is not immediately available, run:
+
+```bash
+source ~/.zprofile
+```
+
 ## Quickstart
 
 ```bash

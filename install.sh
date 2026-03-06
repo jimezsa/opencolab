@@ -3,10 +3,12 @@ set -euo pipefail
 
 REPO_URL="${OPENCOLAB_REPO_URL:-https://github.com/jimezsa/opencolab.git}"
 INSTALL_DIR="${OPENCOLAB_INSTALL_DIR:-$HOME/.opencolab}"
+BIN_DIR="${OPENCOLAB_BIN_DIR:-$HOME/.local/bin}"
 BRANCH="${OPENCOLAB_BRANCH:-main}"
 PNPM_VERSION="${OPENCOLAB_PNPM_VERSION:-9.15.5}"
 SKIP_DEPS="${OPENCOLAB_SKIP_DEPS:-0}"
 SKIP_INIT="${OPENCOLAB_SKIP_INIT:-0}"
+PATH_UPDATED_PROFILE=""
 
 log() {
   printf "[opencolab] %s\n" "$*"
@@ -23,6 +25,14 @@ fail() {
 
 has_cmd() {
   command -v "$1" >/dev/null 2>&1
+}
+
+path_has_dir() {
+  local dir="$1"
+  case ":${PATH}:" in
+    *":${dir}:"*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 sudo_cmd() {
@@ -212,8 +222,63 @@ install_project() {
   pnpm run build
 
   if [ "$SKIP_INIT" != "1" ]; then
-    log "Initializing project state..."
-    node dist/src/cli.js init
+    log "Initializing runtime state..."
+    node dist/src/cli.js project list >/dev/null
+  fi
+}
+
+install_cli_shim() {
+  local os="$1"
+  if [ "$os" = "windows" ]; then
+    warn "Automatic command setup is not supported on Windows in this installer."
+    return
+  fi
+
+  mkdir -p "$BIN_DIR"
+  cat > "${BIN_DIR}/opencolab" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+exec node "${INSTALL_DIR}/dist/src/cli.js" "\$@"
+EOF
+  chmod +x "${BIN_DIR}/opencolab"
+}
+
+ensure_bin_on_path() {
+  local os="$1"
+  if path_has_dir "$BIN_DIR"; then
+    return
+  fi
+
+  local shell_name profile export_line
+  shell_name="$(basename "${SHELL:-}")"
+
+  case "$shell_name" in
+    zsh)
+      profile="${HOME}/.zprofile"
+      ;;
+    bash)
+      if [ "$os" = "darwin" ]; then
+        profile="${HOME}/.bash_profile"
+      else
+        profile="${HOME}/.bashrc"
+      fi
+      ;;
+    *)
+      warn "Could not update PATH automatically for shell '${SHELL:-unknown}'."
+      warn "Add '${BIN_DIR}' to your PATH manually."
+      return
+      ;;
+  esac
+
+  mkdir -p "$(dirname "$profile")"
+  touch "$profile"
+  export_line="export PATH=\"${BIN_DIR}:\$PATH\""
+  if ! grep -Fqs "$export_line" "$profile"; then
+    {
+      printf "\n# Added by OpenColab installer\n"
+      printf "%s\n" "$export_line"
+    } >> "$profile"
+    PATH_UPDATED_PROFILE="$profile"
   fi
 }
 
@@ -230,18 +295,33 @@ main() {
 
   clone_or_update_repo
   install_project
+  install_cli_shim "$os"
+  ensure_bin_on_path "$os"
 
   cat <<EOF
 
 [opencolab] Installation complete.
 [opencolab] Install path: ${INSTALL_DIR}
+[opencolab] Command shim: ${BIN_DIR}/opencolab
 
 Next steps:
-  cd "${INSTALL_DIR}"
-  node dist/src/cli.js setup telegram --bot-token-env-var TELEGRAM_BOT_TOKEN --chat-id <telegram_chat_id>
-  node dist/src/cli.js gateway start --port 4646
+  ${BIN_DIR}/opencolab ignite
+  ${BIN_DIR}/opencolab gateway start --port 4646
 
 EOF
+
+  if [ -n "$PATH_UPDATED_PROFILE" ]; then
+    cat <<EOF
+[opencolab] PATH was updated in: ${PATH_UPDATED_PROFILE}
+[opencolab] Run this or open a new terminal:
+  source "${PATH_UPDATED_PROFILE}"
+
+After reloading your shell, you can run:
+  opencolab ignite
+  opencolab gateway start --port 4646
+
+EOF
+  fi
 }
 
 main "$@"

@@ -140,6 +140,7 @@ Responsibilities:
 - provide an interactive onboarding flow for first-time setup of project selection, provider/model, Telegram setup, and optional pairing/extra agent creation
 - `ignite` onboarding should allow skipping the current step with `Esc` and continue to the next step
 - `ignite` onboarding should detect existing provider setup and allow keeping or updating it
+- installer script should make `opencolab` available as a terminal command by installing a user-level shim and ensuring the user bin directory is on `PATH`
 
 ## 8. Telegram Management Commands
 
