@@ -1,3 +1,7 @@
+/**
+ * OpenColab state schema helpers.
+ * Provides defaults, normalization/migration, and opencolab.json read/write utilities.
+ */
 import fs from "node:fs";
 import type { OpenColabConfig } from "./config.js";
 import { getProviderSetupDefaults, normalizeProviderName } from "./provider.js";
