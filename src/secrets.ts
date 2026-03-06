@@ -1,3 +1,7 @@
+/**
+ * Secret resolution and persistence helpers.
+ * Reads canonical provider/Telegram keys from env and updates .env.local safely.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { getCanonicalProviderKeyEnvVar } from "./provider.js";
