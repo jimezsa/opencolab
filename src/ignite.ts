@@ -1,3 +1,7 @@
+/**
+ * Interactive first-run onboarding flow.
+ * Configures project/provider/Telegram state and persists secrets to .env.local.
+ */
 import { getProviderSetupDefaults, normalizeProviderName } from "./provider.js";
 import type { OpenColabRuntime } from "./runtime.js";
 import {
