@@ -327,7 +327,7 @@ export function renderSystemdUnit(input: SystemdRenderInput): string {
     "",
     "[Service]",
     "Type=simple",
-    `WorkingDirectory=${quoteSystemdValue(input.rootDir)}`,
+    `WorkingDirectory=${input.rootDir}`,
     `Environment=\"OPENCOLAB_ROOT=${escapeSystemdEnvironmentValue(input.rootDir)}\"`,
     `Environment=\"PATH=${escapeSystemdEnvironmentValue(input.pathEnv)}\"`,
     `ExecStart=${execArgs.map((value) => quoteSystemdValue(value)).join(" ")}`,
