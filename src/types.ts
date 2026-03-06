@@ -1,3 +1,7 @@
+/**
+ * Shared OpenColab type definitions.
+ * Defines persisted state, gateway payloads, and core runtime contracts.
+ */
 export interface AgentFiles {
   agents: string;
   bootstrap: string;
