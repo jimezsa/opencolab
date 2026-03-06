@@ -3,7 +3,15 @@
  * OpenColab CLI entrypoint.
  * Parses commands, runs onboarding/setup flows, and starts gateway services.
  */
+import path from "node:path";
 import { emitKeypressEvents } from "node:readline";
+import {
+  getGatewayBackgroundLogCommand,
+  getGatewayBackgroundServiceStatus,
+  restartGatewayBackgroundService,
+  startGatewayBackgroundService,
+  stopGatewayBackgroundService
+} from "./gateway-service.js";
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
@@ -367,7 +375,7 @@ function usageMain(): string {
     helpCommand("setup", "Configure model/provider/telegram"),
     helpCommand("project", "Manage/create projects"),
     helpCommand("agent", "Manage/create agents"),
-    helpCommand("gateway start", "Run local gateway server"),
+    helpCommand("gateway", "Manage local gateway service"),
     "",
     "Examples:",
     ...helpExample("opencolab setup --help", "Show setup command help"),
@@ -383,13 +391,18 @@ function usageGateway(): string {
   return formatHelp([
     "Usage:",
     helpCommand(
-      "opencolab gateway start [--port 4646] [--telegram-polling true|false]",
-      "Start gateway server",
+      "opencolab gateway start [--port 4646] [--telegram-polling true|false] [--foreground true|false]",
+      "Start gateway (background by default)",
     ),
+    helpCommand("opencolab gateway stop", "Stop background gateway service"),
+    helpCommand("opencolab gateway restart [--port 4646]", "Restart background gateway service"),
+    helpCommand("opencolab gateway status", "Show background gateway status"),
+    helpCommand("opencolab gateway logs", "Show log tail command and log paths"),
     "",
     "Flags:",
     helpFlag("--port <number>", "Gateway port (default: 4646)"),
     helpFlag("--telegram-polling true|false", "Enable or disable polling mode"),
+    helpFlag("--foreground true|false", "Run in current terminal process"),
   ]);
 }
 
@@ -598,6 +611,66 @@ function resolveRuntimeRootDir(): string {
   return process.cwd();
 }
 
+function parseBooleanFlag(
+  value: string | undefined,
+  defaultValue: boolean,
+): boolean {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "false" || normalized === "0" || normalized === "no") {
+    return false;
+  }
+  if (normalized === "true" || normalized === "1" || normalized === "yes") {
+    return true;
+  }
+
+  return defaultValue;
+}
+
+function resolveCliScriptPath(runtimeRootDir: string): string {
+  const candidate = process.argv[1]?.trim();
+  if (candidate) {
+    return path.resolve(candidate);
+  }
+  return path.join(runtimeRootDir, "dist", "src", "cli.js");
+}
+
+function parseGatewayStartOptions(args: string[]): {
+  port: number;
+  telegramPolling: boolean;
+  foreground: boolean;
+} {
+  const { values } = parseFlags(args);
+  const port = Number(values.port ?? "4646");
+  const telegramPolling = parseBooleanFlag(values["telegram-polling"], true);
+  const foreground = parseBooleanFlag(values.foreground, false);
+  return { port, telegramPolling, foreground };
+}
+
+async function startGatewayForeground(
+  runtimeRootDir: string,
+  port: number,
+  telegramPolling: boolean,
+): Promise<void> {
+  const runtime = createRuntime(runtimeRootDir);
+  runtime.init();
+  const autoSync = await autoSyncTelegramCommandsIfConfigured(runtime.getState());
+  if (autoSync.attempted) {
+    if (autoSync.ok) {
+      console.log("Telegram bot commands synced.");
+    } else {
+      console.log(
+        `Warning: could not sync Telegram commands (${autoSync.error ?? "unknown error"}).`,
+      );
+    }
+  }
+
+  startHttpServer(port, runtimeRootDir, { telegramPolling });
+}
+
 async function syncTelegramBotCommands(
   chatId?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -743,32 +816,87 @@ async function main(): Promise<void> {
   }
 
   if (
-    (command === "gateway" || command === "getway" || command === "web") &&
-    subcommand === "start"
+    command === "gateway" || command === "getway" || command === "web"
   ) {
     const runtimeRootDir = resolveRuntimeRootDir();
-    const runtime = createRuntime(runtimeRootDir);
-    runtime.init();
-    const autoSync = await autoSyncTelegramCommandsIfConfigured(
-      runtime.getState(),
-    );
-    if (autoSync.attempted) {
-      if (autoSync.ok) {
-        console.log("Telegram bot commands synced.");
-      } else {
-        console.log(
-          `Warning: could not sync Telegram commands (${autoSync.error ?? "unknown error"}).`,
+    const cliScriptPath = resolveCliScriptPath(runtimeRootDir);
+    const gatewayAction = subcommand ?? "start";
+
+    if (gatewayAction === "start") {
+      const options = parseGatewayStartOptions([action, ...rest].filter(Boolean));
+      if (options.foreground) {
+        await startGatewayForeground(
+          runtimeRootDir,
+          options.port,
+          options.telegramPolling,
         );
+        return;
       }
+
+      const files = startGatewayBackgroundService({
+        rootDir: runtimeRootDir,
+        cliScriptPath,
+        nodePath: process.execPath,
+        port: options.port,
+        telegramPolling: options.telegramPolling,
+      });
+      console.log(
+        `Gateway service started in background (${files.platform}).`,
+      );
+      console.log(`Service config: ${files.configPath}`);
+      console.log(`Stdout log: ${files.stdoutLogPath}`);
+      console.log(`Stderr log: ${files.stderrLogPath}`);
+      console.log("Use 'opencolab gateway status' to confirm runtime status.");
+      return;
     }
 
-    const { values } = parseFlags([action, ...rest].filter(Boolean));
-    const port = Number(values.port ?? "4646");
-    const telegramPolling =
-      values["telegram-polling"] !== "false" &&
-      values["telegram-polling"] !== "0";
-    startHttpServer(port, runtimeRootDir, { telegramPolling });
-    return;
+    if (gatewayAction === "restart") {
+      const options = parseGatewayStartOptions([action, ...rest].filter(Boolean));
+      const files = restartGatewayBackgroundService({
+        rootDir: runtimeRootDir,
+        cliScriptPath,
+        nodePath: process.execPath,
+        port: options.port,
+        telegramPolling: options.telegramPolling,
+      });
+      console.log(`Gateway service restarted (${files.platform}).`);
+      console.log(`Service config: ${files.configPath}`);
+      return;
+    }
+
+    if (gatewayAction === "stop") {
+      const files = stopGatewayBackgroundService(runtimeRootDir);
+      console.log(`Gateway service stop requested (${files.platform}).`);
+      return;
+    }
+
+    if (gatewayAction === "status") {
+      const { files, status } = getGatewayBackgroundServiceStatus(runtimeRootDir);
+      console.log(
+        `Gateway service status (${files.platform}): ${status.statusText}`,
+      );
+      console.log(`Service config: ${files.configPath}`);
+      console.log(`Stdout log: ${files.stdoutLogPath}`);
+      console.log(`Stderr log: ${files.stderrLogPath}`);
+      return;
+    }
+
+    if (gatewayAction === "logs") {
+      const { files, command: tailCommand } = getGatewayBackgroundLogCommand(
+        runtimeRootDir,
+      );
+      console.log(`Gateway logs (${files.platform}).`);
+      console.log(`Tail command: ${tailCommand}`);
+      console.log(`Stdout log: ${files.stdoutLogPath}`);
+      console.log(`Stderr log: ${files.stderrLogPath}`);
+      return;
+    }
+
+    throw new Error(
+      styleCliText(
+        "Unknown gateway command. Use 'start', 'stop', 'restart', 'status', or 'logs'.",
+      ),
+    );
   }
 
   const runtime = createRuntime(resolveRuntimeRootDir());
