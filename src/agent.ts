@@ -1,3 +1,7 @@
+/**
+ * Agent file and prompt utilities.
+ * Seeds required agent docs and builds the prompt payload sent to provider CLIs.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import type { AgentConfig, AgentFiles, ConversationMessage } from "./types.js";
