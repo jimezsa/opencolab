@@ -1,3 +1,7 @@
+/**
+ * Telegram gateway and routing logic.
+ * Enforces pairing/auth, handles management commands, and forwards user input to agents.
+ */
 import { ensureAgentFiles } from "./agent.js";
 import type { OpenColabConfig } from "./config.js";
 import type { CodexAgentInput } from "./codex-agent.js";
