@@ -27,27 +27,32 @@ The vision is an always-on lab where the research-agent expert group leads execu
 
 Check [docs/VISION.md](docs/VISION.md) to see project direction.
 
-## Why?
+```text
++---------------------+      +------------------------+
+| Human (Assistant)   | ---> | Shared goals and plan  |
++---------------------+      | (human + agents)       |
+                             +------------------------+
+                                         |
+                                         v
+                             +------------------------+
+                             | The Professor (Lead)   |
+                             | coordinates execution  |
+                             +------------------------+
+                               /          |          \
+                              v           v           v
+                  +----------------+ +----------------+ +----------------+
+                  | PhD Student A  | | PhD Student B  | | PhD Student C  |
+                  | literature     | | experiments    | | synthesis/writ.|
+                  +----------------+ +----------------+ +----------------+
+                               \          |          /
+                                +---------v---------+
+                                | Feedback to Human |
+                                +-------------------+
+```
 
-Great research is not only intelligence. It needs structure: clear guidance, parallel investigation, rigorous synthesis, and human judgment at critical moments.
-
-Default collaboration model:
-
-- the human defines the initial problem, goals, and constraints
-- before deep research, agents clarify the human's true intention for the topic
-- the agent group refines framing, runs investigation, and iterates
-- the agent group is the expert and does not offload expert reasoning; the human assists coordination, key decisions, and key activities
-
-Architecture:
+Current minimalistic Architecture:
 
 `Telegram -> Gateway -> Active Project -> Active Agent`
-
-- multiple projects
-- multiple agents per project
-- one active project/agent at a time
-- one provider runtime per project: OpenAI or Anthropic
-- setup and control via CLI and Telegram commands
-- persistence in `opencolab.json`
 
 ## Install
 
