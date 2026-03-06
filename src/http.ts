@@ -1,3 +1,7 @@
+/**
+ * Local HTTP server for OpenColab.
+ * Exposes health/status endpoints and Telegram webhook ingestion with optional polling.
+ */
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadConfig } from "./config.js";
