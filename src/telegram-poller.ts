@@ -1,3 +1,7 @@
+/**
+ * Telegram long-polling transport.
+ * Pulls updates from Telegram and forwards them into the runtime webhook handler.
+ */
 import type { OpenColabRuntime } from "./runtime.js";
 import { resolveTelegramBotToken } from "./secrets.js";
 
