@@ -1,3 +1,7 @@
+/**
+ * Runtime orchestration layer.
+ * Coordinates state persistence, gateway integration, agent execution, and setup actions.
+ */
 import { ensureAgentFiles } from "./agent.js";
 import { loadConfig, type OpenColabConfig } from "./config.js";
 import { ConversationStore } from "./conversation.js";
