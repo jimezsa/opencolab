@@ -40,7 +40,7 @@ export class CodexAgent {
     }
 
     const cliStartedAt = Date.now();
-    const output = await this.runProviderCli(prompt, project.provider, agent.path);
+    const output = await this.runProviderCli(prompt, project.provider, project.path, agent.path);
     const cliMs = Date.now() - cliStartedAt;
     this.logPerf(promptMs, cliMs, Date.now() - startedAt, project.provider.name, project.provider.model);
     return output;
@@ -49,6 +49,7 @@ export class CodexAgent {
   private runProviderCli(
     prompt: string,
     provider: OpenColabState["projects"][string]["provider"],
+    projectPath: string,
     agentPath: string
   ): Promise<string> {
     const canonicalKeyName = getProviderApiKeyEnvVar(provider.name);
@@ -60,7 +61,14 @@ export class CodexAgent {
     }
 
     const cwd = resolveAgentDirectory(this.config.rootDir, agentPath);
-    const resolvedArgs = provider.cliArgs.map((arg) => arg.replaceAll("{model}", provider.model));
+    const projectDir = resolveAgentDirectory(this.config.rootDir, projectPath);
+    const resolvedArgs = provider.cliArgs.map((arg) =>
+      replaceCliArgTokens(arg, {
+        "{model}": provider.model,
+        "{project_dir}": projectDir,
+        "{agent_dir}": cwd
+      })
+    );
     const promptProvidedInArgs = resolvedArgs.some((arg) => arg.includes("{prompt}"));
     const cliArgs = resolvedArgs.map((arg) => arg.replaceAll("{prompt}", prompt));
     const providerLabel = provider.name.replaceAll("_", " ");
@@ -164,4 +172,12 @@ export class CodexAgent {
       `Question: ${text}`
     ].join("\n");
   }
+}
+
+function replaceCliArgTokens(arg: string, replacements: Record<string, string>): string {
+  let next = arg;
+  for (const [token, value] of Object.entries(replacements)) {
+    next = next.replaceAll(token, value);
+  }
+  return next;
 }

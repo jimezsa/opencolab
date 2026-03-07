@@ -84,7 +84,16 @@ test("ignite configures project, provider, telegram, and optional agent", async 
     assert.equal(project.provider.name, "openai");
     assert.equal(project.provider.model, "gpt-5.3-codex");
     assert.equal(project.provider.cliCommand, "codex");
-    assert.deepEqual(project.provider.cliArgs, ["exec", "-"]);
+    assert.deepEqual(project.provider.cliArgs, [
+      "exec",
+      "--sandbox",
+      "workspace-write",
+      "-a",
+      "never",
+      "--add-dir",
+      "{project_dir}",
+      "-"
+    ]);
 
     assert.equal(state.telegram.chatId, "10001");
     assert.equal(state.telegram.paired, false);

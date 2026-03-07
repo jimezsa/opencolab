@@ -4,7 +4,11 @@
  */
 import fs from "node:fs";
 import type { OpenColabConfig } from "./config.js";
-import { getProviderSetupDefaults, normalizeProviderName } from "./provider.js";
+import {
+  getProviderSetupDefaults,
+  normalizeProviderName,
+  usesLegacyProviderCliDefaults
+} from "./provider.js";
 import type {
   AgentConfig,
   AgentFiles,
@@ -405,15 +409,17 @@ function normalizeProvider(
 ): ProviderConfig {
   const providerName = asProviderName(sourceProvider?.name, defaults.name);
   const providerDefaults = getProviderSetupDefaults(providerName);
+  const cliCommand = asString(sourceProvider?.cliCommand, providerDefaults.cliCommand);
   const cliArgs = Array.isArray(sourceProvider?.cliArgs)
     ? sourceProvider.cliArgs.map((item) => String(item))
     : providerDefaults.cliArgs;
+  const shouldMigrateLegacyDefaults = usesLegacyProviderCliDefaults(providerName, cliCommand, cliArgs);
 
   return {
     name: providerName,
     model: asString(sourceProvider?.model, providerDefaults.model),
-    cliCommand: asString(sourceProvider?.cliCommand, providerDefaults.cliCommand),
-    cliArgs
+    cliCommand: shouldMigrateLegacyDefaults ? providerDefaults.cliCommand : cliCommand,
+    cliArgs: shouldMigrateLegacyDefaults ? providerDefaults.cliArgs : cliArgs
   };
 }
 

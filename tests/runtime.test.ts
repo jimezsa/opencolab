@@ -140,7 +140,16 @@ test("setupModel auto-sets provider CLI defaults for active project", () => {
     const project = runtime.getActiveProject();
     assert.equal(project.provider.name, "anthropic");
     assert.equal(project.provider.cliCommand, "claude");
-    assert.deepEqual(project.provider.cliArgs, ["-p", "{prompt}", "--model", "{model}"]);
+    assert.deepEqual(project.provider.cliArgs, [
+      "-p",
+      "{prompt}",
+      "--model",
+      "{model}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--add-dir",
+      "{project_dir}"
+    ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

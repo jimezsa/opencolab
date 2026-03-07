@@ -133,6 +133,8 @@ Responsibilities:
 - configure provider for the active project
 - provider configuration must ask only for provider, model, and API key value; API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`)
 - provider CLI command/args must be auto-derived from internal defaults
+- provider CLI defaults must support non-interactive execution with write access to the active project workspace
+- when the active agent is a subagent, provider CLI defaults must still allow access to the parent project workspace
 - configure one shared Telegram setup for all projects
 - Telegram token values must be persisted in `.env.local` under `TELEGRAM_BOT_TOKEN`
 - create/list/select projects
@@ -253,6 +255,7 @@ v1 is complete when all are true:
 - CLI can create/select projects and agents.
 - Telegram can create/select projects and agents.
 - Active project routes to its active agent and provider runtime.
+- Provider runtimes can edit the active project workspace without interactive permission prompts.
 - `opencolab.json` persists active project, all project/agent configs, and one shared Telegram config.
 - Main `researcher_agent` files are created in the project root and extra agents are created under `subagents/`.
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.

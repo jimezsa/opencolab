@@ -10,6 +10,19 @@ export interface ProviderSetupDefaults {
   cliArgs: string[];
 }
 
+const LEGACY_PROVIDER_DEFAULTS: Record<ProviderName, ProviderSetupDefaults> = {
+  anthropic: {
+    model: "claude-opus-4-6",
+    cliCommand: "claude",
+    cliArgs: ["-p", "{prompt}", "--model", "{model}"]
+  },
+  openai: {
+    model: "gpt-5.3-codex",
+    cliCommand: "codex",
+    cliArgs: ["exec", "-"]
+  }
+};
+
 export function normalizeProviderName(value: string): ProviderName | null {
   const normalized = value.trim().toLowerCase();
   if (normalized === "openai" || normalized === "anthropic") {
@@ -36,15 +49,46 @@ export function getProviderSetupDefaults(providerName: ProviderName): ProviderSe
     return {
       model: "claude-opus-4-6",
       cliCommand: "claude",
-      cliArgs: ["-p", "{prompt}", "--model", "{model}"]
+      cliArgs: [
+        "-p",
+        "{prompt}",
+        "--model",
+        "{model}",
+        "--permission-mode",
+        "bypassPermissions",
+        "--add-dir",
+        "{project_dir}"
+      ]
     };
   }
 
   return {
     model: "gpt-5.3-codex",
     cliCommand: "codex",
-    cliArgs: ["exec", "-"]
+    cliArgs: [
+      "exec",
+      "--sandbox",
+      "workspace-write",
+      "-a",
+      "never",
+      "--add-dir",
+      "{project_dir}",
+      "-"
+    ]
   };
+}
+
+export function usesLegacyProviderCliDefaults(
+  providerName: ProviderName,
+  cliCommand: string,
+  cliArgs: string[]
+): boolean {
+  const legacy = LEGACY_PROVIDER_DEFAULTS[providerName];
+  return cliCommand === legacy.cliCommand && hasExactArgs(cliArgs, legacy.cliArgs);
+}
+
+function hasExactArgs(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 export function getCanonicalProviderKeyEnvVar(providerName: ProviderName): string {

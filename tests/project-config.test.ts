@@ -83,6 +83,126 @@ test("project state normalizes supported provider name in nested project config"
     const project = loaded.projects[loaded.activeProjectId];
     assert.equal(project.provider.name, "anthropic");
     assert.equal(project.provider.cliCommand, "claude");
+    assert.deepEqual(project.provider.cliArgs, [
+      "-p",
+      "{prompt}",
+      "--model",
+      "{model}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--add-dir",
+      "{project_dir}"
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state migrates legacy provider CLI defaults to project-wide workspace defaults", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-cli-migrate-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: "researcher_agent",
+            agents: {
+              researcher_agent: {
+                id: "researcher_agent",
+                path: "projects/alpha",
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            },
+            provider: {
+              name: "codex",
+              cliCommand: "codex",
+              cliArgs: ["exec", "-"]
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    assert.deepEqual(loaded.projects.alpha.provider.cliArgs, [
+      "exec",
+      "--sandbox",
+      "workspace-write",
+      "-a",
+      "never",
+      "--add-dir",
+      "{project_dir}",
+      "-"
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state preserves custom provider CLI defaults", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-cli-custom-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: "researcher_agent",
+            agents: {
+              researcher_agent: {
+                id: "researcher_agent",
+                path: "projects/alpha",
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            },
+            provider: {
+              name: "openai",
+              cliCommand: "codex",
+              cliArgs: ["exec", "--sandbox", "danger-full-access", "-"]
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    assert.deepEqual(loaded.projects.alpha.provider.cliArgs, [
+      "exec",
+      "--sandbox",
+      "danger-full-access",
+      "-"
+    ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
