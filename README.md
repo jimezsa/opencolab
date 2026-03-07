@@ -38,16 +38,18 @@ Check [docs/VISION.md](docs/VISION.md) to see project direction.
                              | The Professor (Lead)   |
                              | coordinates execution  |
                              +------------------------+
-                               /          |          \
-                              v           v           v
-                  +----------------+ +----------------+ +----------------+
-                  | PhD Student A  | | PhD Student B  | | PhD Student C  |
-                  | literature     | | experiments    | | synthesis/writ.|
-                  +----------------+ +----------------+ +----------------+
-                               \          |          /
-                                +---------v---------+
-                                | Feedback to Human |
-                                +-------------------+
+                               /          |          |          \
+                              v           v           v           v
+                  +----------------+ +----------------+ +----------------+ +------------------+
+                  | PhD Student A  | | PhD Student B  | | PhD Student C  | | Beginner Student|
+                  | literature     | | experiments    | | synthesis/writ.| | naive questions |
+                  +----------------+ +----------------+ +----------------+ +------------------+
+                               \          |          /                               |
+                                \         |         /                                v
+                                 +--------v--------+                    +-------------------+
+                                 | Feedback to     | <------------------| Noise to System   |
+                                 | Human           |                    +-------------------+
+                                 +-----------------+
 ```
 
 Current minimalistic Architecture:
