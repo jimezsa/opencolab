@@ -98,11 +98,11 @@ export class TelegramGateway {
     const sent = await this.sender(
       state.telegram.chatId,
       [
-        "✨🚀 Welcome to OpenColab Pairing! 🚀✨",
+        "Welcome to OpenColab Pairing! ✨",
         "You've unlocked the first step of your research adventure! 🌊🐙",
-        `🔑 Pairing Code: ${code}`,
-        `➡️ To connect, run:\n  opencolab setup telegram pair complete --code ${code}`,
-        "⏰ Code valid for 10 minutes. Let’s dive in! 🌟",
+        `🔑 Code: ${code}`,
+        ` or run: opencolab setup telegram pair complete --code ${code}`,
+        "⏰ Code valid for 10 minutes. Let’s dive in!",
       ].join("\n"),
       next,
     );
