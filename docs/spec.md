@@ -77,6 +77,7 @@ Initialization requirements:
 - when an agent directory is created, `AGENTS.md` must be seeded from an internal runtime template
 - when an agent directory is created, `BOOTSTRAP.md` must be seeded from an internal runtime template for first-run identity discovery
 - when an agent directory is created, `IDENTITY.md` must be seeded from an internal runtime template
+- when an agent directory is created, `TOOLS.md` must be seeded from an internal runtime template that lists the available `fast-search`, `pro-search`, and `deep-search` skills with only a short description and when-to-use guidance
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks

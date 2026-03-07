@@ -237,6 +237,23 @@ Treat these agent files as persistent memory. Read them each session. Update the
 If you change this file, tell the user.
 `;
 
+const DEFAULT_TOOLS_DOC = `# TOOLS
+
+Primary runtime: provider CLI (openai or anthropic).
+
+## Available Skills
+
+- \`fast-search\`
+  Description: Fast scientific paper scouting with \`papercli\`.
+  When to use: for a rapid, evidence-grounded literature brief or quick scientific orientation.
+- \`pro-search\`
+  Description: Professional paper research with \`papercli\`.
+  When to use: for serious literature synthesis with stronger methodological depth, cross-paper comparison, and explicit evidence tracking.
+- \`deep-search\`
+  Description: Deep scientific investigation with \`papercli\`.
+  When to use: for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support.
+`;
+
 const DEFAULT_FILE_CONTENT: Record<
   Exclude<keyof AgentFiles, "agents">,
   string
@@ -244,7 +261,7 @@ const DEFAULT_FILE_CONTENT: Record<
   bootstrap: DEFAULT_BOOTSTRAP_DOC,
   identity: DEFAULT_IDENTITY_DOC,
   alma: DEFAULT_ALMA_DOC,
-  tools: "# TOOLS\n\nPrimary runtime: provider CLI (openai or anthropic).\n",
+  tools: DEFAULT_TOOLS_DOC,
   user: "# USER\n\nThe human defines the initial problem, goals, and constraints, then assists the research-agent group with key decisions and key activities through Telegram.\n",
   todo: "# TODO\n\n## Active Plan\n\n- [ ] Define and refine the current problem framing.\n\n## Backlog\n\n- [ ] Capture tasks from human and agent interactions.\n\n## Done\n\n- [ ] Keep a concise log of completed steps.\n",
   memory: "# MEMORY\n\nLong-term memory for stable user/project facts.\n",

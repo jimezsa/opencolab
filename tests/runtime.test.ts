@@ -126,6 +126,40 @@ test("init seeds ALMA.md from built-in alma template", () => {
   }
 });
 
+test("init seeds TOOLS.md with available search skill summaries", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-tools-template-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+
+    const toolsPath = path.join(tempDir, "projects", "default", "TOOLS.md");
+    const toolsDoc = fs.readFileSync(toolsPath, "utf8");
+    assert.equal(toolsDoc.includes("# TOOLS"), true);
+    assert.equal(toolsDoc.includes("Primary runtime: provider CLI (openai or anthropic)."), true);
+    assert.equal(toolsDoc.includes("`fast-search`"), true);
+    assert.equal(toolsDoc.includes("Fast scientific paper scouting with `papercli`."), true);
+    assert.equal(
+      toolsDoc.includes("for a rapid, evidence-grounded literature brief or quick scientific orientation."),
+      true,
+    );
+    assert.equal(toolsDoc.includes("`pro-search`"), true);
+    assert.equal(toolsDoc.includes("Professional paper research with `papercli`."), true);
+    assert.equal(
+      toolsDoc.includes("for serious literature synthesis with stronger methodological depth, cross-paper comparison, and explicit evidence tracking."),
+      true,
+    );
+    assert.equal(toolsDoc.includes("`deep-search`"), true);
+    assert.equal(toolsDoc.includes("Deep scientific investigation with `papercli`."), true);
+    assert.equal(
+      toolsDoc.includes("for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support."),
+      true,
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("setupModel auto-sets provider CLI defaults for active project", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-runtime-"));
   const runtime = createRuntime(tempDir);

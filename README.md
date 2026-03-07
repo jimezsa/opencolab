@@ -164,6 +164,7 @@ Each agent directory must include:
 `AGENTS.md` is initialized from a built-in essential researcher template.
 `BOOTSTRAP.md` is initialized from a built-in first-run guide to help the agent discover identity and preferences.
 `IDENTITY.md` is initialized from a built-in identity scaffold.
+`TOOLS.md` is initialized from a built-in tools scaffold that lists the available `fast-search`, `pro-search`, and `deep-search` skills with a short description and when to use each one.
 
 Default layout:
 
