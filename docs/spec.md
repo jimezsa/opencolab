@@ -41,6 +41,7 @@ Required:
 - Create/list/select agents from Telegram chat commands.
 - Route Telegram messages to the selected project/agent runtime.
 - Route Telegram text and file messages (documents, photos, audio, video, voice, stickers, and related media) to the selected project/agent runtime.
+- For inbound Telegram files, resolve the Telegram `file_id` to a local file inside the active project when possible and pass the local path to the agent runtime alongside metadata and caption text.
 - Persist project/agent/provider settings plus one shared Telegram configuration in `opencolab.json`.
 
 Not required in v1:
@@ -243,6 +244,9 @@ Notes:
 - if paired, gateway processes management commands first
 - `/session reset` creates a new active session folder for the active agent
 - non-management text and file messages are sent to the active project/agent runtime
+- inbound Telegram file messages should preserve caption text and include attachment metadata in the user message passed to the agent
+- when Telegram file download succeeds, attachments should be materialized under the active project (for example under `memory/TelegramInbox/`) and the agent input should include the local file path
+- when Telegram file download fails, routing should continue with caption text plus attachment metadata instead of dropping the message
 - while generating, gateway sends Telegram `typing` feedback
 - responses are sent to the same chat
 - agent responses may include `@telegram-file <json>` directives to send Telegram files:
