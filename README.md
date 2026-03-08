@@ -34,21 +34,21 @@ Check [docs/VISION.md](docs/VISION.md) to see project direction.
                              +------------------------+
                                          |
                                          v
-                             +------------------------+
-                             | The Professor (Lead)   |
-                             | coordinates execution  |
-                             +------------------------+
-                               /          |          |          \
-                              v           v           v           v
-                  +----------------+ +----------------+ +----------------+ +------------------+
-                  | PhD Student A  | | PhD Student B  | | PhD Student C  | | Beginner Student|
-                  | literature     | | experiments    | | synthesis/writ.| | naive questions |
-                  +----------------+ +----------------+ +----------------+ +------------------+
-                               \          |          /                               |
-                                \         |         /                                v
-                                 +--------v--------+                    +-------------------+
-                                 | Feedback to     | <------------------| Noise to System   |
-                                 | Human           |                    +-------------------+
+                             +------------------------+      +------------------+
+                             | The Professor (Lead)   | <--> | Beginner Student |
+                             | coordinates execution  |      | naive questions  |
+                             +------------------------+      +------------------+
+                               /          |          \
+                              v           v           v
+                  +----------------+ +----------------+ +----------------+
+                  | PhD Student A  | | PhD Student B  | | PhD Student C  |
+                  | literature     | | experiments    | | synthesis/writ.|
+                  +----------------+ +----------------+ +----------------+
+                               \          |          /
+                                \         |         /
+                                 +--------v--------+
+                                 | Feedback to     |
+                                 | Human           |
                                  +-----------------+
 ```
 
