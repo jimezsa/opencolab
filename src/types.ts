@@ -72,12 +72,15 @@ export interface TelegramFilePayload {
   kind: TelegramFileKind;
   fileId: string;
   fileUniqueId?: string;
+  caption?: string;
   fileName?: string;
   mimeType?: string;
   fileSize?: number;
   durationSec?: number;
   width?: number;
   height?: number;
+  telegramFilePath?: string;
+  localPath?: string;
 }
 
 export interface TelegramOutboundFile {
