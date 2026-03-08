@@ -117,6 +117,8 @@ Telegram webhook endpoint:
 
 `POST http://127.0.0.1:4646/api/telegram/webhook`
 
+Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible, and the agent receives the caption plus the local file path instead of only Telegram metadata.
+
 ## Project and Agent Commands
 
 CLI:
