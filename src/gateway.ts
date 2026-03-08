@@ -618,27 +618,39 @@ export async function defaultTelegramFileSender(
 
   const method = resolveTelegramFileMethod(file.kind);
   const fileField = resolveTelegramFileField(file.kind);
+  const url = `https://api.telegram.org/bot${token}/${method}`;
 
-  const payload: Record<string, unknown> = {
-    chat_id: chatId,
-    [fileField]: file.file,
-  };
-
-  if (file.caption && supportsCaption(file.kind)) {
-    payload.caption = file.caption;
-  }
+  const isLocalFile =
+    file.file.startsWith("/") && fs.existsSync(file.file);
 
   try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${token}/${method}`,
-      {
+    let response: Response;
+
+    if (isLocalFile) {
+      const fileBytes = fs.readFileSync(file.file);
+      const fileName = path.basename(file.file);
+      const blob = new Blob([fileBytes]);
+      const form = new FormData();
+      form.append("chat_id", chatId);
+      form.append(fileField, blob, fileName);
+      if (file.caption && supportsCaption(file.kind)) {
+        form.append("caption", file.caption);
+      }
+      response = await fetch(url, { method: "POST", body: form });
+    } else {
+      const payload: Record<string, unknown> = {
+        chat_id: chatId,
+        [fileField]: file.file,
+      };
+      if (file.caption && supportsCaption(file.kind)) {
+        payload.caption = file.caption;
+      }
+      response = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      },
-    );
+      });
+    }
 
     return response.ok;
   } catch {
@@ -1012,11 +1024,9 @@ function buildAssistantLogContent(
   if (text) {
     lines.push(text);
   }
-  lines.push("[telegram_outbound_files]");
-  files.forEach((file, index) => {
+  files.forEach((file) => {
     lines.push(
-      `${index + 1}. kind=${file.kind} file=${file.file}` +
-        (file.caption ? ` caption=${file.caption}` : ""),
+      `@telegram-file ${JSON.stringify({ kind: file.kind, file: file.file, ...(file.caption ? { caption: file.caption } : {}) })}`,
     );
   });
 
