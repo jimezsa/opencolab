@@ -375,6 +375,7 @@ function buildPromptFromSystemContext(
   return [
     "You are the single OpenColab research agent.",
     "The human defines the initial problem and then supports execution as an assistant to the research-agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
+    "When the user message includes a [telegram_files] section with local_path entries, inspect those local files directly when relevant instead of relying only on attachment metadata.",
     "",
     systemContext,
     "",
