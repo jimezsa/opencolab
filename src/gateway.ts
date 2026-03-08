@@ -2,6 +2,8 @@
  * Telegram gateway and routing logic.
  * Enforces pairing/auth, handles management commands, and forwards user input to agents.
  */
+import fs from "node:fs";
+import path from "node:path";
 import { ensureAgentFiles } from "./agent.js";
 import type { OpenColabConfig } from "./config.js";
 import type { CodexAgentInput } from "./codex-agent.js";
@@ -21,7 +23,7 @@ import type {
   TelegramOutboundFile,
 } from "./types.js";
 import { resolveTelegramBotToken } from "./secrets.js";
-import { nowIso, randomDigits } from "./utils.js";
+import { ensureDir, nowIso, randomDigits } from "./utils.js";
 
 export type TelegramSender = (
   chatId: string,
@@ -215,14 +217,20 @@ export class TelegramGateway {
 
     const history = this.deps.readConversation(inbound.chatId, 8);
     const stopTyping = this.startTypingFeedback(inbound.chatId, state);
+    const resolvedFiles = await resolveInboundFiles(
+      this.config,
+      project.path,
+      inbound.files,
+    );
+    const inboundText = buildInboundText(inbound.text, resolvedFiles);
     let response = "";
 
     try {
       response = await this.deps.respond({
         chatId: inbound.chatId,
         sender: inbound.sender,
-        text: inbound.text,
-        files: inbound.files,
+        text: inboundText,
+        files: resolvedFiles,
         history,
       });
     } finally {
@@ -237,7 +245,7 @@ export class TelegramGateway {
 
     this.deps.appendConversation(inbound.chatId, {
       role: "user",
-      content: inbound.text,
+      content: inboundText,
       at: nowIso(),
     });
 
@@ -664,7 +672,7 @@ function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {
     chatId: String(chat.id),
     sender: parseSender(asRecord(message.from)),
     commandText: text,
-    text: buildInboundText(text, files),
+    text,
     files,
   };
 }
@@ -753,10 +761,11 @@ function parseInboundFiles(
   message: Record<string, unknown>,
 ): TelegramFilePayload[] {
   const payloads: TelegramFilePayload[] = [];
+  const caption = asStringValue(message.caption);
 
   const document = asRecord(message.document);
   if (document) {
-    const payload = buildFilePayload("document", document);
+    const payload = buildFilePayload("document", document, caption);
     if (payload) {
       payloads.push(payload);
     }
@@ -764,7 +773,7 @@ function parseInboundFiles(
 
   const audio = asRecord(message.audio);
   if (audio) {
-    const payload = buildFilePayload("audio", audio);
+    const payload = buildFilePayload("audio", audio, caption);
     if (payload) {
       payloads.push(payload);
     }
@@ -772,7 +781,7 @@ function parseInboundFiles(
 
   const video = asRecord(message.video);
   if (video) {
-    const payload = buildFilePayload("video", video);
+    const payload = buildFilePayload("video", video, caption);
     if (payload) {
       payloads.push(payload);
     }
@@ -780,7 +789,7 @@ function parseInboundFiles(
 
   const voice = asRecord(message.voice);
   if (voice) {
-    const payload = buildFilePayload("voice", voice);
+    const payload = buildFilePayload("voice", voice, caption);
     if (payload) {
       payloads.push(payload);
     }
@@ -788,7 +797,7 @@ function parseInboundFiles(
 
   const videoNote = asRecord(message.video_note);
   if (videoNote) {
-    const payload = buildFilePayload("video_note", videoNote);
+    const payload = buildFilePayload("video_note", videoNote, caption);
     if (payload) {
       payloads.push(payload);
     }
@@ -796,7 +805,7 @@ function parseInboundFiles(
 
   const animation = asRecord(message.animation);
   if (animation) {
-    const payload = buildFilePayload("animation", animation);
+    const payload = buildFilePayload("animation", animation, caption);
     if (payload) {
       payloads.push(payload);
     }
@@ -804,7 +813,7 @@ function parseInboundFiles(
 
   const sticker = asRecord(message.sticker);
   if (sticker) {
-    const payload = buildFilePayload("sticker", sticker);
+    const payload = buildFilePayload("sticker", sticker, caption);
     if (payload) {
       payloads.push(payload);
     }
@@ -815,7 +824,7 @@ function parseInboundFiles(
     : [];
   const bestPhoto = photos[photos.length - 1];
   if (bestPhoto) {
-    const payload = buildFilePayload("photo", bestPhoto);
+    const payload = buildFilePayload("photo", bestPhoto, caption);
     if (payload) {
       payloads.push(payload);
     }
@@ -827,6 +836,7 @@ function parseInboundFiles(
 function buildFilePayload(
   kind: TelegramFileKind,
   source: Record<string, unknown>,
+  caption?: string | null,
 ): TelegramFilePayload | null {
   const fileId = asStringValue(source.file_id);
   if (!fileId) {
@@ -836,6 +846,7 @@ function buildFilePayload(
   const payload: TelegramFilePayload = {
     kind,
     fileId,
+    ...(caption ? { caption } : {}),
   };
 
   const uniqueId = asStringValue(source.file_unique_id);
@@ -893,6 +904,12 @@ function buildInboundText(
         `${index + 1}. kind=${file.kind} file_id=${file.fileId}` +
           (file.fileName ? ` file_name=${file.fileName}` : "") +
           (file.mimeType ? ` mime_type=${file.mimeType}` : "") +
+          (file.telegramFilePath
+            ? ` telegram_path=${file.telegramFilePath}`
+            : "") +
+          (file.localPath
+            ? ` local_path=${JSON.stringify(file.localPath)}`
+            : "") +
           (file.fileSize !== undefined
             ? ` file_size=${String(file.fileSize)}`
             : ""),
@@ -1059,6 +1076,163 @@ function resolveTelegramFileField(kind: TelegramFileKind): string {
 
 function supportsCaption(kind: TelegramFileKind): boolean {
   return kind !== "sticker" && kind !== "video_note";
+}
+
+async function resolveInboundFiles(
+  config: OpenColabConfig,
+  projectPath: string,
+  files: TelegramFilePayload[],
+): Promise<TelegramFilePayload[]> {
+  if (files.length === 0) {
+    return [];
+  }
+
+  const token = resolveTelegramBotToken();
+  if (!token) {
+    return files;
+  }
+
+  const projectDir = path.isAbsolute(projectPath)
+    ? projectPath
+    : path.join(config.rootDir, projectPath);
+  const inboxDir = path.join(
+    projectDir,
+    "memory",
+    "TelegramInbox",
+    new Date().toISOString().slice(0, 10),
+  );
+  ensureDir(inboxDir);
+
+  const resolved: TelegramFilePayload[] = [];
+  for (const file of files) {
+    resolved.push(await resolveInboundFile(token, inboxDir, file));
+  }
+
+  return resolved;
+}
+
+async function resolveInboundFile(
+  token: string,
+  inboxDir: string,
+  file: TelegramFilePayload,
+): Promise<TelegramFilePayload> {
+  try {
+    const telegramFilePath = await fetchTelegramFilePath(token, file.fileId);
+    if (!telegramFilePath) {
+      return file;
+    }
+
+    const localPath = path.join(
+      inboxDir,
+      buildLocalFileName(file, telegramFilePath),
+    );
+
+    if (!fs.existsSync(localPath)) {
+      const bytes = await downloadTelegramFile(token, telegramFilePath);
+      if (!bytes) {
+        return {
+          ...file,
+          telegramFilePath,
+        };
+      }
+
+      fs.writeFileSync(localPath, bytes);
+    }
+
+    return {
+      ...file,
+      telegramFilePath,
+      localPath,
+    };
+  } catch {
+    return file;
+  }
+}
+
+async function fetchTelegramFilePath(
+  token: string,
+  fileId: string,
+): Promise<string | null> {
+  const params = new URLSearchParams({
+    file_id: fileId,
+  });
+  const response = await fetch(
+    `https://api.telegram.org/bot${token}/getFile?${params.toString()}`,
+  );
+  if (!response.ok) {
+    return null;
+  }
+
+  const body = (await response.json()) as Record<string, unknown>;
+  if (body.ok !== true) {
+    return null;
+  }
+
+  return asStringValue(asRecord(body.result)?.file_path);
+}
+
+async function downloadTelegramFile(
+  token: string,
+  telegramFilePath: string,
+): Promise<Buffer | null> {
+  const response = await fetch(
+    `https://api.telegram.org/file/bot${token}/${telegramFilePath}`,
+  );
+  if (!response.ok) {
+    return null;
+  }
+
+  const bytes = await response.arrayBuffer();
+  return Buffer.from(bytes);
+}
+
+function buildLocalFileName(
+  file: TelegramFilePayload,
+  telegramFilePath: string,
+): string {
+  const extension = resolveLocalFileExtension(file, telegramFilePath);
+  const stem = sanitizeFileStem(
+    file.fileName
+      ? path.basename(file.fileName, path.extname(file.fileName))
+      : `${file.kind}-${file.fileUniqueId ?? file.fileId}`,
+  );
+  return `${stem}${extension}`;
+}
+
+function resolveLocalFileExtension(
+  file: TelegramFilePayload,
+  telegramFilePath: string,
+): string {
+  const preferredPath = file.fileName?.trim() || telegramFilePath.trim();
+  const extension = path.extname(preferredPath);
+  if (extension) {
+    return extension.toLowerCase();
+  }
+
+  switch (file.kind) {
+    case "photo":
+      return ".jpg";
+    case "audio":
+      return ".mp3";
+    case "video":
+      return ".mp4";
+    case "voice":
+      return ".ogg";
+    case "video_note":
+      return ".mp4";
+    case "animation":
+      return ".gif";
+    case "sticker":
+      return ".webp";
+    case "document":
+    default:
+      return ".bin";
+  }
+}
+
+function sanitizeFileStem(value: string): string {
+  const normalized = value.trim().replace(/[^a-zA-Z0-9._-]+/g, "_");
+  return normalized || "telegram_file";
 }
 
 function asStringValue(value: unknown): string | null {
