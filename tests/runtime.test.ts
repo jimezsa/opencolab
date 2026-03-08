@@ -384,6 +384,131 @@ test("paired webhook routes document-only inbound message to the agent", async (
   }
 });
 
+test("paired webhook routes photo captions with a downloaded local file path", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-photo-inbound-"));
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+  process.env.TELEGRAM_BOT_TOKEN = "test_bot_token";
+
+  const seenInputs: Array<{
+    text: string;
+    files: Array<{
+      kind: string;
+      caption?: string;
+      fileId: string;
+      telegramFilePath?: string;
+      localPath?: string;
+    }>;
+  }> = [];
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/getFile?")) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            file_path: "photos/chart.jpg"
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      );
+    }
+
+    if (url === "https://api.telegram.org/file/bottest_bot_token/photos/chart.jpg") {
+      return new Response(Buffer.from("fake-image-bytes"), {
+        status: 200
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async ({ files, text }) => {
+      seenInputs.push({
+        text,
+        files: files.map((file) => ({
+          kind: file.kind,
+          caption: file.caption,
+          fileId: file.fileId,
+          telegramFilePath: file.telegramFilePath,
+          localPath: file.localPath
+        }))
+      });
+      return "photo received";
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        chat: { id: "10001" },
+        from: { username: "alice" },
+        caption: "Please analyze this chart",
+        photo: [
+          {
+            file_id: "photo_small",
+            file_unique_id: "uniq_small",
+            width: 320,
+            height: 240,
+            file_size: 512
+          },
+          {
+            file_id: "photo_large",
+            file_unique_id: "uniq_large",
+            width: 1600,
+            height: 1200,
+            file_size: 4096
+          }
+        ]
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.equal(result.response, "photo received");
+    assert.equal(seenInputs.length, 1);
+    assert.equal(seenInputs[0].files.length, 1);
+    assert.equal(seenInputs[0].files[0].kind, "photo");
+    assert.equal(seenInputs[0].files[0].fileId, "photo_large");
+    assert.equal(seenInputs[0].files[0].caption, "Please analyze this chart");
+    assert.equal(seenInputs[0].files[0].telegramFilePath, "photos/chart.jpg");
+    assert.equal(typeof seenInputs[0].files[0].localPath, "string");
+    assert.equal(seenInputs[0].text.includes("Please analyze this chart"), true);
+    assert.equal(seenInputs[0].text.includes("[telegram_files]"), true);
+    assert.equal(seenInputs[0].text.includes("local_path="), true);
+
+    const localPath = seenInputs[0].files[0].localPath;
+    assert.ok(localPath);
+    assert.equal(fs.existsSync(localPath), true);
+    assert.equal(fs.readFileSync(localPath, "utf8"), "fake-image-bytes");
+    assert.equal(localPath.includes(path.join("memory", "TelegramInbox")), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    } else {
+      process.env.TELEGRAM_BOT_TOKEN = originalToken;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("agent response can send telegram files via @telegram-file directives", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-outbound-"));
   const sentTexts: string[] = [];
