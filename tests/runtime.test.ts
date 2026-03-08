@@ -509,6 +509,231 @@ test("paired webhook routes photo captions with a downloaded local file path", a
   }
 });
 
+test("paired webhook stores same-name inbound documents under unique local paths", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-dedupe-"));
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+  process.env.TELEGRAM_BOT_TOKEN = "test_bot_token";
+
+  const seenInputs: Array<{
+    fileId: string;
+    localPath?: string;
+  }> = [];
+  let downloadCount = 0;
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("file_id=doc_alpha")) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            file_path: "docs/alpha.pdf"
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      );
+    }
+
+    if (url.includes("file_id=doc_beta")) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            file_path: "docs/beta.pdf"
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      );
+    }
+
+    if (url === "https://api.telegram.org/file/bottest_bot_token/docs/alpha.pdf") {
+      downloadCount += 1;
+      return new Response(Buffer.from("alpha-bytes"), {
+        status: 200
+      });
+    }
+
+    if (url === "https://api.telegram.org/file/bottest_bot_token/docs/beta.pdf") {
+      downloadCount += 1;
+      return new Response(Buffer.from("beta-bytes"), {
+        status: 200
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async ({ files }) => {
+      seenInputs.push({
+        fileId: files[0]?.fileId ?? "none",
+        localPath: files[0]?.localPath
+      });
+      return "documents received";
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        chat: { id: "10001" },
+        from: { username: "alice" },
+        document: {
+          file_id: "doc_alpha",
+          file_unique_id: "uniq_alpha",
+          file_name: "report.pdf"
+        }
+      }
+    });
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        chat: { id: "10001" },
+        from: { username: "alice" },
+        document: {
+          file_id: "doc_beta",
+          file_unique_id: "uniq_beta",
+          file_name: "report.pdf"
+        }
+      }
+    });
+
+    assert.equal(seenInputs.length, 2);
+    assert.equal(downloadCount, 2);
+
+    const alphaPath = seenInputs[0].localPath;
+    const betaPath = seenInputs[1].localPath;
+    assert.ok(alphaPath);
+    assert.ok(betaPath);
+    assert.notEqual(alphaPath, betaPath);
+    assert.equal(path.basename(alphaPath), "report__uniq_alpha.pdf");
+    assert.equal(path.basename(betaPath), "report__uniq_beta.pdf");
+    assert.equal(fs.readFileSync(alphaPath, "utf8"), "alpha-bytes");
+    assert.equal(fs.readFileSync(betaPath, "utf8"), "beta-bytes");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    } else {
+      process.env.TELEGRAM_BOT_TOKEN = originalToken;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("paired webhook preserves telegram metadata when local file download fails", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-fallback-"));
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+  process.env.TELEGRAM_BOT_TOKEN = "test_bot_token";
+
+  const seenInputs: Array<{
+    text: string;
+    telegramFilePath?: string;
+    localPath?: string;
+  }> = [];
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/getFile?")) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            file_path: "docs/report.pdf"
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      );
+    }
+
+    if (url === "https://api.telegram.org/file/bottest_bot_token/docs/report.pdf") {
+      throw new Error("download failed");
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  };
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async ({ files, text }) => {
+      seenInputs.push({
+        text,
+        telegramFilePath: files[0]?.telegramFilePath,
+        localPath: files[0]?.localPath
+      });
+      return "fallback metadata received";
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        chat: { id: "10001" },
+        from: { username: "alice" },
+        caption: "Please review this report",
+        document: {
+          file_id: "doc_123",
+          file_unique_id: "uniq_doc_1",
+          file_name: "report.pdf",
+          mime_type: "application/pdf"
+        }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.equal(result.response, "fallback metadata received");
+    assert.equal(seenInputs.length, 1);
+    assert.equal(seenInputs[0].telegramFilePath, "docs/report.pdf");
+    assert.equal(seenInputs[0].localPath, undefined);
+    assert.equal(seenInputs[0].text.includes("Please review this report"), true);
+    assert.equal(seenInputs[0].text.includes("telegram_path=docs/report.pdf"), true);
+    assert.equal(seenInputs[0].text.includes("local_path="), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    } else {
+      process.env.TELEGRAM_BOT_TOKEN = originalToken;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("agent response can send telegram files via @telegram-file directives", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-outbound-"));
   const sentTexts: string[] = [];

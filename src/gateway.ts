@@ -53,6 +53,8 @@ interface GatewayDependencies {
   telegramFileSender?: TelegramFileSender;
 }
 
+const TELEGRAM_FILE_FETCH_TIMEOUT_MS = 10_000;
+
 export class TelegramGateway {
   private readonly sender: TelegramSender;
   private readonly typingSender: TelegramTypingSender;
@@ -1116,8 +1118,10 @@ async function resolveInboundFile(
   inboxDir: string,
   file: TelegramFilePayload,
 ): Promise<TelegramFilePayload> {
+  let telegramFilePath: string | null = null;
+
   try {
-    const telegramFilePath = await fetchTelegramFilePath(token, file.fileId);
+    telegramFilePath = await fetchTelegramFilePath(token, file.fileId);
     if (!telegramFilePath) {
       return file;
     }
@@ -1145,7 +1149,12 @@ async function resolveInboundFile(
       localPath,
     };
   } catch {
-    return file;
+    return telegramFilePath
+      ? {
+          ...file,
+          telegramFilePath,
+        }
+      : file;
   }
 }
 
@@ -1156,10 +1165,11 @@ async function fetchTelegramFilePath(
   const params = new URLSearchParams({
     file_id: fileId,
   });
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://api.telegram.org/bot${token}/getFile?${params.toString()}`,
+    TELEGRAM_FILE_FETCH_TIMEOUT_MS,
   );
-  if (!response.ok) {
+  if (!response || !response.ok) {
     return null;
   }
 
@@ -1175,10 +1185,11 @@ async function downloadTelegramFile(
   token: string,
   telegramFilePath: string,
 ): Promise<Buffer | null> {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://api.telegram.org/file/bot${token}/${telegramFilePath}`,
+    TELEGRAM_FILE_FETCH_TIMEOUT_MS,
   );
-  if (!response.ok) {
+  if (!response || !response.ok) {
     return null;
   }
 
@@ -1191,10 +1202,11 @@ function buildLocalFileName(
   telegramFilePath: string,
 ): string {
   const extension = resolveLocalFileExtension(file, telegramFilePath);
+  const identity = sanitizeFileStem(file.fileUniqueId ?? file.fileId);
   const stem = sanitizeFileStem(
     file.fileName
-      ? path.basename(file.fileName, path.extname(file.fileName))
-      : `${file.kind}-${file.fileUniqueId ?? file.fileId}`,
+      ? `${path.basename(file.fileName, path.extname(file.fileName))}__${identity}`
+      : `${file.kind}-${identity}`,
   );
   return `${stem}${extension}`;
 }
@@ -1233,6 +1245,24 @@ function resolveLocalFileExtension(
 function sanitizeFileStem(value: string): string {
   const normalized = value.trim().replace(/[^a-zA-Z0-9._-]+/g, "_");
   return normalized || "telegram_file";
+}
+
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number,
+): Promise<Response | null> {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      signal: controller.signal,
+    });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
 }
 
 function asStringValue(value: unknown): string | null {
