@@ -17,7 +17,7 @@ import {
   readProjectState,
   writeProjectState
 } from "./project-config.js";
-import { getProviderSetupDefaults } from "./provider.js";
+import { getProviderSetupDefaults, resolveProviderAuthMode } from "./provider.js";
 import {
   TelegramGateway,
   type TelegramFileSender,
@@ -29,6 +29,7 @@ import type {
   GatewayResult,
   OpenColabState,
   ProjectState,
+  ProviderAuthMode,
   ProviderName
 } from "./types.js";
 import { ensureDir } from "./utils.js";
@@ -46,6 +47,7 @@ export interface ModelSetupInput {
   agentId?: string;
   cliCommand?: string;
   cliArgs?: string[];
+  authMode?: ProviderAuthMode;
 }
 
 export interface TelegramSetupInput {
@@ -165,6 +167,15 @@ export class OpenColabRuntime {
       throw new Error(`Unknown agent in project '${project.id}': ${targetAgentId}`);
     }
     const providerDefaults = getProviderSetupDefaults(input.providerName);
+    const defaultAuthMode =
+      input.providerName === targetAgent.provider.name
+        ? targetAgent.provider.authMode
+        : providerDefaults.authMode;
+    const authMode = resolveProviderAuthMode(
+      input.providerName,
+      input.authMode,
+      defaultAuthMode
+    );
     const cliCommand = input.cliCommand?.trim() || providerDefaults.cliCommand;
     const cliArgs =
       input.cliArgs && input.cliArgs.length > 0 ? input.cliArgs : providerDefaults.cliArgs;
@@ -183,7 +194,8 @@ export class OpenColabRuntime {
                 name: input.providerName,
                 model: input.model,
                 cliCommand,
-                cliArgs
+                cliArgs,
+                authMode
               }
             }
           }
