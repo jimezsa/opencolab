@@ -11,6 +11,7 @@ import {
   createDefaultAgentConfig,
   createDefaultProjectState,
   ensureProjectAndAgent,
+  getActiveAgent as getProjectActiveAgent,
   getActiveProject,
 } from "./project-config.js";
 import type {
@@ -76,7 +77,6 @@ export class TelegramGateway {
     sent: boolean;
   }> {
     const state = ensureProjectAndAgent(this.deps.getState());
-    const project = getActiveProject(state);
 
     if (!state.telegram.chatId) {
       throw new Error(
@@ -324,9 +324,13 @@ export class TelegramGateway {
           };
         }
 
-        const currentProject = getActiveProject(state);
         const project = createDefaultProjectState(projectId);
-        project.provider = { ...currentProject.provider };
+        const currentAgent = getProjectActiveAgent(getActiveProject(state));
+        project.agents[project.activeAgentId] = createDefaultAgentConfig(
+          projectId,
+          project.activeAgentId,
+          currentAgent.provider,
+        );
 
         const nextState = ensureProjectAndAgent({
           ...state,
@@ -408,7 +412,11 @@ export class TelegramGateway {
           };
         }
 
-        const agent = createDefaultAgentConfig(project.id, agentId);
+        const agent = createDefaultAgentConfig(
+          project.id,
+          agentId,
+          getProjectActiveAgent(project).provider,
+        );
         const nextState = ensureProjectAndAgent({
           ...state,
           projects: {
@@ -508,7 +516,7 @@ export class TelegramGateway {
     );
     const lines = entries.map((agent) => {
       const marker = agent.id === project.activeAgentId ? "*" : "-";
-      return `${marker} ${agent.id} (${agent.path})`;
+      return `${marker} ${agent.id} (${agent.path}) [${agent.provider.name}:${agent.provider.model}]`;
     });
 
     return [`Agents in ${project.id} (${entries.length})`, ...lines].join("\n");

@@ -12,6 +12,7 @@ import {
   createDefaultProjectState,
   DEFAULT_AGENT_ID,
   ensureProjectAndAgent,
+  getActiveAgent as getProjectActiveAgent,
   getActiveProject,
   readProjectState,
   writeProjectState
@@ -42,6 +43,7 @@ export interface RuntimeOptions {
 export interface ModelSetupInput {
   providerName: ProviderName;
   model: string;
+  agentId?: string;
   cliCommand?: string;
   cliArgs?: string[];
 }
@@ -106,17 +108,7 @@ export class OpenColabRuntime {
 
   getActiveAgent(): AgentConfig {
     const project = this.getActiveProject();
-    const active = project.agents[project.activeAgentId];
-    if (active) {
-      return active;
-    }
-
-    const fallback = Object.values(project.agents)[0];
-    if (fallback) {
-      return fallback;
-    }
-
-    return createDefaultAgentConfig(project.id, DEFAULT_AGENT_ID);
+    return getProjectActiveAgent(project);
   }
 
   listProjects(): ProjectState[] {
@@ -130,6 +122,11 @@ export class OpenColabRuntime {
     }
 
     const project = createDefaultProjectState(id);
+    project.agents[project.activeAgentId] = createDefaultAgentConfig(
+      id,
+      project.activeAgentId,
+      this.getActiveAgent().provider
+    );
     this.state = {
       ...this.state,
       activeProjectId: id,
@@ -162,6 +159,11 @@ export class OpenColabRuntime {
 
   setupModel(input: ModelSetupInput): OpenColabState {
     const project = this.getActiveProject();
+    const targetAgentId = input.agentId?.trim() || project.activeAgentId;
+    const targetAgent = project.agents[targetAgentId];
+    if (!targetAgent) {
+      throw new Error(`Unknown agent in project '${project.id}': ${targetAgentId}`);
+    }
     const providerDefaults = getProviderSetupDefaults(input.providerName);
     const cliCommand = input.cliCommand?.trim() || providerDefaults.cliCommand;
     const cliArgs =
@@ -173,11 +175,17 @@ export class OpenColabRuntime {
         ...this.state.projects,
         [project.id]: {
           ...project,
-          provider: {
-            name: input.providerName,
-            model: input.model,
-            cliCommand,
-            cliArgs
+          agents: {
+            ...project.agents,
+            [targetAgent.id]: {
+              ...targetAgent,
+              provider: {
+                name: input.providerName,
+                model: input.model,
+                cliCommand,
+                cliArgs
+              }
+            }
           }
         }
       }
@@ -221,7 +229,8 @@ export class OpenColabRuntime {
     const candidatePath = agentPath?.trim();
     const resolvedPath = candidatePath || buildAgentPath(project.id, id);
 
-    const existing = project.agents[id] ?? createDefaultAgentConfig(project.id, id);
+    const existing =
+      project.agents[id] ?? createDefaultAgentConfig(project.id, id, this.getActiveAgent().provider);
     const updatedAgent: AgentConfig = {
       ...existing,
       id,
@@ -285,7 +294,7 @@ export class OpenColabRuntime {
 
   private ensureActiveAgentFiles(): void {
     const project = getActiveProject(this.state);
-    const agent = project.agents[project.activeAgentId] ?? Object.values(project.agents)[0];
+    const agent = getProjectActiveAgent(project);
     if (!agent) {
       return;
     }
@@ -295,7 +304,7 @@ export class OpenColabRuntime {
 
   private resolveActiveAgentPath(): string {
     const project = getActiveProject(this.state);
-    const agent = project.agents[project.activeAgentId] ?? Object.values(project.agents)[0];
+    const agent = getProjectActiveAgent(project);
     return agent?.path ?? project.path;
   }
 

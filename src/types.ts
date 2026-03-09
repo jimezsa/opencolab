@@ -17,9 +17,10 @@ export interface AgentConfig {
   id: string;
   path: string;
   files: AgentFiles;
+  provider: ProviderConfig;
 }
 
-export type ProviderName = "openai" | "anthropic";
+export type ProviderName = "openai" | "anthropic" | "minimax";
 
 export interface ProviderConfig {
   name: ProviderName;
@@ -41,7 +42,6 @@ export interface ProjectState {
   path: string;
   activeAgentId: string;
   agents: Record<string, AgentConfig>;
-  provider: ProviderConfig;
 }
 
 export interface OpenColabState {

@@ -47,6 +47,15 @@ function cloneAgentFiles(source: AgentFiles): AgentFiles {
   };
 }
 
+function cloneProviderConfig(source: ProviderConfig): ProviderConfig {
+  return {
+    name: source.name,
+    model: source.model,
+    cliCommand: source.cliCommand,
+    cliArgs: [...source.cliArgs]
+  };
+}
+
 export function buildProjectPath(projectId: string): string {
   return `projects/${projectId}`;
 }
@@ -65,17 +74,31 @@ export function buildAgentPath(projectId: string, agentId: string): string {
     : buildSubagentPath(projectId, agentId);
 }
 
-export function createDefaultAgentConfig(projectId: string, agentId = DEFAULT_AGENT_ID): AgentConfig {
+export function createDefaultProviderConfig(providerName: ProviderConfig["name"] = "anthropic"): ProviderConfig {
+  const providerDefaults = getProviderSetupDefaults(providerName);
+  return {
+    name: providerName,
+    model: providerDefaults.model,
+    cliCommand: providerDefaults.cliCommand,
+    cliArgs: [...providerDefaults.cliArgs]
+  };
+}
+
+export function createDefaultAgentConfig(
+  projectId: string,
+  agentId = DEFAULT_AGENT_ID,
+  provider = createDefaultProviderConfig("anthropic")
+): AgentConfig {
   return {
     id: agentId,
     path: buildAgentPath(projectId, agentId),
-    files: cloneAgentFiles(DEFAULT_AGENT_FILES)
+    files: cloneAgentFiles(DEFAULT_AGENT_FILES),
+    provider: cloneProviderConfig(provider)
   };
 }
 
 export function createDefaultProjectState(projectId = DEFAULT_PROJECT_ID): ProjectState {
   const defaultAgent = createDefaultAgentConfig(projectId, DEFAULT_AGENT_ID);
-  const providerDefaults = getProviderSetupDefaults("anthropic");
 
   return {
     id: projectId,
@@ -83,12 +106,6 @@ export function createDefaultProjectState(projectId = DEFAULT_PROJECT_ID): Proje
     activeAgentId: defaultAgent.id,
     agents: {
       [defaultAgent.id]: defaultAgent
-    },
-    provider: {
-      name: "anthropic",
-      model: providerDefaults.model,
-      cliCommand: providerDefaults.cliCommand,
-      cliArgs: [...providerDefaults.cliArgs]
     }
   };
 }
@@ -293,6 +310,7 @@ function normalizeLegacyState(
 
   const projectId = DEFAULT_PROJECT_ID;
   const projectDefaults = createDefaultProjectState(projectId);
+  const fallbackProvider = normalizeProvider(sourceProvider, createDefaultProviderConfig("anthropic"));
   const agentId = asString(sourceAgent?.id, projectDefaults.activeAgentId);
   const agentPath = asString(sourceAgent?.path, buildMainAgentPath(projectId));
 
@@ -308,7 +326,8 @@ function normalizeLegacyState(
       user: asString(sourceAgentFiles?.user, DEFAULT_AGENT_FILES.user),
       todo: asString(sourceAgentFiles?.todo, DEFAULT_AGENT_FILES.todo),
       memory: asString(sourceAgentFiles?.memory, DEFAULT_AGENT_FILES.memory)
-    }
+    },
+    provider: fallbackProvider
   };
 
   const project: ProjectState = {
@@ -316,8 +335,7 @@ function normalizeLegacyState(
     activeAgentId: agent.id,
     agents: {
       [agent.id]: agent
-    },
-    provider: normalizeProvider(sourceProvider, projectDefaults.provider)
+    }
   };
 
   const normalized: OpenColabState = {
@@ -339,13 +357,18 @@ function normalizeProject(projectId: string, source: Record<string, unknown> | n
     return defaults;
   }
 
+  const legacyProjectProvider = normalizeProvider(
+    asRecord(source.provider),
+    createDefaultProviderConfig("anthropic")
+  );
+
   const sourceAgents = asRecord(source.agents);
   const normalizedAgents: Record<string, AgentConfig> = {};
 
   if (sourceAgents) {
     for (const [candidateAgentId, value] of Object.entries(sourceAgents)) {
       const candidate = asRecord(value);
-      const agent = normalizeAgent(projectId, candidateAgentId, candidate);
+      const agent = normalizeAgent(projectId, candidateAgentId, candidate, legacyProjectProvider);
       normalizedAgents[agent.id] = agent;
     }
   }
@@ -354,13 +377,13 @@ function normalizeProject(projectId: string, source: Record<string, unknown> | n
     const sourceAgent = asRecord(source.agent);
     if (sourceAgent) {
       const fallbackId = asString(sourceAgent.id, defaults.activeAgentId);
-      const agent = normalizeAgent(projectId, fallbackId, sourceAgent);
+      const agent = normalizeAgent(projectId, fallbackId, sourceAgent, legacyProjectProvider);
       normalizedAgents[agent.id] = agent;
     }
   }
 
   if (Object.keys(normalizedAgents).length === 0) {
-    const fallbackAgent = createDefaultAgentConfig(projectId);
+    const fallbackAgent = createDefaultAgentConfig(projectId, DEFAULT_AGENT_ID, legacyProjectProvider);
     normalizedAgents[fallbackAgent.id] = fallbackAgent;
   }
 
@@ -373,19 +396,19 @@ function normalizeProject(projectId: string, source: Record<string, unknown> | n
     id: asString(source.id, projectId),
     path: asString(source.path, defaults.path),
     activeAgentId,
-    agents: normalizedAgents,
-    provider: normalizeProvider(asRecord(source.provider), defaults.provider)
+    agents: normalizedAgents
   };
 }
 
 function normalizeAgent(
   projectId: string,
   fallbackAgentId: string,
-  source: Record<string, unknown> | null
+  source: Record<string, unknown> | null,
+  fallbackProvider: ProviderConfig
 ): AgentConfig {
   const id = asString(source?.id, fallbackAgentId);
   const sourceFiles = asRecord(source?.files);
-  const defaults = createDefaultAgentConfig(projectId, id);
+  const defaults = createDefaultAgentConfig(projectId, id, fallbackProvider);
 
   return {
     id,
@@ -399,7 +422,8 @@ function normalizeAgent(
       user: asString(sourceFiles?.user, defaults.files.user),
       todo: asString(sourceFiles?.todo, defaults.files.todo),
       memory: asString(sourceFiles?.memory, defaults.files.memory)
-    }
+    },
+    provider: normalizeProvider(asRecord(source?.provider), fallbackProvider)
   };
 }
 

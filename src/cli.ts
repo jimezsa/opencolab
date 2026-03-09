@@ -15,7 +15,7 @@ import {
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
-import { getProviderSetupDefaults, normalizeProviderName } from "./provider.js";
+import { getProviderSetupDefaults, getSupportedProviderNames, normalizeProviderName } from "./provider.js";
 import { createRuntime } from "./runtime.js";
 import {
   getProviderApiKeyEnvVar,
@@ -452,15 +452,17 @@ function usageSetup(): string {
 }
 
 function usageSetupModel(): string {
+  const providerChoices = getSupportedProviderNames().join("|");
   return formatHelp([
     "Usage:",
     helpCommand(
-      "opencolab setup model [--provider openai|anthropic] [--model <model>] [--api-key <value>]",
-      "Configure active project runtime",
+      `opencolab setup model [--agent-id <id>] [--provider ${providerChoices}] [--model <model>] [--api-key <value>]`,
+      "Configure an agent runtime",
     ),
     "",
     "Flags:",
-    helpFlag("--provider openai|anthropic", "Provider identifier"),
+    helpFlag("--agent-id <id>", "Target agent id (default: active agent)"),
+    helpFlag(`--provider ${providerChoices}`, "Provider identifier"),
     helpFlag("--model <model>", "Provider model name"),
     helpFlag("--api-key <value>", "Provider API key value (saved to .env.local)"),
   ]);
@@ -595,11 +597,12 @@ function resolveHelp(argv: string[]): string | null {
   return usageMain();
 }
 
-function parseProviderName(value: string | undefined): ProviderName {
-  const parsed = normalizeProviderName(value ?? "openai");
+function parseProviderName(value: string | undefined, fallback: ProviderName): ProviderName {
+  const parsed = normalizeProviderName(value ?? fallback);
   if (!parsed) {
+    const supported = getSupportedProviderNames().join(", ");
     throw new Error(
-      `Unsupported provider: ${value}. Use openai or anthropic.`,
+      `Unsupported provider: ${value}. Use ${supported}.`,
     );
   }
   return parsed;
@@ -941,7 +944,14 @@ async function main(): Promise<void> {
 
   if (command === "setup" && subcommand === "model") {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
-    const providerName = parseProviderName(values.provider);
+    const project = runtime.getActiveProject();
+    const targetAgentId = values["agent-id"]?.trim() || project.activeAgentId;
+    const targetAgent = project.agents[targetAgentId];
+    if (!targetAgent) {
+      throw new Error(`Unknown agent in project '${project.id}': ${targetAgentId}`);
+    }
+
+    const providerName = parseProviderName(values.provider, targetAgent.provider.name);
     const providerDefaults = getProviderSetupDefaults(providerName);
     const keyEnvVar = getProviderApiKeyEnvVar(providerName);
     const apiKey = values["api-key"]?.trim() ?? "";
@@ -954,17 +964,20 @@ async function main(): Promise<void> {
     }
 
     runtime.setupModel({
+      agentId: targetAgentId,
       providerName,
       model: values.model ?? providerDefaults.model,
     });
 
-    const project = runtime.getActiveProject();
+    const configuredProject = runtime.getActiveProject();
+    const configuredAgent = configuredProject.agents[targetAgentId];
     console.log(`Project: ${project.id}`);
-    console.log(`Provider configured: ${project.provider.name}`);
-    console.log(`Model: ${project.provider.model}`);
+    console.log(`Agent: ${configuredAgent.id}`);
+    console.log(`Provider configured: ${configuredAgent.provider.name}`);
+    console.log(`Model: ${configuredAgent.provider.model}`);
     console.log(`API key env var: ${keyEnvVar}`);
     console.log(
-      `CLI: ${project.provider.cliCommand} ${project.provider.cliArgs.join(" ")}`,
+      `CLI: ${configuredAgent.provider.cliCommand} ${configuredAgent.provider.cliArgs.join(" ")}`,
     );
     return;
   }
@@ -1175,7 +1188,7 @@ async function main(): Promise<void> {
       const agents = runtime.listAgents();
       for (const agent of agents) {
         const marker = agent.id === project.activeAgentId ? "*" : "-";
-        console.log(`${marker} ${agent.id} (${agent.path})`);
+        console.log(`${marker} ${agent.id} (${agent.path}) [${agent.provider.name}:${agent.provider.model}]`);
       }
       return;
     }

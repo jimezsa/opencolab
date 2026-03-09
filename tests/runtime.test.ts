@@ -136,7 +136,10 @@ test("init seeds TOOLS.md with available search skill summaries", () => {
     const toolsPath = path.join(tempDir, "projects", "default", "TOOLS.md");
     const toolsDoc = fs.readFileSync(toolsPath, "utf8");
     assert.equal(toolsDoc.includes("# TOOLS"), true);
-    assert.equal(toolsDoc.includes("Primary runtime: provider CLI (openai or anthropic)."), true);
+    assert.equal(
+      toolsDoc.includes("Primary runtime: provider CLI (openai, anthropic, minimax, or compatible runtime)."),
+      true
+    );
     assert.equal(toolsDoc.includes("`fast-search`"), true);
     assert.equal(toolsDoc.includes("Fast scientific paper scouting with `papercli`."), true);
     assert.equal(
@@ -160,7 +163,7 @@ test("init seeds TOOLS.md with available search skill summaries", () => {
   }
 });
 
-test("setupModel auto-sets provider CLI defaults for active project", () => {
+test("setupModel auto-sets provider CLI defaults for the active agent", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-runtime-"));
   const runtime = createRuntime(tempDir);
 
@@ -171,10 +174,10 @@ test("setupModel auto-sets provider CLI defaults for active project", () => {
       model: "claude-sonnet-4-5"
     });
 
-    const project = runtime.getActiveProject();
-    assert.equal(project.provider.name, "anthropic");
-    assert.equal(project.provider.cliCommand, "claude");
-    assert.deepEqual(project.provider.cliArgs, [
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.cliCommand, "claude");
+    assert.deepEqual(agent.provider.cliArgs, [
       "-p",
       "{prompt}",
       "--model",
@@ -204,13 +207,50 @@ test("runtime persistence excludes secret references from opencolab.json", () =>
     });
 
     const raw = JSON.parse(fs.readFileSync(path.join(tempDir, "opencolab.json"), "utf8")) as {
-      projects: Record<string, { provider: Record<string, unknown> }>;
+      projects: Record<string, { activeAgentId: string; agents: Record<string, { provider: Record<string, unknown> }> }>;
       telegram: Record<string, unknown>;
       activeProjectId: string;
     };
-    const provider = raw.projects[raw.activeProjectId].provider;
+    const project = raw.projects[raw.activeProjectId];
+    const provider = project.agents[project.activeAgentId].provider;
     assert.equal(Object.hasOwn(provider, "apiKeyEnvVar"), false);
     assert.equal(Object.hasOwn(raw.telegram, "botTokenEnvVar"), false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("agents in one project can use different providers", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-multi-provider-agents-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "anthropic",
+      model: "claude-sonnet-4-5"
+    });
+    runtime.configureAgent("scout");
+    runtime.setupModel({
+      agentId: "scout",
+      providerName: "minimax",
+      model: "MiniMax-M2.5"
+    });
+
+    const project = runtime.getActiveProject();
+    assert.equal(project.agents.researcher_agent.provider.name, "anthropic");
+    assert.equal(project.agents.scout.provider.name, "minimax");
+    assert.equal(project.agents.scout.provider.cliCommand, "claude");
+    assert.deepEqual(project.agents.scout.provider.cliArgs, [
+      "-p",
+      "{prompt}",
+      "--model",
+      "{model}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--add-dir",
+      "{project_dir}"
+    ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

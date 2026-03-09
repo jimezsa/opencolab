@@ -12,10 +12,12 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
   const previous = {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN
   };
   delete process.env.OPENAI_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.MINIMAX_API_KEY;
   delete process.env.TELEGRAM_BOT_TOKEN;
   return previous;
 }
@@ -81,10 +83,10 @@ test("ignite configures project, provider, telegram, and optional agent", async 
     const agent = runtime.getActiveAgent();
 
     assert.equal(state.activeProjectId, "science");
-    assert.equal(project.provider.name, "openai");
-    assert.equal(project.provider.model, "gpt-5.3-codex");
-    assert.equal(project.provider.cliCommand, "codex");
-    assert.deepEqual(project.provider.cliArgs, [
+    assert.equal(agent.provider.name, "openai");
+    assert.equal(agent.provider.model, "gpt-5.3-codex");
+    assert.equal(agent.provider.cliCommand, "codex");
+    assert.deepEqual(agent.provider.cliArgs, [
       "exec",
       "--sandbox",
       "workspace-write",
@@ -153,8 +155,8 @@ test("ignite lets Esc skip a step and continue", async () => {
     const agent = runtime.getActiveAgent();
 
     assert.equal(state.activeProjectId, "default");
-    assert.equal(project.provider.name, "openai");
-    assert.equal(project.provider.model, "gpt-5.3-codex");
+    assert.equal(agent.provider.name, "openai");
+    assert.equal(agent.provider.model, "gpt-5.3-codex");
     assert.equal(state.telegram.chatId, null);
     assert.equal(agent.id, "researcher_agent");
     assert.equal(syncCalls, 0);
@@ -196,9 +198,9 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
       }
     );
 
-    const project = runtime.getActiveProject();
-    assert.equal(project.provider.name, "openai");
-    assert.equal(project.provider.model, "gpt-5.3-codex");
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "openai");
+    assert.equal(agent.provider.model, "gpt-5.3-codex");
     assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
   } finally {
     restoreSecretEnvVars(previousEnv);

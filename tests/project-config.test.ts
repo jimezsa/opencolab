@@ -29,15 +29,14 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(agent.files.user, "USER.md");
     assert.equal(agent.files.todo, "TODO.md");
     assert.equal(agent.files.memory, "MEMORY.md");
-
-    assert.equal(project.provider.name, "anthropic");
+    assert.equal(agent.provider.name, "anthropic");
     assert.equal(state.telegram.paired, false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
-test("project state normalizes supported provider name in nested project config", () => {
+test("project state migrates legacy project provider into agent config", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-"));
 
   try {
@@ -81,9 +80,10 @@ test("project state normalizes supported provider name in nested project config"
 
     const loaded = readProjectState(config);
     const project = loaded.projects[loaded.activeProjectId];
-    assert.equal(project.provider.name, "anthropic");
-    assert.equal(project.provider.cliCommand, "claude");
-    assert.deepEqual(project.provider.cliArgs, [
+    const agent = project.agents[project.activeAgentId];
+    assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.cliCommand, "claude");
+    assert.deepEqual(agent.provider.cliArgs, [
       "-p",
       "{prompt}",
       "--model",
@@ -98,7 +98,59 @@ test("project state normalizes supported provider name in nested project config"
   }
 });
 
-test("project state migrates legacy provider CLI defaults to project-wide workspace defaults", () => {
+test("project state prefers explicit agent provider over legacy project provider", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-agent-provider-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: "researcher_agent",
+            agents: {
+              researcher_agent: {
+                id: "researcher_agent",
+                path: "projects/alpha",
+                provider: {
+                  name: "minimax",
+                  model: "MiniMax-M2.5"
+                },
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            },
+            provider: {
+              name: "openai"
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    const agent = loaded.projects.alpha.agents.researcher_agent;
+    assert.equal(agent.provider.name, "minimax");
+    assert.equal(agent.provider.cliCommand, "claude");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state migrates legacy provider CLI defaults to workspace defaults on the agent", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-cli-migrate-"));
 
   try {
@@ -140,7 +192,7 @@ test("project state migrates legacy provider CLI defaults to project-wide worksp
     );
 
     const loaded = readProjectState(config);
-    assert.deepEqual(loaded.projects.alpha.provider.cliArgs, [
+    assert.deepEqual(loaded.projects.alpha.agents.researcher_agent.provider.cliArgs, [
       "exec",
       "--sandbox",
       "workspace-write",
@@ -155,7 +207,7 @@ test("project state migrates legacy provider CLI defaults to project-wide worksp
   }
 });
 
-test("project state preserves custom provider CLI defaults", () => {
+test("project state preserves custom provider CLI defaults on the agent", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-cli-custom-"));
 
   try {
@@ -173,6 +225,11 @@ test("project state preserves custom provider CLI defaults", () => {
               researcher_agent: {
                 id: "researcher_agent",
                 path: "projects/alpha",
+                provider: {
+                  name: "openai",
+                  cliCommand: "codex",
+                  cliArgs: ["exec", "--sandbox", "danger-full-access", "-"]
+                },
                 files: {
                   agents: "AGENTS.md",
                   bootstrap: "BOOTSTRAP.md",
@@ -184,11 +241,6 @@ test("project state preserves custom provider CLI defaults", () => {
                   memory: "MEMORY.md"
                 }
               }
-            },
-            provider: {
-              name: "openai",
-              cliCommand: "codex",
-              cliArgs: ["exec", "--sandbox", "danger-full-access", "-"]
             }
           }
         }
@@ -197,7 +249,7 @@ test("project state preserves custom provider CLI defaults", () => {
     );
 
     const loaded = readProjectState(config);
-    assert.deepEqual(loaded.projects.alpha.provider.cliArgs, [
+    assert.deepEqual(loaded.projects.alpha.agents.researcher_agent.provider.cliArgs, [
       "exec",
       "--sandbox",
       "danger-full-access",
@@ -208,7 +260,7 @@ test("project state preserves custom provider CLI defaults", () => {
   }
 });
 
-test("project state persists updates in opencolab.json", () => {
+test("project state persists agent provider updates in opencolab.json", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-persist-"));
 
   try {
@@ -216,6 +268,7 @@ test("project state persists updates in opencolab.json", () => {
 
     updateProjectState(config, (current) => {
       const project = current.projects[current.activeProjectId];
+      const agent = project.agents[project.activeAgentId];
 
       return {
         ...current,
@@ -223,9 +276,15 @@ test("project state persists updates in opencolab.json", () => {
           ...current.projects,
           [project.id]: {
             ...project,
-            provider: {
-              ...project.provider,
-              model: "gpt-5-research"
+            agents: {
+              ...project.agents,
+              [agent.id]: {
+                ...agent,
+                provider: {
+                  ...agent.provider,
+                  model: "gpt-5-research"
+                }
+              }
             }
           }
         },
@@ -240,8 +299,9 @@ test("project state persists updates in opencolab.json", () => {
 
     const loaded = readProjectState(config);
     const project = loaded.projects[loaded.activeProjectId];
+    const agent = project.agents[project.activeAgentId];
 
-    assert.equal(project.provider.model, "gpt-5-research");
+    assert.equal(agent.provider.model, "gpt-5-research");
     assert.equal(loaded.telegram.chatId, "10001");
     assert.equal(loaded.telegram.paired, true);
     assert.equal(fs.existsSync(config.projectConfigPath), true);
@@ -290,7 +350,7 @@ test("project state migrates legacy single-agent shape", () => {
     assert.equal(loaded.activeProjectId, "default");
     assert.equal(project.activeAgentId, "legacy_agent");
     assert.equal(project.agents.legacy_agent.path, "agents/legacy_agent");
-    assert.equal(project.provider.name, "openai");
+    assert.equal(project.agents.legacy_agent.provider.name, "openai");
     assert.equal(loaded.telegram.chatId, "10001");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -343,7 +403,7 @@ test("project state migrates legacy per-project telegram shape", () => {
 
     const loaded = readProjectState(config);
     assert.equal(loaded.activeProjectId, "alpha");
-    assert.equal(loaded.projects.alpha.provider.name, "openai");
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.name, "openai");
     assert.equal(loaded.telegram.chatId, "55555");
     assert.equal(loaded.telegram.paired, true);
   } finally {

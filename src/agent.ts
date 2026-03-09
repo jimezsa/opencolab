@@ -239,7 +239,7 @@ If you change this file, tell the user.
 
 const DEFAULT_TOOLS_DOC = `# TOOLS
 
-Primary runtime: provider CLI (openai or anthropic).
+Primary runtime: provider CLI (openai, anthropic, minimax, or compatible runtime).
 
 ## Available Skills
 

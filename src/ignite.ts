@@ -34,7 +34,8 @@ export interface IgniteIo {
 
 const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
   openai: ["gpt-5.3-codex", "gpt-5-codex", "gpt-5"],
-  anthropic: ["claude-opus-4-6", "claude-sonnet-4-5"]
+  anthropic: ["claude-opus-4-6", "claude-sonnet-4-5"],
+  minimax: ["MiniMax-M2.5"]
 };
 
 export interface IgniteDependencies {
@@ -73,7 +74,7 @@ export async function runIgnite(
   io.write("Onboarding complete.");
   io.write(`Active project: ${project.id} (${project.path})`);
   io.write(`Active agent: ${agent.id} (${agent.path})`);
-  io.write(`Provider: ${project.provider.name} (${project.provider.model})`);
+  io.write(`Provider: ${agent.provider.name} (${agent.provider.model})`);
   io.write(`Telegram chat: ${state.telegram.chatId ?? "not configured"}`);
   io.write(`Telegram paired: ${state.telegram.paired ? "yes" : "no"}`);
   io.write("Next: opencolab gateway start --port 4646");
@@ -128,7 +129,8 @@ async function selectProject(runtime: OpenColabRuntime, io: IgniteIo): Promise<v
 
 async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promise<void> {
   const project = runtime.getActiveProject();
-  const currentProvider = project.provider;
+  const agent = runtime.getActiveAgent();
+  const currentProvider = agent.provider;
   const currentProviderEnvVar = getProviderApiKeyEnvVar(currentProvider.name);
   const hasCurrentProviderKey = resolveProviderApiKey(currentProvider.name) !== null;
 
@@ -140,7 +142,7 @@ async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promi
     );
     if (keepCurrent) {
       io.write(
-        `Provider unchanged for project '${project.id}': ${currentProvider.name} (${currentProvider.model}).`
+        `Provider unchanged for agent '${agent.id}' in project '${project.id}': ${currentProvider.name} (${currentProvider.model}).`
       );
       return;
     }
@@ -178,11 +180,12 @@ async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promi
   }
 
   runtime.setupModel({
+    agentId: agent.id,
     providerName,
     model
   });
 
-  io.write(`Provider configured for project '${project.id}': ${providerName} (${model})`);
+  io.write(`Provider configured for agent '${agent.id}' in project '${project.id}': ${providerName} (${model})`);
 }
 
 async function configureTelegram(

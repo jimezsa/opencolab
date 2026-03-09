@@ -6,8 +6,9 @@ import { spawn } from "node:child_process";
 import type { OpenColabConfig } from "./config.js";
 import { buildAgentPromptForInput, resolveAgentDirectory } from "./agent.js";
 import { getActiveAgent, getActiveProject } from "./project-config.js";
+import { buildProviderRuntimeEnv } from "./provider.js";
 import { getProviderApiKeyEnvVar, resolveProviderApiKey } from "./secrets.js";
-import type { ConversationMessage, OpenColabState, TelegramFilePayload } from "./types.js";
+import type { ConversationMessage, OpenColabState, ProviderConfig, TelegramFilePayload } from "./types.js";
 
 const MAX_CLI_CAPTURE_CHARS = 200_000;
 
@@ -30,25 +31,26 @@ export class CodexAgent {
     const state = this.getState();
     const project = getActiveProject(state);
     const agent = getActiveAgent(project);
+    const provider = agent.provider;
     const promptStartedAt = Date.now();
     const prompt = buildAgentPromptForInput(this.config.rootDir, agent, input.history, input.text);
     const promptMs = Date.now() - promptStartedAt;
 
     if (this.config.forceMockCodex) {
-      this.logPerf(promptMs, 0, Date.now() - startedAt, project.provider.name, project.provider.model);
-      return this.mockResponse(project.provider.name, project.provider.model, input.text);
+      this.logPerf(promptMs, 0, Date.now() - startedAt, provider.name, provider.model);
+      return this.mockResponse(provider.name, provider.model, input.text);
     }
 
     const cliStartedAt = Date.now();
-    const output = await this.runProviderCli(prompt, project.provider, project.path, agent.path);
+    const output = await this.runProviderCli(prompt, provider, project.path, agent.path);
     const cliMs = Date.now() - cliStartedAt;
-    this.logPerf(promptMs, cliMs, Date.now() - startedAt, project.provider.name, project.provider.model);
+    this.logPerf(promptMs, cliMs, Date.now() - startedAt, provider.name, provider.model);
     return output;
   }
 
   private runProviderCli(
     prompt: string,
-    provider: OpenColabState["projects"][string]["provider"],
+    provider: ProviderConfig,
     projectPath: string,
     agentPath: string
   ): Promise<string> {
@@ -62,22 +64,22 @@ export class CodexAgent {
 
     const cwd = resolveAgentDirectory(this.config.rootDir, agentPath);
     const projectDir = resolveAgentDirectory(this.config.rootDir, projectPath);
-    const resolvedArgs = provider.cliArgs.map((arg) =>
+    const resolvedArgs = provider.cliArgs.map((arg: string) =>
       replaceCliArgTokens(arg, {
         "{model}": provider.model,
         "{project_dir}": projectDir,
         "{agent_dir}": cwd
       })
     );
-    const promptProvidedInArgs = resolvedArgs.some((arg) => arg.includes("{prompt}"));
-    const cliArgs = resolvedArgs.map((arg) => arg.replaceAll("{prompt}", prompt));
+    const promptProvidedInArgs = resolvedArgs.some((arg: string) => arg.includes("{prompt}"));
+    const cliArgs = resolvedArgs.map((arg: string) => arg.replaceAll("{prompt}", prompt));
     const providerLabel = provider.name.replaceAll("_", " ");
     return new Promise<string>((resolve, reject) => {
+      const providerEnv = buildProviderRuntimeEnv(process.env, provider.name, apiKey, provider.model);
       const child = spawn(provider.cliCommand, cliArgs, {
         cwd,
         env: {
-          ...process.env,
-          [canonicalKeyName]: apiKey,
+          ...providerEnv,
           OPENCOLAB_MODEL: provider.model
         },
         stdio: ["pipe", "pipe", "pipe"]
