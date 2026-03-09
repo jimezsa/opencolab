@@ -4,7 +4,10 @@
  */
 import {
   getProviderSetupDefaults,
+  getProviderSupportedAuthModes,
   getSupportedProviderNames,
+  normalizeProviderAuthMode,
+  resolveProviderAuthMode,
   normalizeProviderName
 } from "./provider.js";
 import type { OpenColabRuntime } from "./runtime.js";
@@ -15,7 +18,7 @@ import {
   TELEGRAM_BOT_TOKEN_ENV_VAR,
   writeSecretToLocalEnv
 } from "./secrets.js";
-import type { ProviderName } from "./types.js";
+import type { ProviderAuthMode, ProviderName } from "./types.js";
 
 const ESC_INPUT = "\u001b";
 
@@ -78,7 +81,9 @@ export async function runIgnite(
   io.write("Onboarding complete.");
   io.write(`Active project: ${project.id} (${project.path})`);
   io.write(`Active agent: ${agent.id} (${agent.path})`);
-  io.write(`Provider: ${agent.provider.name} (${agent.provider.model})`);
+  io.write(
+    `Provider: ${agent.provider.name} (${agent.provider.model}, ${formatProviderAuthMode(agent.provider.authMode)})`
+  );
   io.write(`Telegram chat: ${state.telegram.chatId ?? "not configured"}`);
   io.write(`Telegram paired: ${state.telegram.paired ? "yes" : "no"}`);
   io.write("Next: opencolab gateway start --port 4646");
@@ -135,61 +140,79 @@ async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promi
   const project = runtime.getActiveProject();
   const agent = runtime.getActiveAgent();
   const currentProvider = agent.provider;
+  const currentProviderDefaults = getProviderSetupDefaults(currentProvider.name);
+  const currentAuthMode = resolveProviderAuthMode(
+    currentProvider.name,
+    currentProvider.authMode,
+    currentProviderDefaults.authMode
+  );
   const currentProviderEnvVar = getProviderApiKeyEnvVar(currentProvider.name);
   const hasCurrentProviderKey = resolveProviderApiKey(currentProvider.name) !== null;
+  const hasCurrentProviderAuth = currentAuthMode === "oauth" || hasCurrentProviderKey;
 
-  if (hasCurrentProviderKey) {
+  if (hasCurrentProviderAuth) {
     const keepCurrent = await askYesNo(
       io,
-      `Provider already configured (${currentProvider.name}/${currentProvider.model}). Keep current setup?`,
+      `Provider already configured (${currentProvider.name}/${currentProvider.model}, ${formatProviderAuthMode(currentAuthMode)}). Keep current setup?`,
       true
     );
     if (keepCurrent) {
       io.write(
-        `Provider unchanged for agent '${agent.id}' in project '${project.id}': ${currentProvider.name} (${currentProvider.model}).`
+        `Provider unchanged for agent '${agent.id}' in project '${project.id}': ${currentProvider.name} (${currentProvider.model}, ${formatProviderAuthMode(currentAuthMode)}).`
       );
       return;
     }
-  } else {
+  } else if (currentAuthMode === "api_key") {
     io.write(`Provider key not found in environment: ${currentProviderEnvVar}`);
   }
 
   const providerName = await askProviderName(io, currentProvider.name);
   const providerDefaults = getProviderSetupDefaults(providerName);
   const useCurrentProviderDefaults = providerName === currentProvider.name;
+  const defaultAuthMode = useCurrentProviderDefaults
+    ? resolveProviderAuthMode(providerName, currentProvider.authMode, providerDefaults.authMode)
+    : providerDefaults.authMode;
 
   const defaultModel = useCurrentProviderDefaults ? currentProvider.model : providerDefaults.model;
   const modelOptions = withFallbackOption(PROVIDER_MODEL_OPTIONS[providerName], defaultModel);
   const providerApiKeyEnvVar = getProviderApiKeyEnvVar(providerName);
+  const authMode = await askProviderAuthMode(io, providerName, defaultAuthMode);
 
   const model = await askFromOptions(io, "Model", modelOptions, defaultModel);
-  const existingProviderKey = resolveProviderApiKey(providerName);
-  let shouldWriteProviderKey = true;
+  if (authMode === "api_key") {
+    const existingProviderKey = resolveProviderApiKey(providerName);
+    let shouldWriteProviderKey = true;
 
-  if (existingProviderKey) {
-    shouldWriteProviderKey = !(await askYesNo(
-      io,
-      `${providerApiKeyEnvVar} already has a value. Keep it?`,
-      true
-    ));
-  }
+    if (existingProviderKey) {
+      shouldWriteProviderKey = !(await askYesNo(
+        io,
+        `${providerApiKeyEnvVar} already has a value. Keep it?`,
+        true
+      ));
+    }
 
-  if (shouldWriteProviderKey) {
-    const providerApiKey = await askRequiredWithOptionalDefault(
-      io,
-      `${providerApiKeyEnvVar} value`
-    );
-    writeSecretToLocalEnv(runtime.config.rootDir, providerApiKeyEnvVar, providerApiKey);
-    io.write(`Saved ${providerApiKeyEnvVar} in .env.local.`);
+    if (shouldWriteProviderKey) {
+      const providerApiKey = await askRequiredWithOptionalDefault(
+        io,
+        `${providerApiKeyEnvVar} value`
+      );
+      writeSecretToLocalEnv(runtime.config.rootDir, providerApiKeyEnvVar, providerApiKey);
+      io.write(`Saved ${providerApiKeyEnvVar} in .env.local.`);
+    }
+  } else {
+    io.write("Using OpenAI OAuth auth mode. Run 'codex login' if not already authenticated.");
   }
 
   runtime.setupModel({
     agentId: agent.id,
     providerName,
-    model
+    model,
+    authMode
   });
 
-  io.write(`Provider configured for agent '${agent.id}' in project '${project.id}': ${providerName} (${model})`);
+  io.write(
+    `Provider configured for agent '${agent.id}' in project '${project.id}': ${providerName} (${model}, ${formatProviderAuthMode(authMode)}).`
+  );
 }
 
 async function configureTelegram(
@@ -316,6 +339,29 @@ async function askProviderName(io: IgniteIo, fallback: ProviderName): Promise<Pr
   }
 }
 
+async function askProviderAuthMode(
+  io: IgniteIo,
+  providerName: ProviderName,
+  fallback: ProviderAuthMode
+): Promise<ProviderAuthMode> {
+  const supportedAuthModes = getProviderSupportedAuthModes(providerName);
+  if (supportedAuthModes.length <= 1) {
+    return supportedAuthModes[0] ?? "api_key";
+  }
+
+  const options = supportedAuthModes.map(formatProviderAuthMode);
+  const defaultOption = formatProviderAuthMode(fallback);
+
+  while (true) {
+    const answer = await askFromOptions(io, "Auth mode", options, defaultOption);
+    const normalized = normalizeProviderAuthMode(answer);
+    if (normalized && supportedAuthModes.includes(normalized)) {
+      return normalized;
+    }
+    io.write(`Invalid auth mode. Use ${options.join(", ")}.`);
+  }
+}
+
 async function askFromOptions(
   io: IgniteIo,
   label: string,
@@ -397,6 +443,10 @@ function withFallbackOption(options: string[], value: string): string[] {
   }
 
   return [value, ...options];
+}
+
+function formatProviderAuthMode(value: ProviderAuthMode): string {
+  return value.replaceAll("_", "-");
 }
 
 function throwIfEsc(answer: string): void {
