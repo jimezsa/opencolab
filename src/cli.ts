@@ -15,7 +15,14 @@ import {
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
-import { getProviderSetupDefaults, getSupportedProviderNames, normalizeProviderName } from "./provider.js";
+import {
+  getProviderSetupDefaults,
+  getProviderSupportedAuthModes,
+  getSupportedProviderNames,
+  normalizeProviderAuthMode,
+  normalizeProviderName,
+  resolveProviderAuthMode
+} from "./provider.js";
 import { createRuntime } from "./runtime.js";
 import {
   getProviderApiKeyEnvVar,
@@ -24,7 +31,7 @@ import {
   TELEGRAM_BOT_TOKEN_ENV_VAR,
   writeSecretToLocalEnv
 } from "./secrets.js";
-import type { OpenColabState, ProviderName } from "./types.js";
+import type { OpenColabState, ProviderAuthMode, ProviderName } from "./types.js";
 
 const PROJECT_PET = "🐙";
 const ESC_INPUT = "\u001b";
@@ -424,7 +431,7 @@ function usageSetup(): string {
     "Usage:",
     helpCommand(
       "opencolab setup model [flags]",
-      "Configure provider, model, and API key",
+      "Configure provider, model, and auth",
     ),
     helpCommand(
       "opencolab setup telegram [flags]",
@@ -456,7 +463,7 @@ function usageSetupModel(): string {
   return formatHelp([
     "Usage:",
     helpCommand(
-      `opencolab setup model [--agent-id <id>] [--provider ${providerChoices}] [--model <model>] [--api-key <value>]`,
+      `opencolab setup model [--agent-id <id>] [--provider ${providerChoices}] [--model <model>] [--auth api-key|oauth] [--api-key <value>]`,
       "Configure an agent runtime",
     ),
     "",
@@ -464,6 +471,7 @@ function usageSetupModel(): string {
     helpFlag("--agent-id <id>", "Target agent id (default: active agent)"),
     helpFlag(`--provider ${providerChoices}`, "Provider identifier"),
     helpFlag("--model <model>", "Provider model name"),
+    helpFlag("--auth api-key|oauth", "Provider auth mode (OpenAI supports oauth)"),
     helpFlag("--api-key <value>", "Provider API key value (saved to .env.local)"),
   ]);
 }
@@ -605,6 +613,31 @@ function parseProviderName(value: string | undefined, fallback: ProviderName): P
       `Unsupported provider: ${value}. Use ${supported}.`,
     );
   }
+  return parsed;
+}
+
+function displayProviderAuthMode(value: ProviderAuthMode): string {
+  return value.replaceAll("_", "-");
+}
+
+function parseProviderAuthMode(
+  value: string | undefined,
+  providerName: ProviderName,
+  fallback: ProviderAuthMode
+): ProviderAuthMode {
+  if (value === undefined) {
+    return resolveProviderAuthMode(providerName, fallback, fallback);
+  }
+
+  const parsed = normalizeProviderAuthMode(value);
+  const supportedModes = getProviderSupportedAuthModes(providerName);
+  if (!parsed || !supportedModes.includes(parsed)) {
+    const supported = supportedModes.map(displayProviderAuthMode).join(", ");
+    throw new Error(
+      `Unsupported auth mode '${value}' for provider '${providerName}'. Use ${supported}.`
+    );
+  }
+
   return parsed;
 }
 
@@ -953,20 +986,30 @@ async function main(): Promise<void> {
 
     const providerName = parseProviderName(values.provider, targetAgent.provider.name);
     const providerDefaults = getProviderSetupDefaults(providerName);
+    const defaultAuthMode =
+      providerName === targetAgent.provider.name
+        ? resolveProviderAuthMode(providerName, targetAgent.provider.authMode, providerDefaults.authMode)
+        : providerDefaults.authMode;
+    const authMode = parseProviderAuthMode(values.auth, providerName, defaultAuthMode);
     const keyEnvVar = getProviderApiKeyEnvVar(providerName);
     const apiKey = values["api-key"]?.trim() ?? "";
-    if (apiKey) {
-      writeSecretToLocalEnv(runtime.config.rootDir, keyEnvVar, apiKey);
-    } else if (!resolveProviderApiKey(providerName)) {
-      throw new Error(
-        `Missing provider API key. Set ${keyEnvVar} in .env.local or pass ${accent("--api-key")} to save it automatically.`,
-      );
+    if (authMode === "api_key") {
+      if (apiKey) {
+        writeSecretToLocalEnv(runtime.config.rootDir, keyEnvVar, apiKey);
+      } else if (!resolveProviderApiKey(providerName)) {
+        throw new Error(
+          `Missing provider API key. Set ${keyEnvVar} in .env.local or pass ${accent("--api-key")} to save it automatically.`,
+        );
+      }
+    } else if (apiKey) {
+      throw new Error(`${accent("--api-key")} cannot be used with ${accent("--auth oauth")}.`);
     }
 
     runtime.setupModel({
       agentId: targetAgentId,
       providerName,
       model: values.model ?? providerDefaults.model,
+      authMode
     });
 
     const configuredProject = runtime.getActiveProject();
@@ -975,7 +1018,12 @@ async function main(): Promise<void> {
     console.log(`Agent: ${configuredAgent.id}`);
     console.log(`Provider configured: ${configuredAgent.provider.name}`);
     console.log(`Model: ${configuredAgent.provider.model}`);
-    console.log(`API key env var: ${keyEnvVar}`);
+    console.log(`Auth mode: ${displayProviderAuthMode(configuredAgent.provider.authMode)}`);
+    if (configuredAgent.provider.authMode === "api_key") {
+      console.log(`API key env var: ${keyEnvVar}`);
+    } else {
+      console.log(`OAuth session: run '${configuredAgent.provider.cliCommand} login' if needed.`);
+    }
     console.log(
       `CLI: ${configuredAgent.provider.cliCommand} ${configuredAgent.provider.cliArgs.join(" ")}`,
     );
