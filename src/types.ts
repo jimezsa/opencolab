@@ -21,12 +21,14 @@ export interface AgentConfig {
 }
 
 export type ProviderName = "openai" | "anthropic" | "minimax";
+export type ProviderAuthMode = "api_key" | "oauth";
 
 export interface ProviderConfig {
   name: ProviderName;
   model: string;
   cliCommand: string;
   cliArgs: string[];
+  authMode: ProviderAuthMode;
 }
 
 export interface TelegramConfig {
