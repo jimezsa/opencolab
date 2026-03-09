@@ -6,8 +6,8 @@ import { spawn } from "node:child_process";
 import type { OpenColabConfig } from "./config.js";
 import { buildAgentPromptForInput, resolveAgentDirectory } from "./agent.js";
 import { getActiveAgent, getActiveProject } from "./project-config.js";
-import { buildProviderRuntimeEnv } from "./provider.js";
-import { getProviderApiKeyEnvVar, resolveProviderApiKey } from "./secrets.js";
+import { buildProviderRuntimeEnv, resolveProviderAuthMode } from "./provider.js";
+import { getProviderApiKeyEnvVar, resolveOpenAiOauthStatus, resolveProviderApiKey } from "./secrets.js";
 import type { ConversationMessage, OpenColabState, ProviderConfig, TelegramFilePayload } from "./types.js";
 
 const MAX_CLI_CAPTURE_CHARS = 200_000;
@@ -54,12 +54,26 @@ export class ProviderAgent {
     projectPath: string,
     agentPath: string
   ): Promise<string> {
+    const authMode = resolveProviderAuthMode(provider.name, provider.authMode);
     const canonicalKeyName = getProviderApiKeyEnvVar(provider.name);
-    const apiKey = resolveProviderApiKey(provider.name);
-    if (!apiKey) {
-      throw new Error(
-        `Missing required provider API key (${canonicalKeyName}). Set it in .env.local or in the shell environment.`
-      );
+    let apiKey: string | null = null;
+    if (authMode === "api_key") {
+      apiKey = resolveProviderApiKey(provider.name);
+      if (!apiKey) {
+        throw new Error(
+          `Missing required provider API key (${canonicalKeyName}). Set it in .env.local or in the shell environment.`
+        );
+      }
+    }
+
+    if (provider.name === "openai" && authMode === "oauth") {
+      const oauthStatus = resolveOpenAiOauthStatus(provider.cliCommand);
+      if (!oauthStatus.authenticated) {
+        const detail = oauthStatus.detail ? ` (${oauthStatus.detail})` : "";
+        throw new Error(
+          `OpenAI OAuth login required. Run '${provider.cliCommand} login' and retry.${detail}`
+        );
+      }
     }
 
     const cwd = resolveAgentDirectory(this.config.rootDir, agentPath);
@@ -75,7 +89,13 @@ export class ProviderAgent {
     const cliArgs = resolvedArgs.map((arg: string) => arg.replaceAll("{prompt}", prompt));
     const providerLabel = provider.name.replaceAll("_", " ");
     return new Promise<string>((resolve, reject) => {
-      const providerEnv = buildProviderRuntimeEnv(process.env, provider.name, apiKey, provider.model);
+      const providerEnv = buildProviderRuntimeEnv(
+        process.env,
+        provider.name,
+        authMode,
+        apiKey,
+        provider.model
+      );
       const child = spawn(provider.cliCommand, cliArgs, {
         cwd,
         env: {
