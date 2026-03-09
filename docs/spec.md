@@ -133,7 +133,11 @@ Responsibilities:
 
 - initialize state and default project/agent files when `ignite` runs
 - configure provider for the active agent
-- provider configuration must ask only for provider, model, and API key value; API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `MINIMAX_API_KEY`)
+- provider configuration must ask for provider and model, and must support provider auth mode selection when available
+- OpenAI provider auth modes must support `api_key` and `oauth`
+- in `api_key` mode, provider API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `MINIMAX_API_KEY`)
+- in OpenAI `oauth` mode, setup must not require `OPENAI_API_KEY`
+- in OpenAI `oauth` mode, runtime preflight must verify Codex login state and return remediation guidance if login is missing
 - provider CLI command/args must be auto-derived from internal defaults
 - provider CLI defaults must support non-interactive execution with write access to the active project workspace
 - when the active agent is a subagent, provider CLI defaults must still allow access to the parent project workspace
@@ -191,6 +195,9 @@ No `gemini` adapter in scope for v1.
 Provider/runtime notes:
 
 - provider configuration is stored on each agent, not on the project
+- provider config includes auth mode (`api_key` or `oauth` where supported)
+- OpenAI supports `api_key` and `oauth` auth modes
+- Anthropic and MiniMax are `api_key` only in v1
 - some providers may reuse an existing CLI runtime instead of shipping a dedicated CLI
 - `minimax` uses the `claude` runtime with MiniMax's Anthropic-compatible gateway
 
@@ -215,7 +222,8 @@ Minimum shape:
           "path": "projects/default",
           "provider": {
             "name": "anthropic",
-            "model": "<model-name>"
+            "model": "<model-name>",
+            "authMode": "api_key"
           },
           "files": {
             "agents": "AGENTS.md",
@@ -242,6 +250,7 @@ Minimum shape:
 Notes:
 
 - secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MINIMAX_API_KEY`, `TELEGRAM_BOT_TOKEN`)
+- when OpenAI auth mode is `oauth`, `OPENAI_API_KEY` is optional
 - `opencolab.json` must not store raw secret values or env-var secret references
 - extra fields are allowed if they do not break the minimum contract
 
