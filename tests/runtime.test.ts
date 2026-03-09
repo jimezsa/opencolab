@@ -176,6 +176,7 @@ test("setupModel auto-sets provider CLI defaults for the active agent", () => {
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.authMode, "api_key");
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
@@ -187,6 +188,26 @@ test("setupModel auto-sets provider CLI defaults for the active agent", () => {
       "--add-dir",
       "{project_dir}"
     ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("setupModel stores OpenAI oauth auth mode on the agent", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-openai-oauth-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "openai",
+      model: "gpt-5.3-codex",
+      authMode: "oauth"
+    });
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "openai");
+    assert.equal(agent.provider.authMode, "oauth");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -214,6 +235,7 @@ test("runtime persistence excludes secret references from opencolab.json", () =>
     const project = raw.projects[raw.activeProjectId];
     const provider = project.agents[project.activeAgentId].provider;
     assert.equal(Object.hasOwn(provider, "apiKeyEnvVar"), false);
+    assert.equal(provider.authMode, "api_key");
     assert.equal(Object.hasOwn(raw.telegram, "botTokenEnvVar"), false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -239,7 +261,9 @@ test("agents in one project can use different providers", () => {
 
     const project = runtime.getActiveProject();
     assert.equal(project.agents.researcher_agent.provider.name, "anthropic");
+    assert.equal(project.agents.researcher_agent.provider.authMode, "api_key");
     assert.equal(project.agents.scout.provider.name, "minimax");
+    assert.equal(project.agents.scout.provider.authMode, "api_key");
     assert.equal(project.agents.scout.provider.cliCommand, "claude");
     assert.deepEqual(project.agents.scout.provider.cliArgs, [
       "-p",
