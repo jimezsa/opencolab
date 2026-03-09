@@ -28,28 +28,35 @@ The vision is an always-on lab where the research-agent expert group leads execu
 Check [docs/VISION.md](docs/VISION.md) to see project direction.
 
 ```text
-+---------------------+      +------------------------+
-| Human (Assistant)   | ---> | Shared goals and plan  |
-+---------------------+      | (human + agents)       |
-                             +------------------------+
-                                         |
-                                         v
-                             +------------------------+      +------------------+
-                             | The Professor (Lead)   | <--> | Beginner Student |
-                             | coordinates execution  |      | naive questions  |
-                             +------------------------+      +------------------+
-                               /          |          \
-                              v           v           v
-                  +----------------+ +----------------+ +----------------+
-                  | PhD Student A  | | PhD Student B  | | PhD Student C  |
-                  | literature     | | experiments    | | synthesis/writ.|
-                  +----------------+ +----------------+ +----------------+
-                               \          |          /
-                                \         |         /
-                                 +--------v--------+
-                                 | Feedback to     |
-                                 | Human           |
-                                 +-----------------+
++-----------------------+
+| Human (Assistant)     |
++-----------+-----------+
+            ^
+            |
+            v
++-----------------------+
+| Shared goals and plan |
++-----------+-----------+
+            ^
+            |
+            v
++-----------------------+      +------------------+
+| Professor (Lead)      | <--> | Beginner Student |
+| coordinates execution |      | naive questions  |
++-----------+-----------+      +------------------+
+            ^
+            |
+            v
++-----------------------------------------------+
+| PhD Students                                  |
+| A: literature  B: experiments  C: synthesis   |
++-----------+-----------------------------------+
+            ^
+            |
+            v
++-----------------------+
+| Feedback to Human     |
++-----------------------+
 ```
 
 Current minimalistic Architecture:
