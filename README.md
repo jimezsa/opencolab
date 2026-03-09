@@ -77,7 +77,7 @@ Run interactive first-run setup (state initialization, project, model/provider, 
 opencolab ignite
 ```
 
-Provider runtimes are configured with non-interactive defaults so `claude` and `codex` can edit the active project workspace without waiting for terminal approval prompts.
+Provider runtimes are configured with non-interactive defaults so `claude` and `codex` can edit the active project workspace without waiting for terminal approval prompts. Agent providers are configured per agent, so one agent can use Anthropic while another uses MiniMax through the `claude` runtime.
 Subagents also inherit access to the parent project workspace by default.
 
 Start local gateway server:
@@ -188,10 +188,10 @@ Conversation history layout:
 - active project id
 - projects map
 - per-project agents map
-- per-project provider config (`openai` or `anthropic`)
+- per-agent provider config (`openai`, `anthropic`, or `minimax`)
 - shared Telegram settings and pairing state
 
-Provider CLI command/args are stored per project and are auto-derived from internal defaults.
+Provider CLI command/args are stored per agent and are auto-derived from internal defaults.
 
 Secret values are stored in `.env.local` and should not be committed to git.
 `opencolab.json` stores only non-secret runtime state.

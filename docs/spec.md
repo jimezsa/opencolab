@@ -12,7 +12,7 @@ v1 supports:
 - multiple agents per project
 - one active project at a time
 - one active agent inside the active project
-- one provider runtime per project: `openai` or `anthropic`
+- one provider runtime per agent: `openai`, `anthropic`, or `minimax`
 - one user channel: Telegram
 - one operator channel: OpenColab CLI
 
@@ -132,8 +132,8 @@ Required command groups:
 Responsibilities:
 
 - initialize state and default project/agent files when `ignite` runs
-- configure provider for the active project
-- provider configuration must ask only for provider, model, and API key value; API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`)
+- configure provider for the active agent
+- provider configuration must ask only for provider, model, and API key value; API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `MINIMAX_API_KEY`)
 - provider CLI command/args must be auto-derived from internal defaults
 - provider CLI defaults must support non-interactive execution with write access to the active project workspace
 - when the active agent is a subagent, provider CLI defaults must still allow access to the parent project workspace
@@ -184,8 +184,15 @@ Supported provider identifiers:
 
 - `openai`
 - `anthropic`
+- `minimax`
 
 No `gemini` adapter in scope for v1.
+
+Provider/runtime notes:
+
+- provider configuration is stored on each agent, not on the project
+- some providers may reuse an existing CLI runtime instead of shipping a dedicated CLI
+- `minimax` uses the `claude` runtime with MiniMax's Anthropic-compatible gateway
 
 ## 10. Configuration Persistence (`opencolab.json`)
 
@@ -206,6 +213,10 @@ Minimum shape:
         "researcher_agent": {
           "id": "researcher_agent",
           "path": "projects/default",
+          "provider": {
+            "name": "anthropic",
+            "model": "<model-name>"
+          },
           "files": {
             "agents": "AGENTS.md",
             "bootstrap": "BOOTSTRAP.md",
@@ -217,10 +228,6 @@ Minimum shape:
             "memory": "MEMORY.md"
           }
         }
-      },
-      "provider": {
-        "name": "anthropic",
-        "model": "<model-name>"
       }
     }
   },
@@ -234,7 +241,7 @@ Minimum shape:
 
 Notes:
 
-- secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`)
+- secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MINIMAX_API_KEY`, `TELEGRAM_BOT_TOKEN`)
 - `opencolab.json` must not store raw secret values or env-var secret references
 - extra fields are allowed if they do not break the minimum contract
 
