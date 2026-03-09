@@ -12,7 +12,7 @@ import type { ConversationMessage, OpenColabState, ProviderConfig, TelegramFileP
 
 const MAX_CLI_CAPTURE_CHARS = 200_000;
 
-export interface CodexAgentInput {
+export interface ProviderAgentInput {
   chatId: string;
   sender: string;
   text: string;
@@ -20,13 +20,13 @@ export interface CodexAgentInput {
   history: ConversationMessage[];
 }
 
-export class CodexAgent {
+export class ProviderAgent {
   constructor(
     private readonly config: OpenColabConfig,
     private readonly getState: () => OpenColabState
   ) {}
 
-  async respond(input: CodexAgentInput): Promise<string> {
+  async respond(input: ProviderAgentInput): Promise<string> {
     const startedAt = Date.now();
     const state = this.getState();
     const project = getActiveProject(state);

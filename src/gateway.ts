@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ensureAgentFiles } from "./agent.js";
 import type { OpenColabConfig } from "./config.js";
-import type { CodexAgentInput } from "./codex-agent.js";
+import type { ProviderAgentInput } from "./provider-agent.js";
 import {
   createDefaultAgentConfig,
   createDefaultProjectState,
@@ -48,7 +48,7 @@ interface GatewayDependencies {
   readConversation: (chatId: string, limit: number) => ConversationMessage[];
   appendConversation: (chatId: string, message: ConversationMessage) => void;
   resetConversationSession: () => string;
-  respond: (input: CodexAgentInput) => Promise<string>;
+  respond: (input: ProviderAgentInput) => Promise<string>;
   telegramSender?: TelegramSender;
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;

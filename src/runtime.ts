@@ -5,7 +5,7 @@
 import { ensureAgentFiles } from "./agent.js";
 import { loadConfig, type OpenColabConfig } from "./config.js";
 import { ConversationStore } from "./conversation.js";
-import { CodexAgent, type CodexAgentInput } from "./codex-agent.js";
+import { ProviderAgent, type ProviderAgentInput } from "./provider-agent.js";
 import {
   buildAgentPath,
   createDefaultAgentConfig,
@@ -37,7 +37,7 @@ export interface RuntimeOptions {
   telegramSender?: TelegramSender;
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;
-  agentResponder?: (input: CodexAgentInput) => Promise<string>;
+  agentResponder?: (input: ProviderAgentInput) => Promise<string>;
 }
 
 export interface ModelSetupInput {
@@ -57,14 +57,14 @@ export class OpenColabRuntime {
 
   private state: OpenColabState;
   private readonly conversations: ConversationStore;
-  private readonly codex: CodexAgent;
+  private readonly providerAgent: ProviderAgent;
   private readonly gateway: TelegramGateway;
 
   constructor(cwd = process.cwd(), private readonly options: RuntimeOptions = {}) {
     this.config = loadConfig(cwd);
     this.state = ensureProjectAndAgent(readProjectState(this.config));
     this.conversations = new ConversationStore(this.config.rootDir);
-    this.codex = new CodexAgent(this.config, () => this.state);
+    this.providerAgent = new ProviderAgent(this.config, () => this.state);
 
     this.gateway = new TelegramGateway(this.config, {
       getState: () => this.state,
@@ -82,7 +82,7 @@ export class OpenColabRuntime {
         if (this.options.agentResponder) {
           return this.options.agentResponder(input);
         }
-        return this.codex.respond(input);
+        return this.providerAgent.respond(input);
       },
       telegramSender: this.options.telegramSender,
       telegramTypingSender: this.options.telegramTypingSender,

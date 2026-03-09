@@ -15,7 +15,7 @@ Core implementation areas:
 - `src/http.ts`: local gateway/API server.
 - `src/telegram-poller.ts`: Telegram long-polling ingest.
 - `src/gateway.ts`: Telegram routing, pairing, typing feedback.
-- `src/codex-agent.ts`: Codex-backed agent execution.
+- `src/provider-agent.ts`: Provider-backed agent execution.
 - `src/agent.ts`: agent context loading and prompt assembly.
 - `src/project-config.ts`: `opencolab.json` persistence.
 - `src/runtime.ts`: runtime wiring.
