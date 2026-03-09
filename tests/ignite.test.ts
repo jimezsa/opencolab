@@ -207,3 +207,56 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("ignite supports configuring the minimax provider", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-minimax-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "",
+    "minimax",
+    "MiniMax-M2.5",
+    "minimax_test_key_123",
+    "n",
+    "n"
+  ];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        write: () => undefined
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "minimax");
+    assert.equal(agent.provider.model, "MiniMax-M2.5");
+    assert.equal(agent.provider.cliCommand, "claude");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "-p",
+      "{prompt}",
+      "--model",
+      "{model}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--add-dir",
+      "{project_dir}"
+    ]);
+
+    assert.equal(process.env.MINIMAX_API_KEY, "minimax_test_key_123");
+    const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envLocal.includes("MINIMAX_API_KEY=minimax_test_key_123"), true);
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

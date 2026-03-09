@@ -2,7 +2,11 @@
  * Interactive first-run onboarding flow.
  * Configures project/provider/Telegram state and persists secrets to .env.local.
  */
-import { getProviderSetupDefaults, normalizeProviderName } from "./provider.js";
+import {
+  getProviderSetupDefaults,
+  getSupportedProviderNames,
+  normalizeProviderName
+} from "./provider.js";
 import type { OpenColabRuntime } from "./runtime.js";
 import {
   getProviderApiKeyEnvVar,
@@ -299,7 +303,8 @@ async function configureAdditionalAgent(runtime: OpenColabRuntime, io: IgniteIo)
 }
 
 async function askProviderName(io: IgniteIo, fallback: ProviderName): Promise<ProviderName> {
-  const options: ProviderName[] = ["openai", "anthropic"];
+  const options = getSupportedProviderNames();
+  const supported = options.map((provider) => `'${provider}'`).join(", ");
   while (true) {
     const answer = (await askFromOptions(io, "Provider", options, fallback)).toLowerCase();
     const normalized = normalizeProviderName(answer);
@@ -307,7 +312,7 @@ async function askProviderName(io: IgniteIo, fallback: ProviderName): Promise<Pr
       return normalized;
     }
 
-    io.write("Invalid provider. Use 'openai' or 'anthropic'.");
+    io.write(`Invalid provider. Use ${supported}.`);
   }
 }
 
