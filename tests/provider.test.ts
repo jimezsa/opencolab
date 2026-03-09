@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   buildProviderRuntimeEnv,
   getCanonicalProviderKeyEnvVar,
+  getProviderSupportedAuthModes,
   getProviderSetupDefaults,
+  normalizeProviderAuthMode,
   normalizeProviderName
 } from "../src/provider.js";
 
@@ -20,6 +22,7 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
   const defaults = getProviderSetupDefaults("minimax");
   assert.equal(defaults.model, "MiniMax-M2.5");
   assert.equal(defaults.cliCommand, "claude");
+  assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
     "-p",
     "{prompt}",
@@ -33,6 +36,14 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
   assert.equal(getCanonicalProviderKeyEnvVar("minimax"), "MINIMAX_API_KEY");
 });
 
+test("OpenAI setup defaults support OAuth and API key auth modes", () => {
+  const defaults = getProviderSetupDefaults("openai");
+  assert.equal(defaults.authMode, "api_key");
+  assert.deepEqual(getProviderSupportedAuthModes("openai"), ["api_key", "oauth"]);
+  assert.equal(normalizeProviderAuthMode("api-key"), "api_key");
+  assert.equal(normalizeProviderAuthMode("oauth"), "oauth");
+});
+
 test("MiniMax runtime env uses the Anthropic-compatible gateway without leaking parent Anthropic settings", () => {
   const env = buildProviderRuntimeEnv(
     {
@@ -42,6 +53,7 @@ test("MiniMax runtime env uses the Anthropic-compatible gateway without leaking 
       ANTHROPIC_BASE_URL: "https://api.anthropic.com"
     },
     "minimax",
+    "api_key",
     "minimax_test_key",
     "MiniMax-M2.5"
   );
@@ -68,6 +80,7 @@ test("Anthropic runtime env clears MiniMax-specific Claude gateway overrides", (
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
     },
     "anthropic",
+    "api_key",
     "anthropic_test_key",
     "claude-sonnet-4-5"
   );
@@ -78,4 +91,19 @@ test("Anthropic runtime env clears MiniMax-specific Claude gateway overrides", (
   assert.equal(env.ANTHROPIC_MODEL, undefined);
   assert.equal(env.API_TIMEOUT_MS, undefined);
   assert.equal(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, undefined);
+});
+
+test("OpenAI OAuth runtime env clears OPENAI_API_KEY and injects no API key", () => {
+  const env = buildProviderRuntimeEnv(
+    {
+      OPENAI_API_KEY: "stale-key",
+      PATH: process.env.PATH
+    },
+    "openai",
+    "oauth",
+    null,
+    "gpt-5.3-codex"
+  );
+
+  assert.equal(env.OPENAI_API_KEY, undefined);
 });
