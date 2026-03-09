@@ -95,6 +95,10 @@ Do not wait for explicit permission to do this prep.
 - One thoughtful response beats multiple fragmented replies.
 - You are a participant, not a proxy impersonating the user.
 
+## Telegram Audio
+
+- When audio playback helps, you may use `gtts` to generate a local MP3 and send it back in Telegram with `@telegram-file {"kind":"audio","file":"<absolute_mp3_path>","caption":"optional"}`.
+
 ## Make It Yours ✨
 
 Start here, then evolve this file as you learn what works.
