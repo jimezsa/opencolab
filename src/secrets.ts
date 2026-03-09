@@ -2,12 +2,28 @@
  * Secret resolution and persistence helpers.
  * Reads canonical provider/Telegram keys from env and updates .env.local safely.
  */
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { getCanonicalProviderKeyEnvVar } from "./provider.js";
 import type { ProviderName } from "./types.js";
 
 export const TELEGRAM_BOT_TOKEN_ENV_VAR = "TELEGRAM_BOT_TOKEN";
+const OPENAI_OAUTH_STATUS_TIMEOUT_MS = 5_000;
+
+interface CommandResult {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+  error: Error | null;
+}
+
+type LoginStatusExecutor = (cliCommand: string) => CommandResult;
+
+export interface OpenAiOauthStatus {
+  authenticated: boolean;
+  detail?: string;
+}
 
 export function getProviderApiKeyEnvVar(providerName: ProviderName): string {
   return getCanonicalProviderKeyEnvVar(providerName);
@@ -27,6 +43,42 @@ export function hasProviderApiKey(providerName: ProviderName): boolean {
 
 export function hasTelegramBotToken(): boolean {
   return resolveTelegramBotToken() !== null;
+}
+
+export function resolveOpenAiOauthStatus(
+  cliCommand = "codex",
+  executeLoginStatus: LoginStatusExecutor = runOpenAiLoginStatusCommand
+): OpenAiOauthStatus {
+  const result = executeLoginStatus(cliCommand);
+  const output = `${result.stdout}\n${result.stderr}`.trim();
+  const normalized = output.toLowerCase();
+
+  if (result.error) {
+    return {
+      authenticated: false,
+      detail: result.error.message
+    };
+  }
+
+  if (normalized.includes("not logged in") || normalized.includes("logged out")) {
+    return {
+      authenticated: false,
+      detail: output || `${cliCommand} login status reported no active session.`
+    };
+  }
+
+  if (result.status === 0 && (normalized.includes("logged in") || normalized.includes("authenticated"))) {
+    return {
+      authenticated: true,
+      detail: output
+    };
+  }
+
+  const fallbackDetail = output || `${cliCommand} login status returned ${String(result.status)}.`;
+  return {
+    authenticated: false,
+    detail: fallbackDetail
+  };
 }
 
 export function writeSecretToLocalEnv(rootDir: string, key: string, value: string): void {
@@ -83,6 +135,21 @@ function readEnvValue(key: string): string | null {
 
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function runOpenAiLoginStatusCommand(cliCommand: string): CommandResult {
+  const result = spawnSync(cliCommand, ["login", "status"], {
+    encoding: "utf8",
+    timeout: OPENAI_OAUTH_STATUS_TIMEOUT_MS,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  return {
+    status: result.status,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? "",
+    error: result.error ?? null
+  };
 }
 
 function parseEnvLine(rawLine: string): { key: string; value: string } | null {
