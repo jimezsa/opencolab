@@ -7,6 +7,7 @@ import type { OpenColabConfig } from "./config.js";
 import {
   getProviderSetupDefaults,
   normalizeProviderName,
+  resolveProviderAuthMode,
   usesLegacyProviderCliDefaults
 } from "./provider.js";
 import type {
@@ -52,7 +53,8 @@ function cloneProviderConfig(source: ProviderConfig): ProviderConfig {
     name: source.name,
     model: source.model,
     cliCommand: source.cliCommand,
-    cliArgs: [...source.cliArgs]
+    cliArgs: [...source.cliArgs],
+    authMode: source.authMode
   };
 }
 
@@ -80,7 +82,8 @@ export function createDefaultProviderConfig(providerName: ProviderConfig["name"]
     name: providerName,
     model: providerDefaults.model,
     cliCommand: providerDefaults.cliCommand,
-    cliArgs: [...providerDefaults.cliArgs]
+    cliArgs: [...providerDefaults.cliArgs],
+    authMode: providerDefaults.authMode
   };
 }
 
@@ -438,12 +441,18 @@ function normalizeProvider(
     ? sourceProvider.cliArgs.map((item) => String(item))
     : providerDefaults.cliArgs;
   const shouldMigrateLegacyDefaults = usesLegacyProviderCliDefaults(providerName, cliCommand, cliArgs);
+  const authMode = resolveProviderAuthMode(
+    providerName,
+    asNullableString(sourceProvider?.authMode),
+    defaults.authMode
+  );
 
   return {
     name: providerName,
     model: asString(sourceProvider?.model, providerDefaults.model),
     cliCommand: shouldMigrateLegacyDefaults ? providerDefaults.cliCommand : cliCommand,
-    cliArgs: shouldMigrateLegacyDefaults ? providerDefaults.cliArgs : cliArgs
+    cliArgs: shouldMigrateLegacyDefaults ? providerDefaults.cliArgs : cliArgs,
+    authMode
   };
 }
 
