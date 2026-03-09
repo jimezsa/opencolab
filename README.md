@@ -87,6 +87,18 @@ opencolab ignite
 Provider runtimes are configured with non-interactive defaults so `claude` and `codex` can edit the active project workspace without waiting for terminal approval prompts. Agent providers are configured per agent, so one agent can use Anthropic while another uses MiniMax through the `claude` runtime.
 Subagents also inherit access to the parent project workspace by default.
 
+OpenAI supports two auth modes:
+
+- `api_key` (uses `OPENAI_API_KEY`)
+- `oauth` (uses `codex login` session, no API key required)
+
+Example OpenAI OAuth setup:
+
+```bash
+codex login
+opencolab setup model --provider openai --auth oauth --model gpt-5.3-codex
+```
+
 Start local gateway server:
 
 ```bash
@@ -195,10 +207,11 @@ Conversation history layout:
 - active project id
 - projects map
 - per-project agents map
-- per-agent provider config (`openai`, `anthropic`, or `minimax`)
+- per-agent provider config (`openai`, `anthropic`, or `minimax`) including auth mode
 - shared Telegram settings and pairing state
 
 Provider CLI command/args are stored per agent and are auto-derived from internal defaults.
+OpenAI can run with `api_key` or `oauth` auth mode; `OPENAI_API_KEY` is optional in OAuth mode.
 
 Secret values are stored in `.env.local` and should not be committed to git.
 `opencolab.json` stores only non-secret runtime state.
