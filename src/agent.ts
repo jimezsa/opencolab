@@ -97,7 +97,7 @@ Do not wait for explicit permission to do this prep.
 
 ## Telegram Audio
 
-- When audio playback helps, you may use `gtts` to generate a local MP3 and send it back in Telegram with `@telegram-file {"kind":"audio","file":"<absolute_mp3_path>","caption":"optional"}`.
+- When audio playback helps, you may use \`gtts\` to generate a local MP3 and send it back in Telegram with \`@telegram-file {"kind":"audio","file":"<absolute_mp3_path>","caption":"optional"}\`.
 
 ## Make It Yours ✨
 
