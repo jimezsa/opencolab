@@ -117,8 +117,13 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
       cliCommand: "codex",
       cliArgs: ["exec", "-"]
     },
-    buildRuntimeEnv: (apiKey, _model, authMode) =>
-      authMode === "oauth" ? {} : { OPENAI_API_KEY: requireApiKey(apiKey, "OPENAI_API_KEY") }
+    buildRuntimeEnv: (apiKey, _model, authMode) => {
+      const env: Record<string, string> = {};
+      if (authMode !== "oauth") {
+        env.OPENAI_API_KEY = requireApiKey(apiKey, "OPENAI_API_KEY");
+      }
+      return env;
+    }
   }
 };
 
