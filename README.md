@@ -84,7 +84,7 @@ Run interactive first-run setup (state initialization, project, model/provider, 
 opencolab ignite
 ```
 
-Provider runtimes are configured with non-interactive defaults so `claude` and `codex` can edit the active project workspace without waiting for terminal approval prompts. Agent providers are configured per agent, so one agent can use Anthropic while another uses MiniMax through the `claude` runtime.
+Provider runtimes are configured with non-interactive defaults so `claude`, `codex`, and `gemini` can edit the active project workspace without waiting for terminal approval prompts. Agent providers are configured per agent, so one agent can use Anthropic while another uses Gemini or MiniMax.
 Subagents also inherit access to the parent project workspace by default.
 
 OpenAI supports two auth modes:
@@ -97,6 +97,24 @@ Example OpenAI OAuth setup:
 ```bash
 codex login
 opencolab setup model --provider openai --auth oauth --model gpt-5.3-codex
+```
+
+Gemini also supports two auth modes:
+
+- `api_key` (uses `GEMINI_API_KEY`)
+- `oauth` (uses a Google login session from the `gemini` CLI, no API key required)
+
+Example Gemini OAuth setup:
+
+```bash
+gemini
+opencolab setup model --provider gemini --auth oauth --model gemini-2.5-pro
+```
+
+If you want to use Gemini, install the CLI first:
+
+```bash
+npm install -g @google/gemini-cli
 ```
 
 Start local gateway server:
@@ -207,11 +225,11 @@ Conversation history layout:
 - active project id
 - projects map
 - per-project agents map
-- per-agent provider config (`openai`, `anthropic`, or `minimax`) including auth mode
+- per-agent provider config (`openai`, `anthropic`, `gemini`, or `minimax`) including auth mode
 - shared Telegram settings and pairing state
 
 Provider CLI command/args are stored per agent and are auto-derived from internal defaults.
-OpenAI can run with `api_key` or `oauth` auth mode; `OPENAI_API_KEY` is optional in OAuth mode.
+OpenAI and Gemini can run with `api_key` or `oauth` auth mode; `OPENAI_API_KEY` and `GEMINI_API_KEY` are optional in OAuth mode.
 
 Secret values are stored in `.env.local` and should not be committed to git.
 `opencolab.json` stores only non-secret runtime state.
