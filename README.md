@@ -78,7 +78,7 @@ source ~/.zprofile
 
 ## Quickstart (Recommended)
 
-Run interactive first-run setup (state initialization, project, model/provider, Telegram, pairing, and optional extra agent):
+Run interactive first-run setup (state initialization, project, model/provider, Telegram, and pairing):
 
 ```bash
 opencolab ignite
