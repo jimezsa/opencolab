@@ -71,10 +71,6 @@ export async function runIgnite(
   await runStep(io, "* Telegram configure chat and pairing", async (stepIo) =>
     configureTelegram(runtime, stepIo, deps)
   );
-  io.write("|");
-  await runStep(io, "* Additional agent optional extra agent setup", async (stepIo) =>
-    configureAdditionalAgent(runtime, stepIo)
-  );
 
   const state = runtime.getState();
   const project = runtime.getActiveProject();
@@ -304,28 +300,6 @@ async function configureTelegram(
   } catch (error) {
     io.write(error instanceof Error ? error.message : String(error));
     io.write("Run 'opencolab setup telegram pair start' to retry pairing.");
-  }
-}
-
-async function configureAdditionalAgent(runtime: OpenColabRuntime, io: IgniteIo): Promise<void> {
-  const shouldCreateAgent = await askYesNo(io, "Create an additional agent now?", false);
-  if (!shouldCreateAgent) {
-    io.write("Additional agent setup skipped.");
-    return;
-  }
-
-  while (true) {
-    const agentId = await askRequiredWithOptionalDefault(io, "Agent id");
-    const agentPath = await askOptional(io, "Agent path override (leave blank for default)");
-
-    try {
-      runtime.configureAgent(agentId, agentPath ?? undefined);
-      const activeAgent = runtime.getActiveAgent();
-      io.write(`Agent configured: ${activeAgent.id} (${activeAgent.path})`);
-      return;
-    } catch (error) {
-      io.write(error instanceof Error ? error.message : String(error));
-    }
   }
 }
 
