@@ -6,9 +6,19 @@ import { spawn } from "node:child_process";
 import type { OpenColabConfig } from "./config.js";
 import { buildAgentPromptForInput, resolveAgentDirectory } from "./agent.js";
 import { getActiveAgent, getActiveProject } from "./project-config.js";
-import { buildProviderRuntimeEnv, resolveProviderAuthMode } from "./provider.js";
+import {
+  buildProviderRuntimeEnv,
+  getProviderOauthMissingSessionMessage,
+  resolveProviderAuthMode
+} from "./provider.js";
 import { getProviderApiKeyEnvVar, resolveOpenAiOauthStatus, resolveProviderApiKey } from "./secrets.js";
-import type { ConversationMessage, OpenColabState, ProviderConfig, TelegramFilePayload } from "./types.js";
+import type {
+  ConversationMessage,
+  OpenColabState,
+  ProviderAuthMode,
+  ProviderConfig,
+  TelegramFilePayload
+} from "./types.js";
 
 const MAX_CLI_CAPTURE_CHARS = 200_000;
 
@@ -69,9 +79,8 @@ export class ProviderAgent {
     if (provider.name === "openai" && authMode === "oauth") {
       const oauthStatus = resolveOpenAiOauthStatus(provider.cliCommand);
       if (!oauthStatus.authenticated) {
-        const detail = oauthStatus.detail ? ` (${oauthStatus.detail})` : "";
         throw new Error(
-          `OpenAI OAuth login required. Run '${provider.cliCommand} login' and retry.${detail}`
+          getProviderOauthMissingSessionMessage(provider.name, provider.cliCommand, oauthStatus.detail)
         );
       }
     }
@@ -159,7 +168,7 @@ export class ProviderAgent {
 
         const fallback = `${providerLabel} CLI exited with code ${String(code)}`;
         const message = `${stderr.trim() || fallback}${stderrTruncated ? " (stderr truncated)" : ""}`;
-        finish(() => reject(new Error(message)));
+        finish(() => reject(new Error(normalizeProviderCliError(provider, authMode, message))));
       });
 
       if (promptProvidedInArgs) {
@@ -194,6 +203,30 @@ export class ProviderAgent {
       `Question: ${text}`
     ].join("\n");
   }
+}
+
+function normalizeProviderCliError(
+  provider: ProviderConfig,
+  authMode: ProviderAuthMode,
+  message: string
+): string {
+  if (provider.name !== "gemini" || authMode !== "oauth") {
+    return message;
+  }
+
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("login with google") ||
+    normalized.includes("not authenticated") ||
+    normalized.includes("authentication") ||
+    normalized.includes("credential") ||
+    normalized.includes("gemini_api_key") ||
+    normalized.includes("google_api_key")
+  ) {
+    return getProviderOauthMissingSessionMessage(provider.name, provider.cliCommand, message);
+  }
+
+  return message;
 }
 
 function replaceCliArgTokens(arg: string, replacements: Record<string, string>): string {
