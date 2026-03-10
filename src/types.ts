@@ -20,7 +20,7 @@ export interface AgentConfig {
   provider: ProviderConfig;
 }
 
-export type ProviderName = "openai" | "anthropic" | "minimax";
+export type ProviderName = "openai" | "anthropic" | "gemini" | "minimax";
 export type ProviderAuthMode = "api_key" | "oauth";
 
 export interface ProviderConfig {
