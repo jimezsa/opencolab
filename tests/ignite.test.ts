@@ -12,11 +12,13 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
   const previous = {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN
   };
   delete process.env.OPENAI_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.GEMINI_API_KEY;
   delete process.env.MINIMAX_API_KEY;
   delete process.env.TELEGRAM_BOT_TOKEN;
   return previous;
@@ -305,6 +307,111 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
     assert.equal(agent.provider.authMode, "oauth");
     assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
     assert.equal(process.env.OPENAI_API_KEY, undefined);
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite supports configuring the Gemini provider with a concrete model name", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-gemini-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "",
+    "gemini",
+    "api-key",
+    "gemini-2.5-pro",
+    "gemini_test_key_123",
+    "n",
+    "n"
+  ];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        write: () => undefined
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "gemini");
+    assert.equal(agent.provider.model, "gemini-2.5-pro");
+    assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.cliCommand, "gemini");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "--prompt",
+      "{prompt}",
+      "--model",
+      "{model}",
+      "--sandbox",
+      "workspace-write",
+      "--yolo",
+      "--include-directories",
+      "{project_dir}"
+    ]);
+
+    assert.equal(process.env.GEMINI_API_KEY, "gemini_test_key_123");
+    const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envLocal.includes("GEMINI_API_KEY=gemini_test_key_123"), true);
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite supports Gemini oauth mode without asking for API key", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-gemini-oauth-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "",
+    "gemini",
+    "oauth",
+    "gemini-2.5-pro",
+    "n",
+    "n"
+  ];
+  const prompts: string[] = [];
+  const outputs: string[] = [];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async (prompt) => {
+          prompts.push(prompt);
+          return answers.shift() ?? "";
+        },
+        write: (line) => {
+          outputs.push(line);
+        }
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "gemini");
+    assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.model, "gemini-2.5-pro");
+    assert.equal(prompts.some((prompt) => prompt.includes("GEMINI_API_KEY value")), false);
+    assert.equal(outputs.some((line) => line.includes("Login with Google")), true);
+    assert.equal(process.env.GEMINI_API_KEY, undefined);
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
