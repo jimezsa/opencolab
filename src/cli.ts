@@ -18,6 +18,7 @@ import { DEFAULT_AGENT_ID } from "./project-config.js";
 import {
   getProviderSetupDefaults,
   getProviderSupportedAuthModes,
+  getProviderOauthSetupHint,
   getSupportedProviderNames,
   normalizeProviderAuthMode,
   normalizeProviderName,
@@ -471,7 +472,7 @@ function usageSetupModel(): string {
     helpFlag("--agent-id <id>", "Target agent id (default: active agent)"),
     helpFlag(`--provider ${providerChoices}`, "Provider identifier"),
     helpFlag("--model <model>", "Provider model name"),
-    helpFlag("--auth api-key|oauth", "Provider auth mode (OpenAI supports oauth)"),
+    helpFlag("--auth api-key|oauth", "Provider auth mode (OpenAI and Gemini support oauth)"),
     helpFlag("--api-key <value>", "Provider API key value (saved to .env.local)"),
   ]);
 }
@@ -1022,7 +1023,12 @@ async function main(): Promise<void> {
     if (configuredAgent.provider.authMode === "api_key") {
       console.log(`API key env var: ${keyEnvVar}`);
     } else {
-      console.log(`OAuth session: run '${configuredAgent.provider.cliCommand} login' if needed.`);
+      console.log(
+        `OAuth session: ${getProviderOauthSetupHint(
+          configuredAgent.provider.name,
+          configuredAgent.provider.cliCommand
+        )}`
+      );
     }
     console.log(
       `CLI: ${configuredAgent.provider.cliCommand} ${configuredAgent.provider.cliArgs.join(" ")}`,
