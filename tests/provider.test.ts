@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildProviderRuntimeEnv,
   getCanonicalProviderKeyEnvVar,
+  getProviderOauthSetupHint,
   getProviderSupportedAuthModes,
   getProviderSetupDefaults,
   normalizeProviderAuthMode,
@@ -14,6 +15,7 @@ test("normalizeProviderName supports built-in providers and aliases", () => {
   assert.equal(normalizeProviderName("codex"), "openai");
   assert.equal(normalizeProviderName("anthropic"), "anthropic");
   assert.equal(normalizeProviderName("claude_code"), "anthropic");
+  assert.equal(normalizeProviderName("gemini"), "gemini");
   assert.equal(normalizeProviderName("minimax"), "minimax");
   assert.equal(normalizeProviderName("unknown"), null);
 });
@@ -42,6 +44,30 @@ test("OpenAI setup defaults support OAuth and API key auth modes", () => {
   assert.deepEqual(getProviderSupportedAuthModes("openai"), ["api_key", "oauth"]);
   assert.equal(normalizeProviderAuthMode("api-key"), "api_key");
   assert.equal(normalizeProviderAuthMode("oauth"), "oauth");
+});
+
+test("Gemini setup defaults use concrete model names and support OAuth", () => {
+  const defaults = getProviderSetupDefaults("gemini");
+  assert.equal(defaults.model, "gemini-2.5-pro");
+  assert.equal(defaults.cliCommand, "gemini");
+  assert.equal(defaults.authMode, "api_key");
+  assert.deepEqual(defaults.cliArgs, [
+    "--prompt",
+    "{prompt}",
+    "--model",
+    "{model}",
+    "--sandbox",
+    "workspace-write",
+    "--yolo",
+    "--include-directories",
+    "{project_dir}"
+  ]);
+  assert.deepEqual(getProviderSupportedAuthModes("gemini"), ["api_key", "oauth"]);
+  assert.equal(getCanonicalProviderKeyEnvVar("gemini"), "GEMINI_API_KEY");
+  assert.equal(
+    getProviderOauthSetupHint("gemini", "gemini"),
+    "Run 'gemini' and choose Login with Google if needed."
+  );
 });
 
 test("MiniMax runtime env uses the Anthropic-compatible gateway without leaking parent Anthropic settings", () => {
@@ -91,6 +117,31 @@ test("Anthropic runtime env clears MiniMax-specific Claude gateway overrides", (
   assert.equal(env.ANTHROPIC_MODEL, undefined);
   assert.equal(env.API_TIMEOUT_MS, undefined);
   assert.equal(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, undefined);
+});
+
+test("Gemini OAuth runtime env clears Google and Gemini key vars and injects no API key", () => {
+  const env = buildProviderRuntimeEnv(
+    {
+      GEMINI_API_KEY: "stale-gemini-key",
+      GOOGLE_API_KEY: "stale-google-key",
+      GOOGLE_GENAI_USE_VERTEXAI: "true",
+      GOOGLE_CLOUD_PROJECT: "stale-project",
+      GOOGLE_CLOUD_LOCATION: "stale-location",
+      GOOGLE_APPLICATION_CREDENTIALS: "/tmp/stale-creds.json",
+      PATH: process.env.PATH
+    },
+    "gemini",
+    "oauth",
+    null,
+    "gemini-2.5-pro"
+  );
+
+  assert.equal(env.GEMINI_API_KEY, undefined);
+  assert.equal(env.GOOGLE_API_KEY, undefined);
+  assert.equal(env.GOOGLE_GENAI_USE_VERTEXAI, undefined);
+  assert.equal(env.GOOGLE_CLOUD_PROJECT, undefined);
+  assert.equal(env.GOOGLE_CLOUD_LOCATION, undefined);
+  assert.equal(env.GOOGLE_APPLICATION_CREDENTIALS, undefined);
 });
 
 test("OpenAI OAuth runtime env clears OPENAI_API_KEY and injects no API key", () => {
