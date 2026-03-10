@@ -12,7 +12,7 @@ v1 supports:
 - multiple agents per project
 - one active project at a time
 - one active agent inside the active project
-- one provider runtime per agent: `openai`, `anthropic`, or `minimax`
+- one provider runtime per agent: `openai`, `anthropic`, `gemini`, or `minimax`
 - one user channel: Telegram
 - one operator channel: OpenColab CLI
 
@@ -134,13 +134,16 @@ Responsibilities:
 - initialize state and default project/agent files when `ignite` runs
 - configure provider for the active agent
 - provider configuration must ask for provider and model, and must support provider auth mode selection when available
-- OpenAI provider auth modes must support `api_key` and `oauth`
-- in `api_key` mode, provider API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `MINIMAX_API_KEY`)
+- OpenAI and Gemini provider auth modes must support `api_key` and `oauth`
+- in `api_key` mode, provider API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `MINIMAX_API_KEY`)
 - in OpenAI `oauth` mode, setup must not require `OPENAI_API_KEY`
+- in Gemini `oauth` mode, setup must not require `GEMINI_API_KEY`
 - in OpenAI `oauth` mode, runtime preflight must verify Codex login state and return remediation guidance if login is missing
+- in Gemini `oauth` mode, runtime must return remediation guidance when the CLI reports missing Google login or missing Gemini credentials
 - provider CLI command/args must be auto-derived from internal defaults
 - provider CLI defaults must support non-interactive execution with write access to the active project workspace
 - when the active agent is a subagent, provider CLI defaults must still allow access to the parent project workspace
+- provider defaults must use concrete model names, not floating aliases
 - configure one shared Telegram setup for all projects
 - Telegram token values must be persisted in `.env.local` under `TELEGRAM_BOT_TOKEN`
 - create/list/select projects
@@ -188,17 +191,18 @@ Supported provider identifiers:
 
 - `openai`
 - `anthropic`
+- `gemini`
 - `minimax`
-
-No `gemini` adapter in scope for v1.
 
 Provider/runtime notes:
 
 - provider configuration is stored on each agent, not on the project
 - provider config includes auth mode (`api_key` or `oauth` where supported)
-- OpenAI supports `api_key` and `oauth` auth modes
+- OpenAI and Gemini support `api_key` and `oauth` auth modes
 - Anthropic and MiniMax are `api_key` only in v1
 - some providers may reuse an existing CLI runtime instead of shipping a dedicated CLI
+- `gemini` uses the `gemini` CLI runtime
+- Gemini v1 scope is limited to Google login (`oauth`) or `GEMINI_API_KEY`; Vertex AI auth is out of scope
 - `minimax` uses the `claude` runtime with MiniMax's Anthropic-compatible gateway
 
 ## 10. Configuration Persistence (`opencolab.json`)
@@ -222,7 +226,7 @@ Minimum shape:
           "path": "projects/default",
           "provider": {
             "name": "anthropic",
-            "model": "<model-name>",
+            "model": "<concrete-model-id>",
             "authMode": "api_key"
           },
           "files": {
@@ -249,8 +253,9 @@ Minimum shape:
 
 Notes:
 
-- secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MINIMAX_API_KEY`, `TELEGRAM_BOT_TOKEN`)
+- secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `TELEGRAM_BOT_TOKEN`)
 - when OpenAI auth mode is `oauth`, `OPENAI_API_KEY` is optional
+- when Gemini auth mode is `oauth`, `GEMINI_API_KEY` is optional
 - `opencolab.json` must not store raw secret values or env-var secret references
 - extra fields are allowed if they do not break the minimum contract
 
