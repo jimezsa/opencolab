@@ -49,6 +49,18 @@ const CODEX_WORKSPACE_ARGS = [
   "-"
 ] as const;
 
+const GEMINI_WORKSPACE_ARGS = [
+  "--prompt",
+  "{prompt}",
+  "--model",
+  "{model}",
+  "--sandbox",
+  "workspace-write",
+  "--yolo",
+  "--include-directories",
+  "{project_dir}"
+] as const;
+
 const CLAUDE_RUNTIME_RESET_ENV_VARS = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_AUTH_TOKEN",
@@ -63,6 +75,14 @@ const CLAUDE_RUNTIME_RESET_ENV_VARS = [
 ] as const;
 
 const OPENAI_RUNTIME_RESET_ENV_VARS = ["OPENAI_API_KEY"] as const;
+const GEMINI_RUNTIME_RESET_ENV_VARS = [
+  "GEMINI_API_KEY",
+  "GOOGLE_API_KEY",
+  "GOOGLE_GENAI_USE_VERTEXAI",
+  "GOOGLE_CLOUD_PROJECT",
+  "GOOGLE_CLOUD_LOCATION",
+  "GOOGLE_APPLICATION_CREDENTIALS"
+] as const;
 
 const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   anthropic: {
@@ -82,6 +102,22 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     buildRuntimeEnv: (apiKey) => ({
       ANTHROPIC_API_KEY: requireApiKey(apiKey, "ANTHROPIC_API_KEY")
     })
+  },
+  gemini: {
+    model: "gemini-2.5-pro",
+    cliCommand: "gemini",
+    cliArgs: [...GEMINI_WORKSPACE_ARGS],
+    authMode: "api_key",
+    apiKeyEnvVar: "GEMINI_API_KEY",
+    supportedAuthModes: ["api_key", "oauth"],
+    resetEnvVars: [...GEMINI_RUNTIME_RESET_ENV_VARS],
+    buildRuntimeEnv: (apiKey, _model, authMode) => {
+      const env: Record<string, string> = {};
+      if (authMode !== "oauth") {
+        env.GEMINI_API_KEY = requireApiKey(apiKey, "GEMINI_API_KEY");
+      }
+      return env;
+    }
   },
   minimax: {
     model: "MiniMax-M2.5",
@@ -217,6 +253,28 @@ function hasExactArgs(left: string[], right: string[]): boolean {
 
 export function getCanonicalProviderKeyEnvVar(providerName: ProviderName): string {
   return PROVIDER_DEFINITIONS[providerName].apiKeyEnvVar;
+}
+
+export function getProviderOauthSetupHint(providerName: ProviderName, cliCommand: string): string {
+  if (providerName === "openai") {
+    return `Run '${cliCommand} login' if needed.`;
+  }
+  if (providerName === "gemini") {
+    return `Run '${cliCommand}' and choose Login with Google if needed.`;
+  }
+  return `Run '${cliCommand}' to complete authentication if needed.`;
+}
+
+export function getProviderOauthMissingSessionMessage(
+  providerName: ProviderName,
+  cliCommand: string,
+  detail?: string
+): string {
+  const base =
+    providerName === "openai"
+      ? `OpenAI OAuth login required. Run '${cliCommand} login' and retry.`
+      : `Gemini OAuth login required. Run '${cliCommand}' and choose Login with Google, then retry.`;
+  return detail ? `${base} (${detail})` : base;
 }
 
 export function buildProviderRuntimeEnv(
