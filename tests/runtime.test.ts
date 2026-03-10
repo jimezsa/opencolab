@@ -137,7 +137,7 @@ test("init seeds TOOLS.md with available search skill summaries", () => {
     const toolsDoc = fs.readFileSync(toolsPath, "utf8");
     assert.equal(toolsDoc.includes("# TOOLS"), true);
     assert.equal(
-      toolsDoc.includes("Primary runtime: provider CLI (openai, anthropic, minimax, or compatible runtime)."),
+      toolsDoc.includes("Primary runtime: provider CLI (openai, anthropic, gemini, minimax, or compatible runtime)."),
       true
     );
     assert.equal(toolsDoc.includes("`fast-search`"), true);
@@ -208,6 +208,38 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.authMode, "oauth");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("setupModel stores Gemini oauth auth mode and workspace defaults on the agent", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-gemini-oauth-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "gemini",
+      model: "gemini-2.5-pro",
+      authMode: "oauth"
+    });
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "gemini");
+    assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.cliCommand, "gemini");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "--prompt",
+      "{prompt}",
+      "--model",
+      "{model}",
+      "--sandbox",
+      "workspace-write",
+      "--yolo",
+      "--include-directories",
+      "{project_dir}"
+    ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
