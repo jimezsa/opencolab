@@ -34,7 +34,7 @@ function restoreSecretEnvVars(previous: Record<string, string | undefined>): voi
   }
 }
 
-test("ignite configures project, provider, telegram, and optional agent", async () => {
+test("ignite configures project, provider, and telegram", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-"));
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
@@ -49,10 +49,7 @@ test("ignite configures project, provider, telegram, and optional agent", async 
     "y",
     "123456:telegram_bot_token",
     "10001",
-    "n",
-    "y",
-    "scout",
-    ""
+    "n"
   ];
   const prompts: string[] = [];
   const outputs: string[] = [];
@@ -109,8 +106,8 @@ test("ignite configures project, provider, telegram, and optional agent", async 
     assert.equal(envLocal.includes("OPENAI_API_KEY=openai_test_key_123"), true);
     assert.equal(envLocal.includes("TELEGRAM_BOT_TOKEN=123456:telegram_bot_token"), true);
 
-    assert.equal(agent.id, "scout");
-    assert.equal(agent.path, "projects/science/subagents/scout");
+    assert.equal(agent.id, "researcher_agent");
+    assert.equal(agent.path, "projects/science");
 
     assert.equal(prompts.length > 0, true);
     assert.equal(outputs.includes("Onboarding complete."), true);
@@ -132,8 +129,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     "api-key",
     "gpt-5.3-codex",
     "openai_test_key_esc",
-    ESC_INPUT,
-    "n"
+    ESC_INPUT
   ];
   const outputs: string[] = [];
   let syncCalls = 0;
@@ -186,7 +182,7 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
     model: "gpt-5.3-codex"
   });
 
-  const answers = ["", "y", "n", "n"];
+  const answers = ["", "y", "n"];
   const prompts: string[] = [];
 
   try {
@@ -226,7 +222,6 @@ test("ignite supports configuring the minimax provider", async () => {
     "minimax",
     "MiniMax-M2.5",
     "minimax_test_key_123",
-    "n",
     "n"
   ];
 
@@ -280,7 +275,6 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
     "openai",
     "oauth",
     "gpt-5.3-codex",
-    "n",
     "n"
   ];
   const prompts: string[] = [];
@@ -325,7 +319,6 @@ test("ignite supports configuring the Gemini provider with a concrete model name
     "api-key",
     "gemini-2.5-pro",
     "gemini_test_key_123",
-    "n",
     "n"
   ];
 
@@ -380,7 +373,6 @@ test("ignite supports Gemini oauth mode without asking for API key", async () =>
     "gemini",
     "oauth",
     "gemini-2.5-pro",
-    "n",
     "n"
   ];
   const prompts: string[] = [];
