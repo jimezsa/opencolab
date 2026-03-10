@@ -465,3 +465,53 @@ test("project state preserves OpenAI oauth auth mode", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("project state preserves Gemini oauth auth mode and concrete model name", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-gemini-oauth-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: "researcher_agent",
+            agents: {
+              researcher_agent: {
+                id: "researcher_agent",
+                path: "projects/alpha",
+                provider: {
+                  name: "gemini",
+                  model: "gemini-2.5-pro",
+                  authMode: "oauth"
+                },
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.name, "gemini");
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.model, "gemini-2.5-pro");
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "oauth");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
