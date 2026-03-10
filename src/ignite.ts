@@ -5,6 +5,7 @@
 import {
   getProviderSetupDefaults,
   getProviderSupportedAuthModes,
+  getProviderOauthSetupHint,
   getSupportedProviderNames,
   normalizeProviderAuthMode,
   resolveProviderAuthMode,
@@ -42,6 +43,7 @@ export interface IgniteIo {
 const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
   openai: ["gpt-5.3-codex", "gpt-5-codex", "gpt-5"],
   anthropic: ["claude-opus-4-6", "claude-sonnet-4-5"],
+  gemini: ["gemini-2.5-pro", "gemini-2.5-flash"],
   minimax: ["MiniMax-M2.5"]
 };
 
@@ -62,7 +64,7 @@ export async function runIgnite(
     selectProject(runtime, stepIo)
   );
   io.write("|");
-  await runStep(io, "* Provider configure model and key", async (stepIo) =>
+  await runStep(io, "* Provider configure model and auth", async (stepIo) =>
     configureProvider(runtime, stepIo)
   );
   io.write("|");
@@ -200,7 +202,9 @@ async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promi
       io.write(`Saved ${providerApiKeyEnvVar} in .env.local.`);
     }
   } else {
-    io.write("Using OpenAI OAuth auth mode. Run 'codex login' if not already authenticated.");
+    io.write(
+      `Using ${providerName} OAuth auth mode. ${getProviderOauthSetupHint(providerName, providerDefaults.cliCommand)}`
+    );
   }
 
   runtime.setupModel({
