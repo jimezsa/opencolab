@@ -9,6 +9,7 @@ import { getActiveAgent, getActiveProject } from "./project-config.js";
 import {
   buildProviderRuntimeEnv,
   getProviderOauthMissingSessionMessage,
+  getProviderOauthSetupHint,
   resolveProviderAuthMode
 } from "./provider.js";
 import { getProviderApiKeyEnvVar, resolveOpenAiOauthStatus, resolveProviderApiKey } from "./secrets.js";
@@ -139,7 +140,7 @@ export class ProviderAgent {
 
       const timeoutHandle = setTimeout(() => {
         child.kill("SIGKILL");
-        finish(() => reject(new Error(`${providerLabel} CLI timed out`)));
+        finish(() => reject(new Error(normalizeProviderCliTimeout(provider, authMode))));
       }, Math.max(this.config.codexTimeoutMs, 1000));
 
       child.stdout.on("data", (chunk: Buffer) => {
@@ -155,7 +156,7 @@ export class ProviderAgent {
       });
 
       child.on("error", (error) => {
-        finish(() => reject(error));
+        finish(() => reject(normalizeProviderCliSpawnError(provider, authMode, error)));
       });
 
       child.on("close", (code) => {
@@ -227,6 +228,40 @@ function normalizeProviderCliError(
   }
 
   return message;
+}
+
+function normalizeProviderCliTimeout(provider: ProviderConfig, authMode: ProviderAuthMode): string {
+  const providerLabel = provider.name.replaceAll("_", " ");
+  if (provider.name === "gemini" && authMode === "oauth") {
+    return `${providerLabel} CLI timed out. ${getProviderOauthSetupHint(provider.name, provider.cliCommand)}`;
+  }
+  return `${providerLabel} CLI timed out`;
+}
+
+function normalizeProviderCliSpawnError(
+  provider: ProviderConfig,
+  authMode: ProviderAuthMode,
+  error: Error
+): Error {
+  const spawnError = error as NodeJS.ErrnoException;
+  const providerLabel = provider.name.replaceAll("_", " ");
+  if (spawnError.code === "ENOENT") {
+    return new Error(
+      `${providerLabel} CLI is not installed or not available on PATH. Install '${provider.cliCommand}' and retry.`
+    );
+  }
+  if (spawnError.code === "EACCES") {
+    return new Error(
+      `${providerLabel} CLI is not executable. Fix '${provider.cliCommand}' permissions and retry.`
+    );
+  }
+
+  const message = error.message?.trim();
+  if (message) {
+    return new Error(normalizeProviderCliError(provider, authMode, message));
+  }
+
+  return new Error(`${providerLabel} CLI failed to start`);
 }
 
 function replaceCliArgTokens(arg: string, replacements: Record<string, string>): string {

@@ -19,6 +19,7 @@ import type {
   ConversationMessage,
   GatewayResult,
   OpenColabState,
+  ProviderConfig,
   TelegramFileKind,
   TelegramFilePayload,
   TelegramInbound,
@@ -56,6 +57,7 @@ interface GatewayDependencies {
 }
 
 const TELEGRAM_FILE_FETCH_TIMEOUT_MS = 10_000;
+const MAX_TELEGRAM_ERROR_CHARS = 1_500;
 
 export class TelegramGateway {
   private readonly sender: TelegramSender;
@@ -169,6 +171,7 @@ export class TelegramGateway {
 
     const state = ensureProjectAndAgent(this.deps.getState());
     const project = getActiveProject(state);
+    const activeAgent = getProjectActiveAgent(project);
 
     if (!state.telegram.chatId || inbound.chatId !== state.telegram.chatId) {
       return {
@@ -219,75 +222,90 @@ export class TelegramGateway {
     }
 
     const memory = this.deps.readConversationMemory(inbound.chatId, 8);
-    const stopTyping = this.startTypingFeedback(inbound.chatId, state);
-    const resolvedFiles = await resolveInboundFiles(
-      this.config,
-      project.path,
-      inbound.files,
-    );
-    const inboundText = buildInboundText(inbound.text, resolvedFiles);
-    let response = "";
+    let stopTyping: (() => void) | null = null;
 
     try {
-      response = await this.deps.respond({
+      stopTyping = this.startTypingFeedback(inbound.chatId, state);
+      const resolvedFiles = await resolveInboundFiles(
+        this.config,
+        project.path,
+        inbound.files,
+      );
+      const inboundText = buildInboundText(inbound.text, resolvedFiles);
+      const response = await this.deps.respond({
         chatId: inbound.chatId,
         sender: inbound.sender,
         text: inboundText,
         files: resolvedFiles,
         memory,
       });
+
+      const outbound = parseOutboundAgentResponse(response);
+      const assistantLog = buildAssistantLogContent(
+        outbound.text,
+        outbound.files,
+      );
+
+      this.deps.appendConversation(inbound.chatId, {
+        role: "user",
+        content: inboundText,
+        at: nowIso(),
+      });
+
+      this.deps.appendConversation(inbound.chatId, {
+        role: "assistant",
+        content: assistantLog,
+        at: nowIso(),
+      });
+
+      let sent = true;
+      let sentAny = false;
+
+      if (outbound.text) {
+        const textSent = await this.sender(inbound.chatId, outbound.text, state);
+        sent = sent && textSent;
+        sentAny = sentAny || textSent;
+      }
+
+      for (const file of outbound.files) {
+        const fileSent = await this.fileSender(inbound.chatId, file, state);
+        sent = sent && fileSent;
+        sentAny = sentAny || fileSent;
+      }
+
+      if (!outbound.text && outbound.files.length === 0) {
+        sent = false;
+      } else if (sentAny && !sent) {
+        sent = false;
+      }
+
+      const responseText =
+        outbound.text || summarizeOutboundFiles(outbound.files);
+
+      return {
+        ok: true,
+        action: "agent_response",
+        response: responseText,
+        sent,
+      };
+    } catch (error) {
+      const response = buildAgentFailureMessage(error);
+      logAgentFailure(inbound.chatId, activeAgent.provider, error);
+      const sent = await safeSendTelegramMessage(
+        this.sender,
+        inbound.chatId,
+        response,
+        state,
+      );
+      return {
+        ok: false,
+        action: "agent_error",
+        response,
+        sent,
+      };
     } finally {
-      stopTyping();
+      stopTyping?.();
     }
-
-    const outbound = parseOutboundAgentResponse(response);
-    const assistantLog = buildAssistantLogContent(
-      outbound.text,
-      outbound.files,
-    );
-
-    this.deps.appendConversation(inbound.chatId, {
-      role: "user",
-      content: inboundText,
-      at: nowIso(),
-    });
-
-    this.deps.appendConversation(inbound.chatId, {
-      role: "assistant",
-      content: assistantLog,
-      at: nowIso(),
-    });
-
-    let sent = true;
-    let sentAny = false;
-
-    if (outbound.text) {
-      const textSent = await this.sender(inbound.chatId, outbound.text, state);
-      sent = sent && textSent;
-      sentAny = sentAny || textSent;
-    }
-
-    for (const file of outbound.files) {
-      const fileSent = await this.fileSender(inbound.chatId, file, state);
-      sent = sent && fileSent;
-      sentAny = sentAny || fileSent;
-    }
-
-    if (!outbound.text && outbound.files.length === 0) {
-      sent = false;
-    } else if (sentAny && !sent) {
-      sent = false;
-    }
-
-    const responseText =
-      outbound.text || summarizeOutboundFiles(outbound.files);
-
-    return {
-      ok: true,
-      action: "agent_response",
-      response: responseText,
-      sent,
-    };
   }
 
   private tryHandleManagementCommand(
@@ -551,6 +569,49 @@ export class TelegramGateway {
       clearInterval(timer);
     };
   }
+}
+
+async function safeSendTelegramMessage(
+  sender: TelegramSender,
+  chatId: string,
+  text: string,
+  state: OpenColabState,
+): Promise<boolean> {
+  try {
+    return await sender(chatId, text, state);
+  } catch {
+    return false;
+  }
+}
+
+function buildAgentFailureMessage(error: unknown): string {
+  const fallback =
+    "OpenColab could not complete your request due to a provider/runtime error. Check the gateway logs and retry.";
+  const detail =
+    error instanceof Error
+      ? error.message.trim()
+      : String(error ?? "").trim();
+  if (!detail) {
+    return fallback;
+  }
+  if (detail.length <= MAX_TELEGRAM_ERROR_CHARS) {
+    return detail;
+  }
+  return `${detail.slice(0, MAX_TELEGRAM_ERROR_CHARS - 3)}...`;
+}
+
+function logAgentFailure(
+  chatId: string,
+  provider: ProviderConfig,
+  error: unknown,
+): void {
+  const detail =
+    error instanceof Error
+      ? (error.stack ?? error.message)
+      : String(error);
+  console.error(
+    `[opencolab:telegram:error] chat=${chatId} provider=${provider.name} model=${provider.model} ${detail}`,
+  );
 }
 
 export async function defaultTelegramSender(

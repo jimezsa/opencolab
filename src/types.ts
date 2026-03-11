@@ -110,6 +110,7 @@ export interface GatewayResult {
     | "ignored"
     | "unauthorized_chat"
     | "pairing_required"
+    | "agent_error"
     | "agent_response"
     | "management_command";
   response: string;

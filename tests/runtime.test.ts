@@ -435,6 +435,65 @@ test("paired webhook routes message to the active agent and stores conversation"
   }
 });
 
+test("paired webhook notifies Telegram when the provider runtime fails", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-runtime-error-"));
+  const sentTexts: string[] = [];
+  let typingCalls = 0;
+  const originalConsoleError = console.error;
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramTypingSender: async () => {
+      typingCalls += 1;
+      return true;
+    },
+    agentResponder: async () => {
+      throw new Error(
+        "Gemini OAuth login required. Run 'gemini' and choose Login with Google, then retry."
+      );
+    }
+  });
+
+  try {
+    console.error = () => undefined;
+    runtime.init();
+    runtime.setupModel({
+      providerName: "gemini",
+      model: "gemini-2.5-pro",
+      authMode: "oauth"
+    });
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "hi",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.action, "agent_error");
+    assert.equal(
+      result.response,
+      "Gemini OAuth login required. Run 'gemini' and choose Login with Google, then retry."
+    );
+    assert.equal(sentTexts.includes(result.response), true);
+    assert.equal(typingCalls > 0, true);
+  } finally {
+    console.error = originalConsoleError;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("paired webhook routes document-only inbound message to the agent", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-inbound-"));
   const sentTexts: string[] = [];

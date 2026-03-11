@@ -283,6 +283,9 @@ Notes:
 - when Telegram file download fails or times out, routing should continue with caption text plus attachment metadata instead of dropping or indefinitely blocking the message
 - while generating, gateway sends Telegram `typing` feedback
 - responses are sent to the same chat
+- when provider/runtime execution fails for a routed message, gateway replies in Telegram with a short failure notice instead of failing silently
+- provider auth/runtime remediation guidance (for example missing Gemini OAuth login or missing API key) must be forwarded to the Telegram user when available
+- polling mode must not retry the same failed Telegram update indefinitely once the runtime has consumed it
 - agent responses may include `@telegram-file <json>` directives to send Telegram files:
   - example: `@telegram-file {"kind":"document","file":"<file_id_or_url>","caption":"optional"}`
 - `setup telegram` should register Telegram bot commands via `setMyCommands` so slash-menu suggestions are available

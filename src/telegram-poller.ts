@@ -51,11 +51,17 @@ export function startTelegramPolling(
       try {
         const updates = await getUpdates(tokenValue, offset);
         for (const update of updates) {
-          await runtime.handleTelegramWebhook(update);
-        }
-
-        if (updates.length > 0) {
-          offset = updates[updates.length - 1].update_id + 1;
+          try {
+            await runtime.handleTelegramWebhook(update);
+          } catch (error) {
+            log(
+              `Telegram update ${String(update.update_id)} failed: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+          } finally {
+            offset = update.update_id + 1;
+          }
         }
       } catch (error) {
         log(

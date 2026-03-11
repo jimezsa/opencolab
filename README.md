@@ -155,6 +155,7 @@ Telegram webhook endpoint:
 `POST http://127.0.0.1:4646/api/telegram/webhook`
 
 Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible, using collision-safe local filenames, and the agent receives the caption plus the local file path instead of only Telegram metadata. If Telegram file resolution is slow or fails, routing falls back to caption plus attachment metadata instead of hanging the chat.
+If a provider runtime fails because of auth, timeout, missing CLI setup, or another execution error, OpenColab sends a Telegram error reply instead of silently retrying the same message forever.
 
 ## Project and Agent Commands
 
