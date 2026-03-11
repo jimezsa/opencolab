@@ -15,6 +15,7 @@ import {
   getActiveProject,
 } from "./project-config.js";
 import type {
+  AgentMemoryContext,
   ConversationMessage,
   GatewayResult,
   OpenColabState,
@@ -45,7 +46,7 @@ export type TelegramFileSender = (
 interface GatewayDependencies {
   getState: () => OpenColabState;
   saveState: (next: OpenColabState) => void;
-  readConversation: (chatId: string, limit: number) => ConversationMessage[];
+  readConversationMemory: (chatId: string, limit: number) => AgentMemoryContext;
   appendConversation: (chatId: string, message: ConversationMessage) => void;
   resetConversationSession: () => string;
   respond: (input: ProviderAgentInput) => Promise<string>;
@@ -217,7 +218,7 @@ export class TelegramGateway {
       };
     }
 
-    const history = this.deps.readConversation(inbound.chatId, 8);
+    const memory = this.deps.readConversationMemory(inbound.chatId, 8);
     const stopTyping = this.startTypingFeedback(inbound.chatId, state);
     const resolvedFiles = await resolveInboundFiles(
       this.config,
@@ -233,7 +234,7 @@ export class TelegramGateway {
         sender: inbound.sender,
         text: inboundText,
         files: resolvedFiles,
-        history,
+        memory,
       });
     } finally {
       stopTyping();
