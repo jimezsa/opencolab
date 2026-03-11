@@ -87,10 +87,18 @@ Initialization requirements:
 
 `MEMORY.md` remains reserved for long-term memory only.
 
+OpenColab memory is split into three simple layers:
+
+- working memory: current active session tail from the current UTC day only
+- recent episodic memory: previous UTC day summary
+- long-term semantic memory: curated stable facts in `MEMORY.md`
+
 Each agent must also persist Telegram conversation history under:
 
 - `projects/<project_id>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl` for main agent
 - `projects/<project_id>/subagents/<agent_id>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl` for subagents
+- `projects/<project_id>/memory/Daily/<YYYY-MM-DD>.md` for main agent daily summaries
+- `projects/<project_id>/subagents/<agent_id>/memory/Daily/<YYYY-MM-DD>.md` for subagent daily summaries
 
 Requirements for session storage:
 
@@ -98,6 +106,11 @@ Requirements for session storage:
 - `YYYY-MM-DD.jsonl` uses current UTC date
 - `/session reset` starts a new session folder for the active agent
 - conversation logs must not be stored in `.opencolab`
+- raw session logs are archival and must not be fed wholesale into provider prompts
+- working memory should include only the recent turns from the active session and current UTC day
+- recent episodic memory should include only the previous UTC day summary
+- `MEMORY.md` should contain only durable facts, preferences, and recurring constraints
+- `BOOTSTRAP.md` is onboarding scaffolding and should not be treated as permanent prompt context after initialization
 
 ## 6. Telegram Pairing Flow
 
