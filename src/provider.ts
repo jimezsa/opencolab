@@ -40,10 +40,7 @@ const CLAUDE_WORKSPACE_ARGS = [
 
 const CODEX_WORKSPACE_ARGS = [
   "exec",
-  "--sandbox",
-  "workspace-write",
-  "-a",
-  "never",
+  "--full-auto",
   "--add-dir",
   "{project_dir}",
   "-"

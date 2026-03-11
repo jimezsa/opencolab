@@ -41,6 +41,13 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
 test("OpenAI setup defaults support OAuth and API key auth modes", () => {
   const defaults = getProviderSetupDefaults("openai");
   assert.equal(defaults.authMode, "api_key");
+  assert.deepEqual(defaults.cliArgs, [
+    "exec",
+    "--full-auto",
+    "--add-dir",
+    "{project_dir}",
+    "-"
+  ]);
   assert.deepEqual(getProviderSupportedAuthModes("openai"), ["api_key", "oauth"]);
   assert.equal(normalizeProviderAuthMode("api-key"), "api_key");
   assert.equal(normalizeProviderAuthMode("oauth"), "oauth");

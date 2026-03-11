@@ -198,10 +198,7 @@ test("project state migrates legacy provider CLI defaults to workspace defaults 
     assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "api_key");
     assert.deepEqual(loaded.projects.alpha.agents.researcher_agent.provider.cliArgs, [
       "exec",
-      "--sandbox",
-      "workspace-write",
-      "-a",
-      "never",
+      "--full-auto",
       "--add-dir",
       "{project_dir}",
       "-"

@@ -89,10 +89,7 @@ test("ignite configures project, provider, and telegram", async () => {
     assert.equal(agent.provider.cliCommand, "codex");
     assert.deepEqual(agent.provider.cliArgs, [
       "exec",
-      "--sandbox",
-      "workspace-write",
-      "-a",
-      "never",
+      "--full-auto",
       "--add-dir",
       "{project_dir}",
       "-"

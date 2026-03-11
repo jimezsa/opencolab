@@ -208,6 +208,14 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.cliCommand, "codex");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "exec",
+      "--full-auto",
+      "--add-dir",
+      "{project_dir}",
+      "-"
+    ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
