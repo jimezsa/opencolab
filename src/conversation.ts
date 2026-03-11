@@ -4,7 +4,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import type { ConversationMessage } from "./types.js";
+import type { AgentMemoryContext, ConversationMessage } from "./types.js";
 import { ensureDir } from "./utils.js";
 
 export class ConversationStore {
@@ -12,31 +12,11 @@ export class ConversationStore {
     ensureDir(rootDir);
   }
 
-  readRecent(agentPath: string, limit = 8): ConversationMessage[] {
-    const sessionDir = this.resolveCurrentSessionDir(agentPath);
-    const files = this.listSessionFiles(sessionDir);
-    const parsed: ConversationMessage[] = [];
-
-    for (const file of files) {
-      const lines = fs.readFileSync(file, "utf8").split(/\r?\n/).filter(Boolean);
-
-      for (const line of lines) {
-        try {
-          const item = JSON.parse(line) as ConversationMessage;
-          if (item && (item.role === "user" || item.role === "assistant")) {
-            parsed.push(item);
-          }
-        } catch {
-          // Ignore malformed history lines.
-        }
-      }
-    }
-
-    if (parsed.length <= limit) {
-      return parsed;
-    }
-
-    return parsed.slice(parsed.length - limit);
+  readPromptMemory(agentPath: string, limit = 8, now = new Date()): AgentMemoryContext {
+    return {
+      workingMemory: this.readWorkingMemory(agentPath, limit, now),
+      previousDaySummary: this.readPreviousDaySummary(agentPath, now)
+    };
   }
 
   append(agentPath: string, message: ConversationMessage): void {
@@ -81,6 +61,10 @@ export class ConversationStore {
     return path.join(this.rootDir, agentPath, "memory", "Session");
   }
 
+  private dailyDir(agentPath: string): string {
+    return path.join(this.rootDir, agentPath, "memory", "Daily");
+  }
+
   private listSessionFiles(sessionDir: string): string[] {
     return fs
       .readdirSync(sessionDir, { withFileTypes: true })
@@ -123,6 +107,76 @@ export class ConversationStore {
     }
     return sessionId;
   }
+
+  private readWorkingMemory(
+    agentPath: string,
+    limit: number,
+    now: Date
+  ): ConversationMessage[] {
+    const sessionDir = this.resolveCurrentSessionDir(agentPath);
+    const dayPath = path.join(sessionDir, `${currentDateIso(now)}.jsonl`);
+    const parsed = this.readConversationFile(dayPath);
+    return parsed.length <= limit ? parsed : parsed.slice(parsed.length - limit);
+  }
+
+  private readPreviousDaySummary(agentPath: string, now: Date): string {
+    const dateIso = previousDateIso(now);
+    const summaryPath = path.join(this.dailyDir(agentPath), `${dateIso}.md`);
+    if (fs.existsSync(summaryPath)) {
+      return fs.readFileSync(summaryPath, "utf8").trim();
+    }
+
+    const source = this.collectDayMessages(agentPath, dateIso);
+    if (source.messages.length === 0) {
+      return "";
+    }
+
+    ensureDir(path.dirname(summaryPath));
+    const summary = buildDailySummary(dateIso, source.messages, source.sessionCount);
+    fs.writeFileSync(summaryPath, `${summary}\n`, "utf8");
+    return summary;
+  }
+
+  private collectDayMessages(
+    agentPath: string,
+    dateIso: string
+  ): { messages: ConversationMessage[]; sessionCount: number } {
+    const sessionsDir = this.sessionsDir(agentPath);
+    ensureDir(sessionsDir);
+    const messages: ConversationMessage[] = [];
+    let sessionCount = 0;
+
+    for (const sessionId of this.listSessionDirectories(sessionsDir)) {
+      const dayPath = path.join(sessionsDir, sessionId, `${dateIso}.jsonl`);
+      if (!fs.existsSync(dayPath)) {
+        continue;
+      }
+      sessionCount += 1;
+      messages.push(...this.readConversationFile(dayPath));
+    }
+
+    return { messages, sessionCount };
+  }
+
+  private readConversationFile(filePath: string): ConversationMessage[] {
+    if (!fs.existsSync(filePath)) {
+      return [];
+    }
+
+    const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/).filter(Boolean);
+    const parsed: ConversationMessage[] = [];
+    for (const line of lines) {
+      try {
+        const item = JSON.parse(line) as ConversationMessage;
+        if (item && (item.role === "user" || item.role === "assistant")) {
+          parsed.push(item);
+        }
+      } catch {
+        // Ignore malformed history lines.
+      }
+    }
+    return parsed;
+  }
 }
 
 function createSessionId(now = new Date()): string {
@@ -139,6 +193,12 @@ function currentDateIso(now = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+function previousDateIso(now: Date): string {
+  const previous = new Date(now.getTime());
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return currentDateIso(previous);
+}
+
 function formatTimestamp(now: Date): string {
   const year = String(now.getUTCFullYear()).padStart(4, "0");
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
@@ -148,4 +208,99 @@ function formatTimestamp(now: Date): string {
   const seconds = String(now.getUTCSeconds()).padStart(2, "0");
   const milliseconds = String(now.getUTCMilliseconds()).padStart(3, "0");
   return `${year}${month}${day}-${hours}${minutes}${seconds}-${milliseconds}`;
+}
+
+function buildDailySummary(
+  dateIso: string,
+  messages: ConversationMessage[],
+  sessionCount: number
+): string {
+  const userHighlights = collectHighlights(messages, "user", 4);
+  const assistantHighlights = collectHighlights(messages, "assistant", 3);
+  const lastUser = findLastMessage(messages, "user");
+  const lastAssistant = findLastMessage(messages, "assistant");
+  const openLoops = [
+    lastUser ? `Last user request: ${truncateForSummary(lastUser.content, 220)}` : "",
+    lastAssistant ? `Last agent response: ${truncateForSummary(lastAssistant.content, 220)}` : ""
+  ].filter(Boolean);
+
+  return [
+    `# DAILY MEMORY - ${dateIso}`,
+    "",
+    "Deterministic recap of the previous UTC day.",
+    "",
+    `Sessions covered: ${String(sessionCount)}`,
+    `Messages captured: ${String(messages.length)}`,
+    "",
+    "## User Focus",
+    ...renderBulletSection(userHighlights, "No user highlights captured."),
+    "",
+    "## Agent Responses",
+    ...renderBulletSection(assistantHighlights, "No assistant responses captured."),
+    "",
+    "## Open Loops",
+    ...renderBulletSection(openLoops, "No explicit open loops captured.")
+  ].join("\n");
+}
+
+function collectHighlights(
+  messages: ConversationMessage[],
+  role: ConversationMessage["role"],
+  limit: number
+): string[] {
+  const seen = new Set<string>();
+  const results: string[] = [];
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== role) {
+      continue;
+    }
+
+    const normalized = truncateForSummary(message.content, 220);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    results.push(normalized);
+    if (results.length >= limit) {
+      break;
+    }
+  }
+
+  return results.reverse();
+}
+
+function renderBulletSection(items: string[], emptyMessage: string): string[] {
+  if (items.length === 0) {
+    return [`- ${emptyMessage}`];
+  }
+  return items.map((item) => `- ${item}`);
+}
+
+function findLastMessage(
+  messages: ConversationMessage[],
+  role: ConversationMessage["role"]
+): ConversationMessage | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === role) {
+      return messages[index];
+    }
+  }
+  return null;
+}
+
+function truncateForSummary(value: string, limit: number): string {
+  const normalized = value
+    .replace(/\[telegram_files\][\s\S]*$/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) {
+    return "";
+  }
+  if (normalized.length <= limit) {
+    return normalized;
+  }
+  return `${normalized.slice(0, limit - 3).trimEnd()}...`;
 }
