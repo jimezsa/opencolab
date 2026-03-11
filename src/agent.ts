@@ -4,7 +4,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import type { AgentConfig, AgentFiles, ConversationMessage } from "./types.js";
+import type { AgentConfig, AgentFiles, AgentMemoryContext } from "./types.js";
 import { ensureDir } from "./utils.js";
 
 const DEFAULT_AGENTS_DOC = `# AGENTS.md - Researcher Essentials
@@ -26,8 +26,9 @@ Before doing meaningful work:
 
 1. Read ALMA.md to align voice and behavior.
 2. Read USER.md to align with user preferences and constraints.
-3. Check recent session logs in memory/Session/<session_id>/<YYYY-MM-DD>.jsonl for continuity.
-4. In direct 1:1 context, also read MEMORY.md for long-term context.
+3. Use current-session working memory from today's turns only.
+4. Read yesterday's daily summary in memory/Daily/<YYYY-MM-DD>.md when it exists.
+5. In direct 1:1 context, also read MEMORY.md for long-term context.
 
 Do not wait for explicit permission to do this prep.
 
@@ -45,6 +46,9 @@ Do not wait for explicit permission to do this prep.
 ## Memory Rules 🧠
 
 - Session logs are raw history: memory/Session/<session_id>/<YYYY-MM-DD>.jsonl.
+- Daily summaries live in memory/Daily/<YYYY-MM-DD>.md.
+- Working memory should come from the active session and current UTC day only.
+- Recent episodic memory should come from yesterday's daily summary only.
 - MEMORY.md is curated long-term memory, not raw transcript.
 - If something should survive restarts, write it to a file.
 - If the user says "remember this", capture it in the right place.
@@ -271,7 +275,7 @@ const DEFAULT_FILE_CONTENT: Record<
   memory: "# MEMORY\n\nLong-term memory for stable user/project facts.\n",
 };
 
-const DOC_KEYS: Array<keyof AgentFiles> = [
+const ALL_DOC_KEYS: Array<keyof AgentFiles> = [
   "agents",
   "bootstrap",
   "identity",
@@ -282,15 +286,24 @@ const DOC_KEYS: Array<keyof AgentFiles> = [
   "memory",
 ];
 
+const PROMPT_DOC_KEYS: Array<Exclude<keyof AgentFiles, "bootstrap" | "memory">> = [
+  "agents",
+  "identity",
+  "alma",
+  "tools",
+  "user",
+  "todo",
+];
+
 const promptContextCache = new Map<
   string,
-  { mtimes: number[]; systemContext: string }
+  { mtimes: number[]; coreContext: string; longTermMemory: string }
 >();
 
 function getAgentEntries(
   agent: AgentConfig,
 ): Array<[keyof AgentFiles, string]> {
-  return DOC_KEYS.map((key) => [key, agent.files[key]]);
+  return ALL_DOC_KEYS.map((key) => [key, agent.files[key]]);
 }
 
 function readIfExists(filePath: string): string {
@@ -304,9 +317,12 @@ function mtimeIfExists(filePath: string): number {
 function getPromptContext(
   rootDir: string,
   agent: AgentConfig,
-): { mtimes: number[]; systemContext: string } {
+): { mtimes: number[]; coreContext: string; longTermMemory: string } {
   const agentDir = resolveAgentDirectory(rootDir, agent.path);
-  const entries = getAgentEntries(agent);
+  const entries = [
+    ...PROMPT_DOC_KEYS.map((key) => [key, agent.files[key]] as const),
+    ["memory", agent.files.memory] as const,
+  ];
   const cacheKey = `${agentDir}:${entries.map(([, file]) => file).join("|")}`;
   const mtimes = entries.map(([, fileName]) =>
     mtimeIfExists(path.join(agentDir, fileName)),
@@ -321,13 +337,17 @@ function getPromptContext(
   }
 
   const sections: string[] = [];
-  for (const [key, fileName] of entries) {
+  for (const [key, fileName] of entries.slice(0, PROMPT_DOC_KEYS.length)) {
     sections.push(
       `[${String(key).toUpperCase()}]`,
       readIfExists(path.join(agentDir, fileName)),
     );
   }
-  const next = { mtimes, systemContext: sections.join("\n\n") };
+  const next = {
+    mtimes,
+    coreContext: sections.join("\n\n"),
+    longTermMemory: readIfExists(path.join(agentDir, agent.files.memory)).trim(),
+  };
   promptContextCache.set(cacheKey, next);
   return next;
 }
@@ -359,19 +379,20 @@ export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
 export function buildAgentPromptForInput(
   rootDir: string,
   agent: AgentConfig,
-  history: ConversationMessage[],
+  memory: AgentMemoryContext,
   userMessage: string,
 ): string {
-  const { systemContext } = getPromptContext(rootDir, agent);
-  return buildPromptFromSystemContext(systemContext, history, userMessage);
+  const { coreContext, longTermMemory } = getPromptContext(rootDir, agent);
+  return buildPromptFromSystemContext(coreContext, longTermMemory, memory, userMessage);
 }
 
 function buildPromptFromSystemContext(
-  systemContext: string,
-  history: ConversationMessage[],
+  coreContext: string,
+  longTermMemory: string,
+  memory: AgentMemoryContext,
   userMessage: string,
 ): string {
-  const transcript = history
+  const transcript = memory.workingMemory
     .slice(-8)
     .map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`)
     .join("\n");
@@ -381,9 +402,15 @@ function buildPromptFromSystemContext(
     "The human defines the initial problem and then supports execution as an assistant to the research-agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
     "When the user message includes a [telegram_files] section with local_path entries, inspect those local files directly when relevant instead of relying only on attachment metadata.",
     "",
-    systemContext,
+    coreContext,
     "",
-    transcript ? "Conversation so far:" : "",
+    longTermMemory ? "[LONG_TERM_MEMORY]" : "",
+    longTermMemory,
+    "",
+    memory.previousDaySummary ? "[RECENT_EPISODIC_MEMORY]" : "",
+    memory.previousDaySummary,
+    "",
+    transcript ? "Working memory (active session, current UTC day):" : "",
     transcript,
     "",
     `USER: ${userMessage}`,
