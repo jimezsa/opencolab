@@ -344,10 +344,7 @@ test("ignite supports configuring the Gemini provider with a concrete model name
       "--model",
       "{model}",
       "--sandbox",
-      "workspace-write",
-      "--yolo",
-      "--include-directories",
-      "{project_dir}"
+      "--yolo"
     ]);
 
     assert.equal(process.env.GEMINI_API_KEY, "gemini_test_key_123");

@@ -243,10 +243,7 @@ test("setupModel stores Gemini oauth auth mode and workspace defaults on the age
       "--model",
       "{model}",
       "--sandbox",
-      "workspace-write",
-      "--yolo",
-      "--include-directories",
-      "{project_dir}"
+      "--yolo"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

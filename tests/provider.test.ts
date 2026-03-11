@@ -64,10 +64,7 @@ test("Gemini setup defaults use concrete model names and support OAuth", () => {
     "--model",
     "{model}",
     "--sandbox",
-    "workspace-write",
-    "--yolo",
-    "--include-directories",
-    "{project_dir}"
+    "--yolo"
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("gemini"), ["api_key", "oauth"]);
   assert.equal(getCanonicalProviderKeyEnvVar("gemini"), "GEMINI_API_KEY");

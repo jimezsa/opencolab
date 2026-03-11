@@ -52,10 +52,7 @@ const GEMINI_WORKSPACE_ARGS = [
   "--model",
   "{model}",
   "--sandbox",
-  "workspace-write",
-  "--yolo",
-  "--include-directories",
-  "{project_dir}"
+  "--yolo"
 ] as const;
 
 const CLAUDE_RUNTIME_RESET_ENV_VARS = [
