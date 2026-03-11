@@ -60,6 +60,11 @@ export interface ConversationMessage {
   at: string;
 }
 
+export interface AgentMemoryContext {
+  workingMemory: ConversationMessage[];
+  previousDaySummary: string;
+}
+
 export type TelegramFileKind =
   | "document"
   | "photo"
