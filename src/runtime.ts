@@ -25,6 +25,7 @@ import {
   type TelegramTypingSender
 } from "./gateway.js";
 import type {
+  AgentMemoryContext,
   AgentConfig,
   GatewayResult,
   OpenColabState,
@@ -75,8 +76,8 @@ export class OpenColabRuntime {
         writeProjectState(this.config, this.state);
         this.ensureActiveAgentFiles();
       },
-      readConversation: (chatId, limit) =>
-        this.conversations.readRecent(this.resolveActiveAgentPath(), limit),
+      readConversationMemory: (chatId, limit): AgentMemoryContext =>
+        this.conversations.readPromptMemory(this.resolveActiveAgentPath(), limit),
       appendConversation: (chatId, message) =>
         this.conversations.append(this.resolveActiveAgentPath(), message),
       resetConversationSession: () => this.conversations.resetSession(this.resolveActiveAgentPath()),
