@@ -242,7 +242,6 @@ test("setupModel stores Gemini oauth auth mode and workspace defaults on the age
       "{prompt}",
       "--model",
       "{model}",
-      "--sandbox",
       "--yolo"
     ]);
   } finally {

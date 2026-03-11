@@ -63,7 +63,6 @@ test("Gemini setup defaults use concrete model names and support OAuth", () => {
     "{prompt}",
     "--model",
     "{model}",
-    "--sandbox",
     "--yolo"
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("gemini"), ["api_key", "oauth"]);

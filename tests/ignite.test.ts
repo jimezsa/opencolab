@@ -343,7 +343,6 @@ test("ignite supports configuring the Gemini provider with a concrete model name
       "{prompt}",
       "--model",
       "{model}",
-      "--sandbox",
       "--yolo"
     ]);
 

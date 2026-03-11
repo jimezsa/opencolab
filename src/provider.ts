@@ -51,7 +51,6 @@ const GEMINI_WORKSPACE_ARGS = [
   "{prompt}",
   "--model",
   "{model}",
-  "--sandbox",
   "--yolo"
 ] as const;
 
