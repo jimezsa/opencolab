@@ -13,7 +13,7 @@ import {
 } from "./provider.js";
 import { getProviderApiKeyEnvVar, resolveOpenAiOauthStatus, resolveProviderApiKey } from "./secrets.js";
 import type {
-  ConversationMessage,
+  AgentMemoryContext,
   OpenColabState,
   ProviderAuthMode,
   ProviderConfig,
@@ -27,7 +27,7 @@ export interface ProviderAgentInput {
   sender: string;
   text: string;
   files: TelegramFilePayload[];
-  history: ConversationMessage[];
+  memory: AgentMemoryContext;
 }
 
 export class ProviderAgent {
@@ -43,7 +43,7 @@ export class ProviderAgent {
     const agent = getActiveAgent(project);
     const provider = agent.provider;
     const promptStartedAt = Date.now();
-    const prompt = buildAgentPromptForInput(this.config.rootDir, agent, input.history, input.text);
+    const prompt = buildAgentPromptForInput(this.config.rootDir, agent, input.memory, input.text);
     const promptMs = Date.now() - promptStartedAt;
 
     if (this.config.forceMockCodex) {
