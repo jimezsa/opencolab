@@ -215,8 +215,15 @@ Default layout:
 Conversation history layout:
 
 - current session logs: `<agent_path>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`
+- previous-day summary: `<agent_path>/memory/Daily/<YYYY-MM-DD>.md`
 - reset active session from Telegram with `/session reset`
 - conversation logs are no longer written under `.opencolab`
+
+Prompt memory model:
+
+- working memory: recent turns from the active session on the current UTC day
+- recent episodic memory: only the previous UTC day summary
+- long-term memory: curated stable facts in `MEMORY.md`
 
 ## Configuration
 
