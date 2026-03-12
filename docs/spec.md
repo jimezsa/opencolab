@@ -147,6 +147,7 @@ Responsibilities:
 - initialize state and default project/agent files when `ignite` runs
 - configure provider for the active agent
 - provider configuration must ask for provider and model, and must support provider auth mode selection when available
+- `ignite` should offer curated concrete model options per provider; Gemini options must include `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`
 - OpenAI and Gemini provider auth modes must support `api_key` and `oauth`
 - in `api_key` mode, provider API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `MINIMAX_API_KEY`)
 - in OpenAI `oauth` mode, setup must not require `OPENAI_API_KEY`
