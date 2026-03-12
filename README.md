@@ -111,6 +111,8 @@ gemini
 opencolab setup model --provider gemini --auth oauth --model gemini-2.5-pro
 ```
 
+`opencolab ignite` offers these preset Gemini model choices: `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`.
+
 If you want to use Gemini, install the CLI first:
 
 ```bash
