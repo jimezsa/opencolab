@@ -402,3 +402,55 @@ test("ignite supports Gemini oauth mode without asking for API key", async () =>
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("ignite exposes Gemini preview models in interactive chooser mode", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-gemini-choose-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = ["", "n"];
+  let modelOptions: string[] | null = null;
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        choose: async (prompt, options) => {
+          if (prompt === "| Provider:") {
+            return "gemini";
+          }
+          if (prompt === "| Auth mode:") {
+            return "oauth";
+          }
+          if (prompt === "| Model:") {
+            modelOptions = [...options];
+            return "gemini-3.1-pro-preview";
+          }
+          return options[0] ?? "";
+        },
+        write: () => undefined
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.deepEqual(modelOptions, [
+      "gemini-2.5-pro",
+      "gemini-2.5-flash",
+      "gemini-3.1-pro-preview",
+      "gemini-3-flash-preview"
+    ]);
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "gemini");
+    assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.model, "gemini-3.1-pro-preview");
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
