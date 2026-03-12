@@ -119,6 +119,12 @@ If you want to use Gemini, install the CLI first:
 npm install -g @google/gemini-cli
 ```
 
+Provider CLI execution defaults to a 10 minute timeout. Override it in `.env.local` if needed:
+
+```env
+OPENCOLAB_CODEX_TIMEOUT_MS=600000
+```
+
 Start local gateway server:
 
 ```bash

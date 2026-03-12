@@ -158,6 +158,7 @@ Responsibilities:
 - provider CLI defaults must support non-interactive execution with write access to the active project workspace
 - when the active agent is a subagent, provider CLI defaults must still allow access to the parent project workspace
 - provider defaults must use concrete model names, not floating aliases
+- provider CLI execution timeout must default to 10 minutes and remain configurable via `OPENCOLAB_CODEX_TIMEOUT_MS`
 - configure one shared Telegram setup for all projects
 - Telegram token values must be persisted in `.env.local` under `TELEGRAM_BOT_TOKEN`
 - create/list/select projects

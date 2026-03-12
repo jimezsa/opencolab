@@ -5,6 +5,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+const DEFAULT_PROVIDER_CLI_TIMEOUT_MS = 600000;
+
 export interface OpenColabConfig {
   rootDir: string;
   projectConfigPath: string;
@@ -26,7 +28,10 @@ export function loadConfig(cwd = process.cwd()): OpenColabConfig {
     conversationsDir: path.join(rootDir, ".opencolab", "conversations"),
     localApiPort: Number(process.env.OPENCOLAB_PORT ?? "4646"),
     forceMockCodex: (process.env.OPENCOLAB_FORCE_MOCK_CLI ?? "0") !== "0",
-    codexTimeoutMs: Number(process.env.OPENCOLAB_CODEX_TIMEOUT_MS ?? "120000")
+    codexTimeoutMs: Number(
+      process.env.OPENCOLAB_CODEX_TIMEOUT_MS ??
+        String(DEFAULT_PROVIDER_CLI_TIMEOUT_MS),
+    ),
   };
 }
 

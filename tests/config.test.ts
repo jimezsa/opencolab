@@ -11,25 +11,31 @@ test("loadConfig reads .env.local values", () => {
 
   fs.writeFileSync(
     envPath,
-    ["OPENAI_API_KEY=test_key_123", "OPENCOLAB_PORT=5050", "OPENCOLAB_FORCE_MOCK_CLI=0"].join(
-      "\n"
-    ),
+    [
+      "OPENAI_API_KEY=test_key_123",
+      "OPENCOLAB_PORT=5050",
+      "OPENCOLAB_FORCE_MOCK_CLI=0",
+      "OPENCOLAB_CODEX_TIMEOUT_MS=1200000"
+    ].join("\n"),
     "utf8"
   );
 
   const oldOpenAi = process.env.OPENAI_API_KEY;
   const oldPort = process.env.OPENCOLAB_PORT;
   const oldForceMock = process.env.OPENCOLAB_FORCE_MOCK_CLI;
+  const oldTimeout = process.env.OPENCOLAB_CODEX_TIMEOUT_MS;
 
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENCOLAB_PORT;
   delete process.env.OPENCOLAB_FORCE_MOCK_CLI;
+  delete process.env.OPENCOLAB_CODEX_TIMEOUT_MS;
 
   try {
     const config = loadConfig(tempDir);
     assert.equal(process.env.OPENAI_API_KEY, "test_key_123");
     assert.equal(config.localApiPort, 5050);
     assert.equal(config.forceMockCodex, false);
+    assert.equal(config.codexTimeoutMs, 1200000);
   } finally {
     if (oldOpenAi === undefined) {
       delete process.env.OPENAI_API_KEY;
@@ -49,6 +55,12 @@ test("loadConfig reads .env.local values", () => {
       process.env.OPENCOLAB_FORCE_MOCK_CLI = oldForceMock;
     }
 
+    if (oldTimeout === undefined) {
+      delete process.env.OPENCOLAB_CODEX_TIMEOUT_MS;
+    } else {
+      process.env.OPENCOLAB_CODEX_TIMEOUT_MS = oldTimeout;
+    }
+
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
@@ -56,16 +68,25 @@ test("loadConfig reads .env.local values", () => {
 test("loadConfig defaults to real codex mode", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-config-default-"));
   const oldForceMock = process.env.OPENCOLAB_FORCE_MOCK_CLI;
+  const oldTimeout = process.env.OPENCOLAB_CODEX_TIMEOUT_MS;
   delete process.env.OPENCOLAB_FORCE_MOCK_CLI;
+  delete process.env.OPENCOLAB_CODEX_TIMEOUT_MS;
 
   try {
     const config = loadConfig(tempDir);
     assert.equal(config.forceMockCodex, false);
+    assert.equal(config.codexTimeoutMs, 600000);
   } finally {
     if (oldForceMock === undefined) {
       delete process.env.OPENCOLAB_FORCE_MOCK_CLI;
     } else {
       process.env.OPENCOLAB_FORCE_MOCK_CLI = oldForceMock;
+    }
+
+    if (oldTimeout === undefined) {
+      delete process.env.OPENCOLAB_CODEX_TIMEOUT_MS;
+    } else {
+      process.env.OPENCOLAB_CODEX_TIMEOUT_MS = oldTimeout;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
