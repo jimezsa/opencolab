@@ -14,12 +14,14 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
+    XAI_API_KEY: process.env.XAI_API_KEY,
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN
   };
   delete process.env.OPENAI_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.GEMINI_API_KEY;
   delete process.env.MINIMAX_API_KEY;
+  delete process.env.XAI_API_KEY;
   delete process.env.TELEGRAM_BOT_TOKEN;
   return previous;
 }
@@ -86,6 +88,7 @@ test("ignite configures project, provider, and telegram", async () => {
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.model, "gpt-5.3-codex");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.runtime, "codex");
     assert.equal(agent.provider.cliCommand, "codex");
     assert.deepEqual(agent.provider.cliArgs, [
       "exec",
@@ -156,6 +159,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.model, "gpt-5.3-codex");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.runtime, "codex");
     assert.equal(state.telegram.chatId, null);
     assert.equal(agent.id, "researcher_agent");
     assert.equal(syncCalls, 0);
@@ -201,6 +205,7 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.model, "gpt-5.3-codex");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.runtime, "codex");
     assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
   } finally {
     restoreSecretEnvVars(previousEnv);
@@ -240,6 +245,7 @@ test("ignite supports configuring the minimax provider", async () => {
     assert.equal(agent.provider.name, "minimax");
     assert.equal(agent.provider.model, "MiniMax-M2.5");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
@@ -296,6 +302,7 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.runtime, "codex");
     assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
     assert.equal(process.env.OPENAI_API_KEY, undefined);
   } finally {
@@ -337,6 +344,7 @@ test("ignite supports configuring the Gemini provider with a concrete model name
     assert.equal(agent.provider.name, "gemini");
     assert.equal(agent.provider.model, "gemini-2.5-pro");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.runtime, "gemini");
     assert.equal(agent.provider.cliCommand, "gemini");
     assert.deepEqual(agent.provider.cliArgs, [
       "--prompt",
@@ -393,6 +401,7 @@ test("ignite supports Gemini oauth mode without asking for API key", async () =>
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "gemini");
     assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.runtime, "gemini");
     assert.equal(agent.provider.model, "gemini-2.5-pro");
     assert.equal(prompts.some((prompt) => prompt.includes("GEMINI_API_KEY value")), false);
     assert.equal(outputs.some((line) => line.includes("Login with Google")), true);
@@ -447,8 +456,70 @@ test("ignite exposes Gemini preview models in interactive chooser mode", async (
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "gemini");
     assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.runtime, "gemini");
     assert.equal(agent.provider.model, "gemini-3.1-pro-preview");
     assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite supports configuring xAI on the pi runtime", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-xai-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "",
+    "xai",
+    "grok-code-fast-1",
+    "xai_test_key_123",
+    "n"
+  ];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        write: () => undefined
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "xai");
+    assert.equal(agent.provider.model, "grok-code-fast-1");
+    assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.runtime, "pi");
+    assert.equal(agent.provider.cliCommand, "pi");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "--print",
+      "--provider",
+      "{runtime_provider}",
+      "--model",
+      "{model}",
+      "--append-system-prompt",
+      "{system_prompt}",
+      "--no-session",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--tools",
+      "read,bash,edit,write,grep,find,ls",
+      "{user_message}"
+    ]);
+
+    assert.equal(process.env.XAI_API_KEY, "xai_test_key_123");
+    const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envLocal.includes("XAI_API_KEY=xai_test_key_123"), true);
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
