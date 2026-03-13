@@ -84,7 +84,7 @@ Run interactive first-run setup (state initialization, project, model/provider, 
 opencolab ignite
 ```
 
-Provider runtimes are configured with non-interactive defaults so `claude`, `codex`, and `gemini` can edit the active project workspace without waiting for terminal approval prompts. Agent providers are configured per agent, so one agent can use Anthropic while another uses Gemini or MiniMax.
+Provider runtimes are configured with non-interactive defaults so `claude`, `codex`, `gemini`, and `pi` can edit the active project workspace without waiting for terminal approval prompts. Agent providers are configured per agent, so one agent can use Anthropic while another uses Gemini, MiniMax, or xAI.
 Subagents also inherit access to the parent project workspace by default.
 
 OpenAI supports two auth modes:
@@ -118,6 +118,14 @@ If you want to use Gemini, install the CLI first:
 ```bash
 npm install -g @google/gemini-cli
 ```
+
+xAI support uses the `pi` runtime with `XAI_API_KEY`:
+
+```bash
+opencolab setup model --provider xai --model grok-code-fast-1 --api-key <your_xai_key>
+```
+
+OpenColab runs `pi` with a workspace-local `PI_CODING_AGENT_DIR` so non-interactive Telegram and CLI runs do not depend on `~/.pi/agent`.
 
 Provider CLI execution defaults to a 10 minute timeout. Override it in `.env.local` if needed:
 
@@ -241,11 +249,11 @@ Prompt memory model:
 - active project id
 - projects map
 - per-project agents map
-- per-agent provider config (`openai`, `anthropic`, `gemini`, or `minimax`) including auth mode
+- per-agent provider config (`openai`, `anthropic`, `gemini`, `minimax`, or `xai`) including auth mode and runtime
 - shared Telegram settings and pairing state
 
-Provider CLI command/args are stored per agent and are auto-derived from internal defaults.
-OpenAI and Gemini can run with `api_key` or `oauth` auth mode; `OPENAI_API_KEY` and `GEMINI_API_KEY` are optional in OAuth mode.
+Provider runtime, CLI command, and CLI args are stored per agent and are auto-derived from internal defaults.
+OpenAI and Gemini can run with `api_key` or `oauth` auth mode; `OPENAI_API_KEY` and `GEMINI_API_KEY` are optional in OAuth mode. xAI currently uses `api_key` mode with `XAI_API_KEY` through the `pi` runtime.
 
 Secret values are stored in `.env.local` and should not be committed to git.
 `opencolab.json` stores only non-secret runtime state.
