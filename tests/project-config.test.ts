@@ -30,6 +30,7 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(agent.files.todo, "TODO.md");
     assert.equal(agent.files.memory, "MEMORY.md");
     assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "api_key");
     assert.equal(state.telegram.paired, false);
   } finally {
@@ -83,6 +84,7 @@ test("project state migrates legacy project provider into agent config", () => {
     const project = loaded.projects[loaded.activeProjectId];
     const agent = project.agents[project.activeAgentId];
     assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "api_key");
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
@@ -146,6 +148,7 @@ test("project state prefers explicit agent provider over legacy project provider
     const loaded = readProjectState(config);
     const agent = loaded.projects.alpha.agents.researcher_agent;
     assert.equal(agent.provider.name, "minimax");
+    assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "api_key");
     assert.equal(agent.provider.cliCommand, "claude");
   } finally {
@@ -196,6 +199,7 @@ test("project state migrates legacy provider CLI defaults to workspace defaults 
 
     const loaded = readProjectState(config);
     assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "api_key");
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "codex");
     assert.deepEqual(loaded.projects.alpha.agents.researcher_agent.provider.cliArgs, [
       "exec",
       "--full-auto",
@@ -251,6 +255,7 @@ test("project state preserves custom provider CLI defaults on the agent", () => 
 
     const loaded = readProjectState(config);
     assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "api_key");
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "codex");
     assert.deepEqual(loaded.projects.alpha.agents.researcher_agent.provider.cliArgs, [
       "exec",
       "--sandbox",
@@ -353,6 +358,7 @@ test("project state migrates legacy single-agent shape", () => {
     assert.equal(project.activeAgentId, "legacy_agent");
     assert.equal(project.agents.legacy_agent.path, "agents/legacy_agent");
     assert.equal(project.agents.legacy_agent.provider.name, "openai");
+    assert.equal(project.agents.legacy_agent.provider.runtime, "codex");
     assert.equal(project.agents.legacy_agent.provider.authMode, "api_key");
     assert.equal(loaded.telegram.chatId, "10001");
   } finally {
@@ -407,6 +413,7 @@ test("project state migrates legacy per-project telegram shape", () => {
     const loaded = readProjectState(config);
     assert.equal(loaded.activeProjectId, "alpha");
     assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.name, "openai");
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "codex");
     assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "api_key");
     assert.equal(loaded.telegram.chatId, "55555");
     assert.equal(loaded.telegram.paired, true);
@@ -457,6 +464,7 @@ test("project state preserves OpenAI oauth auth mode", () => {
     );
 
     const loaded = readProjectState(config);
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "codex");
     assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "oauth");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -506,8 +514,59 @@ test("project state preserves Gemini oauth auth mode and concrete model name", (
 
     const loaded = readProjectState(config);
     assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.name, "gemini");
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "gemini");
     assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.model, "gemini-2.5-pro");
     assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "oauth");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state preserves xAI provider runtime and model", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-xai-pi-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: "researcher_agent",
+            agents: {
+              researcher_agent: {
+                id: "researcher_agent",
+                path: "projects/alpha",
+                provider: {
+                  name: "xai",
+                  model: "grok-code-fast-1"
+                },
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.name, "xai");
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "pi");
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.model, "grok-code-fast-1");
+    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.cliCommand, "pi");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
