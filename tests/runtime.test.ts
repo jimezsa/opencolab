@@ -5,6 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { createRuntime } from "../src/runtime.js";
 
+function buildAgentDir(rootDir: string, projectId: string, agentId = "professor"): string {
+  return path.join(rootDir, "projects", projectId, "AGENTS", agentId);
+}
+
 test("init creates required agent context files for active project", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-agent-files-"));
   const runtime = createRuntime(tempDir);
@@ -16,8 +20,8 @@ test("init creates required agent context files for active project", () => {
     const agentDir = path.join(tempDir, agent.path);
 
     assert.equal(project.id, "default");
-    assert.equal(agent.id, "researcher_agent");
-    assert.equal(agent.path, "projects/default");
+    assert.equal(agent.id, "professor");
+    assert.equal(agent.path, "projects/default/AGENTS/professor");
 
     const required = [
       "AGENTS.md",
@@ -37,27 +41,36 @@ test("init creates required agent context files for active project", () => {
   }
 });
 
-test("init and agent create seed AGENTS.md from built-in researcher template", () => {
+test("init and agent create seed professor and specialist AGENTS.md templates", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-agent-template-"));
   const runtime = createRuntime(tempDir);
 
   try {
     runtime.init();
 
-    const mainAgentPath = path.join(tempDir, "projects", "default", "AGENTS.md");
-    const mainAgentDoc = fs.readFileSync(mainAgentPath, "utf8");
-    assert.equal(mainAgentDoc.includes("# AGENTS.md - Researcher Essentials"), true);
-    assert.equal(mainAgentDoc.includes("## Agent File Map"), true);
-    assert.equal(mainAgentDoc.includes("ALMA.md: communication style, tone, and behavioral guardrails."), true);
-    assert.equal(mainAgentDoc.includes("MEMORY.md: durable facts learned over time"), true);
-    assert.equal(mainAgentDoc.includes("Before deep research, clarify the human's true intention behind the topic."), true);
-    assert.equal(mainAgentDoc.includes("The agent group is the expert. Do not offload expert reasoning to the human."), true);
-    assert.equal(mainAgentDoc.includes("Do not invent sources, data, or experiment results."), true);
+    const professorAgentPath = path.join(buildAgentDir(tempDir, "default"), "AGENTS.md");
+    const professorDoc = fs.readFileSync(professorAgentPath, "utf8");
+    assert.equal(professorDoc.includes("# AGENTS.md - Professor Essentials"), true);
+    assert.equal(professorDoc.includes("You are the lab's lead professor agent."), true);
+    assert.equal(
+      professorDoc.includes("Lead the lab: decide when to work directly, when to delegate, and how to integrate specialist outputs."),
+      true
+    );
+    assert.equal(professorDoc.includes("## Agent File Map"), true);
+    assert.equal(professorDoc.includes("MEMORY.md: durable facts learned over time"), true);
+    assert.equal(professorDoc.includes("Before deep research, clarify the human's true intention behind the topic."), true);
+    assert.equal(professorDoc.includes("Do not invent sources, data, or experiment results."), true);
 
     runtime.configureAgent("scout");
-    const subagentPath = path.join(tempDir, "projects", "default", "subagents", "scout", "AGENTS.md");
-    const subagentDoc = fs.readFileSync(subagentPath, "utf8");
-    assert.equal(subagentDoc, mainAgentDoc);
+    const specialistAgentPath = path.join(buildAgentDir(tempDir, "default", "scout"), "AGENTS.md");
+    const specialistDoc = fs.readFileSync(specialistAgentPath, "utf8");
+    assert.equal(specialistDoc.includes("# AGENTS.md - PhD Specialist Essentials"), true);
+    assert.equal(specialistDoc.includes("You are a PhD-style specialist agent."), true);
+    assert.equal(
+      specialistDoc.includes("Operate as a PhD-style specialist: own a scoped workstream and report crisp findings, assumptions, and open questions."),
+      true
+    );
+    assert.notEqual(specialistDoc, professorDoc);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -70,7 +83,7 @@ test("init seeds BOOTSTRAP.md from built-in bootstrap template", () => {
   try {
     runtime.init();
 
-    const bootstrapPath = path.join(tempDir, "projects", "default", "BOOTSTRAP.md");
+    const bootstrapPath = path.join(buildAgentDir(tempDir, "default"), "BOOTSTRAP.md");
     const bootstrapDoc = fs.readFileSync(bootstrapPath, "utf8");
     assert.equal(bootstrapDoc.includes("# BOOTSTRAP.md - Hello, World"), true);
     assert.equal(bootstrapDoc.includes("Time to figure out who you are."), true);
@@ -81,7 +94,7 @@ test("init seeds BOOTSTRAP.md from built-in bootstrap template", () => {
     assert.equal(bootstrapDoc.includes("Do not ask the user to define your vibe. Discover and refine your vibe through real collaboration."), true);
     assert.equal(bootstrapDoc.includes("Ask one focused question at a time instead of dropping a long questionnaire."), true);
     assert.equal(bootstrapDoc.includes("The user experience should feel exceptional: clear, human, and low-friction."), true);
-    assert.equal(bootstrapDoc.includes("Researcher Setup"), true);
+    assert.equal(bootstrapDoc.includes("Lab Setup"), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -94,7 +107,7 @@ test("init seeds IDENTITY.md from built-in identity template", () => {
   try {
     runtime.init();
 
-    const identityPath = path.join(tempDir, "projects", "default", "IDENTITY.md");
+    const identityPath = path.join(buildAgentDir(tempDir, "default"), "IDENTITY.md");
     const identityDoc = fs.readFileSync(identityPath, "utf8");
     assert.equal(identityDoc.includes("# IDENTITY.md - Who Am I?"), true);
     assert.equal(identityDoc.includes("Fill this in during your first conversation."), true);
@@ -113,7 +126,7 @@ test("init seeds ALMA.md from built-in alma template", () => {
   try {
     runtime.init();
 
-    const almaPath = path.join(tempDir, "projects", "default", "ALMA.md");
+    const almaPath = path.join(buildAgentDir(tempDir, "default"), "ALMA.md");
     const almaDoc = fs.readFileSync(almaPath, "utf8");
     assert.equal(almaDoc.includes("# ALMA.md - Who You Are"), true);
     assert.equal(almaDoc.includes("Before deep research, ask concise clarifying questions to uncover the human's true intention."), true);
@@ -133,7 +146,7 @@ test("init seeds TOOLS.md with available search skill summaries", () => {
   try {
     runtime.init();
 
-    const toolsPath = path.join(tempDir, "projects", "default", "TOOLS.md");
+    const toolsPath = path.join(buildAgentDir(tempDir, "default"), "TOOLS.md");
     const toolsDoc = fs.readFileSync(toolsPath, "utf8");
     assert.equal(toolsDoc.includes("# TOOLS"), true);
     assert.equal(
@@ -300,9 +313,9 @@ test("agents in one project can use different providers", () => {
     });
 
     const project = runtime.getActiveProject();
-    assert.equal(project.agents.researcher_agent.provider.name, "anthropic");
-    assert.equal(project.agents.researcher_agent.provider.runtime, "claude");
-    assert.equal(project.agents.researcher_agent.provider.authMode, "api_key");
+    assert.equal(project.agents.professor.provider.name, "anthropic");
+    assert.equal(project.agents.professor.provider.runtime, "claude");
+    assert.equal(project.agents.professor.provider.authMode, "api_key");
     assert.equal(project.agents.scout.provider.name, "minimax");
     assert.equal(project.agents.scout.provider.runtime, "claude");
     assert.equal(project.agents.scout.provider.authMode, "api_key");
@@ -462,7 +475,7 @@ test("paired webhook routes message to the active agent and stores conversation"
     assert.equal(sentTexts.includes(result.response), true);
     assert.equal(typingCalls > 0, true);
 
-    const sessionsDir = path.join(tempDir, "projects", "default", "memory", "Session");
+    const sessionsDir = path.join(buildAgentDir(tempDir, "default"), "memory", "Session");
     assert.equal(fs.existsSync(sessionsDir), true);
     const sessionDirs = fs
       .readdirSync(sessionsDir, { withFileTypes: true })
@@ -1017,7 +1030,7 @@ test("paired webhook can reset the session and create a new session folder", asy
       }
     });
 
-    const sessionsDir = path.join(tempDir, "projects", "default", "memory", "Session");
+    const sessionsDir = path.join(buildAgentDir(tempDir, "default"), "memory", "Session");
     const firstSessionDirs = fs
       .readdirSync(sessionsDir, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
@@ -1096,14 +1109,12 @@ test("paired webhook can create and switch projects and agents", async () => {
     assert.equal(createProject.ok, true);
     assert.equal(createProject.action, "management_command");
     assert.equal(runtime.getState().activeProjectId, "alpha");
-    assert.equal(runtime.getActiveProject().activeAgentId, "researcher_agent");
+    assert.equal(runtime.getActiveProject().activeAgentId, "professor");
 
-    const projectRootAgentFile = path.join(tempDir, "projects", "alpha", "AGENTS.md");
-    const projectRootBootstrapFile = path.join(tempDir, "projects", "alpha", "BOOTSTRAP.md");
-    const projectRootTodoFile = path.join(tempDir, "projects", "alpha", "TODO.md");
-    assert.equal(fs.existsSync(projectRootAgentFile), true);
-    assert.equal(fs.existsSync(projectRootBootstrapFile), true);
-    assert.equal(fs.existsSync(projectRootTodoFile), true);
+    const professorDir = buildAgentDir(tempDir, "alpha");
+    assert.equal(fs.existsSync(path.join(professorDir, "AGENTS.md")), true);
+    assert.equal(fs.existsSync(path.join(professorDir, "BOOTSTRAP.md")), true);
+    assert.equal(fs.existsSync(path.join(professorDir, "TODO.md")), true);
 
     const createAgent = await runtime.handleTelegramWebhook({
       message: {
@@ -1117,7 +1128,7 @@ test("paired webhook can create and switch projects and agents", async () => {
     assert.equal(createAgent.action, "management_command");
     assert.equal(runtime.getActiveProject().activeAgentId, "scout");
 
-    const createdAgentDir = path.join(tempDir, "projects", "alpha", "subagents", "scout");
+    const createdAgentDir = buildAgentDir(tempDir, "alpha", "scout");
     assert.equal(fs.existsSync(path.join(createdAgentDir, "AGENTS.md")), true);
     assert.equal(fs.existsSync(path.join(createdAgentDir, "BOOTSTRAP.md")), true);
     assert.equal(fs.existsSync(path.join(createdAgentDir, "TODO.md")), true);
