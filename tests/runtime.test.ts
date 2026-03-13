@@ -41,6 +41,18 @@ test("init creates required agent context files for active project", () => {
   }
 });
 
+test("init does not replicate shared skills into each project", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-shared-skills-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    assert.equal(fs.existsSync(path.join(tempDir, "projects", "default", "SKILLS")), false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("init and agent create seed professor and specialist AGENTS.md templates", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-agent-template-"));
   const runtime = createRuntime(tempDir);
@@ -153,6 +165,10 @@ test("init seeds TOOLS.md with available search skill summaries", () => {
       toolsDoc.includes("Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime)."),
       true
     );
+    assert.equal(
+      toolsDoc.includes("Shared project skills live under `projects/SKILLS/`."),
+      true
+    );
     assert.equal(toolsDoc.includes("`fast-search`"), true);
     assert.equal(toolsDoc.includes("Fast scientific paper scouting with `papercli`."), true);
     assert.equal(
@@ -200,7 +216,9 @@ test("setupModel auto-sets provider CLI defaults for the active agent", () => {
       "--permission-mode",
       "bypassPermissions",
       "--add-dir",
-      "{project_dir}"
+      "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -229,6 +247,8 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
       "--full-auto",
       "--add-dir",
       "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}",
       "-"
     ]);
   } finally {
@@ -328,7 +348,9 @@ test("agents in one project can use different providers", () => {
       "--permission-mode",
       "bypassPermissions",
       "--add-dir",
-      "{project_dir}"
+      "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
