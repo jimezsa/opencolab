@@ -247,7 +247,7 @@ If you change this file, tell the user.
 
 const DEFAULT_TOOLS_DOC = `# TOOLS
 
-Primary runtime: provider CLI (openai, anthropic, gemini, minimax, or compatible runtime).
+Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime).
 
 ## Available Skills
 
@@ -295,9 +295,17 @@ const PROMPT_DOC_KEYS: Array<Exclude<keyof AgentFiles, "bootstrap" | "memory">> 
   "todo",
 ];
 
+const PI_PROMPT_DOC_KEYS: Array<Exclude<keyof AgentFiles, "agents" | "bootstrap" | "memory">> = [
+  "identity",
+  "alma",
+  "tools",
+  "user",
+  "todo",
+];
+
 const promptContextCache = new Map<
   string,
-  { mtimes: number[]; coreContext: string; longTermMemory: string }
+  { mtimes: number[]; coreContext: string; piContext: string; longTermMemory: string }
 >();
 
 function getAgentEntries(
@@ -317,7 +325,7 @@ function mtimeIfExists(filePath: string): number {
 function getPromptContext(
   rootDir: string,
   agent: AgentConfig,
-): { mtimes: number[]; coreContext: string; longTermMemory: string } {
+): { mtimes: number[]; coreContext: string; piContext: string; longTermMemory: string } {
   const agentDir = resolveAgentDirectory(rootDir, agent.path);
   const entries = [
     ...PROMPT_DOC_KEYS.map((key) => [key, agent.files[key]] as const),
@@ -337,15 +345,24 @@ function getPromptContext(
   }
 
   const sections: string[] = [];
+  const piSections: string[] = [];
   for (const [key, fileName] of entries.slice(0, PROMPT_DOC_KEYS.length)) {
+    const content = readIfExists(path.join(agentDir, fileName));
     sections.push(
       `[${String(key).toUpperCase()}]`,
-      readIfExists(path.join(agentDir, fileName)),
+      content,
     );
+    if (PI_PROMPT_DOC_KEYS.includes(key as (typeof PI_PROMPT_DOC_KEYS)[number])) {
+      piSections.push(
+        `[${String(key).toUpperCase()}]`,
+        content,
+      );
+    }
   }
   const next = {
     mtimes,
     coreContext: sections.join("\n\n"),
+    piContext: piSections.join("\n\n"),
     longTermMemory: readIfExists(path.join(agentDir, agent.files.memory)).trim(),
   };
   promptContextCache.set(cacheKey, next);
@@ -384,6 +401,38 @@ export function buildAgentPromptForInput(
 ): string {
   const { coreContext, longTermMemory } = getPromptContext(rootDir, agent);
   return buildPromptFromSystemContext(coreContext, longTermMemory, memory, userMessage);
+}
+
+export function buildPiSystemPromptForInput(
+  rootDir: string,
+  agent: AgentConfig,
+  memory: AgentMemoryContext,
+): string {
+  const { piContext, longTermMemory } = getPromptContext(rootDir, agent);
+  const transcript = memory.workingMemory
+    .slice(-8)
+    .map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`)
+    .join("\n");
+
+  return [
+    "You are the single OpenColab research agent running inside the pi coding runtime.",
+    "Pi already loads AGENTS.md or CLAUDE.md context files from the working directory and parent directories.",
+    "The human defines the initial problem and then supports execution as an assistant to the research-agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
+    "When the user message includes a [telegram_files] section with local_path entries, inspect those local files directly when relevant instead of relying only on attachment metadata.",
+    "",
+    piContext,
+    "",
+    longTermMemory ? "[LONG_TERM_MEMORY]" : "",
+    longTermMemory,
+    "",
+    memory.previousDaySummary ? "[RECENT_EPISODIC_MEMORY]" : "",
+    memory.previousDaySummary,
+    "",
+    transcript ? "Working memory (active session, current UTC day):" : "",
+    transcript,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function buildPromptFromSystemContext(
