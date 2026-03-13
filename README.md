@@ -218,6 +218,7 @@ Each agent directory must include:
 - `USER.md`
 - `TODO.md` (active plan and task list)
 - `MEMORY.md` (long-term memory only)
+- `SKILLS/` (agent-local skills for that agent only)
 
 `AGENTS.md` is initialized from built-in lead-agent and specialist-agent templates.
 `BOOTSTRAP.md` is initialized from a built-in first-run guide to help the agent discover identity and preferences.
@@ -240,6 +241,12 @@ Shared project skills:
 - the shared skill library lives under `projects/SKILLS/`
 - all agents in all projects share that same skill library
 - built-in `fast-search`, `pro-search`, and `deep-search` skills live there and are not replicated into each agent or project
+
+Agent-local skills:
+
+- each agent also has its own local `SKILLS/` directory inside the agent folder
+- use `projects/<project_id>/AGENTS/<agent_id>/SKILLS/<skill_id>/SKILL.md` for skills unique to one agent
+- shared skills and agent-local skills can coexist; agents should check both when choosing a workflow
 
 Conversation history layout:
 
