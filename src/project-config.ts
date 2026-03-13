@@ -22,7 +22,7 @@ import { nowIso, safeReadJson, writeJson } from "./utils.js";
 
 const CURRENT_VERSION = 1 as const;
 export const DEFAULT_PROJECT_ID = "default";
-export const DEFAULT_AGENT_ID = "researcher_agent";
+export const DEFAULT_AGENT_ID = "professor";
 
 const DEFAULT_AGENT_FILES: AgentFiles = {
   agents: "AGENTS.md",
@@ -63,18 +63,12 @@ export function buildProjectPath(projectId: string): string {
   return `projects/${projectId}`;
 }
 
-export function buildMainAgentPath(projectId: string): string {
-  return buildProjectPath(projectId);
-}
-
-export function buildSubagentPath(projectId: string, agentId: string): string {
-  return `${buildProjectPath(projectId)}/subagents/${agentId}`;
+export function buildAgentsPath(projectId: string): string {
+  return `${buildProjectPath(projectId)}/AGENTS`;
 }
 
 export function buildAgentPath(projectId: string, agentId: string): string {
-  return agentId === DEFAULT_AGENT_ID
-    ? buildMainAgentPath(projectId)
-    : buildSubagentPath(projectId, agentId);
+  return `${buildAgentsPath(projectId)}/${agentId}`;
 }
 
 export function createDefaultProviderConfig(providerName: ProviderConfig["name"] = "anthropic"): ProviderConfig {
@@ -317,7 +311,7 @@ function normalizeLegacyState(
   const projectDefaults = createDefaultProjectState(projectId);
   const fallbackProvider = normalizeProvider(sourceProvider, createDefaultProviderConfig("anthropic"));
   const agentId = asString(sourceAgent?.id, projectDefaults.activeAgentId);
-  const agentPath = asString(sourceAgent?.path, buildMainAgentPath(projectId));
+  const agentPath = asString(sourceAgent?.path, buildAgentPath(projectId, agentId));
 
   const agent: AgentConfig = {
     id: agentId,
