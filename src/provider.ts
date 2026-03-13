@@ -2,7 +2,7 @@
  * Provider configuration primitives.
  * Maps provider identifiers to canonical defaults, secrets, and runtime env wiring.
  */
-import type { ProviderAuthMode, ProviderName } from "./types.js";
+import type { ProviderAuthMode, ProviderName, ProviderRuntime } from "./types.js";
 
 interface ProviderCliDefaults {
   model: string;
@@ -11,6 +11,7 @@ interface ProviderCliDefaults {
 }
 
 export interface ProviderSetupDefaults extends ProviderCliDefaults {
+  runtime: ProviderRuntime;
   authMode: ProviderAuthMode;
 }
 
@@ -54,6 +55,24 @@ const GEMINI_WORKSPACE_ARGS = [
   "--yolo"
 ] as const;
 
+const PI_WORKSPACE_ARGS = [
+  "--print",
+  "--provider",
+  "{runtime_provider}",
+  "--model",
+  "{model}",
+  "--append-system-prompt",
+  "{system_prompt}",
+  "--no-session",
+  "--no-extensions",
+  "--no-skills",
+  "--no-prompt-templates",
+  "--no-themes",
+  "--tools",
+  "read,bash,edit,write,grep,find,ls",
+  "{user_message}"
+] as const;
+
 const CLAUDE_RUNTIME_RESET_ENV_VARS = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_AUTH_TOKEN",
@@ -76,9 +95,11 @@ const GEMINI_RUNTIME_RESET_ENV_VARS = [
   "GOOGLE_CLOUD_LOCATION",
   "GOOGLE_APPLICATION_CREDENTIALS"
 ] as const;
+const XAI_RUNTIME_RESET_ENV_VARS = ["XAI_API_KEY"] as const;
 
 const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   anthropic: {
+    runtime: "claude",
     model: "claude-opus-4-6",
     cliCommand: "claude",
     cliArgs: [...CLAUDE_WORKSPACE_ARGS],
@@ -97,6 +118,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     })
   },
   gemini: {
+    runtime: "gemini",
     model: "gemini-2.5-pro",
     cliCommand: "gemini",
     cliArgs: [...GEMINI_WORKSPACE_ARGS],
@@ -113,6 +135,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     }
   },
   minimax: {
+    runtime: "claude",
     model: "MiniMax-M2.5",
     cliCommand: "claude",
     cliArgs: [...CLAUDE_WORKSPACE_ARGS],
@@ -133,6 +156,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     })
   },
   openai: {
+    runtime: "codex",
     model: "gpt-5.3-codex",
     cliCommand: "codex",
     cliArgs: [...CODEX_WORKSPACE_ARGS],
@@ -153,6 +177,19 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
       }
       return env;
     }
+  },
+  xai: {
+    runtime: "pi",
+    model: "grok-4-fast-non-reasoning",
+    cliCommand: "pi",
+    cliArgs: [...PI_WORKSPACE_ARGS],
+    authMode: "api_key",
+    apiKeyEnvVar: "XAI_API_KEY",
+    supportedAuthModes: ["api_key"],
+    resetEnvVars: [...XAI_RUNTIME_RESET_ENV_VARS],
+    buildRuntimeEnv: (apiKey) => ({
+      XAI_API_KEY: requireApiKey(apiKey, "XAI_API_KEY")
+    })
   }
 };
 
@@ -179,6 +216,7 @@ export function isProviderName(value: string): value is ProviderName {
 export function getProviderSetupDefaults(providerName: ProviderName): ProviderSetupDefaults {
   const definition = PROVIDER_DEFINITIONS[providerName];
   return {
+    runtime: definition.runtime,
     model: definition.model,
     cliCommand: definition.cliCommand,
     cliArgs: [...definition.cliArgs],
@@ -188,6 +226,10 @@ export function getProviderSetupDefaults(providerName: ProviderName): ProviderSe
 
 export function getProviderSupportedAuthModes(providerName: ProviderName): ProviderAuthMode[] {
   return [...PROVIDER_DEFINITIONS[providerName].supportedAuthModes];
+}
+
+export function getProviderRuntime(providerName: ProviderName): ProviderRuntime {
+  return PROVIDER_DEFINITIONS[providerName].runtime;
 }
 
 export function providerSupportsAuthMode(providerName: ProviderName, authMode: ProviderAuthMode): boolean {
