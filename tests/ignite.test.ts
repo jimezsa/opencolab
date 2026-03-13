@@ -95,6 +95,8 @@ test("ignite configures project, provider, and telegram", async () => {
       "--full-auto",
       "--add-dir",
       "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}",
       "-"
     ]);
 
@@ -255,7 +257,9 @@ test("ignite supports configuring the minimax provider", async () => {
       "--permission-mode",
       "bypassPermissions",
       "--add-dir",
-      "{project_dir}"
+      "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}"
     ]);
 
     assert.equal(process.env.MINIMAX_API_KEY, "minimax_test_key_123");
