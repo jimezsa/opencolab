@@ -59,8 +59,15 @@ Projects must live under:
 
 Each project must keep its agents under:
 
-- main agent (`researcher_agent`): `projects/<project_id>/`
-- additional agents: `projects/<project_id>/subagents/<agent_id>/`
+- default lead agent (`professor`): `projects/<project_id>/AGENTS/professor/`
+- additional agents: `projects/<project_id>/AGENTS/<agent_id>/`
+
+Agent naming guidance:
+
+- `professor` is the fixed default lead agent id for each project
+- additional agents are PhD-style specialist agents
+- additional agent ids should use memorable, descriptive names that reflect their specialty or work style
+- additional agent ids do not need to follow a rigid `phd_*` naming scheme
 
 Each agent directory must include:
 
@@ -82,7 +89,7 @@ Initialization requirements:
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks
-- the default template must keep only essential researcher instructions
+- the default templates must keep only essential, role-appropriate instructions
 - `TODO.md` must be used for active planning and task tracking based on interactions with the human and other agents
 
 `MEMORY.md` remains reserved for long-term memory only.
@@ -95,10 +102,8 @@ OpenColab memory is split into three simple layers:
 
 Each agent must also persist Telegram conversation history under:
 
-- `projects/<project_id>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl` for main agent
-- `projects/<project_id>/subagents/<agent_id>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl` for subagents
-- `projects/<project_id>/memory/Daily/<YYYY-MM-DD>.md` for main agent daily summaries
-- `projects/<project_id>/subagents/<agent_id>/memory/Daily/<YYYY-MM-DD>.md` for subagent daily summaries
+- `projects/<project_id>/AGENTS/<agent_id>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`
+- `projects/<project_id>/AGENTS/<agent_id>/memory/Daily/<YYYY-MM-DD>.md`
 
 Requirements for session storage:
 
@@ -111,6 +116,7 @@ Requirements for session storage:
 - recent episodic memory should include only the previous UTC day summary
 - `MEMORY.md` should contain only durable facts, preferences, and recurring constraints
 - `BOOTSTRAP.md` is onboarding scaffolding and should not be treated as permanent prompt context after initialization
+- inbound Telegram files remain shared project resources and should be stored at project scope (for example under `projects/<project_id>/memory/TelegramInbox/`), not duplicated per agent
 
 ## 6. Telegram Pairing Flow
 
@@ -156,7 +162,7 @@ Responsibilities:
 - in Gemini `oauth` mode, runtime must return remediation guidance when the CLI reports missing Google login or missing Gemini credentials
 - provider CLI command/args must be auto-derived from internal defaults
 - provider CLI defaults must support non-interactive execution with write access to the active project workspace
-- when the active agent is a subagent, provider CLI defaults must still allow access to the parent project workspace
+- when the active agent lives under `projects/<project_id>/AGENTS/<agent_id>/`, provider CLI defaults must still allow access to the parent project workspace
 - provider defaults must use concrete model names, not floating aliases
 - provider CLI execution timeout must default to 10 minutes and remain configurable via `OPENCOLAB_CODEX_TIMEOUT_MS`
 - configure one shared Telegram setup for all projects
@@ -274,11 +280,11 @@ Minimum shape:
     "default": {
       "id": "default",
       "path": "projects/default",
-      "activeAgentId": "researcher_agent",
+      "activeAgentId": "professor",
       "agents": {
-        "researcher_agent": {
-          "id": "researcher_agent",
-          "path": "projects/default",
+        "professor": {
+          "id": "professor",
+          "path": "projects/default/AGENTS/professor",
           "provider": {
             "name": "anthropic",
             "model": "<concrete-model-id>",
@@ -341,5 +347,6 @@ v1 is complete when all are true:
 - Active project routes to its active agent and provider runtime.
 - Provider runtimes can edit the active project workspace without interactive permission prompts.
 - `opencolab.json` persists active project, all project/agent configs, and one shared Telegram config.
-- Main `researcher_agent` files are created in the project root and extra agents are created under `subagents/`.
+- The default `professor` agent is created under `projects/<project_id>/AGENTS/professor/`.
+- Additional agents are created under `projects/<project_id>/AGENTS/<agent_id>/`.
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
