@@ -36,6 +36,7 @@ test("init creates required agent context files for active project", () => {
     for (const file of required) {
       assert.equal(fs.existsSync(path.join(agentDir, file)), true, `${file} should exist`);
     }
+    assert.equal(fs.existsSync(path.join(agentDir, "SKILLS")), true, "SKILLS directory should exist");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -167,6 +168,10 @@ test("init seeds TOOLS.md with available search skill summaries", () => {
     );
     assert.equal(
       toolsDoc.includes("Shared project skills live under `projects/SKILLS/`."),
+      true
+    );
+    assert.equal(
+      toolsDoc.includes("Agent-local skills live under `SKILLS/` inside the agent folder."),
       true
     );
     assert.equal(toolsDoc.includes("`fast-search`"), true);
@@ -1137,6 +1142,7 @@ test("paired webhook can create and switch projects and agents", async () => {
     assert.equal(fs.existsSync(path.join(professorDir, "AGENTS.md")), true);
     assert.equal(fs.existsSync(path.join(professorDir, "BOOTSTRAP.md")), true);
     assert.equal(fs.existsSync(path.join(professorDir, "TODO.md")), true);
+    assert.equal(fs.existsSync(path.join(professorDir, "SKILLS")), true);
 
     const createAgent = await runtime.handleTelegramWebhook({
       message: {
@@ -1154,6 +1160,7 @@ test("paired webhook can create and switch projects and agents", async () => {
     assert.equal(fs.existsSync(path.join(createdAgentDir, "AGENTS.md")), true);
     assert.equal(fs.existsSync(path.join(createdAgentDir, "BOOTSTRAP.md")), true);
     assert.equal(fs.existsSync(path.join(createdAgentDir, "TODO.md")), true);
+    assert.equal(fs.existsSync(path.join(createdAgentDir, "SKILLS")), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
