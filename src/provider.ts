@@ -36,7 +36,9 @@ const CLAUDE_WORKSPACE_ARGS = [
   "--permission-mode",
   "bypassPermissions",
   "--add-dir",
-  "{project_dir}"
+  "{project_dir}",
+  "--add-dir",
+  "{shared_skills_dir}"
 ] as const;
 
 const CODEX_WORKSPACE_ARGS = [
@@ -44,6 +46,8 @@ const CODEX_WORKSPACE_ARGS = [
   "--full-auto",
   "--add-dir",
   "{project_dir}",
+  "--add-dir",
+  "{shared_skills_dir}",
   "-"
 ] as const;
 
