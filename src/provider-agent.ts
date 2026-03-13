@@ -4,7 +4,7 @@
  */
 import { spawn } from "node:child_process";
 import type { OpenColabConfig } from "./config.js";
-import { buildAgentPromptForInput, resolveAgentDirectory } from "./agent.js";
+import { buildAgentPromptForInput, buildPiSystemPromptForInput, resolveAgentDirectory } from "./agent.js";
 import { getActiveAgent, getActiveProject } from "./project-config.js";
 import {
   buildProviderRuntimeEnv,
@@ -20,8 +20,15 @@ import type {
   ProviderConfig,
   TelegramFilePayload
 } from "./types.js";
+import { ensureDir } from "./utils.js";
 
 const MAX_CLI_CAPTURE_CHARS = 200_000;
+
+interface ProviderCliInput {
+  prompt: string;
+  systemPrompt: string;
+  userMessage: string;
+}
 
 export interface ProviderAgentInput {
   chatId: string;
@@ -44,7 +51,7 @@ export class ProviderAgent {
     const agent = getActiveAgent(project);
     const provider = agent.provider;
     const promptStartedAt = Date.now();
-    const prompt = buildAgentPromptForInput(this.config.rootDir, agent, input.memory, input.text);
+    const cliInput = this.buildCliInput(agent, provider, input.memory, input.text);
     const promptMs = Date.now() - promptStartedAt;
 
     if (this.config.forceMockCodex) {
@@ -53,14 +60,14 @@ export class ProviderAgent {
     }
 
     const cliStartedAt = Date.now();
-    const output = await this.runProviderCli(prompt, provider, project.path, agent.path);
+    const output = await this.runProviderCli(cliInput, provider, project.path, agent.path);
     const cliMs = Date.now() - cliStartedAt;
     this.logPerf(promptMs, cliMs, Date.now() - startedAt, provider.name, provider.model);
     return output;
   }
 
   private runProviderCli(
-    prompt: string,
+    input: ProviderCliInput,
     provider: ProviderConfig,
     projectPath: string,
     agentPath: string
@@ -90,13 +97,21 @@ export class ProviderAgent {
     const projectDir = resolveAgentDirectory(this.config.rootDir, projectPath);
     const resolvedArgs = provider.cliArgs.map((arg: string) =>
       replaceCliArgTokens(arg, {
+        "{provider}": provider.name,
+        "{runtime_provider}": provider.name,
         "{model}": provider.model,
         "{project_dir}": projectDir,
-        "{agent_dir}": cwd
+        "{agent_dir}": cwd,
+        "{prompt}": input.prompt,
+        "{system_prompt}": input.systemPrompt,
+        "{user_message}": input.userMessage
       })
     );
-    const promptProvidedInArgs = resolvedArgs.some((arg: string) => arg.includes("{prompt}"));
-    const cliArgs = resolvedArgs.map((arg: string) => arg.replaceAll("{prompt}", prompt));
+    const promptProvidedInArgs = provider.cliArgs.some(
+      (arg: string) =>
+        arg.includes("{prompt}") || arg.includes("{system_prompt}") || arg.includes("{user_message}")
+    );
+    const cliArgs = resolvedArgs;
     const providerLabel = provider.name.replaceAll("_", " ");
     return new Promise<string>((resolve, reject) => {
       const providerEnv = buildProviderRuntimeEnv(
@@ -106,6 +121,11 @@ export class ProviderAgent {
         apiKey,
         provider.model
       );
+      if (provider.runtime === "pi") {
+        ensureDir(this.config.piAgentDir);
+        providerEnv.PI_CODING_AGENT_DIR = this.config.piAgentDir;
+        providerEnv.PI_OFFLINE = "1";
+      }
       const child = spawn(provider.cliCommand, cliArgs, {
         cwd,
         env: {
@@ -177,9 +197,31 @@ export class ProviderAgent {
         return;
       }
 
-      child.stdin.write(prompt);
+      child.stdin.write(input.prompt);
       child.stdin.end();
     });
+  }
+
+  private buildCliInput(
+    agent: ReturnType<typeof getActiveAgent>,
+    provider: ProviderConfig,
+    memory: AgentMemoryContext,
+    userMessage: string
+  ): ProviderCliInput {
+    const prompt = buildAgentPromptForInput(this.config.rootDir, agent, memory, userMessage);
+    if (provider.runtime === "pi") {
+      return {
+        prompt,
+        systemPrompt: buildPiSystemPromptForInput(this.config.rootDir, agent, memory),
+        userMessage
+      };
+    }
+
+    return {
+      prompt,
+      systemPrompt: "",
+      userMessage
+    };
   }
 
   private logPerf(
