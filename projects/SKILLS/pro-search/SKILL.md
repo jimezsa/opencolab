@@ -86,7 +86,10 @@ Run at least 3 query types:
 3. Recent trend phrasing.
 
 ```bash
-mkdir -p research/{search,meta,pdf,text,notes}
+mkdir -p research/{search,meta,pdf}
+printf "stage\tid\treason\n" > research/meta/failures.tsv
+: > research/meta/downloaded_ids.txt
+: > research/meta/summarized_ids.txt
 
 papercli search "<canonical query>" --provider all --sort relevance --limit 25 --format json --out research/search/q1.json
 papercli search "<method query>"    --provider all --sort relevance --limit 25 --format json --out research/search/q2.json
@@ -111,36 +114,114 @@ jq -r '.[].id' research/search/*.json | awk 'NF && !seen[$0]++' | head -n 12 > r
 
 while read -r id; do
   safe_id="$(echo "$id" | tr '/:' '__')"
-  papercli info "$id" --provider all --format json --out "research/meta/${safe_id}.json" || true
-  papercli download "$id" --provider all --out "research/pdf/${safe_id}.pdf" || true
+
+  if ! papercli info "$id" --provider all --format json --out "research/meta/${safe_id}.json"; then
+    printf "info\t%s\tmetadata lookup failed\n" "$id" >> research/meta/failures.tsv
+  fi
+
+  if papercli download "$id" --provider all --out "research/pdf/${safe_id}.pdf"; then
+    printf "%s\n" "$id" >> research/meta/downloaded_ids.txt
+  else
+    printf "download\t%s\tpdf download failed\n" "$id" >> research/meta/failures.tsv
+  fi
 done < research/meta/selected_ids.txt
 ```
 
-### 4. Extract paper text and evidence notes
+### 4. Create agent-ready paper summaries
 
-Extract full text when possible:
+Read each PDF directly first so figures, tables, and page structure remain available during analysis.
 
-```bash
-for pdf in research/pdf/*.pdf; do
-  [ -e "$pdf" ] || continue
-  txt="research/text/$(basename "${pdf%.pdf}").txt"
-  if command -v pdftotext >/dev/null 2>&1; then
-    pdftotext -layout "$pdf" "$txt"
-  fi
-done
+Direct-ingestion priorities:
+
+- Inspect the abstract, introduction, method section, architecture figures, key result tables, ablations, and limitations.
+- Treat figures, captions, and tables as first-class evidence during note creation.
+- If the PDF cannot be inspected locally for a paper, mark the summary explicitly as metadata-only evidence.
+
+For each paper, create `research/pdf/<safe_id>.md`, next to `research/pdf/<safe_id>.pdf`, using this exact schema:
+
+```markdown
+# Paper Extraction Schema: <Paper Title>
+
+Rules:
+- Keep the section order unchanged for deterministic parsing.
+- Ingest the PDF directly first so figures, tables, captions, and layout remain available.
+- Anchor each section to observable PDF evidence such as figures, captions, equations, tables, and appendix material.
+- Record exact figure, table, equation, algorithm, and page anchors whenever available. If you cannot locate one, write `Anchor not located in available evidence.`.
+- Use metadata only as fallback and label it clearly.
+- Do not invent equations, datasets, metrics, links, or foundation papers.
+- If evidence is missing, write `Not clearly stated in available evidence.`.
+- If a statement is an inference rather than an explicit claim, label it `Inference from available evidence: ...`.
+
+## 1. The Why (Motivation & Core Problem)
+- The Problem: What specific limitation in existing research or technology is this paper trying to solve? Keep this to 1-2 sentences.
+- The Core Idea: What is the authors' main hypothesis or novel approach to solving this problem?
+- Evidence Anchors: Exact page, figure, table, or equation anchors supporting the problem framing.
+
+## 2. Main Architecture (Mathematical Formalization)
+Agent instruction: Extract the core methodology and represent it strictly as a sequence of mathematical operations, data flows, and loss functions. Use standard LaTeX notation.
+The main architecture can often be extracted directly from the architecture image or pipeline diagram in the paper.
+If the method is explained primarily through a figure or diagram, use the PDF figure as evidence and translate it into equations and ordered data flow.
+If the paper has no learnable architecture (for example a survey, benchmark, theorem, dataset, or systems paper), replace this section with `Algorithm / theorem / protocol flow` and formalize the central steps instead.
+Use `Loss / Optimization: Not applicable.` when no training objective exists.
+
+Input:
+\[
+X = \text{...}
+\]
+
+Forward Pass:
+\[
+H_1 = f_{\text{module\_1}}(X)
+\]
+\[
+H_2 = f_{\text{module\_2}}(H_1)
+\]
+\[
+\hat{Y} = f_{\text{head}}(H_2)
+\]
+
+Loss / Optimization:
+\[
+\mathcal{L}_{\text{total}} = \lambda_1 \mathcal{L}_{\text{task}} + \lambda_2 \mathcal{L}_{\text{reg}}
+\]
+
+Evidence Anchors: Exact figure, equation, algorithm, and page anchors used for this formalization.
+
+## 3. The Why of the Architecture (Component Rationale)
+Agent instruction: For every variable and function defined in Section 2, explain exactly why it was chosen or designed that way.
+If Section 2 is non-architectural, explain why each algorithmic step, theorem component, protocol stage, or evaluation stage exists instead of model modules.
+
+- $X$: Why is the input represented this way?
+- $f_{\text{module\_1}}$: Why use this specific module?
+- $f_{\text{module\_2}}$: Why is this step necessary?
+- $f_{\text{head}}$: Why this prediction head?
+- $\mathcal{L}_{\text{task}}$: Why this task objective?
+- $\mathcal{L}_{\text{reg}}$: Why use this specific regularizer?
+- Evidence Anchors: Exact page, figure, or appendix anchors supporting the rationale.
+
+## 4. Metrics & Evaluation
+- Datasets Used: List the primary benchmarks.
+- Key Metrics: How is success quantified?
+- The Result: One sentence summarizing the paper's main performance claim.
+- Visual Evidence: Note the key figure, table, or ablation that best supports the reported result when one is clearly present.
+- Evidence Anchors: Exact table, figure, ablation, and page anchors supporting the reported results.
+
+## 5. Relevant Links & Knowledge Anchors
+- Project Page / GitHub: Link if available in the paper or metadata.
+- Core Foundation Paper: The 1 or 2 most relied-upon prior papers, if the dependency is clear from the text.
+- Evidence Anchors: Exact reference numbers, appendix pages, or metadata fields used to identify these links and foundation papers.
 ```
 
-Fallback:
+Summary requirements:
+- Keep the section order unchanged.
+- Express the main method as LaTeX equations plus data flow and loss terms.
+- If no learnable architecture exists, switch Section 2 to `Algorithm / theorem / protocol flow` and write `Loss / Optimization: Not applicable.` instead of inventing modules.
+- Explain why each Section 2 variable, module, and loss term exists.
+- Preserve figure/table evidence when it carries the method or quantitative result.
+- Record exact evidence anchors in each section.
+- Label missing evidence explicitly instead of guessing.
 
-- If `pdftotext` is unavailable, use another local extractor (for example Python PDF parsing).
-- If full-text extraction fails for a paper, mark it explicitly as metadata-only evidence.
-
-For each paper, record in `research/notes/`:
-- Problem setup.
-- Method and assumptions.
-- Key result values.
-- Claimed limitations.
-- Important equations (or explicit "none detected").
+After finishing each summary, append the original paper ID to `research/meta/summarized_ids.txt`.
 
 ### 5. Synthesize with explicit comparisons
 
@@ -152,6 +233,7 @@ Then produce:
 - Consensus findings.
 - Disputed findings.
 - Practical implications for the user's question.
+- Base the comparison on the structured summaries in `research/pdf/`, not ad hoc free-form notes.
 
 ## Key Math Handling
 
@@ -180,6 +262,7 @@ Use this structure:
 - Question:
 - In/Out of scope:
 - Corpus size:
+- Corpus stats: selected ..., downloaded ..., summarized ..., failure events ...
 
 ## Methodology Snapshot
 - Retrieval strategy:
@@ -211,7 +294,7 @@ Interpretation [R3].
 ## References
 | Ref | Title | Authors | Year | Provider ID | Source files |
 |---|---|---|---|---|---|
-| R1 | ... | ... | ... | ... | `meta/...json`, `text/...txt` |
+| R1 | ... | ... | ... | ... | `meta/...json`, `pdf/...md`, `pdf/...pdf` |
 ```
 
 ## Referencing Rules
@@ -225,4 +308,6 @@ Interpretation [R3].
 - `findings.md` is detailed and decision-useful.
 - 8-12 papers were processed (or explain shortfall).
 - Math, concepts, and evidence-based synthesis are present.
-- References map back to local metadata and extracted text files.
+- Each processed paper has an agent-ready summary in `research/pdf/` unless extraction failed.
+- Selected, downloaded, and summarized counts reconcile with `research/meta/selected_ids.txt`, `research/meta/downloaded_ids.txt`, and `research/meta/summarized_ids.txt`, and failure events reconcile with `research/meta/failures.tsv`.
+- References map back to local metadata, colocated paper summaries, and downloaded PDFs.
