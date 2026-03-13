@@ -50,6 +50,7 @@ Do not wait for explicit permission to do this prep.
 - USER.md: user preferences, goals, constraints, and collaboration norms.
 - TODO.md: active plan and task list from collaboration with the human and other agents.
 - MEMORY.md: durable facts learned over time (not per-message scratch notes).
+- SKILLS/: agent-local skill library for workflows unique to this agent.
 
 ## Memory Rules 🧠
 
@@ -69,7 +70,7 @@ Do not wait for explicit permission to do this prep.
 3. Update USER.md when preferences change, and keep it concise.
 4. Keep TODO.md current with active plan, next actions, and completed items.
 5. Update TOOLS.md when runtime/tooling capabilities change.
-6. Read relevant shared skills from \`projects/SKILLS/<skill_id>/SKILL.md\` before using a specialized workflow.
+6. Read relevant shared skills from \`projects/SKILLS/<skill_id>/SKILL.md\` and relevant agent-local skills from \`SKILLS/<skill_id>/SKILL.md\` before using a specialized workflow.
 7. Treat ALMA.md as style guidance, but do not let style override correctness.
 8. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms.
 9. If you edit any agent file, mention it clearly in your response summary.
@@ -259,7 +260,7 @@ const DEFAULT_TOOLS_DOC = `# TOOLS
 
 Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime).
 
-Shared project skills live under \`projects/SKILLS/\`. Before using a specialized workflow, read the relevant \`projects/SKILLS/<skill_id>/SKILL.md\` file and follow it closely.
+Shared project skills live under \`projects/SKILLS/\`. Agent-local skills live under \`SKILLS/\` inside the agent folder. Before using a specialized workflow, read the relevant shared and local \`SKILL.md\` files and follow them closely.
 
 ## Available Skills
 
@@ -430,17 +431,29 @@ export function resolveSharedSkillsDirectory(rootDir: string): string {
   return resolveBuiltInProjectSkillsDirectory() ?? workspaceSkillsDir;
 }
 
+export function resolveAgentSkillsDirectory(rootDir: string, agentPath: string): string {
+  return path.join(resolveAgentDirectory(rootDir, agentPath), "SKILLS");
+}
+
+function listSkillNames(skillsDir: string): string[] {
+  if (!fs.existsSync(skillsDir)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(skillsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsDir, entry.name, "SKILL.md")))
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 function buildSharedSkillsContext(rootDir: string): string {
   const sharedSkillsDir = resolveSharedSkillsDirectory(rootDir);
   if (!fs.existsSync(sharedSkillsDir)) {
     return "";
   }
 
-  const skillNames = fs
-    .readdirSync(sharedSkillsDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(sharedSkillsDir, entry.name, "SKILL.md")))
-    .map((entry) => entry.name)
-    .sort((a, b) => a.localeCompare(b));
+  const skillNames = listSkillNames(sharedSkillsDir);
 
   if (skillNames.length === 0) {
     return "";
@@ -454,9 +467,22 @@ function buildSharedSkillsContext(rootDir: string): string {
   ].join("\n");
 }
 
+function buildAgentLocalSkillsContext(rootDir: string, agent: AgentConfig): string {
+  const agentSkillsDir = resolveAgentSkillsDirectory(rootDir, agent.path);
+  const skillNames = listSkillNames(agentSkillsDir);
+
+  return [
+    "[AGENT_LOCAL_SKILLS]",
+    `Agent-local skills directory: ${agentSkillsDir}`,
+    `Available agent-local skills: ${skillNames.length > 0 ? skillNames.join(", ") : "(none yet)"}`,
+    "Use SKILLS/<skill_id>/SKILL.md for workflows unique to this agent.",
+  ].join("\n");
+}
+
 export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
   const agentDir = resolveAgentDirectory(rootDir, agent.path);
   ensureDir(agentDir);
+  ensureDir(resolveAgentSkillsDirectory(rootDir, agent.path));
   const entries = getAgentEntries(agent);
   for (const [key, fileName] of entries) {
     const filePath = path.join(agentDir, fileName);
@@ -481,6 +507,7 @@ export function buildAgentPromptForInput(
   return buildPromptFromSystemContext(
     coreContext,
     buildSharedSkillsContext(rootDir),
+    buildAgentLocalSkillsContext(rootDir, agent),
     longTermMemory,
     memory,
     userMessage,
@@ -494,6 +521,7 @@ export function buildPiSystemPromptForInput(
 ): string {
   const { piContext, longTermMemory } = getPromptContext(rootDir, agent);
   const sharedSkillsContext = buildSharedSkillsContext(rootDir);
+  const agentLocalSkillsContext = buildAgentLocalSkillsContext(rootDir, agent);
   const transcript = memory.workingMemory
     .slice(-8)
     .map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`)
@@ -508,6 +536,8 @@ export function buildPiSystemPromptForInput(
     piContext,
     "",
     sharedSkillsContext,
+    "",
+    agentLocalSkillsContext,
     "",
     longTermMemory ? "[LONG_TERM_MEMORY]" : "",
     longTermMemory,
@@ -525,6 +555,7 @@ export function buildPiSystemPromptForInput(
 function buildPromptFromSystemContext(
   coreContext: string,
   sharedSkillsContext: string,
+  agentLocalSkillsContext: string,
   longTermMemory: string,
   memory: AgentMemoryContext,
   userMessage: string,
@@ -542,6 +573,8 @@ function buildPromptFromSystemContext(
     coreContext,
     "",
     sharedSkillsContext,
+    "",
+    agentLocalSkillsContext,
     "",
     longTermMemory ? "[LONG_TERM_MEMORY]" : "",
     longTermMemory,
