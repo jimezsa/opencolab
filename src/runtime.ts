@@ -194,6 +194,7 @@ export class OpenColabRuntime {
               provider: {
                 name: input.providerName,
                 model: input.model,
+                runtime: providerDefaults.runtime,
                 cliCommand,
                 cliArgs,
                 authMode
