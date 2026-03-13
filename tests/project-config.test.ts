@@ -6,6 +6,12 @@ import path from "node:path";
 import { loadConfig } from "../src/config.js";
 import { readProjectState, updateProjectState } from "../src/project-config.js";
 
+const DEFAULT_AGENT_ID = "professor";
+
+function buildDefaultAgentPath(projectId: string): string {
+  return `projects/${projectId}/AGENTS/${DEFAULT_AGENT_ID}`;
+}
+
 test("project state defaults to a default project and agent", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-default-"));
 
@@ -19,8 +25,8 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(project.id, "default");
     assert.equal(project.path, "projects/default");
 
-    assert.equal(agent.id, "researcher_agent");
-    assert.equal(agent.path, "projects/default");
+    assert.equal(agent.id, DEFAULT_AGENT_ID);
+    assert.equal(agent.path, buildDefaultAgentPath("default"));
     assert.equal(agent.files.agents, "AGENTS.md");
     assert.equal(agent.files.bootstrap, "BOOTSTRAP.md");
     assert.equal(agent.files.identity, "IDENTITY.md");
@@ -50,11 +56,11 @@ test("project state migrates legacy project provider into agent config", () => {
         projects: {
           alpha: {
             id: "alpha",
-            activeAgentId: "researcher_agent",
+            activeAgentId: DEFAULT_AGENT_ID,
             agents: {
-              researcher_agent: {
-                id: "researcher_agent",
-                path: "projects/alpha",
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
                 files: {
                   agents: "AGENTS.md",
                   bootstrap: "BOOTSTRAP.md",
@@ -115,11 +121,11 @@ test("project state prefers explicit agent provider over legacy project provider
           alpha: {
             id: "alpha",
             path: "projects/alpha",
-            activeAgentId: "researcher_agent",
+            activeAgentId: DEFAULT_AGENT_ID,
             agents: {
-              researcher_agent: {
-                id: "researcher_agent",
-                path: "projects/alpha",
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
                 provider: {
                   name: "minimax",
                   model: "MiniMax-M2.5"
@@ -146,7 +152,7 @@ test("project state prefers explicit agent provider over legacy project provider
     );
 
     const loaded = readProjectState(config);
-    const agent = loaded.projects.alpha.agents.researcher_agent;
+    const agent = loaded.projects.alpha.agents[DEFAULT_AGENT_ID];
     assert.equal(agent.provider.name, "minimax");
     assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "api_key");
@@ -169,11 +175,11 @@ test("project state migrates legacy provider CLI defaults to workspace defaults 
           alpha: {
             id: "alpha",
             path: "projects/alpha",
-            activeAgentId: "researcher_agent",
+            activeAgentId: DEFAULT_AGENT_ID,
             agents: {
-              researcher_agent: {
-                id: "researcher_agent",
-                path: "projects/alpha",
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
                 files: {
                   agents: "AGENTS.md",
                   bootstrap: "BOOTSTRAP.md",
@@ -198,9 +204,9 @@ test("project state migrates legacy provider CLI defaults to workspace defaults 
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "api_key");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "codex");
-    assert.deepEqual(loaded.projects.alpha.agents.researcher_agent.provider.cliArgs, [
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "api_key");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "codex");
+    assert.deepEqual(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliArgs, [
       "exec",
       "--full-auto",
       "--add-dir",
@@ -225,11 +231,11 @@ test("project state preserves custom provider CLI defaults on the agent", () => 
           alpha: {
             id: "alpha",
             path: "projects/alpha",
-            activeAgentId: "researcher_agent",
+            activeAgentId: DEFAULT_AGENT_ID,
             agents: {
-              researcher_agent: {
-                id: "researcher_agent",
-                path: "projects/alpha",
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
                 provider: {
                   name: "openai",
                   cliCommand: "codex",
@@ -254,9 +260,9 @@ test("project state preserves custom provider CLI defaults on the agent", () => 
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "api_key");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "codex");
-    assert.deepEqual(loaded.projects.alpha.agents.researcher_agent.provider.cliArgs, [
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "api_key");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "codex");
+    assert.deepEqual(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliArgs, [
       "exec",
       "--sandbox",
       "danger-full-access",
@@ -435,11 +441,11 @@ test("project state preserves OpenAI oauth auth mode", () => {
           alpha: {
             id: "alpha",
             path: "projects/alpha",
-            activeAgentId: "researcher_agent",
+            activeAgentId: DEFAULT_AGENT_ID,
             agents: {
-              researcher_agent: {
-                id: "researcher_agent",
-                path: "projects/alpha",
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
                 provider: {
                   name: "openai",
                   model: "gpt-5.3-codex",
@@ -464,8 +470,8 @@ test("project state preserves OpenAI oauth auth mode", () => {
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "codex");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "oauth");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "codex");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "oauth");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -484,11 +490,11 @@ test("project state preserves Gemini oauth auth mode and concrete model name", (
           alpha: {
             id: "alpha",
             path: "projects/alpha",
-            activeAgentId: "researcher_agent",
+            activeAgentId: DEFAULT_AGENT_ID,
             agents: {
-              researcher_agent: {
-                id: "researcher_agent",
-                path: "projects/alpha",
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
                 provider: {
                   name: "gemini",
                   model: "gemini-2.5-pro",
@@ -513,10 +519,10 @@ test("project state preserves Gemini oauth auth mode and concrete model name", (
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.name, "gemini");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "gemini");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.model, "gemini-2.5-pro");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "oauth");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name, "gemini");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "gemini");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.model, "gemini-2.5-pro");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "oauth");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -535,11 +541,11 @@ test("project state preserves xAI provider runtime and model", () => {
           alpha: {
             id: "alpha",
             path: "projects/alpha",
-            activeAgentId: "researcher_agent",
+            activeAgentId: DEFAULT_AGENT_ID,
             agents: {
-              researcher_agent: {
-                id: "researcher_agent",
-                path: "projects/alpha",
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
                 provider: {
                   name: "xai",
                   model: "grok-code-fast-1"
@@ -563,10 +569,10 @@ test("project state preserves xAI provider runtime and model", () => {
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.name, "xai");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "pi");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.model, "grok-code-fast-1");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.cliCommand, "pi");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name, "xai");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "pi");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.model, "grok-code-fast-1");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliCommand, "pi");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
