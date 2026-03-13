@@ -12,6 +12,7 @@ export interface OpenColabConfig {
   projectConfigPath: string;
   stateDir: string;
   conversationsDir: string;
+  piAgentDir: string;
   localApiPort: number;
   forceMockCodex: boolean;
   codexTimeoutMs: number;
@@ -26,6 +27,7 @@ export function loadConfig(cwd = process.cwd()): OpenColabConfig {
     projectConfigPath: path.join(rootDir, "opencolab.json"),
     stateDir: path.join(rootDir, ".opencolab"),
     conversationsDir: path.join(rootDir, ".opencolab", "conversations"),
+    piAgentDir: path.join(rootDir, ".opencolab", "pi-agent"),
     localApiPort: Number(process.env.OPENCOLAB_PORT ?? "4646"),
     forceMockCodex: (process.env.OPENCOLAB_FORCE_MOCK_CLI ?? "0") !== "0",
     codexTimeoutMs: Number(
