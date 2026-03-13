@@ -52,6 +52,7 @@ function cloneProviderConfig(source: ProviderConfig): ProviderConfig {
   return {
     name: source.name,
     model: source.model,
+    runtime: source.runtime,
     cliCommand: source.cliCommand,
     cliArgs: [...source.cliArgs],
     authMode: source.authMode
@@ -81,6 +82,7 @@ export function createDefaultProviderConfig(providerName: ProviderConfig["name"]
   return {
     name: providerName,
     model: providerDefaults.model,
+    runtime: providerDefaults.runtime,
     cliCommand: providerDefaults.cliCommand,
     cliArgs: [...providerDefaults.cliArgs],
     authMode: providerDefaults.authMode
@@ -450,6 +452,7 @@ function normalizeProvider(
   return {
     name: providerName,
     model: asString(sourceProvider?.model, providerDefaults.model),
+    runtime: providerDefaults.runtime,
     cliCommand: shouldMigrateLegacyDefaults ? providerDefaults.cliCommand : cliCommand,
     cliArgs: shouldMigrateLegacyDefaults ? providerDefaults.cliArgs : cliArgs,
     authMode
