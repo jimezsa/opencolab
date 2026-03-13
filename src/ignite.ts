@@ -49,7 +49,13 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
     "gemini-3.1-pro-preview",
     "gemini-3-flash-preview"
   ],
-  minimax: ["MiniMax-M2.5"]
+  minimax: ["MiniMax-M2.5"],
+  xai: [
+    "grok-4-fast-non-reasoning",
+    "grok-4-fast-reasoning",
+    "grok-4",
+    "grok-code-fast-1"
+  ]
 };
 
 export interface IgniteDependencies {
@@ -216,7 +222,7 @@ async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promi
   });
 
   io.write(
-    `Provider configured for agent '${agent.id}' in project '${project.id}': ${providerName} (${model}, ${formatProviderAuthMode(authMode)}).`
+    `Provider configured for agent '${agent.id}' in project '${project.id}': ${providerName} (${model}, ${formatProviderAuthMode(authMode)}, runtime ${runtime.getActiveAgent().provider.runtime}).`
   );
 }
 
