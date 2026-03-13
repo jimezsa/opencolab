@@ -137,7 +137,7 @@ test("init seeds TOOLS.md with available search skill summaries", () => {
     const toolsDoc = fs.readFileSync(toolsPath, "utf8");
     assert.equal(toolsDoc.includes("# TOOLS"), true);
     assert.equal(
-      toolsDoc.includes("Primary runtime: provider CLI (openai, anthropic, gemini, minimax, or compatible runtime)."),
+      toolsDoc.includes("Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime)."),
       true
     );
     assert.equal(toolsDoc.includes("`fast-search`"), true);
@@ -176,6 +176,7 @@ test("setupModel auto-sets provider CLI defaults for the active agent", () => {
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "api_key");
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
@@ -207,6 +208,7 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openai");
+    assert.equal(agent.provider.runtime, "codex");
     assert.equal(agent.provider.authMode, "oauth");
     assert.equal(agent.provider.cliCommand, "codex");
     assert.deepEqual(agent.provider.cliArgs, [
@@ -235,6 +237,7 @@ test("setupModel stores Gemini oauth auth mode and workspace defaults on the age
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "gemini");
+    assert.equal(agent.provider.runtime, "gemini");
     assert.equal(agent.provider.authMode, "oauth");
     assert.equal(agent.provider.cliCommand, "gemini");
     assert.deepEqual(agent.provider.cliArgs, [
@@ -272,6 +275,7 @@ test("runtime persistence excludes secret references from opencolab.json", () =>
     const provider = project.agents[project.activeAgentId].provider;
     assert.equal(Object.hasOwn(provider, "apiKeyEnvVar"), false);
     assert.equal(provider.authMode, "api_key");
+    assert.equal(provider.runtime, "codex");
     assert.equal(Object.hasOwn(raw.telegram, "botTokenEnvVar"), false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -297,8 +301,10 @@ test("agents in one project can use different providers", () => {
 
     const project = runtime.getActiveProject();
     assert.equal(project.agents.researcher_agent.provider.name, "anthropic");
+    assert.equal(project.agents.researcher_agent.provider.runtime, "claude");
     assert.equal(project.agents.researcher_agent.provider.authMode, "api_key");
     assert.equal(project.agents.scout.provider.name, "minimax");
+    assert.equal(project.agents.scout.provider.runtime, "claude");
     assert.equal(project.agents.scout.provider.authMode, "api_key");
     assert.equal(project.agents.scout.provider.cliCommand, "claude");
     assert.deepEqual(project.agents.scout.provider.cliArgs, [
@@ -310,6 +316,44 @@ test("agents in one project can use different providers", () => {
       "bypassPermissions",
       "--add-dir",
       "{project_dir}"
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("setupModel stores xAI on the pi runtime with non-interactive defaults", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-xai-pi-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "xai",
+      model: "grok-4-fast-non-reasoning"
+    });
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "xai");
+    assert.equal(agent.provider.runtime, "pi");
+    assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.cliCommand, "pi");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "--print",
+      "--provider",
+      "{runtime_provider}",
+      "--model",
+      "{model}",
+      "--append-system-prompt",
+      "{system_prompt}",
+      "--no-session",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--tools",
+      "read,bash,edit,write,grep,find,ls",
+      "{user_message}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
