@@ -76,6 +76,12 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     const agentDir = path.join(tempDir, agent.path);
     fs.writeFileSync(path.join(agentDir, "BOOTSTRAP.md"), "# BOOTSTRAP\n\nBOOTSTRAP_SENTINEL\n", "utf8");
     fs.writeFileSync(path.join(agentDir, "MEMORY.md"), "# MEMORY\n\nUser prefers concise plans.\n", "utf8");
+    fs.mkdirSync(path.join(agentDir, "SKILLS", "solo-mode"), { recursive: true });
+    fs.writeFileSync(
+      path.join(agentDir, "SKILLS", "solo-mode", "SKILL.md"),
+      "# Solo Mode\n\nAgent-local workflow.\n",
+      "utf8"
+    );
 
     const prompt = buildAgentPromptForInput(
       tempDir,
@@ -93,6 +99,9 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("BOOTSTRAP_SENTINEL"), false);
     assert.equal(prompt.includes("[LONG_TERM_MEMORY]"), true);
     assert.equal(prompt.includes("User prefers concise plans."), true);
+    assert.equal(prompt.includes("[SHARED_SKILLS]"), true);
+    assert.equal(prompt.includes("[AGENT_LOCAL_SKILLS]"), true);
+    assert.equal(prompt.includes("Available agent-local skills: solo-mode"), true);
     assert.equal(prompt.includes("[RECENT_EPISODIC_MEMORY]"), true);
     assert.equal(prompt.includes("User wanted simpler memory."), true);
     assert.equal(prompt.includes("Working memory (active session, current UTC day):"), true);
