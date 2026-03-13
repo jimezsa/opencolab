@@ -226,6 +226,7 @@ Each agent directory must include:
 
 Default layout:
 
+- shared skill library: `projects/SKILLS/`
 - lead agent `professor`: `projects/<project_id>/AGENTS/professor/`
 - additional specialist agents: `projects/<project_id>/AGENTS/<agent_id>/`
 
@@ -233,6 +234,12 @@ Naming guidance:
 
 - keep `professor` as the fixed lead agent id
 - give additional agents memorable names that reflect their specialty or work style, such as `paperhound`, `labrat`, or `synthesizer`
+
+Shared project skills:
+
+- the shared skill library lives under `projects/SKILLS/`
+- all agents in all projects share that same skill library
+- built-in `fast-search`, `pro-search`, and `deep-search` skills live there and are not replicated into each agent or project
 
 Conversation history layout:
 
