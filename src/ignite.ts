@@ -53,6 +53,7 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
   xai: [
     "grok-4-fast-non-reasoning",
     "grok-4-fast-reasoning",
+    "grok-4.1-fast-reasoning",
     "grok-4",
     "grok-code-fast-1"
   ]
