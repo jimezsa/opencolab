@@ -621,6 +621,10 @@ function displayProviderAuthMode(value: ProviderAuthMode): string {
   return value.replaceAll("_", "-");
 }
 
+function displayProviderRuntime(value: string): string {
+  return value;
+}
+
 function parseProviderAuthMode(
   value: string | undefined,
   providerName: ProviderName,
@@ -1020,6 +1024,7 @@ async function main(): Promise<void> {
     console.log(`Provider configured: ${configuredAgent.provider.name}`);
     console.log(`Model: ${configuredAgent.provider.model}`);
     console.log(`Auth mode: ${displayProviderAuthMode(configuredAgent.provider.authMode)}`);
+    console.log(`Runtime: ${displayProviderRuntime(configuredAgent.provider.runtime)}`);
     if (configuredAgent.provider.authMode === "api_key") {
       console.log(`API key env var: ${keyEnvVar}`);
     } else {
@@ -1242,7 +1247,9 @@ async function main(): Promise<void> {
       const agents = runtime.listAgents();
       for (const agent of agents) {
         const marker = agent.id === project.activeAgentId ? "*" : "-";
-        console.log(`${marker} ${agent.id} (${agent.path}) [${agent.provider.name}:${agent.provider.model}]`);
+        console.log(
+          `${marker} ${agent.id} (${agent.path}) [${agent.provider.name}:${agent.provider.model} via ${agent.provider.runtime}]`
+        );
       }
       return;
     }
