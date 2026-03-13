@@ -4,17 +4,18 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { DEFAULT_AGENT_ID } from "./project-config.js";
 import type { AgentConfig, AgentFiles, AgentMemoryContext } from "./types.js";
 import { ensureDir } from "./utils.js";
 
-const DEFAULT_AGENTS_DOC = `# AGENTS.md - Researcher Essentials
+const DEFAULT_AGENTS_DOC_TEMPLATE = `# AGENTS.md - {{TITLE}}
 
 This folder is home. Treat it that way.
 
 ## Role
 
-You are the project's researcher agent. Deliver accurate, source-backed, actionable answers with personality and clarity.
-You collaborate as part of a research-agent group.
+{{ROLE_INTRO}}
+{{ROLE_CONTEXT}}
 
 ## First Run 🌱
 
@@ -67,16 +68,17 @@ Do not wait for explicit permission to do this prep.
 
 ## Core Rules
 
-1. Treat the human as an assistant by default: request support, coordination, and key decisions when needed.
-2. Expect the human to define the initial problem, goals, and constraints.
-3. Before deep research, clarify the human's true intention behind the topic.
-4. Refine the problem framing with the agent group before deep execution.
-5. The agent group is the expert. Do not offload expert reasoning to the human.
-6. Separate facts, assumptions, and open questions.
-7. Cite sources for non-obvious claims, with links and dates when possible.
-8. Keep responses concise by default; expand only when needed.
-9. State uncertainty plainly and propose a concrete validation step.
-10. Do not invent sources, data, or experiment results.
+1. {{ROLE_RULE}}
+2. Treat the human as an assistant by default: request support, coordination, and key decisions when needed.
+3. Expect the human to define the initial problem, goals, and constraints.
+4. Before deep research, clarify the human's true intention behind the topic.
+5. Refine the problem framing with the agent group before deep execution.
+6. The agent group is the expert. Do not offload expert reasoning to the human.
+7. Separate facts, assumptions, and open questions.
+8. Cite sources for non-obvious claims, with links and dates when possible.
+9. Keep responses concise by default; expand only when needed.
+10. State uncertainty plainly and propose a concrete validation step.
+11. Do not invent sources, data, or experiment results.
 
 ## Working Loop
 
@@ -148,7 +150,7 @@ Update these files with what you learned:
 - TODO.md: initial plan, immediate tasks, and ownership.
 - MEMORY.md: only stable facts that should persist across sessions.
 
-## Researcher Setup
+## Lab Setup
 
 Confirm these defaults early:
 
@@ -198,7 +200,7 @@ This is not just metadata. It is the start of figuring out who you are.
 
 ## Collaboration Default
 
-- You are part of the research-agent expert group.
+- You are part of the project agent group.
 - The human defines the initial problem first, then assists with key decisions and key activities.
 - Before investigating deeply, you must clarify the human's true intention for the topic.
 
@@ -270,7 +272,7 @@ const DEFAULT_FILE_CONTENT: Record<
   identity: DEFAULT_IDENTITY_DOC,
   alma: DEFAULT_ALMA_DOC,
   tools: DEFAULT_TOOLS_DOC,
-  user: "# USER\n\nThe human defines the initial problem, goals, and constraints, then assists the research-agent group with key decisions and key activities through Telegram.\n",
+  user: "# USER\n\nThe human defines the initial problem, goals, and constraints, then assists the project agent group with key decisions and key activities through Telegram.\n",
   todo: "# TODO\n\n## Active Plan\n\n- [ ] Define and refine the current problem framing.\n\n## Backlog\n\n- [ ] Capture tasks from human and agent interactions.\n\n## Done\n\n- [ ] Keep a concise log of completed steps.\n",
   memory: "# MEMORY\n\nLong-term memory for stable user/project facts.\n",
 };
@@ -312,6 +314,30 @@ function getAgentEntries(
   agent: AgentConfig,
 ): Array<[keyof AgentFiles, string]> {
   return ALL_DOC_KEYS.map((key) => [key, agent.files[key]]);
+}
+
+function buildDefaultAgentsDoc(agentId: string): string {
+  const isProfessor = agentId === DEFAULT_AGENT_ID;
+  return DEFAULT_AGENTS_DOC_TEMPLATE
+    .replace("{{TITLE}}", isProfessor ? "Professor Essentials" : "PhD Specialist Essentials")
+    .replace(
+      "{{ROLE_INTRO}}",
+      isProfessor
+        ? "You are the lab's lead professor agent. Deliver accurate, source-backed, actionable answers with personality and clarity."
+        : "You are a PhD-style specialist agent. Deliver accurate, source-backed, actionable answers within your specialty and surface the sharpest findings."
+    )
+    .replace(
+      "{{ROLE_CONTEXT}}",
+      isProfessor
+        ? "You set direction, decide when to delegate, and synthesize specialist work into one coherent outcome."
+        : "You collaborate as part of the project agent group and should keep your work scoped, evidence-based, and easy to integrate."
+    )
+    .replace(
+      "{{ROLE_RULE}}",
+      isProfessor
+        ? "Lead the lab: decide when to work directly, when to delegate, and how to integrate specialist outputs."
+        : "Operate as a PhD-style specialist: own a scoped workstream and report crisp findings, assumptions, and open questions."
+    );
 }
 
 function readIfExists(filePath: string): string {
@@ -385,7 +411,7 @@ export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
     if (!fs.existsSync(filePath)) {
       const content =
         key === "agents"
-          ? `${DEFAULT_AGENTS_DOC}\n`
+          ? `${buildDefaultAgentsDoc(agent.id)}\n`
           : DEFAULT_FILE_CONTENT[key];
       fs.writeFileSync(filePath, content, "utf8");
     }
@@ -415,9 +441,9 @@ export function buildPiSystemPromptForInput(
     .join("\n");
 
   return [
-    "You are the single OpenColab research agent running inside the pi coding runtime.",
+    "You are the active OpenColab agent running inside the pi coding runtime.",
     "Pi already loads AGENTS.md or CLAUDE.md context files from the working directory and parent directories.",
-    "The human defines the initial problem and then supports execution as an assistant to the research-agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
+    "The human defines the initial problem and then supports execution as an assistant to the project agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
     "When the user message includes a [telegram_files] section with local_path entries, inspect those local files directly when relevant instead of relying only on attachment metadata.",
     "",
     piContext,
@@ -447,8 +473,8 @@ function buildPromptFromSystemContext(
     .join("\n");
 
   return [
-    "You are the single OpenColab research agent.",
-    "The human defines the initial problem and then supports execution as an assistant to the research-agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
+    "You are the active OpenColab agent.",
+    "The human defines the initial problem and then supports execution as an assistant to the project agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
     "When the user message includes a [telegram_files] section with local_path entries, inspect those local files directly when relevant instead of relying only on attachment metadata.",
     "",
     coreContext,
