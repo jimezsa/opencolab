@@ -61,6 +61,7 @@ Each project must keep its agents under:
 
 - default lead agent (`professor`): `projects/<project_id>/AGENTS/professor/`
 - additional agents: `projects/<project_id>/AGENTS/<agent_id>/`
+- shared skill library: `projects/SKILLS/`
 
 Agent naming guidance:
 
@@ -80,12 +81,20 @@ Each agent directory must include:
 - `TODO.md`
 - `MEMORY.md`
 
+Shared project skills requirements:
+
+- the repository must expose a shared `projects/SKILLS/` directory
+- skills are shared across all agents and all projects and must not be duplicated per agent or per project
+- each skill lives under `projects/SKILLS/<skill_id>/SKILL.md`
+- agent instructions must tell agents to read relevant `SKILL.md` files from the shared `projects/SKILLS/` directory before using a specialized workflow
+
 Initialization requirements:
 
 - when an agent directory is created, `AGENTS.md` must be seeded from an internal runtime template
 - when an agent directory is created, `BOOTSTRAP.md` must be seeded from an internal runtime template for first-run identity discovery
 - when an agent directory is created, `IDENTITY.md` must be seeded from an internal runtime template
 - when an agent directory is created, `TOOLS.md` must be seeded from an internal runtime template that lists the available `fast-search`, `pro-search`, and `deep-search` skills with only a short description and when-to-use guidance
+- the built-in `fast-search`, `pro-search`, and `deep-search` skills must be available from the shared `projects/SKILLS/` directory
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks
