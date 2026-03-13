@@ -17,12 +17,14 @@ test("normalizeProviderName supports built-in providers and aliases", () => {
   assert.equal(normalizeProviderName("claude_code"), "anthropic");
   assert.equal(normalizeProviderName("gemini"), "gemini");
   assert.equal(normalizeProviderName("minimax"), "minimax");
+  assert.equal(normalizeProviderName("xai"), "xai");
   assert.equal(normalizeProviderName("unknown"), null);
 });
 
 test("provider defaults expose MiniMax through the Claude runtime", () => {
   const defaults = getProviderSetupDefaults("minimax");
   assert.equal(defaults.model, "MiniMax-M2.5");
+  assert.equal(defaults.runtime, "claude");
   assert.equal(defaults.cliCommand, "claude");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
@@ -40,6 +42,7 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
 
 test("OpenAI setup defaults support OAuth and API key auth modes", () => {
   const defaults = getProviderSetupDefaults("openai");
+  assert.equal(defaults.runtime, "codex");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
     "exec",
@@ -56,6 +59,7 @@ test("OpenAI setup defaults support OAuth and API key auth modes", () => {
 test("Gemini setup defaults use concrete model names and support OAuth", () => {
   const defaults = getProviderSetupDefaults("gemini");
   assert.equal(defaults.model, "gemini-2.5-pro");
+  assert.equal(defaults.runtime, "gemini");
   assert.equal(defaults.cliCommand, "gemini");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
@@ -71,6 +75,33 @@ test("Gemini setup defaults use concrete model names and support OAuth", () => {
     getProviderOauthSetupHint("gemini", "gemini"),
     "Run 'gemini' and choose Login with Google if needed."
   );
+});
+
+test("xAI setup defaults use the pi runtime", () => {
+  const defaults = getProviderSetupDefaults("xai");
+  assert.equal(defaults.model, "grok-4-fast-non-reasoning");
+  assert.equal(defaults.runtime, "pi");
+  assert.equal(defaults.cliCommand, "pi");
+  assert.equal(defaults.authMode, "api_key");
+  assert.deepEqual(defaults.cliArgs, [
+    "--print",
+    "--provider",
+    "{runtime_provider}",
+    "--model",
+    "{model}",
+    "--append-system-prompt",
+    "{system_prompt}",
+    "--no-session",
+    "--no-extensions",
+    "--no-skills",
+    "--no-prompt-templates",
+    "--no-themes",
+    "--tools",
+    "read,bash,edit,write,grep,find,ls",
+    "{user_message}"
+  ]);
+  assert.deepEqual(getProviderSupportedAuthModes("xai"), ["api_key"]);
+  assert.equal(getCanonicalProviderKeyEnvVar("xai"), "XAI_API_KEY");
 });
 
 test("MiniMax runtime env uses the Anthropic-compatible gateway without leaking parent Anthropic settings", () => {
@@ -160,4 +191,19 @@ test("OpenAI OAuth runtime env clears OPENAI_API_KEY and injects no API key", ()
   );
 
   assert.equal(env.OPENAI_API_KEY, undefined);
+});
+
+test("xAI runtime env clears stale XAI_API_KEY values before injecting the selected credential", () => {
+  const env = buildProviderRuntimeEnv(
+    {
+      XAI_API_KEY: "stale-key",
+      PATH: process.env.PATH
+    },
+    "xai",
+    "api_key",
+    "xai_test_key",
+    "grok-4-fast-non-reasoning"
+  );
+
+  assert.equal(env.XAI_API_KEY, "xai_test_key");
 });
