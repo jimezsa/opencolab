@@ -4,7 +4,12 @@
  */
 import { spawn } from "node:child_process";
 import type { OpenColabConfig } from "./config.js";
-import { buildAgentPromptForInput, buildPiSystemPromptForInput, resolveAgentDirectory } from "./agent.js";
+import {
+  buildAgentPromptForInput,
+  buildPiSystemPromptForInput,
+  resolveAgentDirectory,
+  resolveSharedSkillsDirectory
+} from "./agent.js";
 import { getActiveAgent, getActiveProject } from "./project-config.js";
 import {
   buildProviderRuntimeEnv,
@@ -95,12 +100,14 @@ export class ProviderAgent {
 
     const cwd = resolveAgentDirectory(this.config.rootDir, agentPath);
     const projectDir = resolveAgentDirectory(this.config.rootDir, projectPath);
+    const sharedSkillsDir = resolveSharedSkillsDirectory(this.config.rootDir);
     const resolvedArgs = provider.cliArgs.map((arg: string) =>
       replaceCliArgTokens(arg, {
         "{provider}": provider.name,
         "{runtime_provider}": provider.name,
         "{model}": provider.model,
         "{project_dir}": projectDir,
+        "{shared_skills_dir}": sharedSkillsDir,
         "{agent_dir}": cwd,
         "{prompt}": input.prompt,
         "{system_prompt}": input.systemPrompt,
