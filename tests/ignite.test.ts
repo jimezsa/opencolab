@@ -106,8 +106,8 @@ test("ignite configures project, provider, and telegram", async () => {
     assert.equal(envLocal.includes("OPENAI_API_KEY=openai_test_key_123"), true);
     assert.equal(envLocal.includes("TELEGRAM_BOT_TOKEN=123456:telegram_bot_token"), true);
 
-    assert.equal(agent.id, "researcher_agent");
-    assert.equal(agent.path, "projects/science");
+    assert.equal(agent.id, "professor");
+    assert.equal(agent.path, "projects/science/AGENTS/professor");
 
     assert.equal(prompts.length > 0, true);
     assert.equal(outputs.includes("Onboarding complete."), true);
@@ -161,7 +161,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     assert.equal(agent.provider.authMode, "api_key");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(state.telegram.chatId, null);
-    assert.equal(agent.id, "researcher_agent");
+    assert.equal(agent.id, "professor");
     assert.equal(syncCalls, 0);
     assert.equal(process.env.OPENAI_API_KEY, "openai_test_key_esc");
     assert.equal(outputs.some((line) => line.includes("Step skipped.")), true);
