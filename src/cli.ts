@@ -541,7 +541,7 @@ function usageAgent(): string {
   return formatHelp([
     "Usage:",
     helpCommand(
-      "opencolab agent create --agent-id <id> [--path projects/<project_id>/subagents/<agent_id>]",
+      "opencolab agent create --agent-id <id> [--path projects/<project_id>/AGENTS/<agent_id>]",
       "Create/update and select an agent",
     ),
     helpCommand("opencolab agent use --agent-id <id>", "Switch active agent"),
