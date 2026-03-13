@@ -11,7 +11,7 @@ import { createRuntime } from "../src/runtime.js";
 test("conversation store builds memory from today's active session and yesterday summary", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-memory-store-"));
   const store = new ConversationStore(tempDir);
-  const agentPath = "projects/default";
+  const agentPath = "projects/default/AGENTS/professor";
 
   try {
     const sessionRoot = path.join(tempDir, agentPath, "memory", "Session");
