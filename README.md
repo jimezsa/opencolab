@@ -85,7 +85,7 @@ opencolab ignite
 ```
 
 Provider runtimes are configured with non-interactive defaults so `claude`, `codex`, `gemini`, and `pi` can edit the active project workspace without waiting for terminal approval prompts. Agent providers are configured per agent, so one agent can use Anthropic while another uses Gemini, MiniMax, or xAI.
-Subagents also inherit access to the parent project workspace by default.
+Agents live under the project-level `AGENTS/` folder, and provider runtimes still inherit access to the parent project workspace by default.
 
 OpenAI supports two auth modes:
 
@@ -219,15 +219,20 @@ Each agent directory must include:
 - `TODO.md` (active plan and task list)
 - `MEMORY.md` (long-term memory only)
 
-`AGENTS.md` is initialized from a built-in essential researcher template.
+`AGENTS.md` is initialized from built-in lead-agent and specialist-agent templates.
 `BOOTSTRAP.md` is initialized from a built-in first-run guide to help the agent discover identity and preferences.
 `IDENTITY.md` is initialized from a built-in identity scaffold.
 `TOOLS.md` is initialized from a built-in tools scaffold that lists the available `fast-search`, `pro-search`, and `deep-search` skills with a short description and when to use each one.
 
 Default layout:
 
-- main `researcher_agent`: `projects/<project_id>/`
-- additional agents: `projects/<project_id>/subagents/<agent_id>/`
+- lead agent `professor`: `projects/<project_id>/AGENTS/professor/`
+- additional specialist agents: `projects/<project_id>/AGENTS/<agent_id>/`
+
+Naming guidance:
+
+- keep `professor` as the fixed lead agent id
+- give additional agents memorable names that reflect their specialty or work style, such as `paperhound`, `labrat`, or `synthesizer`
 
 Conversation history layout:
 
