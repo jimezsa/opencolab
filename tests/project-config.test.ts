@@ -101,7 +101,9 @@ test("project state migrates legacy project provider into agent config", () => {
       "--permission-mode",
       "bypassPermissions",
       "--add-dir",
-      "{project_dir}"
+      "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -211,6 +213,8 @@ test("project state migrates legacy provider CLI defaults to workspace defaults 
       "--full-auto",
       "--add-dir",
       "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}",
       "-"
     ]);
   } finally {
