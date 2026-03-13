@@ -20,12 +20,14 @@ export interface AgentConfig {
   provider: ProviderConfig;
 }
 
-export type ProviderName = "openai" | "anthropic" | "gemini" | "minimax";
+export type ProviderName = "openai" | "anthropic" | "gemini" | "minimax" | "xai";
 export type ProviderAuthMode = "api_key" | "oauth";
+export type ProviderRuntime = "codex" | "claude" | "gemini" | "pi";
 
 export interface ProviderConfig {
   name: ProviderName;
   model: string;
+  runtime: ProviderRuntime;
   cliCommand: string;
   cliArgs: string[];
   authMode: ProviderAuthMode;
