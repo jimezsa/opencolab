@@ -9,7 +9,7 @@ import {
   getSupportedProviderNames,
   normalizeProviderAuthMode,
   resolveProviderAuthMode,
-  normalizeProviderName
+  normalizeProviderName,
 } from "./provider.js";
 import type { OpenColabRuntime } from "./runtime.js";
 import {
@@ -17,7 +17,7 @@ import {
   resolveProviderApiKey,
   resolveTelegramBotToken,
   TELEGRAM_BOT_TOKEN_ENV_VAR,
-  writeSecretToLocalEnv
+  writeSecretToLocalEnv,
 } from "./secrets.js";
 import type { ProviderAuthMode, ProviderName } from "./types.js";
 
@@ -36,7 +36,11 @@ interface SyncTelegramCommandsResult {
 
 export interface IgniteIo {
   ask(prompt: string): Promise<string>;
-  choose?(prompt: string, options: string[], defaultValue: string): Promise<string>;
+  choose?(
+    prompt: string,
+    options: string[],
+    defaultValue: string,
+  ): Promise<string>;
   write(line: string): void;
 }
 
@@ -47,41 +51,45 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-3.1-pro-preview",
-    "gemini-3-flash-preview"
+    "gemini-3-flash-preview",
   ],
   minimax: ["MiniMax-M2.5"],
   xai: [
     "grok-4-fast-non-reasoning",
     "grok-4-fast-reasoning",
-    "grok-4.1-fast-reasoning",
+    "grok-4-1-fast-reasoning",
     "grok-4",
-    "grok-code-fast-1"
-  ]
+    "grok-code-fast-1",
+  ],
 };
 
 export interface IgniteDependencies {
-  syncTelegramCommands: (chatId?: string | null) => Promise<SyncTelegramCommandsResult>;
+  syncTelegramCommands: (
+    chatId?: string | null,
+  ) => Promise<SyncTelegramCommandsResult>;
 }
 
 export async function runIgnite(
   runtime: OpenColabRuntime,
   io: IgniteIo,
-  deps: IgniteDependencies
+  deps: IgniteDependencies,
 ): Promise<void> {
   io.write("Onboarding");
   io.write("Enter = accept defaults. Esc = skip section.");
   io.write("");
 
-  await runStep(io, "* Project create or select active project", async (stepIo) =>
-    selectProject(runtime, stepIo)
+  await runStep(
+    io,
+    "* Project create or select active project",
+    async (stepIo) => selectProject(runtime, stepIo),
   );
   io.write("|");
   await runStep(io, "* Provider configure model and auth", async (stepIo) =>
-    configureProvider(runtime, stepIo)
+    configureProvider(runtime, stepIo),
   );
   io.write("|");
   await runStep(io, "* Telegram configure chat and pairing", async (stepIo) =>
-    configureTelegram(runtime, stepIo, deps)
+    configureTelegram(runtime, stepIo, deps),
   );
 
   const state = runtime.getState();
@@ -92,7 +100,7 @@ export async function runIgnite(
   io.write(`Active project: ${project.id} (${project.path})`);
   io.write(`Active agent: ${agent.id} (${agent.path})`);
   io.write(
-    `Provider: ${agent.provider.name} (${agent.provider.model}, ${formatProviderAuthMode(agent.provider.authMode)})`
+    `Provider: ${agent.provider.name} (${agent.provider.model}, ${formatProviderAuthMode(agent.provider.authMode)})`,
   );
   io.write(`Telegram chat: ${state.telegram.chatId ?? "not configured"}`);
   io.write(`Telegram paired: ${state.telegram.paired ? "yes" : "no"}`);
@@ -102,7 +110,7 @@ export async function runIgnite(
 async function runStep(
   io: IgniteIo,
   title: string,
-  run: (stepIo: IgniteIo) => Promise<void>
+  run: (stepIo: IgniteIo) => Promise<void>,
 ): Promise<void> {
   io.write(title);
   const choose = io.choose;
@@ -112,7 +120,7 @@ async function runStep(
       ? async (prompt, options, defaultValue) =>
           choose(`| ${prompt}`, options, defaultValue)
       : undefined,
-    write: (line) => io.write(`| ${line}`)
+    write: (line) => io.write(`| ${line}`),
   };
   try {
     await run(stepIo);
@@ -125,12 +133,21 @@ async function runStep(
   }
 }
 
-async function selectProject(runtime: OpenColabRuntime, io: IgniteIo): Promise<void> {
+async function selectProject(
+  runtime: OpenColabRuntime,
+  io: IgniteIo,
+): Promise<void> {
   const currentProject = runtime.getActiveProject();
-  const knownProjects = new Set(runtime.listProjects().map((project) => project.id));
+  const knownProjects = new Set(
+    runtime.listProjects().map((project) => project.id),
+  );
 
   while (true) {
-    const projectId = await askWithDefault(io, "Project id to use", currentProject.id);
+    const projectId = await askWithDefault(
+      io,
+      "Project id to use",
+      currentProject.id,
+    );
     try {
       if (knownProjects.has(projectId)) {
         runtime.useProject(projectId);
@@ -146,29 +163,36 @@ async function selectProject(runtime: OpenColabRuntime, io: IgniteIo): Promise<v
   }
 }
 
-async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promise<void> {
+async function configureProvider(
+  runtime: OpenColabRuntime,
+  io: IgniteIo,
+): Promise<void> {
   const project = runtime.getActiveProject();
   const agent = runtime.getActiveAgent();
   const currentProvider = agent.provider;
-  const currentProviderDefaults = getProviderSetupDefaults(currentProvider.name);
+  const currentProviderDefaults = getProviderSetupDefaults(
+    currentProvider.name,
+  );
   const currentAuthMode = resolveProviderAuthMode(
     currentProvider.name,
     currentProvider.authMode,
-    currentProviderDefaults.authMode
+    currentProviderDefaults.authMode,
   );
   const currentProviderEnvVar = getProviderApiKeyEnvVar(currentProvider.name);
-  const hasCurrentProviderKey = resolveProviderApiKey(currentProvider.name) !== null;
-  const hasCurrentProviderAuth = currentAuthMode === "oauth" || hasCurrentProviderKey;
+  const hasCurrentProviderKey =
+    resolveProviderApiKey(currentProvider.name) !== null;
+  const hasCurrentProviderAuth =
+    currentAuthMode === "oauth" || hasCurrentProviderKey;
 
   if (hasCurrentProviderAuth) {
     const keepCurrent = await askYesNo(
       io,
       `Provider already configured (${currentProvider.name}/${currentProvider.model}, ${formatProviderAuthMode(currentAuthMode)}). Keep current setup?`,
-      true
+      true,
     );
     if (keepCurrent) {
       io.write(
-        `Provider unchanged for agent '${agent.id}' in project '${project.id}': ${currentProvider.name} (${currentProvider.model}, ${formatProviderAuthMode(currentAuthMode)}).`
+        `Provider unchanged for agent '${agent.id}' in project '${project.id}': ${currentProvider.name} (${currentProvider.model}, ${formatProviderAuthMode(currentAuthMode)}).`,
       );
       return;
     }
@@ -180,11 +204,20 @@ async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promi
   const providerDefaults = getProviderSetupDefaults(providerName);
   const useCurrentProviderDefaults = providerName === currentProvider.name;
   const defaultAuthMode = useCurrentProviderDefaults
-    ? resolveProviderAuthMode(providerName, currentProvider.authMode, providerDefaults.authMode)
+    ? resolveProviderAuthMode(
+        providerName,
+        currentProvider.authMode,
+        providerDefaults.authMode,
+      )
     : providerDefaults.authMode;
 
-  const defaultModel = useCurrentProviderDefaults ? currentProvider.model : providerDefaults.model;
-  const modelOptions = withFallbackOption(PROVIDER_MODEL_OPTIONS[providerName], defaultModel);
+  const defaultModel = useCurrentProviderDefaults
+    ? currentProvider.model
+    : providerDefaults.model;
+  const modelOptions = withFallbackOption(
+    PROVIDER_MODEL_OPTIONS[providerName],
+    defaultModel,
+  );
   const providerApiKeyEnvVar = getProviderApiKeyEnvVar(providerName);
   const authMode = await askProviderAuthMode(io, providerName, defaultAuthMode);
 
@@ -197,21 +230,25 @@ async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promi
       shouldWriteProviderKey = !(await askYesNo(
         io,
         `${providerApiKeyEnvVar} already has a value. Keep it?`,
-        true
+        true,
       ));
     }
 
     if (shouldWriteProviderKey) {
       const providerApiKey = await askRequiredWithOptionalDefault(
         io,
-        `${providerApiKeyEnvVar} value`
+        `${providerApiKeyEnvVar} value`,
       );
-      writeSecretToLocalEnv(runtime.config.rootDir, providerApiKeyEnvVar, providerApiKey);
+      writeSecretToLocalEnv(
+        runtime.config.rootDir,
+        providerApiKeyEnvVar,
+        providerApiKey,
+      );
       io.write(`Saved ${providerApiKeyEnvVar} in .env.local.`);
     }
   } else {
     io.write(
-      `Using ${providerName} OAuth auth mode. ${getProviderOauthSetupHint(providerName, providerDefaults.cliCommand)}`
+      `Using ${providerName} OAuth auth mode. ${getProviderOauthSetupHint(providerName, providerDefaults.cliCommand)}`,
     );
   }
 
@@ -219,18 +256,18 @@ async function configureProvider(runtime: OpenColabRuntime, io: IgniteIo): Promi
     agentId: agent.id,
     providerName,
     model,
-    authMode
+    authMode,
   });
 
   io.write(
-    `Provider configured for agent '${agent.id}' in project '${project.id}': ${providerName} (${model}, ${formatProviderAuthMode(authMode)}, runtime ${runtime.getActiveAgent().provider.runtime}).`
+    `Provider configured for agent '${agent.id}' in project '${project.id}': ${providerName} (${model}, ${formatProviderAuthMode(authMode)}, runtime ${runtime.getActiveAgent().provider.runtime}).`,
   );
 }
 
 async function configureTelegram(
   runtime: OpenColabRuntime,
   io: IgniteIo,
-  deps: IgniteDependencies
+  deps: IgniteDependencies,
 ): Promise<void> {
   const telegram = runtime.getState().telegram;
   const hasChat = Boolean(telegram.chatId);
@@ -239,8 +276,10 @@ async function configureTelegram(
 
   const shouldConfigure = await askYesNo(
     io,
-    fullyConfigured ? "Telegram already configured. Update settings?" : "Configure Telegram now?",
-    !fullyConfigured
+    fullyConfigured
+      ? "Telegram already configured. Update settings?"
+      : "Configure Telegram now?",
+    !fullyConfigured,
   );
 
   if (shouldConfigure) {
@@ -249,33 +288,41 @@ async function configureTelegram(
       (await askYesNo(
         io,
         `${TELEGRAM_BOT_TOKEN_ENV_VAR} already has a value. Keep it?`,
-        true
+        true,
       ));
     if (!keepExistingToken) {
       const botToken = await askRequiredWithOptionalDefault(
         io,
-        `${TELEGRAM_BOT_TOKEN_ENV_VAR} value`
+        `${TELEGRAM_BOT_TOKEN_ENV_VAR} value`,
       );
-      writeSecretToLocalEnv(runtime.config.rootDir, TELEGRAM_BOT_TOKEN_ENV_VAR, botToken);
+      writeSecretToLocalEnv(
+        runtime.config.rootDir,
+        TELEGRAM_BOT_TOKEN_ENV_VAR,
+        botToken,
+      );
       io.write(`Saved ${TELEGRAM_BOT_TOKEN_ENV_VAR} in .env.local.`);
     }
 
     const chatId = await askRequiredWithOptionalDefault(
       io,
       "Telegram chat id",
-      telegram.chatId ?? undefined
+      telegram.chatId ?? undefined,
     );
 
     runtime.setupTelegram({
-      chatId
+      chatId,
     });
     io.write(`Telegram configured for chat: ${chatId}`);
 
-    const syncResult = await deps.syncTelegramCommands(runtime.getState().telegram.chatId);
+    const syncResult = await deps.syncTelegramCommands(
+      runtime.getState().telegram.chatId,
+    );
     if (syncResult.ok) {
       io.write("Telegram bot commands synced.");
     } else {
-      io.write(`Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`);
+      io.write(
+        `Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`,
+      );
     }
   } else {
     io.write("Telegram setup skipped.");
@@ -294,14 +341,19 @@ async function configureTelegram(
 
   const shouldPair = await askYesNo(io, "Start Telegram pairing now?", true);
   if (!shouldPair) {
-    io.write("Pairing skipped. Run 'opencolab setup telegram pair start' when ready.");
+    io.write(
+      "Pairing skipped. Run 'opencolab setup telegram pair start' when ready.",
+    );
     return;
   }
 
   try {
     const pairing = await runtime.startPairing();
     io.write(`Pairing code sent to Telegram (expires ${pairing.expiresAt}).`);
-    const code = await askOptional(io, "Enter pairing code (leave blank to skip)");
+    const code = await askOptional(
+      io,
+      "Enter pairing code (leave blank to skip)",
+    );
     if (!code) {
       io.write("Pairing completion skipped.");
       return;
@@ -315,11 +367,16 @@ async function configureTelegram(
   }
 }
 
-async function askProviderName(io: IgniteIo, fallback: ProviderName): Promise<ProviderName> {
+async function askProviderName(
+  io: IgniteIo,
+  fallback: ProviderName,
+): Promise<ProviderName> {
   const options = getSupportedProviderNames();
   const supported = options.map((provider) => `'${provider}'`).join(", ");
   while (true) {
-    const answer = (await askFromOptions(io, "Provider", options, fallback)).toLowerCase();
+    const answer = (
+      await askFromOptions(io, "Provider", options, fallback)
+    ).toLowerCase();
     const normalized = normalizeProviderName(answer);
     if (normalized) {
       return normalized;
@@ -332,7 +389,7 @@ async function askProviderName(io: IgniteIo, fallback: ProviderName): Promise<Pr
 async function askProviderAuthMode(
   io: IgniteIo,
   providerName: ProviderName,
-  fallback: ProviderAuthMode
+  fallback: ProviderAuthMode,
 ): Promise<ProviderAuthMode> {
   const supportedAuthModes = getProviderSupportedAuthModes(providerName);
   if (supportedAuthModes.length <= 1) {
@@ -343,7 +400,12 @@ async function askProviderAuthMode(
   const defaultOption = formatProviderAuthMode(fallback);
 
   while (true) {
-    const answer = await askFromOptions(io, "Auth mode", options, defaultOption);
+    const answer = await askFromOptions(
+      io,
+      "Auth mode",
+      options,
+      defaultOption,
+    );
     const normalized = normalizeProviderAuthMode(answer);
     if (normalized && supportedAuthModes.includes(normalized)) {
       return normalized;
@@ -356,7 +418,7 @@ async function askFromOptions(
   io: IgniteIo,
   label: string,
   options: string[],
-  defaultValue: string
+  defaultValue: string,
 ): Promise<string> {
   if (io.choose) {
     const selected = await io.choose(`${label}:`, options, defaultValue);
@@ -367,7 +429,11 @@ async function askFromOptions(
   return askWithDefault(io, `${label} (${options.join("|")})`, defaultValue);
 }
 
-async function askWithDefault(io: IgniteIo, label: string, defaultValue: string): Promise<string> {
+async function askWithDefault(
+  io: IgniteIo,
+  label: string,
+  defaultValue: string,
+): Promise<string> {
   const answer = await io.ask(`${label} [${defaultValue}]: `);
   throwIfEsc(answer);
   const trimmed = answer.trim();
@@ -380,7 +446,7 @@ async function askWithDefault(io: IgniteIo, label: string, defaultValue: string)
 async function askRequiredWithOptionalDefault(
   io: IgniteIo,
   label: string,
-  defaultValue?: string
+  defaultValue?: string,
 ): Promise<string> {
   while (true) {
     const suffix = defaultValue ? ` [${defaultValue}]` : "";
@@ -399,14 +465,21 @@ async function askRequiredWithOptionalDefault(
   }
 }
 
-async function askOptional(io: IgniteIo, label: string): Promise<string | null> {
+async function askOptional(
+  io: IgniteIo,
+  label: string,
+): Promise<string | null> {
   const answer = await io.ask(`${label}: `);
   throwIfEsc(answer);
   const trimmed = answer.trim();
   return trimmed ? trimmed : null;
 }
 
-async function askYesNo(io: IgniteIo, label: string, defaultValue: boolean): Promise<boolean> {
+async function askYesNo(
+  io: IgniteIo,
+  label: string,
+  defaultValue: boolean,
+): Promise<boolean> {
   const fallback = defaultValue ? "Y/n" : "y/N";
   const raw = await io.ask(`${label} [${fallback}]: `);
   throwIfEsc(raw);
