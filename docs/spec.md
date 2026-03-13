@@ -80,6 +80,7 @@ Each agent directory must include:
 - `USER.md`
 - `TODO.md`
 - `MEMORY.md`
+- `SKILLS/` for agent-local skills
 
 Shared project skills requirements:
 
@@ -88,12 +89,20 @@ Shared project skills requirements:
 - each skill lives under `projects/SKILLS/<skill_id>/SKILL.md`
 - agent instructions must tell agents to read relevant `SKILL.md` files from the shared `projects/SKILLS/` directory before using a specialized workflow
 
+Agent-local skills requirements:
+
+- each agent may keep unique agent-local skills under `projects/<project_id>/AGENTS/<agent_id>/SKILLS/`
+- agent-local skills are visible only to that agent by default because they live inside the agent folder
+- each agent-local skill lives under `projects/<project_id>/AGENTS/<agent_id>/SKILLS/<skill_id>/SKILL.md`
+- agent instructions must tell agents to read relevant `SKILL.md` files from both the shared `projects/SKILLS/` library and the agent-local `SKILLS/` directory when applicable
+
 Initialization requirements:
 
 - when an agent directory is created, `AGENTS.md` must be seeded from an internal runtime template
 - when an agent directory is created, `BOOTSTRAP.md` must be seeded from an internal runtime template for first-run identity discovery
 - when an agent directory is created, `IDENTITY.md` must be seeded from an internal runtime template
 - when an agent directory is created, `TOOLS.md` must be seeded from an internal runtime template that lists the available `fast-search`, `pro-search`, and `deep-search` skills with only a short description and when-to-use guidance
+- when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
 - the built-in `fast-search`, `pro-search`, and `deep-search` skills must be available from the shared `projects/SKILLS/` directory
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
