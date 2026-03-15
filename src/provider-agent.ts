@@ -8,20 +8,16 @@ import {
   buildAgentPromptForInput,
   buildPiSystemPromptForInput,
   resolveAgentDirectory,
-  resolveSharedSkillsDirectory,
+  resolveSharedSkillsDirectory
 } from "./agent.js";
 import { getActiveAgent, getActiveProject } from "./project-config.js";
 import {
   buildProviderRuntimeEnv,
   getProviderOauthMissingSessionMessage,
   getProviderOauthSetupHint,
-  resolveProviderAuthMode,
+  resolveProviderAuthMode
 } from "./provider.js";
-import {
-  getProviderApiKeyEnvVar,
-  resolveOpenAiOauthStatus,
-  resolveProviderApiKey,
-} from "./secrets.js";
+import { getProviderApiKeyEnvVar, resolveOpenAiOauthStatus, resolveProviderApiKey } from "./secrets.js";
 import type {
   AgentProgressEvent,
   AgentMemoryContext,
@@ -29,11 +25,11 @@ import type {
   ProviderAuthMode,
   ProviderAgentStreamCallbacks,
   ProviderConfig,
-  TelegramFilePayload,
+  TelegramFilePayload
 } from "./types.js";
 import { ensureDir } from "./utils.js";
 
-const MAX_CLI_CAPTURE_CHARS = 600_000;
+const MAX_CLI_CAPTURE_CHARS = 200_000;
 const TELEGRAM_PROGRESS_PREFIX = "@telegram-progress";
 
 interface ProviderCliInput {
@@ -53,7 +49,7 @@ export interface ProviderAgentInput {
 export class ProviderAgent {
   constructor(
     private readonly config: OpenColabConfig,
-    private readonly getState: () => OpenColabState,
+    private readonly getState: () => OpenColabState
   ) {}
 
   async respond(input: ProviderAgentInput): Promise<string> {
@@ -62,7 +58,7 @@ export class ProviderAgent {
 
   async respondStreaming(
     input: ProviderAgentInput,
-    callbacks: ProviderAgentStreamCallbacks = {},
+    callbacks: ProviderAgentStreamCallbacks = {}
   ): Promise<string> {
     const startedAt = Date.now();
     const state = this.getState();
@@ -70,41 +66,18 @@ export class ProviderAgent {
     const agent = getActiveAgent(project);
     const provider = agent.provider;
     const promptStartedAt = Date.now();
-    const cliInput = this.buildCliInput(
-      agent,
-      provider,
-      input.memory,
-      input.text,
-    );
+    const cliInput = this.buildCliInput(agent, provider, input.memory, input.text);
     const promptMs = Date.now() - promptStartedAt;
 
     if (this.config.forceMockCodex) {
-      this.logPerf(
-        promptMs,
-        0,
-        Date.now() - startedAt,
-        provider.name,
-        provider.model,
-      );
+      this.logPerf(promptMs, 0, Date.now() - startedAt, provider.name, provider.model);
       return this.mockResponse(provider.name, provider.model, input.text);
     }
 
     const cliStartedAt = Date.now();
-    const output = await this.runProviderCli(
-      cliInput,
-      provider,
-      project.path,
-      agent.path,
-      callbacks,
-    );
+    const output = await this.runProviderCli(cliInput, provider, project.path, agent.path, callbacks);
     const cliMs = Date.now() - cliStartedAt;
-    this.logPerf(
-      promptMs,
-      cliMs,
-      Date.now() - startedAt,
-      provider.name,
-      provider.model,
-    );
+    this.logPerf(promptMs, cliMs, Date.now() - startedAt, provider.name, provider.model);
     return output;
   }
 
@@ -113,7 +86,7 @@ export class ProviderAgent {
     provider: ProviderConfig,
     projectPath: string,
     agentPath: string,
-    callbacks: ProviderAgentStreamCallbacks,
+    callbacks: ProviderAgentStreamCallbacks
   ): Promise<string> {
     const authMode = resolveProviderAuthMode(provider.name, provider.authMode);
     const canonicalKeyName = getProviderApiKeyEnvVar(provider.name);
@@ -122,7 +95,7 @@ export class ProviderAgent {
       apiKey = resolveProviderApiKey(provider.name);
       if (!apiKey) {
         throw new Error(
-          `Missing required provider API key (${canonicalKeyName}). Set it in .env.local or in the shell environment.`,
+          `Missing required provider API key (${canonicalKeyName}). Set it in .env.local or in the shell environment.`
         );
       }
     }
@@ -131,11 +104,7 @@ export class ProviderAgent {
       const oauthStatus = resolveOpenAiOauthStatus(provider.cliCommand);
       if (!oauthStatus.authenticated) {
         throw new Error(
-          getProviderOauthMissingSessionMessage(
-            provider.name,
-            provider.cliCommand,
-            oauthStatus.detail,
-          ),
+          getProviderOauthMissingSessionMessage(provider.name, provider.cliCommand, oauthStatus.detail)
         );
       }
     }
@@ -153,14 +122,12 @@ export class ProviderAgent {
         "{agent_dir}": cwd,
         "{prompt}": input.prompt,
         "{system_prompt}": input.systemPrompt,
-        "{user_message}": input.userMessage,
-      }),
+        "{user_message}": input.userMessage
+      })
     );
     const promptProvidedInArgs = provider.cliArgs.some(
       (arg: string) =>
-        arg.includes("{prompt}") ||
-        arg.includes("{system_prompt}") ||
-        arg.includes("{user_message}"),
+        arg.includes("{prompt}") || arg.includes("{system_prompt}") || arg.includes("{user_message}")
     );
     const cliArgs = resolvedArgs;
     const providerLabel = provider.name.replaceAll("_", " ");
@@ -170,7 +137,7 @@ export class ProviderAgent {
         provider.name,
         authMode,
         apiKey,
-        provider.model,
+        provider.model
       );
       if (provider.runtime === "pi") {
         ensureDir(this.config.piAgentDir);
@@ -181,9 +148,9 @@ export class ProviderAgent {
         cwd,
         env: {
           ...providerEnv,
-          OPENCOLAB_MODEL: provider.model,
+          OPENCOLAB_MODEL: provider.model
         },
-        stdio: ["pipe", "pipe", "pipe"],
+        stdio: ["pipe", "pipe", "pipe"]
       });
 
       let stdout = "";
@@ -194,18 +161,12 @@ export class ProviderAgent {
       let stdoutProcessing = Promise.resolve();
       let settled = false;
 
-      const appendLimited = (
-        current: string,
-        chunkText: string,
-      ): { next: string; truncated: boolean } => {
+      const appendLimited = (current: string, chunkText: string): { next: string; truncated: boolean } => {
         const nextRaw = current + chunkText;
         if (nextRaw.length <= MAX_CLI_CAPTURE_CHARS) {
           return { next: nextRaw, truncated: false };
         }
-        return {
-          next: nextRaw.slice(nextRaw.length - MAX_CLI_CAPTURE_CHARS),
-          truncated: true,
-        };
+        return { next: nextRaw.slice(nextRaw.length - MAX_CLI_CAPTURE_CHARS), truncated: true };
       };
 
       const appendStdoutText = async (chunkText: string): Promise<void> => {
@@ -230,10 +191,7 @@ export class ProviderAgent {
         }
       };
 
-      const processStdoutLine = async (
-        lineText: string,
-        rawText: string,
-      ): Promise<void> => {
+      const processStdoutLine = async (lineText: string, rawText: string): Promise<void> => {
         const progressEvent = parseAgentProgressLine(lineText);
         if (progressEvent) {
           await emitProgress(progressEvent);
@@ -269,9 +227,7 @@ export class ProviderAgent {
 
         const rawLine = pendingStdoutLine;
         pendingStdoutLine = "";
-        const lineText = rawLine.endsWith("\r")
-          ? rawLine.slice(0, -1)
-          : rawLine;
+        const lineText = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
         await processStdoutLine(lineText, rawLine);
       };
 
@@ -284,19 +240,14 @@ export class ProviderAgent {
         handler();
       };
 
-      const timeoutHandle = setTimeout(
-        () => {
-          child.kill("SIGKILL");
-          finish(() =>
-            reject(new Error(normalizeProviderCliTimeout(provider, authMode))),
-          );
-        },
-        Math.max(this.config.codexTimeoutMs, 1000),
-      );
+      const timeoutHandle = setTimeout(() => {
+        child.kill("SIGKILL");
+        finish(() => reject(new Error(normalizeProviderCliTimeout(provider, authMode))));
+      }, Math.max(this.config.codexTimeoutMs, 1000));
 
       child.stdout.on("data", (chunk: Buffer) => {
         stdoutProcessing = stdoutProcessing.then(() =>
-          processStdoutChunk(chunk.toString("utf8")),
+          processStdoutChunk(chunk.toString("utf8"))
         );
       });
 
@@ -307,9 +258,7 @@ export class ProviderAgent {
       });
 
       child.on("error", (error) => {
-        finish(() =>
-          reject(normalizeProviderCliSpawnError(provider, authMode, error)),
-        );
+        finish(() => reject(normalizeProviderCliSpawnError(provider, authMode, error)));
       });
 
       child.on("close", (code) => {
@@ -320,27 +269,17 @@ export class ProviderAgent {
           if (code === 0) {
             const response = stdout.trim();
             const suffix = stdoutTruncated ? " (truncated)" : "";
-            finish(() =>
-              resolve(
-                response ||
-                  `(empty response from ${providerLabel} CLI)${suffix}`,
-              ),
-            );
+            finish(() => resolve(response || `(empty response from ${providerLabel} CLI)${suffix}`));
             return;
           }
 
           const fallback = `${providerLabel} CLI exited with code ${String(code)}`;
           const message = `${stderr.trim() || fallback}${stderrTruncated ? " (stderr truncated)" : ""}`;
-          finish(() =>
-            reject(
-              new Error(normalizeProviderCliError(provider, authMode, message)),
-            ),
-          );
+          finish(() => reject(new Error(normalizeProviderCliError(provider, authMode, message))));
         };
 
         void finalizeClose().catch((error) => {
-          const detail =
-            error instanceof Error ? error : new Error(String(error));
+          const detail = error instanceof Error ? error : new Error(String(error));
           finish(() => reject(detail));
         });
       });
@@ -359,30 +298,21 @@ export class ProviderAgent {
     agent: ReturnType<typeof getActiveAgent>,
     provider: ProviderConfig,
     memory: AgentMemoryContext,
-    userMessage: string,
+    userMessage: string
   ): ProviderCliInput {
-    const prompt = buildAgentPromptForInput(
-      this.config.rootDir,
-      agent,
-      memory,
-      userMessage,
-    );
+    const prompt = buildAgentPromptForInput(this.config.rootDir, agent, memory, userMessage);
     if (provider.runtime === "pi") {
       return {
         prompt,
-        systemPrompt: buildPiSystemPromptForInput(
-          this.config.rootDir,
-          agent,
-          memory,
-        ),
-        userMessage,
+        systemPrompt: buildPiSystemPromptForInput(this.config.rootDir, agent, memory),
+        userMessage
       };
     }
 
     return {
       prompt,
       systemPrompt: "",
-      userMessage,
+      userMessage
     };
   }
 
@@ -391,32 +321,26 @@ export class ProviderAgent {
     cliMs: number,
     totalMs: number,
     providerName: string,
-    model: string,
+    model: string
   ): void {
     if (process.env.OPENCOLAB_TRACE_PERF !== "1") {
       return;
     }
     console.log(
-      `[opencolab:perf] provider=${providerName} model=${model} prompt_ms=${promptMs} cli_ms=${cliMs} total_ms=${totalMs}`,
+      `[opencolab:perf] provider=${providerName} model=${model} prompt_ms=${promptMs} cli_ms=${cliMs} total_ms=${totalMs}`
     );
   }
 
-  private mockResponse(
-    providerName: string,
-    model: string,
-    text: string,
-  ): string {
+  private mockResponse(providerName: string, model: string, text: string): string {
     return [
       `[mock-${providerName}:${model}]`,
       "This is a simulated response from the OpenColab research agent.",
-      `Question: ${text}`,
+      `Question: ${text}`
     ].join("\n");
   }
 }
 
-export function parseAgentProgressLine(
-  line: string,
-): AgentProgressEvent | null {
+export function parseAgentProgressLine(line: string): AgentProgressEvent | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith(TELEGRAM_PROGRESS_PREFIX)) {
     return null;
@@ -438,7 +362,7 @@ export function parseAgentProgressLine(
 function normalizeProviderCliError(
   provider: ProviderConfig,
   authMode: ProviderAuthMode,
-  message: string,
+  message: string
 ): string {
   if (provider.name !== "gemini" || authMode !== "oauth") {
     return message;
@@ -453,20 +377,13 @@ function normalizeProviderCliError(
     normalized.includes("gemini_api_key") ||
     normalized.includes("google_api_key")
   ) {
-    return getProviderOauthMissingSessionMessage(
-      provider.name,
-      provider.cliCommand,
-      message,
-    );
+    return getProviderOauthMissingSessionMessage(provider.name, provider.cliCommand, message);
   }
 
   return message;
 }
 
-function normalizeProviderCliTimeout(
-  provider: ProviderConfig,
-  authMode: ProviderAuthMode,
-): string {
+function normalizeProviderCliTimeout(provider: ProviderConfig, authMode: ProviderAuthMode): string {
   const providerLabel = provider.name.replaceAll("_", " ");
   if (provider.name === "gemini" && authMode === "oauth") {
     return `${providerLabel} CLI timed out. ${getProviderOauthSetupHint(provider.name, provider.cliCommand)}`;
@@ -477,18 +394,18 @@ function normalizeProviderCliTimeout(
 function normalizeProviderCliSpawnError(
   provider: ProviderConfig,
   authMode: ProviderAuthMode,
-  error: Error,
+  error: Error
 ): Error {
   const spawnError = error as NodeJS.ErrnoException;
   const providerLabel = provider.name.replaceAll("_", " ");
   if (spawnError.code === "ENOENT") {
     return new Error(
-      `${providerLabel} CLI is not installed or not available on PATH. Install '${provider.cliCommand}' and retry.`,
+      `${providerLabel} CLI is not installed or not available on PATH. Install '${provider.cliCommand}' and retry.`
     );
   }
   if (spawnError.code === "EACCES") {
     return new Error(
-      `${providerLabel} CLI is not executable. Fix '${provider.cliCommand}' permissions and retry.`,
+      `${providerLabel} CLI is not executable. Fix '${provider.cliCommand}' permissions and retry.`
     );
   }
 
@@ -500,10 +417,7 @@ function normalizeProviderCliSpawnError(
   return new Error(`${providerLabel} CLI failed to start`);
 }
 
-function replaceCliArgTokens(
-  arg: string,
-  replacements: Record<string, string>,
-): string {
+function replaceCliArgTokens(arg: string, replacements: Record<string, string>): string {
   let next = arg;
   for (const [token, value] of Object.entries(replacements)) {
     next = next.replaceAll(token, value);
@@ -515,21 +429,15 @@ function looksLikeProgressControlLine(line: string): boolean {
   return line.trim().startsWith(TELEGRAM_PROGRESS_PREFIX);
 }
 
-function normalizeAgentProgressEvent(
-  source: Record<string, unknown>,
-): AgentProgressEvent | null {
+function normalizeAgentProgressEvent(source: Record<string, unknown>): AgentProgressEvent | null {
   const phase = normalizeProgressPhase(source.phase);
-  const message =
-    typeof source.message === "string" ? source.message.trim() : "";
+  const message = typeof source.message === "string" ? source.message.trim() : "";
   if (!phase || !message) {
     return null;
   }
 
   const items = Array.isArray(source.items)
-    ? source.items
-        .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim())
-        .filter(Boolean)
+    ? source.items.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean)
     : undefined;
   const done = source.done === true;
 
@@ -537,13 +445,11 @@ function normalizeAgentProgressEvent(
     phase,
     message,
     ...(items && items.length > 0 ? { items } : {}),
-    ...(done ? { done } : {}),
+    ...(done ? { done } : {})
   };
 }
 
-function normalizeProgressPhase(
-  value: unknown,
-): AgentProgressEvent["phase"] | null {
+function normalizeProgressPhase(value: unknown): AgentProgressEvent["phase"] | null {
   if (typeof value !== "string") {
     return null;
   }
