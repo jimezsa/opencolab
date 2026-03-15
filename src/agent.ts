@@ -532,6 +532,7 @@ export function buildPiSystemPromptForInput(
     "Pi already loads AGENTS.md or CLAUDE.md context files from the working directory and parent directories.",
     "The human defines the initial problem and then supports execution as an assistant to the project agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
     "When the user message includes a [telegram_files] section with local_path entries, inspect those local files directly when relevant instead of relying only on attachment metadata.",
+    telegramProgressProtocolInstruction(),
     "",
     piContext,
     "",
@@ -569,6 +570,7 @@ function buildPromptFromSystemContext(
     "You are the active OpenColab agent.",
     "The human defines the initial problem and then supports execution as an assistant to the project agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
     "When the user message includes a [telegram_files] section with local_path entries, inspect those local files directly when relevant instead of relying only on attachment metadata.",
+    telegramProgressProtocolInstruction(),
     "",
     coreContext,
     "",
@@ -590,4 +592,14 @@ function buildPromptFromSystemContext(
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function telegramProgressProtocolInstruction(): string {
+  return [
+    "This run may be delivered through Telegram.",
+    "For long-running work, emit concise progress control lines on their own line before major stages using exactly: @telegram-progress {\"phase\":\"<planning|searching|downloading|reading|summarizing|drafting|done|info>\",\"message\":\"<short user-facing step>\",\"items\":[\"optional item\"],\"done\":false}.",
+    "Use progress control lines only for meaningful stage changes such as planning, searching papers, downloading sources, summarizing, and drafting the final answer.",
+    "Do not expose chain-of-thought, private reasoning, or noisy tool logs in progress control lines.",
+    "After any progress control lines, continue with the normal final answer text. The final answer must stand on its own without the progress lines.",
+  ].join("\n");
 }

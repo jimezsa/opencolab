@@ -348,7 +348,12 @@ Notes:
 - when Telegram file download succeeds, attachments should be materialized under the active project (for example under `memory/TelegramInbox/`) with collision-safe local filenames and the agent input should include the local file path
 - when Telegram file download fails or times out, routing should continue with caption text plus attachment metadata instead of dropping or indefinitely blocking the message
 - while generating, gateway sends Telegram `typing` feedback
+- for long-running routed work, gateway should maintain one Telegram progress/status message edited in place as the run advances through meaningful stages
+- Telegram progress updates should show concrete task stages such as planning, searching papers, downloading sources, summarizing, and drafting the final answer
+- Telegram progress updates should not stream the final prose answer token by token
 - responses are sent to the same chat
+- when progress streaming is available, the final assistant answer must be sent as a second normal Telegram message after the progress/status message
+- progress/control lines used for Telegram streaming must not be stored in conversation memory as assistant output
 - when provider/runtime execution fails for a routed message, gateway replies in Telegram with a short failure notice instead of failing silently
 - provider auth/runtime remediation guidance (for example missing Gemini OAuth login or missing API key) must be forwarded to the Telegram user when available
 - polling mode must not retry the same failed Telegram update indefinitely once the runtime has consumed it
@@ -368,3 +373,4 @@ v1 is complete when all are true:
 - The default `professor` agent is created under `projects/<project_id>/AGENTS/professor/`.
 - Additional agents are created under `projects/<project_id>/AGENTS/<agent_id>/`.
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
+- Telegram long-running work shows an in-place progress/status message and then a separate final answer message.
