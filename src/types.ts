@@ -62,28 +62,6 @@ export interface ConversationMessage {
   at: string;
 }
 
-export type AgentProgressPhase =
-  | "planning"
-  | "searching"
-  | "downloading"
-  | "reading"
-  | "summarizing"
-  | "drafting"
-  | "done"
-  | "info";
-
-export interface AgentProgressEvent {
-  phase: AgentProgressPhase;
-  message: string;
-  items?: string[];
-  done?: boolean;
-}
-
-export interface ProviderAgentStreamCallbacks {
-  onProgress?: (event: AgentProgressEvent) => void | Promise<void>;
-  onFinalTextChunk?: (chunk: string) => void | Promise<void>;
-}
-
 export interface AgentMemoryContext {
   workingMemory: ConversationMessage[];
   previousDaySummary: string;

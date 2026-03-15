@@ -19,18 +19,15 @@ import {
 } from "./provider.js";
 import { getProviderApiKeyEnvVar, resolveOpenAiOauthStatus, resolveProviderApiKey } from "./secrets.js";
 import type {
-  AgentProgressEvent,
   AgentMemoryContext,
   OpenColabState,
   ProviderAuthMode,
-  ProviderAgentStreamCallbacks,
   ProviderConfig,
   TelegramFilePayload
 } from "./types.js";
 import { ensureDir } from "./utils.js";
 
 const MAX_CLI_CAPTURE_CHARS = 200_000;
-const TELEGRAM_PROGRESS_PREFIX = "@telegram-progress";
 
 interface ProviderCliInput {
   prompt: string;
@@ -53,13 +50,6 @@ export class ProviderAgent {
   ) {}
 
   async respond(input: ProviderAgentInput): Promise<string> {
-    return this.respondStreaming(input);
-  }
-
-  async respondStreaming(
-    input: ProviderAgentInput,
-    callbacks: ProviderAgentStreamCallbacks = {}
-  ): Promise<string> {
     const startedAt = Date.now();
     const state = this.getState();
     const project = getActiveProject(state);
@@ -75,7 +65,7 @@ export class ProviderAgent {
     }
 
     const cliStartedAt = Date.now();
-    const output = await this.runProviderCli(cliInput, provider, project.path, agent.path, callbacks);
+    const output = await this.runProviderCli(cliInput, provider, project.path, agent.path);
     const cliMs = Date.now() - cliStartedAt;
     this.logPerf(promptMs, cliMs, Date.now() - startedAt, provider.name, provider.model);
     return output;
@@ -85,8 +75,7 @@ export class ProviderAgent {
     input: ProviderCliInput,
     provider: ProviderConfig,
     projectPath: string,
-    agentPath: string,
-    callbacks: ProviderAgentStreamCallbacks
+    agentPath: string
   ): Promise<string> {
     const authMode = resolveProviderAuthMode(provider.name, provider.authMode);
     const canonicalKeyName = getProviderApiKeyEnvVar(provider.name);
@@ -157,78 +146,14 @@ export class ProviderAgent {
       let stderr = "";
       let stdoutTruncated = false;
       let stderrTruncated = false;
-      let pendingStdoutLine = "";
-      let stdoutProcessing = Promise.resolve();
       let settled = false;
 
-      const appendLimited = (current: string, chunkText: string): { next: string; truncated: boolean } => {
-        const nextRaw = current + chunkText;
+      const appendLimited = (current: string, chunk: Buffer): { next: string; truncated: boolean } => {
+        const nextRaw = current + chunk.toString("utf8");
         if (nextRaw.length <= MAX_CLI_CAPTURE_CHARS) {
           return { next: nextRaw, truncated: false };
         }
         return { next: nextRaw.slice(nextRaw.length - MAX_CLI_CAPTURE_CHARS), truncated: true };
-      };
-
-      const appendStdoutText = async (chunkText: string): Promise<void> => {
-        if (!chunkText) {
-          return;
-        }
-        const result = appendLimited(stdout, chunkText);
-        stdout = result.next;
-        stdoutTruncated = stdoutTruncated || result.truncated;
-        try {
-          await callbacks.onFinalTextChunk?.(chunkText);
-        } catch {
-          // Final-text chunk delivery is best-effort.
-        }
-      };
-
-      const emitProgress = async (event: AgentProgressEvent): Promise<void> => {
-        try {
-          await callbacks.onProgress?.(event);
-        } catch {
-          // Progress delivery is best-effort.
-        }
-      };
-
-      const processStdoutLine = async (lineText: string, rawText: string): Promise<void> => {
-        const progressEvent = parseAgentProgressLine(lineText);
-        if (progressEvent) {
-          await emitProgress(progressEvent);
-          return;
-        }
-        if (looksLikeProgressControlLine(lineText)) {
-          return;
-        }
-        await appendStdoutText(rawText);
-      };
-
-      const processStdoutChunk = async (chunkText: string): Promise<void> => {
-        pendingStdoutLine += chunkText;
-        while (true) {
-          const newlineIndex = pendingStdoutLine.indexOf("\n");
-          if (newlineIndex < 0) {
-            return;
-          }
-
-          const rawLine = pendingStdoutLine.slice(0, newlineIndex + 1);
-          pendingStdoutLine = pendingStdoutLine.slice(newlineIndex + 1);
-          const lineText = rawLine.endsWith("\r\n")
-            ? rawLine.slice(0, -2)
-            : rawLine.slice(0, -1);
-          await processStdoutLine(lineText, rawLine);
-        }
-      };
-
-      const flushPendingStdout = async (): Promise<void> => {
-        if (!pendingStdoutLine) {
-          return;
-        }
-
-        const rawLine = pendingStdoutLine;
-        pendingStdoutLine = "";
-        const lineText = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-        await processStdoutLine(lineText, rawLine);
       };
 
       const finish = (handler: () => void): void => {
@@ -246,13 +171,13 @@ export class ProviderAgent {
       }, Math.max(this.config.codexTimeoutMs, 1000));
 
       child.stdout.on("data", (chunk: Buffer) => {
-        stdoutProcessing = stdoutProcessing.then(() =>
-          processStdoutChunk(chunk.toString("utf8"))
-        );
+        const result = appendLimited(stdout, chunk);
+        stdout = result.next;
+        stdoutTruncated = stdoutTruncated || result.truncated;
       });
 
       child.stderr.on("data", (chunk: Buffer) => {
-        const result = appendLimited(stderr, chunk.toString("utf8"));
+        const result = appendLimited(stderr, chunk);
         stderr = result.next;
         stderrTruncated = stderrTruncated || result.truncated;
       });
@@ -262,26 +187,16 @@ export class ProviderAgent {
       });
 
       child.on("close", (code) => {
-        const finalizeClose = async (): Promise<void> => {
-          await stdoutProcessing;
-          await flushPendingStdout();
+        if (code === 0) {
+          const response = stdout.trim();
+          const suffix = stdoutTruncated ? " (truncated)" : "";
+          finish(() => resolve(response || `(empty response from ${providerLabel} CLI)${suffix}`));
+          return;
+        }
 
-          if (code === 0) {
-            const response = stdout.trim();
-            const suffix = stdoutTruncated ? " (truncated)" : "";
-            finish(() => resolve(response || `(empty response from ${providerLabel} CLI)${suffix}`));
-            return;
-          }
-
-          const fallback = `${providerLabel} CLI exited with code ${String(code)}`;
-          const message = `${stderr.trim() || fallback}${stderrTruncated ? " (stderr truncated)" : ""}`;
-          finish(() => reject(new Error(normalizeProviderCliError(provider, authMode, message))));
-        };
-
-        void finalizeClose().catch((error) => {
-          const detail = error instanceof Error ? error : new Error(String(error));
-          finish(() => reject(detail));
-        });
+        const fallback = `${providerLabel} CLI exited with code ${String(code)}`;
+        const message = `${stderr.trim() || fallback}${stderrTruncated ? " (stderr truncated)" : ""}`;
+        finish(() => reject(new Error(normalizeProviderCliError(provider, authMode, message))));
       });
 
       if (promptProvidedInArgs) {
@@ -337,25 +252,6 @@ export class ProviderAgent {
       "This is a simulated response from the OpenColab research agent.",
       `Question: ${text}`
     ].join("\n");
-  }
-}
-
-export function parseAgentProgressLine(line: string): AgentProgressEvent | null {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith(TELEGRAM_PROGRESS_PREFIX)) {
-    return null;
-  }
-
-  const payloadRaw = trimmed.slice(TELEGRAM_PROGRESS_PREFIX.length).trim();
-  if (!payloadRaw) {
-    return null;
-  }
-
-  try {
-    const payload = JSON.parse(payloadRaw) as Record<string, unknown>;
-    return normalizeAgentProgressEvent(payload);
-  } catch {
-    return null;
   }
 }
 
@@ -423,56 +319,4 @@ function replaceCliArgTokens(arg: string, replacements: Record<string, string>):
     next = next.replaceAll(token, value);
   }
   return next;
-}
-
-function looksLikeProgressControlLine(line: string): boolean {
-  return line.trim().startsWith(TELEGRAM_PROGRESS_PREFIX);
-}
-
-function normalizeAgentProgressEvent(source: Record<string, unknown>): AgentProgressEvent | null {
-  const phase = normalizeProgressPhase(source.phase);
-  const message = typeof source.message === "string" ? source.message.trim() : "";
-  if (!phase || !message) {
-    return null;
-  }
-
-  const items = Array.isArray(source.items)
-    ? source.items.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean)
-    : undefined;
-  const done = source.done === true;
-
-  return {
-    phase,
-    message,
-    ...(items && items.length > 0 ? { items } : {}),
-    ...(done ? { done } : {})
-  };
-}
-
-function normalizeProgressPhase(value: unknown): AgentProgressEvent["phase"] | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value.trim();
-  switch (normalized) {
-    case "planning":
-      return "planning";
-    case "searching":
-      return "searching";
-    case "downloading":
-      return "downloading";
-    case "reading":
-      return "reading";
-    case "summarizing":
-      return "summarizing";
-    case "drafting":
-      return "drafting";
-    case "done":
-      return "done";
-    case "info":
-      return "info";
-    default:
-      return null;
-  }
 }

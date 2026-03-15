@@ -107,8 +107,6 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("Working memory (active session, current UTC day):"), true);
     assert.equal(prompt.includes("USER: current-turn-1"), true);
     assert.equal(prompt.includes("ASSISTANT: current-reply-1"), true);
-    assert.equal(prompt.includes("This run may be delivered through Telegram."), true);
-    assert.equal(prompt.includes('@telegram-progress {"phase":"<planning|searching|downloading|reading|summarizing|drafting|done|info>"'), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

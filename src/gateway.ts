@@ -7,7 +7,6 @@ import path from "node:path";
 import { ensureAgentFiles } from "./agent.js";
 import type { OpenColabConfig } from "./config.js";
 import type { ProviderAgentInput } from "./provider-agent.js";
-import { TelegramProgressSession } from "./telegram-progress.js";
 import {
   createDefaultAgentConfig,
   createDefaultProjectState,
@@ -20,7 +19,6 @@ import type {
   ConversationMessage,
   GatewayResult,
   OpenColabState,
-  ProviderAgentStreamCallbacks,
   ProviderConfig,
   TelegramFileKind,
   TelegramFilePayload,
@@ -32,24 +30,6 @@ import { ensureDir, nowIso, randomDigits } from "./utils.js";
 
 export type TelegramSender = (
   chatId: string,
-  text: string,
-  state: OpenColabState,
-) => Promise<boolean>;
-
-export interface TelegramTextMessageResult {
-  ok: boolean;
-  messageId?: number;
-}
-
-export type TelegramProgressSender = (
-  chatId: string,
-  text: string,
-  state: OpenColabState,
-) => Promise<TelegramTextMessageResult>;
-
-export type TelegramEditSender = (
-  chatId: string,
-  messageId: number,
   text: string,
   state: OpenColabState,
 ) => Promise<boolean>;
@@ -70,20 +50,10 @@ interface GatewayDependencies {
   readConversationMemory: (chatId: string, limit: number) => AgentMemoryContext;
   appendConversation: (chatId: string, message: ConversationMessage) => void;
   resetConversationSession: () => string;
-  respond: (
-    input: ProviderAgentInput,
-    callbacks?: ProviderAgentStreamCallbacks,
-  ) => Promise<string>;
+  respond: (input: ProviderAgentInput) => Promise<string>;
   telegramSender?: TelegramSender;
-  telegramProgressSender?: TelegramProgressSender;
-  telegramEditSender?: TelegramEditSender;
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;
-}
-
-interface TelegramApiResponse<T> {
-  ok?: boolean;
-  result?: T;
 }
 
 const TELEGRAM_FILE_FETCH_TIMEOUT_MS = 10_000;
@@ -91,8 +61,6 @@ const MAX_TELEGRAM_ERROR_CHARS = 1_500;
 
 export class TelegramGateway {
   private readonly sender: TelegramSender;
-  private readonly progressSender: TelegramProgressSender;
-  private readonly editSender: TelegramEditSender;
   private readonly typingSender: TelegramTypingSender;
   private readonly fileSender: TelegramFileSender;
 
@@ -101,9 +69,6 @@ export class TelegramGateway {
     private readonly deps: GatewayDependencies,
   ) {
     this.sender = deps.telegramSender ?? defaultTelegramSender;
-    this.progressSender =
-      deps.telegramProgressSender ?? defaultTelegramProgressSender;
-    this.editSender = deps.telegramEditSender ?? defaultTelegramEditSender;
     this.typingSender =
       deps.telegramTypingSender ?? defaultTelegramTypingSender;
     this.fileSender = deps.telegramFileSender ?? defaultTelegramFileSender;
@@ -258,11 +223,6 @@ export class TelegramGateway {
 
     const memory = this.deps.readConversationMemory(inbound.chatId, 8);
     let stopTyping: (() => void) | null = null;
-    const progressSession = new TelegramProgressSession({
-      send: (text) => this.progressSender(inbound.chatId, text, state),
-      edit: (messageId, text) =>
-        this.editSender(inbound.chatId, messageId, text, state),
-    });
 
     try {
       stopTyping = this.startTypingFeedback(inbound.chatId, state);
@@ -278,10 +238,6 @@ export class TelegramGateway {
         text: inboundText,
         files: resolvedFiles,
         memory,
-      }, {
-        onProgress: async (event) => {
-          await progressSession.apply(event);
-        },
       });
 
       const outbound = parseOutboundAgentResponse(response);
@@ -289,8 +245,6 @@ export class TelegramGateway {
         outbound.text,
         outbound.files,
       );
-
-      await progressSession.complete();
 
       this.deps.appendConversation(inbound.chatId, {
         role: "user",
@@ -335,7 +289,6 @@ export class TelegramGateway {
         sent,
       };
     } catch (error) {
-      await progressSession.fail();
       const response = buildAgentFailureMessage(error);
       logAgentFailure(inbound.chatId, activeAgent.provider, error);
       const sent = await safeSendTelegramMessage(
@@ -667,26 +620,6 @@ export async function defaultTelegramSender(
   state: OpenColabState,
 ): Promise<boolean> {
   void state;
-  const result = await sendTelegramTextMessage(chatId, text);
-  return result.ok;
-}
-
-export async function defaultTelegramProgressSender(
-  chatId: string,
-  text: string,
-  state: OpenColabState,
-): Promise<TelegramTextMessageResult> {
-  void state;
-  return sendTelegramTextMessage(chatId, text);
-}
-
-export async function defaultTelegramEditSender(
-  chatId: string,
-  messageId: number,
-  text: string,
-  state: OpenColabState,
-): Promise<boolean> {
-  void state;
   const token = resolveTelegramBotToken();
   if (!token) {
     return false;
@@ -694,7 +627,7 @@ export async function defaultTelegramEditSender(
 
   try {
     const response = await fetch(
-      `https://api.telegram.org/bot${token}/editMessageText`,
+      `https://api.telegram.org/bot${token}/sendMessage`,
       {
         method: "POST",
         headers: {
@@ -702,18 +635,12 @@ export async function defaultTelegramEditSender(
         },
         body: JSON.stringify({
           chat_id: chatId,
-          message_id: messageId,
           text,
         }),
       },
     );
 
-    if (!response.ok) {
-      return false;
-    }
-
-    const body = (await response.json()) as TelegramApiResponse<Record<string, unknown>>;
-    return body.ok === true;
+    return response.ok;
   } catch {
     return false;
   }
@@ -747,45 +674,6 @@ export async function defaultTelegramTypingSender(
     return response.ok;
   } catch {
     return false;
-  }
-}
-
-async function sendTelegramTextMessage(
-  chatId: string,
-  text: string,
-): Promise<TelegramTextMessageResult> {
-  const token = resolveTelegramBotToken();
-  if (!token) {
-    return { ok: false };
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      return { ok: false };
-    }
-
-    const body = (await response.json()) as TelegramApiResponse<Record<string, unknown>>;
-    const messageId = asNumberValue(asRecord(body.result)?.message_id);
-    return {
-      ok: body.ok === true,
-      ...(messageId !== null ? { messageId } : {}),
-    };
-  } catch {
-    return { ok: false };
   }
 }
 

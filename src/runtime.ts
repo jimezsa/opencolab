@@ -20,9 +20,7 @@ import {
 import { getProviderSetupDefaults, resolveProviderAuthMode } from "./provider.js";
 import {
   TelegramGateway,
-  type TelegramEditSender,
   type TelegramFileSender,
-  type TelegramProgressSender,
   type TelegramSender,
   type TelegramTypingSender
 } from "./gateway.js";
@@ -32,7 +30,6 @@ import type {
   GatewayResult,
   OpenColabState,
   ProjectState,
-  ProviderAgentStreamCallbacks,
   ProviderAuthMode,
   ProviderName
 } from "./types.js";
@@ -40,14 +37,9 @@ import { ensureDir } from "./utils.js";
 
 export interface RuntimeOptions {
   telegramSender?: TelegramSender;
-  telegramProgressSender?: TelegramProgressSender;
-  telegramEditSender?: TelegramEditSender;
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;
-  agentResponder?: (
-    input: ProviderAgentInput,
-    callbacks?: ProviderAgentStreamCallbacks
-  ) => Promise<string>;
+  agentResponder?: (input: ProviderAgentInput) => Promise<string>;
 }
 
 export interface ModelSetupInput {
@@ -89,15 +81,13 @@ export class OpenColabRuntime {
       appendConversation: (chatId, message) =>
         this.conversations.append(this.resolveActiveAgentPath(), message),
       resetConversationSession: () => this.conversations.resetSession(this.resolveActiveAgentPath()),
-      respond: async (input, callbacks) => {
+      respond: async (input) => {
         if (this.options.agentResponder) {
-          return this.options.agentResponder(input, callbacks);
+          return this.options.agentResponder(input);
         }
-        return this.providerAgent.respondStreaming(input, callbacks);
+        return this.providerAgent.respond(input);
       },
       telegramSender: this.options.telegramSender,
-      telegramProgressSender: this.options.telegramProgressSender,
-      telegramEditSender: this.options.telegramEditSender,
       telegramTypingSender: this.options.telegramTypingSender,
       telegramFileSender: this.options.telegramFileSender
     });
