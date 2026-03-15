@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const DEFAULT_PROVIDER_CLI_TIMEOUT_MS = 1200000;
+const DEFAULT_PROVIDER_CLI_TIMEOUT_MS = 600000;
 
 export interface OpenColabConfig {
   rootDir: string;
