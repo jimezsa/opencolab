@@ -33,20 +33,13 @@ import type {
 } from "./types.js";
 import { ensureDir } from "./utils.js";
 
-const MAX_CLI_CAPTURE_CHARS = 200_000;
+const MAX_CLI_CAPTURE_CHARS = 600_000;
 const TELEGRAM_PROGRESS_PREFIX = "@telegram-progress";
 
 interface ProviderCliInput {
   prompt: string;
   systemPrompt: string;
   userMessage: string;
-}
-
-interface CodexExecJsonEvent {
-  type: string;
-  item?: Record<string, unknown>;
-  delta?: string;
-  message?: string;
 }
 
 export interface ProviderAgentInput {
@@ -169,10 +162,7 @@ export class ProviderAgent {
         arg.includes("{system_prompt}") ||
         arg.includes("{user_message}"),
     );
-    const codexJsonMode = usesCodexJsonEventStream(provider);
-    const cliArgs = codexJsonMode
-      ? addCodexJsonFlag(resolvedArgs)
-      : resolvedArgs;
+    const cliArgs = resolvedArgs;
     const providerLabel = provider.name.replaceAll("_", " ");
     return new Promise<string>((resolve, reject) => {
       const providerEnv = buildProviderRuntimeEnv(
@@ -240,34 +230,10 @@ export class ProviderAgent {
         }
       };
 
-      const replaceStdoutText = (nextText: string): void => {
-        const result = appendLimited("", nextText);
-        stdout = result.next;
-        stdoutTruncated = result.truncated;
-      };
-
       const processStdoutLine = async (
         lineText: string,
         rawText: string,
       ): Promise<void> => {
-        if (codexJsonMode) {
-          const codexEvent = parseCodexExecJsonEvent(lineText);
-          if (codexEvent) {
-            const progressEvent = deriveProgressEventFromCodexExecEvent(
-              codexEvent,
-            );
-            if (progressEvent) {
-              await emitProgress(progressEvent);
-            }
-
-            const agentMessageText = extractCodexAgentMessageText(codexEvent);
-            if (agentMessageText !== null) {
-              replaceStdoutText(stripProgressControlLines(agentMessageText));
-            }
-            return;
-          }
-        }
-
         const progressEvent = parseAgentProgressLine(lineText);
         if (progressEvent) {
           await emitProgress(progressEvent);
@@ -545,180 +511,8 @@ function replaceCliArgTokens(
   return next;
 }
 
-function usesCodexJsonEventStream(provider: ProviderConfig): boolean {
-  return provider.runtime === "codex" && provider.cliCommand === "codex";
-}
-
-function addCodexJsonFlag(args: string[]): string[] {
-  if (args.includes("--json")) {
-    return args;
-  }
-  if (args[0] === "exec") {
-    return [args[0], "--json", ...args.slice(1)];
-  }
-  return ["--json", ...args];
-}
-
 function looksLikeProgressControlLine(line: string): boolean {
   return line.trim().startsWith(TELEGRAM_PROGRESS_PREFIX);
-}
-
-export function parseCodexExecJsonEvent(
-  line: string,
-): CodexExecJsonEvent | null {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
-    return null;
-  }
-
-  try {
-    const payload = JSON.parse(trimmed) as Record<string, unknown>;
-    return typeof payload.type === "string"
-      ? {
-          type: payload.type,
-          ...(isRecord(payload.item) ? { item: payload.item } : {}),
-          ...(typeof payload.delta === "string" ? { delta: payload.delta } : {}),
-          ...(typeof payload.message === "string"
-            ? { message: payload.message }
-            : {}),
-        }
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-export function deriveProgressEventFromCodexExecEvent(
-  event: CodexExecJsonEvent,
-): AgentProgressEvent | null {
-  if (event.type === "turn.started") {
-    return {
-      phase: "planning",
-      message: "Planning approach",
-    };
-  }
-
-  if (event.type !== "item.started" || !event.item) {
-    return null;
-  }
-
-  const itemType = asString(event.item.type);
-  if (itemType === "command_execution") {
-    const command = asString(event.item.command);
-    return command ? progressEventFromCommand(command) : null;
-  }
-
-  if (itemType === "web_search_call") {
-    return {
-      phase: "searching",
-      message: "Searching sources",
-    };
-  }
-
-  return null;
-}
-
-function extractCodexAgentMessageText(event: CodexExecJsonEvent): string | null {
-  if (event.type !== "item.completed" || !event.item) {
-    return null;
-  }
-
-  const itemType = asString(event.item.type);
-  if (itemType !== "agent_message") {
-    return null;
-  }
-
-  return asString(event.item.text);
-}
-
-function progressEventFromCommand(command: string): AgentProgressEvent {
-  const normalized = command.trim();
-  const lower = normalized.toLowerCase();
-
-  if (lower.includes("papercli") && lower.includes("search")) {
-    return {
-      phase: "searching",
-      message: "Searching papers",
-    };
-  }
-
-  if (
-    lower.includes("wget ") ||
-    lower.includes("curl ") ||
-    lower.includes("download") ||
-    lower.includes("fetch")
-  ) {
-    return {
-      phase: "downloading",
-      message: "Downloading sources",
-    };
-  }
-
-  if (
-    lower.includes("rg ") ||
-    lower.includes("grep ") ||
-    lower.includes("find ") ||
-    lower.includes("fd ")
-  ) {
-    return {
-      phase: "reading",
-      message: "Scanning files and evidence",
-    };
-  }
-
-  if (
-    lower.includes("cat ") ||
-    lower.includes("sed ") ||
-    lower.includes("head ") ||
-    lower.includes("tail ") ||
-    lower.includes("less ") ||
-    lower.includes("ls ")
-  ) {
-    return {
-      phase: "reading",
-      message: "Inspecting files",
-    };
-  }
-
-  if (
-    lower.includes("pytest") ||
-    lower.includes("pnpm test") ||
-    lower.includes("go test") ||
-    lower.includes("npm test")
-  ) {
-    return {
-      phase: "info",
-      message: "Running tests",
-    };
-  }
-
-  return {
-    phase: "info",
-    message: `Running command: ${summarizeCommand(normalized)}`,
-  };
-}
-
-function summarizeCommand(command: string): string {
-  if (command.length <= 80) {
-    return command;
-  }
-  return `${command.slice(0, 77).trimEnd()}...`;
-}
-
-function stripProgressControlLines(text: string): string {
-  return text
-    .split(/\r?\n/)
-    .filter((line) => !looksLikeProgressControlLine(line))
-    .join("\n")
-    .trim();
-}
-
-function asString(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object";
 }
 
 function normalizeAgentProgressEvent(
