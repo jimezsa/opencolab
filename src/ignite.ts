@@ -55,6 +55,7 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
   ],
   minimax: ["MiniMax-M2.5"],
   xai: [
+    "grok-4.20-beta-0309-reasoning",
     "grok-4-fast-non-reasoning",
     "grok-4-fast-reasoning",
     "grok-4-1-fast-reasoning",
