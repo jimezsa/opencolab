@@ -129,99 +129,35 @@ done < research/meta/selected_ids.txt
 
 ### 4. Create agent-ready paper summaries
 
-Read each PDF directly first so figures, tables, and page structure remain available during analysis.
+Delegate this step to the `paper-summary` skill. It centralizes the summary schema, PDF-first evidence rules, and Gemini-based parallel execution.
 
-Direct-ingestion priorities:
+Run it after `research/pdf/*.pdf` and `research/meta/*.json` are ready:
 
-- Inspect the abstract, introduction, method section, architecture figures, key result tables, ablations, and limitations.
-- Treat figures, captions, and tables as first-class evidence during note creation.
-- If the PDF cannot be inspected locally for a paper, mark the summary explicitly as metadata-only evidence.
+```bash
+python3 SKILLS/paper-summary/scripts/gemini_parallel_summary.py \
+  --pdf-dir research/pdf \
+  --metadata-dir research/meta \
+  --summarized-ids research/meta/summarized_ids.txt \
+  --failures-tsv research/meta/failures.tsv \
+  --concurrency 4
+```
 
-For each paper, create `research/pdf/<safe_id>.md`, next to `research/pdf/<safe_id>.pdf`, using this exact schema:
+Retry one paper with:
 
-```markdown
-# Paper Extraction Schema: <Paper Title>
-
-Rules:
-- Keep the section order unchanged for deterministic parsing.
-- Ingest the PDF directly first so figures, tables, captions, and layout remain available.
-- Anchor each section to observable PDF evidence such as figures, captions, equations, tables, and appendix material.
-- Record exact figure, table, equation, algorithm, and page anchors whenever available. If you cannot locate one, write `Anchor not located in available evidence.`.
-- Use metadata only as fallback and label it clearly.
-- Do not invent equations, datasets, metrics, links, or foundation papers.
-- If evidence is missing, write `Not clearly stated in available evidence.`.
-- If a statement is an inference rather than an explicit claim, label it `Inference from available evidence: ...`.
-
-## 1. The Why (Motivation & Core Problem)
-- The Problem: What specific limitation in existing research or technology is this paper trying to solve? Keep this to 1-2 sentences.
-- The Core Idea: What is the authors' main hypothesis or novel approach to solving this problem?
-- Evidence Anchors: Exact page, figure, table, or equation anchors supporting the problem framing.
-
-## 2. Main Architecture (Mathematical Formalization)
-Agent instruction: Extract the core methodology and represent it strictly as a sequence of mathematical operations, data flows, and loss functions. Use standard LaTeX notation.
-The main architecture can often be extracted directly from the architecture image or pipeline diagram in the paper.
-If the method is explained primarily through a figure or diagram, use the PDF figure as evidence and translate it into equations and ordered data flow.
-If the paper has no learnable architecture (for example a survey, benchmark, theorem, dataset, or systems paper), replace this section with `Algorithm / theorem / protocol flow` and formalize the central steps instead.
-Use `Loss / Optimization: Not applicable.` when no training objective exists.
-
-Input:
-\[
-X = \text{...}
-\]
-
-Forward Pass:
-\[
-H_1 = f_{\text{module\_1}}(X)
-\]
-\[
-H_2 = f_{\text{module\_2}}(H_1)
-\]
-\[
-\hat{Y} = f_{\text{head}}(H_2)
-\]
-
-Loss / Optimization:
-\[
-\mathcal{L}_{\text{total}} = \lambda_1 \mathcal{L}_{\text{task}} + \lambda_2 \mathcal{L}_{\text{reg}}
-\]
-
-Evidence Anchors: Exact figure, equation, algorithm, and page anchors used for this formalization.
-
-## 3. The Why of the Architecture (Component Rationale)
-Agent instruction: For every variable and function defined in Section 2, explain exactly why it was chosen or designed that way.
-If Section 2 is non-architectural, explain why each algorithmic step, theorem component, protocol stage, or evaluation stage exists instead of model modules.
-
-- $X$: Why is the input represented this way?
-- $f_{\text{module\_1}}$: Why use this specific module?
-- $f_{\text{module\_2}}$: Why is this step necessary?
-- $f_{\text{head}}$: Why this prediction head?
-- $\mathcal{L}_{\text{task}}$: Why this task objective?
-- $\mathcal{L}_{\text{reg}}$: Why use this specific regularizer?
-- Evidence Anchors: Exact page, figure, or appendix anchors supporting the rationale.
-
-## 4. Metrics & Evaluation
-- Datasets Used: List the primary benchmarks.
-- Key Metrics: How is success quantified?
-- The Result: One sentence summarizing the paper's main performance claim.
-- Visual Evidence: Note the key figure, table, or ablation that best supports the reported result when one is clearly present.
-- Evidence Anchors: Exact table, figure, ablation, and page anchors supporting the reported results.
-
-## 5. Relevant Links & Knowledge Anchors
-- Project Page / GitHub: Link if available in the paper or metadata.
-- Core Foundation Paper: The 1 or 2 most relied-upon prior papers, if the dependency is clear from the text.
-- Evidence Anchors: Exact reference numbers, appendix pages, or metadata fields used to identify these links and foundation papers.
+```bash
+python3 SKILLS/paper-summary/scripts/gemini_parallel_summary.py \
+  --pdf research/pdf/<safe_id>.pdf \
+  --metadata-dir research/meta \
+  --summarized-ids research/meta/summarized_ids.txt \
+  --failures-tsv research/meta/failures.tsv
 ```
 
 Summary requirements:
-- Keep the section order unchanged.
-- Express the main method as LaTeX equations plus data flow and loss terms.
-- If no learnable architecture exists, switch Section 2 to `Algorithm / theorem / protocol flow` and write `Loss / Optimization: Not applicable.` instead of inventing modules.
-- Explain why each Section 2 variable, module, and loss term exists.
-- Preserve figure/table evidence when it carries the method or quantitative result.
-- Record exact evidence anchors in each section.
-- Label missing evidence explicitly instead of guessing.
-
-After finishing each summary, append the original paper ID to `research/meta/summarized_ids.txt`.
+- Use the canonical schema in `SKILLS/paper-summary/references/summary_schema.md`.
+- Write each summary to `research/pdf/<safe_id>.md`.
+- Treat figures, captions, tables, equations, and layout cues as first-class evidence.
+- Mark metadata-only evidence explicitly when the PDF is unreadable.
+- Record failures in `research/meta/failures.tsv` so the synthesis step can reconcile counts.
 
 ### 5. Synthesize with explicit comparisons
 
