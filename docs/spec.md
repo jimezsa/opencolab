@@ -348,6 +348,7 @@ Notes:
 - when Telegram file download succeeds, attachments should be materialized under the active project (for example under `memory/TelegramInbox/`) with collision-safe local filenames and the agent input should include the local file path
 - when Telegram file download fails or times out, routing should continue with caption text plus attachment metadata instead of dropping or indefinitely blocking the message
 - while generating, gateway sends Telegram `typing` feedback
+- for long-running routed tasks, the gateway must support incremental progress updates before the final answer is ready
 - responses are sent to the same chat
 - when provider/runtime execution fails for a routed message, gateway replies in Telegram with a short failure notice instead of failing silently
 - provider auth/runtime remediation guidance (for example missing Gemini OAuth login or missing API key) must be forwarded to the Telegram user when available
@@ -356,7 +357,136 @@ Notes:
   - example: `@telegram-file {"kind":"document","file":"<file_id_or_url>","caption":"optional"}`
 - `setup telegram` should register Telegram bot commands via `setMyCommands` so slash-menu suggestions are available
 
-## 12. Acceptance Criteria
+## 12. Incremental Task Updates
+
+OpenColab must support multi-message Telegram UX for long-running work such as literature search, large codebase analysis, long test runs, multi-step file processing, bulk downloads, or any task where meaningful intermediate milestones exist.
+
+Goals:
+
+- reduce the "silent bot" effect during long runs
+- let the user see concrete stage changes before completion
+- keep updates useful and bounded, especially in group chats
+- preserve a high-quality final answer instead of replacing it with fragmented chatter
+
+Progress updates are a first-class runtime capability, not a prompt-only convention.
+
+### 12.1 Progress Event Contract
+
+Provider runtimes and agent-facing wrappers must be able to emit structured progress events while the task is still running.
+
+Minimum event shape:
+
+```json
+{
+  "kind": "started | milestone | progress | warning | needs_input | completed",
+  "message": "<short user-facing text>",
+  "stage": "<machine-readable stage id>",
+  "current": 8,
+  "total": 20,
+  "slot": "search",
+  "ephemeral": true
+}
+```
+
+Requirements:
+
+- `kind` is required
+- `message` is required and must be concise, concrete, and user-facing
+- `stage` is recommended for routing and de-duplication
+- `current` and `total` are optional and should be used for countable work
+- `slot` is optional and allows the gateway to update or replace an earlier progress message for the same workstream
+- `ephemeral` defaults to `true`; operational progress updates must not be treated as normal assistant conversation turns
+
+Notes:
+
+- progress events are transport-level metadata and must be stripped from the final assistant prose shown as the completed answer
+- progress events must not be appended to the agent's normal session conversation log as if they were substantive assistant replies
+- if run telemetry is persisted later, it should live in a separate operational log, not in the conversational memory stream
+
+### 12.2 Gateway Behavior
+
+For routed tasks with meaningful duration, the gateway should expose progress in this order:
+
+1. immediate acknowledgment
+2. milestone updates during execution
+3. final consolidated answer
+
+Requirements:
+
+- if a task is expected to take more than a few seconds, the user should receive an acknowledgment quickly instead of waiting only on `typing`
+- the gateway may send a new Telegram message or edit a previous progress message when successive events share the same `slot`
+- the gateway should throttle repetitive progress so users see stage changes, not a token-by-token transcript
+- group chats must use a stricter throttle than one-to-one chats
+- `warning` and `needs_input` events may bypass normal throttling when they materially affect the run
+- the final completion message must remain a distinct final response
+- if no progress events are emitted, current `typing` behavior remains the fallback
+
+Recommended UX policy:
+
+- send first acknowledgment within 1-2 seconds for long tasks
+- send milestone updates only on meaningful stage changes or significant count deltas
+- prefer editing one progress message for dense counters
+- prefer new messages for major phase changes, warnings, and completion
+- avoid more than a small handful of progress messages per run in group chats
+
+### 12.3 Skill and Agent Authoring Rules
+
+Built-in skills and default agent guidance must explicitly support bounded intermediate updates for long tasks.
+
+Requirements:
+
+- agents should not stay silent for the full duration of a long multi-step task when concrete milestones are known
+- agents should avoid low-signal "thinking aloud" updates
+- updates must report real work completed, real blockers, or the transition into a new major phase
+- final answers should remain synthesized and complete, not a loose concatenation of earlier progress notes
+- default agent guidance must stop treating "one thoughtful response" as a blanket rule for long-running operational tasks
+
+Recommended rule of thumb:
+
+- send progress for stage changes, corpus-size changes, downloads, summarization waves, synthesis start, long test phases, bulk edits, or blocking failures
+- do not send progress for every minor shell command or every internal reasoning step
+
+### 12.4 Search Skill UX Requirements
+
+The shared `fast-search`, `pro-search`, and `deep-search` skills must emit milestone-style progress updates tied to their actual workflow stages.
+
+For paper-search workflows, expected update categories include:
+
+- retrieval started
+- candidate corpus size known
+- deep-read or selected-paper set chosen
+- PDF download progress
+- paper summarization progress
+- synthesis/report-writing started
+- final report delivered
+
+Examples of acceptable progress text:
+
+- "Searching for candidate papers across 4 query waves."
+- "Found 47 candidate papers. Selecting 14 for deep read."
+- "Downloaded 12 of 14 PDFs. Two failed and will be noted."
+- "Summarized 8 of 12 papers. Starting cross-paper synthesis."
+
+The same pattern should extend to other important long-running tasks, including:
+
+- repository exploration
+- dependency installation
+- long test or benchmark runs
+- dataset preparation
+- batch file conversion
+- report generation
+
+### 12.5 Failure and Recovery UX
+
+Progress support must improve failure handling as well as success handling.
+
+Requirements:
+
+- if a long task fails after partial work, the user should receive a short failure message that includes the last meaningful completed stage when available
+- warnings that reduce coverage or confidence should be surfaced before the final answer when they materially change the result
+- if the runtime needs human intervention, the user should receive a `needs_input` style message instead of waiting for timeout or generic failure
+
+## 13. Acceptance Criteria
 
 v1 is complete when all are true:
 
@@ -368,3 +498,6 @@ v1 is complete when all are true:
 - The default `professor` agent is created under `projects/<project_id>/AGENTS/professor/`.
 - Additional agents are created under `projects/<project_id>/AGENTS/<agent_id>/`.
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
+- Long-running routed tasks can emit bounded intermediate Telegram updates before the final answer.
+- Progress updates are treated as operational events rather than normal assistant conversation turns.
+- Shared search skills emit milestone updates for retrieval, selection, download, summarization, and synthesis phases.
