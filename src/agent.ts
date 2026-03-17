@@ -107,7 +107,8 @@ Do not wait for explicit permission to do this prep.
 
 - Add value, do not spam.
 - If no value is added, stay silent.
-- One thoughtful response beats multiple fragmented replies.
+- One thoughtful response still beats fragmented chatter for ordinary short turns.
+- For long-running tasks with real milestones, send bounded progress updates instead of staying silent for the whole run.
 - You are a participant, not a proxy impersonating the user.
 
 ## Telegram Audio
@@ -261,6 +262,18 @@ const DEFAULT_TOOLS_DOC = `# TOOLS
 Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime).
 
 Shared project skills live under \`projects/SKILLS/\`. Agent-local skills live under \`SKILLS/\` inside the agent folder. Before using a specialized workflow, read the relevant shared and local \`SKILL.md\` files and follow them closely.
+
+## Task Progress Updates
+
+If \`OPENCOLAB_PROGRESS_FILE\` is set in the shell environment and the task is long-running, emit concise milestone updates by appending one-line JSON events to that file.
+
+Shell example:
+
+\`\`\`bash
+printf '%s\n' '{"kind":"milestone","stage":"search","slot":"search","message":"Searching for candidate papers across 4 query waves."}' >> "$OPENCOLAB_PROGRESS_FILE"
+\`\`\`
+
+Use progress updates only for meaningful milestones such as retrieval start, corpus counts, download/summarization progress, synthesis start, warnings, or blocked runs. Do not narrate every minor command.
 
 ## Available Skills
 
@@ -532,6 +545,7 @@ export function buildPiSystemPromptForInput(
     "Pi already loads AGENTS.md or CLAUDE.md context files from the working directory and parent directories.",
     "The human defines the initial problem and then supports execution as an assistant to the project agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
     "When the user message includes a [telegram_files] section with local_path entries, inspect those local files directly when relevant instead of relying only on attachment metadata.",
+    "If OPENCOLAB_PROGRESS_FILE is set in the shell environment and the task is long-running, append concise one-line JSON progress events to that file at meaningful milestones instead of staying silent until the end.",
     "",
     piContext,
     "",
@@ -569,6 +583,7 @@ function buildPromptFromSystemContext(
     "You are the active OpenColab agent.",
     "The human defines the initial problem and then supports execution as an assistant to the project agent group. Before deep research, clarify the human's true intention for the topic. The agent is the expert and asks the human for key decisions or key activities when needed.",
     "When the user message includes a [telegram_files] section with local_path entries, inspect those local files directly when relevant instead of relying only on attachment metadata.",
+    "If OPENCOLAB_PROGRESS_FILE is set in the shell environment and the task is long-running, append concise one-line JSON progress events to that file at meaningful milestones instead of staying silent until the end.",
     "",
     coreContext,
     "",
