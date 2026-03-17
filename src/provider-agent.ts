@@ -3,6 +3,8 @@
  * Builds prompts, invokes provider CLIs, and normalizes command output/errors.
  */
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import type { OpenColabConfig } from "./config.js";
 import {
   buildAgentPromptForInput,
@@ -23,11 +25,14 @@ import type {
   OpenColabState,
   ProviderAuthMode,
   ProviderConfig,
+  TaskProgressEvent,
   TelegramFilePayload
 } from "./types.js";
 import { ensureDir } from "./utils.js";
 
 const MAX_CLI_CAPTURE_CHARS = 200_000;
+const PROGRESS_ENV_VAR = "OPENCOLAB_PROGRESS_FILE";
+const PROGRESS_POLL_INTERVAL_MS = 400;
 
 interface ProviderCliInput {
   prompt: string;
@@ -43,13 +48,20 @@ export interface ProviderAgentInput {
   memory: AgentMemoryContext;
 }
 
+export interface ProviderRespondOptions {
+  onProgress?: (event: TaskProgressEvent) => void | Promise<void>;
+}
+
 export class ProviderAgent {
   constructor(
     private readonly config: OpenColabConfig,
     private readonly getState: () => OpenColabState
   ) {}
 
-  async respond(input: ProviderAgentInput): Promise<string> {
+  async respond(
+    input: ProviderAgentInput,
+    options: ProviderRespondOptions = {},
+  ): Promise<string> {
     const startedAt = Date.now();
     const state = this.getState();
     const project = getActiveProject(state);
@@ -65,7 +77,13 @@ export class ProviderAgent {
     }
 
     const cliStartedAt = Date.now();
-    const output = await this.runProviderCli(cliInput, provider, project.path, agent.path);
+    const output = await this.runProviderCli(
+      cliInput,
+      provider,
+      project.path,
+      agent.path,
+      options,
+    );
     const cliMs = Date.now() - cliStartedAt;
     this.logPerf(promptMs, cliMs, Date.now() - startedAt, provider.name, provider.model);
     return output;
@@ -75,7 +93,8 @@ export class ProviderAgent {
     input: ProviderCliInput,
     provider: ProviderConfig,
     projectPath: string,
-    agentPath: string
+    agentPath: string,
+    options: ProviderRespondOptions
   ): Promise<string> {
     const authMode = resolveProviderAuthMode(provider.name, provider.authMode);
     const canonicalKeyName = getProviderApiKeyEnvVar(provider.name);
@@ -120,6 +139,8 @@ export class ProviderAgent {
     );
     const cliArgs = resolvedArgs;
     const providerLabel = provider.name.replaceAll("_", " ");
+    const progressFilePath = buildProgressFilePath(cwd);
+    const progressRelay = startProgressRelay(progressFilePath, options.onProgress);
     return new Promise<string>((resolve, reject) => {
       const providerEnv = buildProviderRuntimeEnv(
         process.env,
@@ -137,7 +158,8 @@ export class ProviderAgent {
         cwd,
         env: {
           ...providerEnv,
-          OPENCOLAB_MODEL: provider.model
+          OPENCOLAB_MODEL: provider.model,
+          [PROGRESS_ENV_VAR]: progressFilePath
         },
         stdio: ["pipe", "pipe", "pipe"]
       });
@@ -162,7 +184,7 @@ export class ProviderAgent {
         }
         settled = true;
         clearTimeout(timeoutHandle);
-        handler();
+        void finalizeProgressRelay(progressRelay, progressFilePath).finally(handler);
       };
 
       const timeoutHandle = setTimeout(() => {
@@ -253,6 +275,205 @@ export class ProviderAgent {
       `Question: ${text}`
     ].join("\n");
   }
+}
+
+function buildProgressFilePath(agentDir: string): string {
+  const progressDir = path.join(agentDir, ".opencolab-progress");
+  ensureDir(progressDir);
+  return path.join(
+    progressDir,
+    `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 10)}.jsonl`
+  );
+}
+
+function startProgressRelay(
+  filePath: string,
+  onProgress?: (event: TaskProgressEvent) => void | Promise<void>
+): {
+  flush: () => Promise<void>;
+  stop: () => void;
+} {
+  fs.writeFileSync(filePath, "", "utf8");
+
+  if (!onProgress) {
+    return {
+      flush: async () => undefined,
+      stop: () => undefined
+    };
+  }
+
+  let offset = 0;
+  let buffer = "";
+  let timer: NodeJS.Timeout | null = null;
+  let reading: Promise<void> | null = null;
+  let stopped = false;
+
+  const emitLine = async (line: string): Promise<void> => {
+    const event = parseTaskProgressEvent(line);
+    if (!event) {
+      return;
+    }
+    await onProgress(event);
+  };
+
+  const consume = async (): Promise<void> => {
+    if (stopped || reading) {
+      return reading ?? undefined;
+    }
+
+    reading = (async () => {
+      let content = "";
+      try {
+        content = fs.readFileSync(filePath, "utf8");
+      } catch (error) {
+        const code = getErrorCode(error);
+        if (code === "ENOENT") {
+          return;
+        }
+        throw error;
+      }
+
+      if (content.length < offset) {
+        offset = 0;
+        buffer = "";
+      }
+
+      const chunk = content.slice(offset);
+      offset = content.length;
+      if (!chunk) {
+        return;
+      }
+
+      buffer += chunk;
+      let newlineIndex = buffer.indexOf("\n");
+      while (newlineIndex >= 0) {
+        const line = buffer.slice(0, newlineIndex).trim();
+        buffer = buffer.slice(newlineIndex + 1);
+        if (line) {
+          await emitLine(line);
+        }
+        newlineIndex = buffer.indexOf("\n");
+      }
+    })().finally(() => {
+      reading = null;
+    });
+
+    return reading;
+  };
+
+  timer = setInterval(() => {
+    void consume();
+  }, PROGRESS_POLL_INTERVAL_MS);
+
+  return {
+    flush: async () => {
+      await consume();
+      const finalLine = buffer.trim();
+      buffer = "";
+      if (finalLine) {
+        await emitLine(finalLine);
+      }
+    },
+    stop: () => {
+      stopped = true;
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+  };
+}
+
+async function finalizeProgressRelay(
+  relay: { flush: () => Promise<void>; stop: () => void },
+  filePath: string
+): Promise<void> {
+  try {
+    await relay.flush();
+  } catch {
+    // Progress forwarding is best-effort.
+  } finally {
+    relay.stop();
+    try {
+      fs.unlinkSync(filePath);
+    } catch (error) {
+      const code = getErrorCode(error);
+      if (code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+}
+
+function parseTaskProgressEvent(raw: string): TaskProgressEvent | null {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return normalizeTaskProgressEvent(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeTaskProgressEvent(source: Record<string, unknown>): TaskProgressEvent | null {
+  const kind = asProgressKind(source.kind);
+  const message = asProgressString(source.message);
+  if (!kind || !message) {
+    return null;
+  }
+
+  const current = asOptionalProgressNumber(source.current);
+  const total = asOptionalProgressNumber(source.total);
+  const stage = asProgressString(source.stage);
+  const slot = asProgressString(source.slot);
+  return {
+    kind,
+    message,
+    ...(stage ? { stage } : {}),
+    ...(current !== null ? { current } : {}),
+    ...(total !== null ? { total } : {}),
+    ...(slot ? { slot } : {}),
+    ...(typeof source.ephemeral === "boolean" ? { ephemeral: source.ephemeral } : {})
+  };
+}
+
+function asProgressKind(value: unknown): TaskProgressEvent["kind"] | null {
+  const normalized = asProgressString(value);
+  if (
+    normalized !== "started" &&
+    normalized !== "milestone" &&
+    normalized !== "progress" &&
+    normalized !== "warning" &&
+    normalized !== "needs_input" &&
+    normalized !== "completed"
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
+function asProgressString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function asOptionalProgressNumber(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return value;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
 }
 
 function normalizeProviderCliError(
