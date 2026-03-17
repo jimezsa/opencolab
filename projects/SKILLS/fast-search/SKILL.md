@@ -76,6 +76,22 @@ If inputs are missing, infer a minimal scope and proceed.
 - Every factual claim must be grounded by references.
 - Include key math when present in papers.
 - Final output must be a markdown file named `findings.md`.
+- If `OPENCOLAB_PROGRESS_FILE` is set, emit bounded milestone updates for long-running stages instead of staying silent until the end.
+
+## OpenColab Progress Helper
+
+When running inside OpenColab and `OPENCOLAB_PROGRESS_FILE` is available, use this helper:
+
+```bash
+emit_progress() {
+  if [ -z "${OPENCOLAB_PROGRESS_FILE:-}" ]; then
+    return 0
+  fi
+  printf '%s\n' "$1" >> "$OPENCOLAB_PROGRESS_FILE"
+}
+```
+
+Use it only for meaningful milestones such as retrieval start, candidate-count discovery, deep-read selection, download progress, summarization progress, synthesis start, warnings, or blocked runs.
 
 ## Workflow
 
@@ -95,6 +111,12 @@ papercli config init
 ```
 
 ### 2. Run fast retrieval pass
+
+Before starting retrieval, emit a start update:
+
+```bash
+emit_progress '{"kind":"started","stage":"retrieval","slot":"search","message":"Searching for candidate papers across 2 query waves."}'
+```
 
 Use one tight query and one alternate phrasing:
 
@@ -116,6 +138,8 @@ papercli search "<alternate query>" \
 ```
 
 ### 3. Select and enrich 3-6 papers
+
+After writing `research/meta/selected_ids.txt`, emit a milestone update with the selected-paper count.
 
 Prioritize relevance, recency, and diversity of approach.
 
@@ -142,7 +166,11 @@ while read -r id; do
 done < research/meta/selected_ids.txt
 ```
 
+After downloads finish, emit a milestone update summarizing how many PDFs were downloaded successfully and whether any failures were recorded.
+
 ### 4. Create agent-ready paper summaries
+
+Before starting the batch summarizer, emit a milestone update noting that paper summarization has started. If the run is long, emit at least one additional progress update with summarized-paper counts before the batch completes.
 
 Delegate this step to the `paper-summary` skill. It owns the canonical summary schema, the Gemini-based batch runner, and the per-paper output contract.
 
@@ -176,6 +204,8 @@ Summary requirements:
 - Record summary failures in `research/meta/failures.tsv` and continue processing the rest of the corpus.
 
 ### 5. Produce `findings.md`
+
+Before writing the final synthesis, emit a milestone update such as "Summaries complete. Writing the final findings report now."
 
 Target quality: fast but technically useful.
 
