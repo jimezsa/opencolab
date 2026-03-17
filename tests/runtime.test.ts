@@ -174,6 +174,14 @@ test("init seeds TOOLS.md with available search skill summaries", () => {
       toolsDoc.includes("Agent-local skills live under `SKILLS/` inside the agent folder."),
       true
     );
+    assert.equal(
+      toolsDoc.includes("If `OPENCOLAB_PROGRESS_FILE` is set in the shell environment and the task is long-running"),
+      true
+    );
+    assert.equal(
+      toolsDoc.includes("appending one-line JSON events to that file"),
+      true
+    );
     assert.equal(toolsDoc.includes("`fast-search`"), true);
     assert.equal(toolsDoc.includes("Fast scientific paper scouting with `papercli`."), true);
     assert.equal(
@@ -519,6 +527,150 @@ test("paired webhook routes message to the active agent and stores conversation"
     const lines = fs.readFileSync(historyPath, "utf8").trim().split(/\r?\n/);
     assert.equal(lines.length, 2);
   } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("paired webhook sends progress updates before the final answer without polluting conversation memory", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-progress-"));
+  const sentTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }, options) => {
+      await options?.onProgress?.({
+        kind: "started",
+        stage: "retrieval",
+        slot: "search",
+        message: "Searching for candidate papers across 2 query waves."
+      });
+      await options?.onProgress?.({
+        kind: "milestone",
+        stage: "selection",
+        slot: "search_selection",
+        message: "Found 20 candidate papers. Selecting 6 for deep read."
+      });
+      await options?.onProgress?.({
+        kind: "completed",
+        stage: "synthesis",
+        slot: "search_synthesis",
+        message: "Summaries complete. Writing the final findings now."
+      });
+      return `research:${text}`;
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "Find recent breakthroughs in SAE methods",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.deepEqual(sentTexts, [
+      "Searching for candidate papers across 2 query waves.",
+      "Found 20 candidate papers. Selecting 6 for deep read.",
+      "Summaries complete. Writing the final findings now.",
+      "research:Find recent breakthroughs in SAE methods"
+    ]);
+
+    const sessionsDir = path.join(buildAgentDir(tempDir, "default"), "memory", "Session");
+    const sessionDirs = fs
+      .readdirSync(sessionsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    const historyPath = path.join(
+      sessionsDir,
+      sessionDirs[0],
+      `${new Date().toISOString().slice(0, 10)}.jsonl`
+    );
+    const lines = fs.readFileSync(historyPath, "utf8").trim().split(/\r?\n/);
+    assert.equal(lines.length, 2);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("provider CLI progress file events are forwarded to Telegram before the final response", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-progress-file-"));
+  const sentTexts: string[] = [];
+  const originalAnthropicKey = process.env.ANTHROPIC_API_KEY;
+
+  process.env.ANTHROPIC_API_KEY = "test-anthropic-key";
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "anthropic",
+      model: "claude-sonnet-4-5",
+      cliCommand: "node",
+      cliArgs: [
+        "-e",
+        [
+          "const fs = require('fs');",
+          "const file = process.env.OPENCOLAB_PROGRESS_FILE;",
+          "fs.appendFileSync(file, JSON.stringify({ kind: 'started', stage: 'retrieval', slot: 'search', message: 'Searching for candidate papers across 2 query waves.' }) + '\\n');",
+          "setTimeout(() => {",
+          "  fs.appendFileSync(file, JSON.stringify({ kind: 'milestone', stage: 'selection', slot: 'search_selection', message: 'Selected 4 papers for deep read.' }) + '\\n');",
+          "}, 200);",
+          "setTimeout(() => {",
+          "  console.log('paper search complete');",
+          "}, 700);"
+        ].join(" ")
+      ]
+    });
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "scan the literature",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.deepEqual(sentTexts, [
+      "Searching for candidate papers across 2 query waves.",
+      "Selected 4 papers for deep read.",
+      "paper search complete"
+    ]);
+  } finally {
+    if (originalAnthropicKey === undefined) {
+      delete process.env.ANTHROPIC_API_KEY;
+    } else {
+      process.env.ANTHROPIC_API_KEY = originalAnthropicKey;
+    }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
