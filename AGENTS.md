@@ -24,7 +24,7 @@ Core implementation areas:
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd` and Linux `systemd`.
 - `src/telegram-poller.ts`: Telegram long-polling loop and update ingestion.
 - `src/provider.ts`: provider defaults, runtime selection, auth-mode support, CLI args, and env wiring.
-- `src/provider-agent.ts`: provider-backed execution and runtime preflight/error handling.
+- `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling, and provider-to-gateway progress-event forwarding.
 - `src/agent.ts`: agent file seeding, shared/agent-local skill discovery, and prompt assembly.
 - `src/conversation.ts`: per-agent session logs, previous-day summaries, and prompt-memory loading.
 - `src/project-config.ts`: `opencolab.json` defaults, normalization, migration, and project/agent path helpers.
@@ -80,6 +80,7 @@ Useful repository checks:
   - provider defaults, auth modes, CLI args, runtime env wiring, and preflight/remediation behavior
   - `ignite` onboarding branches, including keep-existing setup and Esc-to-skip flows
   - Telegram authorization, pairing flow, slash-command aliases, routing, and file/media handling
+  - long-running task progress updates from provider runtime to Telegram without polluting conversation memory
   - conversation memory persistence in `memory/Session/` and `memory/Daily/`
   - background gateway service rendering/status logic where it is pure and testable
 - Run `pnpm run check && pnpm run build && pnpm test` before pushing.
