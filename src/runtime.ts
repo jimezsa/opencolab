@@ -5,7 +5,11 @@
 import { ensureAgentFiles } from "./agent.js";
 import { loadConfig, type OpenColabConfig } from "./config.js";
 import { ConversationStore } from "./conversation.js";
-import { ProviderAgent, type ProviderAgentInput } from "./provider-agent.js";
+import {
+  ProviderAgent,
+  type ProviderAgentInput,
+  type ProviderRespondOptions
+} from "./provider-agent.js";
 import {
   buildAgentPath,
   createDefaultAgentConfig,
@@ -39,7 +43,10 @@ export interface RuntimeOptions {
   telegramSender?: TelegramSender;
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;
-  agentResponder?: (input: ProviderAgentInput) => Promise<string>;
+  agentResponder?: (
+    input: ProviderAgentInput,
+    options?: ProviderRespondOptions
+  ) => Promise<string>;
 }
 
 export interface ModelSetupInput {
@@ -81,11 +88,11 @@ export class OpenColabRuntime {
       appendConversation: (chatId, message) =>
         this.conversations.append(this.resolveActiveAgentPath(), message),
       resetConversationSession: () => this.conversations.resetSession(this.resolveActiveAgentPath()),
-      respond: async (input) => {
+      respond: async (input, respondOptions) => {
         if (this.options.agentResponder) {
-          return this.options.agentResponder(input);
+          return this.options.agentResponder(input, respondOptions);
         }
-        return this.providerAgent.respond(input);
+        return this.providerAgent.respond(input, respondOptions);
       },
       telegramSender: this.options.telegramSender,
       telegramTypingSender: this.options.telegramTypingSender,
