@@ -69,6 +69,22 @@ Deliver an institutional-grade `findings.md` by:
 - Never present uncited factual claims.
 - Surface conflicts and uncertainty explicitly.
 - Final output must be a detailed markdown file named `findings.md`.
+- If `OPENCOLAB_PROGRESS_FILE` is set, emit bounded milestone updates for long-running stages instead of remaining silent until the end.
+
+## OpenColab Progress Helper
+
+When running inside OpenColab and `OPENCOLAB_PROGRESS_FILE` is available, use this helper:
+
+```bash
+emit_progress() {
+  if [ -z "${OPENCOLAB_PROGRESS_FILE:-}" ]; then
+    return 0
+  fi
+  printf '%s\n' "$1" >> "$OPENCOLAB_PROGRESS_FILE"
+}
+```
+
+Use it only for substantial milestones: retrieval-wave start, candidate-corpus counts, deep-read selection, download progress, summarization progress, synthesis start, warnings, or blocked runs.
 
 ## Recommended Corpus Size
 
@@ -88,6 +104,12 @@ Define:
 - Time split (foundational vs. recent papers).
 
 ### 2. Multi-wave retrieval with papercli
+
+Before starting retrieval, emit a start update such as:
+
+```bash
+emit_progress '{"kind":"started","stage":"retrieval","slot":"search","message":"Searching for candidate papers across 4 retrieval waves."}'
+```
 
 Create workspace:
 
@@ -119,6 +141,8 @@ papercli author "<influential author>" --provider all --sort relevance --limit 2
 papercli author "<contrasting author>" --provider all --sort relevance --limit 20 --format json --out research/search/author_2.json
 ```
 
+After retrieval, emit a milestone update with the candidate-corpus count and the intended deep-read target size.
+
 ### 3. Candidate consolidation and screening
 
 ```bash
@@ -133,6 +157,8 @@ Screen candidates for:
 - Publication-year balance.
 
 Write selected IDs to `research/meta/deep_read_ids.txt`.
+
+After deep-read selection, emit a milestone update with the selected-paper count.
 
 ### 4. Metadata enrichment and bulk download
 
@@ -152,7 +178,11 @@ while read -r id; do
 done < research/meta/deep_read_ids.txt
 ```
 
+After downloads finish, emit a milestone update summarizing successes and failures.
+
 ### 5. Create agent-ready paper summaries
+
+Before starting the batch summarizer, emit a milestone update noting that deep-read summarization has started. During long summary runs, emit at least one additional progress update with summarized-paper counts before completion.
 
 Delegate the summary phase to the `paper-summary` skill so the deep workflow uses the same canonical schema and batch summarizer as the other search skills.
 
@@ -186,6 +216,8 @@ Summary requirements:
 - Record summary failures in `research/meta/failures.tsv` and keep the corpus moving.
 
 ### 6. Cross-paper synthesis
+
+Before writing `findings.md`, emit a milestone update such as "Deep-read summaries complete. Building the cross-paper synthesis and final report now."
 
 Build at least these comparative artifacts inside `findings.md`:
 
