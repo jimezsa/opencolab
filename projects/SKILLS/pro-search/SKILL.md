@@ -4,7 +4,7 @@ description: Professional paper research with papercli. Multi-pass search, PDF d
 homepage: https://github.com/jimezsa/papercli
 metadata:
   {
-    "openclaw":
+    "opencolab":
       {
         "emoji": "📄",
         "os": ["linux", "darwin"],
@@ -48,6 +48,7 @@ curl -fsSL https://raw.githubusercontent.com/jimezsa/papercli/main/SKILLS/pro-se
 ## Mission
 
 Answer a scientific question by building a medium-depth evidence base from papers retrieved with `papercli`, then deliver a detailed `findings.md` with:
+
 - Core ideas and major concepts.
 - Key mathematical formulations.
 - Cross-paper agreements and disagreements.
@@ -74,6 +75,7 @@ Answer a scientific question by building a medium-depth evidence base from paper
 ### 1. Define research frame
 
 Extract:
+
 - Main question.
 - Scope boundaries (domain, years, task setting, constraints).
 - Evaluation criteria (accuracy, sample efficiency, robustness, compute, interpretability, etc.).
@@ -81,6 +83,7 @@ Extract:
 ### 2. Build query matrix and search
 
 Run at least 3 query types:
+
 1. Canonical problem phrasing.
 2. Method-centric phrasing.
 3. Recent trend phrasing.
@@ -105,6 +108,7 @@ papercli author "<key author>" --provider all --sort relevance --limit 15 --form
 ### 3. Select 8-12 papers and enrich metadata
 
 Selection rules:
+
 - Include seminal plus recent papers.
 - Include at least two competing approaches.
 - Include at least one negative/critical or limitation-heavy paper when possible.
@@ -153,6 +157,7 @@ python3 SKILLS/paper-summary/scripts/gemini_parallel_summary.py \
 ```
 
 Summary requirements:
+
 - Use the canonical schema in `SKILLS/paper-summary/references/summary_schema.md`.
 - Write each summary to `research/pdf/<safe_id>.md`.
 - Treat figures, captions, tables, equations, and layout cues as first-class evidence.
@@ -162,10 +167,12 @@ Summary requirements:
 ### 5. Synthesize with explicit comparisons
 
 Build an evidence matrix in the report:
+
 - Rows: papers.
 - Columns: task, data, method, metrics, strengths, weaknesses.
 
 Then produce:
+
 - Consensus findings.
 - Disputed findings.
 - Practical implications for the user's question.
@@ -182,7 +189,7 @@ Example style:
 
 ```markdown
 \[
-\mathcal{L}(\theta) = \sum_{i=1}^{N} \ell(f_\theta(x_i), y_i) + \lambda \Omega(\theta)
+\mathcal{L}(\theta) = \sum*{i=1}^{N} \ell(f*\theta(x_i), y_i) + \lambda \Omega(\theta)
 \]
 Regularized empirical risk objective balancing fit and complexity [R4].
 ```
@@ -195,42 +202,50 @@ Use this structure:
 # Findings: <research question>
 
 ## Research Scope
+
 - Question:
 - In/Out of scope:
 - Corpus size:
 - Corpus stats: selected ..., downloaded ..., summarized ..., failure events ...
 
 ## Methodology Snapshot
+
 - Retrieval strategy:
 - Selection criteria:
 - Reading depth:
 
 ## Evidence Matrix
+
 | Ref | Paper | Method | Setting | Best reported result | Limits |
-|---|---|---|---|---|---|
-| R1 | ... | ... | ... | ... | ... |
+| --- | ----- | ------ | ------- | -------------------- | ------ |
+| R1  | ...   | ...    | ...     | ...                  | ...    |
 
 ## Core Ideas and Concepts
+
 Paragraph-level synthesis with inline refs [R1][R2].
 
 ## Key Math
+
 \[
 ...
 \]
 Interpretation [R3].
 
 ## Agreements and Conflicts
+
 - Agreement: ... [R2][R5]
 - Conflict: ... [R4][R6]
 
 ## Practical Takeaways
+
 - Actionable implication 1 [R1][R7]
 - Actionable implication 2 [R3][R8]
 
 ## References
-| Ref | Title | Authors | Year | Provider ID | Source files |
-|---|---|---|---|---|---|
-| R1 | ... | ... | ... | ... | `meta/...json`, `pdf/...md`, `pdf/...pdf` |
+
+| Ref | Title | Authors | Year | Provider ID | Source files                              |
+| --- | ----- | ------- | ---- | ----------- | ----------------------------------------- |
+| R1  | ...   | ...     | ...  | ...         | `meta/...json`, `pdf/...md`, `pdf/...pdf` |
 ```
 
 ## Referencing Rules

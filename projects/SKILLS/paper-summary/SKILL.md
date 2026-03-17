@@ -4,7 +4,7 @@ description: Deterministic PDF-to-markdown paper summarization for papercli work
 homepage: https://github.com/jimezsa/papercli
 metadata:
   {
-    "openclaw":
+    "opencolab":
       {
         "emoji": "📄",
         "os": ["linux", "darwin"],
@@ -18,6 +18,7 @@ metadata:
 Use this skill when PDFs have already been downloaded and the next step is to create deterministic `research/pdf/<safe_id>.md` summaries from those PDFs.
 
 This skill is the canonical summary step for:
+
 - `SKILLS/fast-search/SKILL.md`
 - `SKILLS/pro-search/SKILL.md`
 - `SKILLS/deep-search/SKILL.md`
@@ -40,6 +41,7 @@ curl -fsSL https://raw.githubusercontent.com/jimezsa/papercli/main/SKILLS/paper-
 ## Mission
 
 Given one paper PDF or a directory of paper PDFs:
+
 1. Read the PDFs directly with Gemini.
 2. Produce one markdown summary per paper that follows the canonical schema in `references/summary_schema.md`.
 3. Write each summary as `<safe_id>.md`, next to `<safe_id>.pdf`, unless an explicit output directory is provided.
@@ -102,6 +104,7 @@ python3 SKILLS/paper-summary/scripts/gemini_parallel_summary.py \
 ```
 
 Useful flags:
+
 - `--model <name>`: override the default Gemini model.
 - `--output-dir <dir>`: write summaries somewhere other than next to the PDFs.
 - `--overwrite`: regenerate existing `.md` summaries.

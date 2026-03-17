@@ -4,7 +4,7 @@ description: Deep scientific investigation with papercli. Iterative search, broa
 homepage: https://github.com/jimezsa/papercli
 metadata:
   {
-    "openclaw":
+    "opencolab":
       {
         "emoji": "📄",
         "os": ["linux", "darwin"],
@@ -48,6 +48,7 @@ curl -fsSL https://raw.githubusercontent.com/jimezsa/papercli/main/SKILLS/deep-s
 ## Mission
 
 Deliver an institutional-grade `findings.md` by:
+
 1. Running iterative `papercli` retrieval across multiple query waves.
 2. Downloading and reading a broad, diverse paper corpus.
 3. Extracting core ideas, concepts, results, assumptions, and key mathematics.
@@ -80,6 +81,7 @@ Deliver an institutional-grade `findings.md` by:
 ### 1. Scope and evaluation design
 
 Define:
+
 - Research question(s).
 - Inclusion/exclusion criteria.
 - Comparison axes (data, methods, metrics, assumptions, compute, robustness).
@@ -97,6 +99,7 @@ printf "stage\tid\treason\n" > research/meta/failures.tsv
 ```
 
 Run at least 4 waves:
+
 1. Core terminology.
 2. Synonyms and adjacent terminology.
 3. Method families.
@@ -123,6 +126,7 @@ jq -r '.[].id' research/search/*.json | awk 'NF && !seen[$0]++' > research/meta/
 ```
 
 Screen candidates for:
+
 - Relevance to user question.
 - Methodological diversity.
 - Dataset/benchmark coverage.
@@ -174,6 +178,7 @@ python3 SKILLS/paper-summary/scripts/gemini_parallel_summary.py \
 ```
 
 Summary requirements:
+
 - Use the canonical schema in `SKILLS/paper-summary/references/summary_schema.md`.
 - Write each summary to `research/pdf/<safe_id>.md`.
 - Treat figures, captions, tables, appendix visuals, equations, and page anchors as first-class evidence.
@@ -183,12 +188,14 @@ Summary requirements:
 ### 6. Cross-paper synthesis
 
 Build at least these comparative artifacts inside `findings.md`:
+
 - Taxonomy table (approach families).
 - Results table (metrics and conditions).
 - Assumption table (where methods break).
 - Equation registry (important formulas and interpretation).
 
 Then analyze:
+
 - Consensus patterns.
 - Contradictions and likely causes.
 - Gaps and open problems.
@@ -206,7 +213,7 @@ Example:
 
 ```markdown
 \[
-\mathrm{ELBO} = \mathbb{E}_{q_\phi(z \mid x)}[\log p_\theta(x \mid z)] - D_{KL}(q_\phi(z \mid x)\|p(z))
+\mathrm{ELBO} = \mathbb{E}_{q_\phi(z \mid x)}[\log p_\theta(x \mid z)] - D*{KL}(q*\phi(z \mid x)\|p(z))
 \]
 This objective trades reconstruction fidelity against posterior regularization, directly affecting representation quality and generative calibration [R5].
 ```
@@ -219,46 +226,55 @@ Use this exact top-level structure:
 # Findings: <topic>
 
 ## Executive Answer
+
 Direct answer to the user question with confidence-qualified claims [R#].
 
 ## Scope and Method
+
 - Question framing
 - Inclusion/exclusion criteria
 - Corpus stats (candidate count, deep-read count, downloaded count, summarized count, failure-event count)
 
 ## Literature Map
+
 | Ref | Paper | Year | Method family | Evidence depth |
-|---|---|---|---|---|
-| R1 | ... | ... | ... | pdf-read |
+| --- | ----- | ---- | ------------- | -------------- |
+| R1  | ...   | ...  | ...           | pdf-read       |
 
 ## Core Ideas and Concepts
+
 Deep synthesis paragraphs with inline refs [R#].
 
 ## Quantitative Evidence
+
 | Ref | Dataset/Setting | Metric | Reported result | Notes |
-|---|---|---|---|---|
-| R3 | ... | ... | ... | ... |
+| --- | --------------- | ------ | --------------- | ----- |
+| R3  | ...             | ...    | ...             | ...   |
 
 ## Key Math and Mechanisms
+
 \[
 ...
 \]
 Interpretation and implications [R#].
 
 ## Agreements, Conflicts, and Uncertainty
+
 - Agreement:
 - Conflict:
 - Sources of uncertainty:
 
 ## Recommendations and Research Gaps
+
 - What is ready to use now.
 - What needs further validation.
 - High-value open research directions.
 
 ## References
-| Ref | Title | Authors | Year | Provider ID | Local evidence |
-|---|---|---|---|---|---|
-| R1 | ... | ... | ... | ... | `meta/...json`, `pdf/...md`, `pdf/...pdf` |
+
+| Ref | Title | Authors | Year | Provider ID | Local evidence                            |
+| --- | ----- | ------- | ---- | ----------- | ----------------------------------------- |
+| R1  | ...   | ...     | ...  | ...         | `meta/...json`, `pdf/...md`, `pdf/...pdf` |
 ```
 
 ## Referencing Standard
@@ -271,6 +287,7 @@ Interpretation and implications [R#].
 ## Quality Gate Before Finish
 
 Before finalizing `findings.md`, verify:
+
 1. All major sections are present.
 2. Every analytical claim has citations.
 3. Math section includes equations plus interpretation.

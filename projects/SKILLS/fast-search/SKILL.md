@@ -4,7 +4,7 @@ description: Fast scientific paper scouting with papercli. Search, download, rea
 homepage: https://github.com/jimezsa/papercli
 metadata:
   {
-    "openclaw":
+    "opencolab":
       {
         "emoji": "📄",
         "os": ["linux", "darwin"],
