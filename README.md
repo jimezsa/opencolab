@@ -175,6 +175,7 @@ Telegram webhook endpoint:
 `POST http://127.0.0.1:4646/api/telegram/webhook`
 
 Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible, using collision-safe local filenames, and the agent receives the caption plus the local file path instead of only Telegram metadata. If Telegram file resolution is slow or fails, routing falls back to caption plus attachment metadata instead of hanging the chat.
+For long-running work, agents can emit bounded milestone-style Telegram progress updates before the final answer instead of staying silent for the whole run.
 If a provider runtime fails because of auth, timeout, missing CLI setup, or another execution error, OpenColab sends a Telegram error reply instead of silently retrying the same message forever.
 
 ## Project and Agent Commands
@@ -227,7 +228,7 @@ Each agent directory must include:
 `AGENTS.md` is initialized from built-in lead-agent and specialist-agent templates.
 `BOOTSTRAP.md` is initialized from a built-in first-run guide to help the agent discover identity and preferences.
 `IDENTITY.md` is initialized from a built-in identity scaffold.
-`TOOLS.md` is initialized from a built-in tools scaffold that lists the available `fast-search`, `pro-search`, and `deep-search` skills with a short description and when to use each one.
+`TOOLS.md` is initialized from a built-in tools scaffold that lists the available `fast-search`, `pro-search`, and `deep-search` skills with a short description, when to use each one, and how to emit bounded task-progress updates when OpenColab exposes a progress file.
 
 Default layout:
 
