@@ -67,6 +67,24 @@ export interface AgentMemoryContext {
   previousDaySummary: string;
 }
 
+export type TaskProgressKind =
+  | "started"
+  | "milestone"
+  | "progress"
+  | "warning"
+  | "needs_input"
+  | "completed";
+
+export interface TaskProgressEvent {
+  kind: TaskProgressKind;
+  message: string;
+  stage?: string;
+  current?: number;
+  total?: number;
+  slot?: string;
+  ephemeral?: boolean;
+}
+
 export type TelegramFileKind =
   | "document"
   | "photo"
