@@ -6,7 +6,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { ensureAgentFiles } from "./agent.js";
 import type { OpenColabConfig } from "./config.js";
-import type { ProviderAgentInput } from "./provider-agent.js";
+import type {
+  ProviderAgentInput,
+  ProviderRespondOptions,
+} from "./provider-agent.js";
 import {
   createDefaultAgentConfig,
   createDefaultProjectState,
@@ -20,6 +23,7 @@ import type {
   GatewayResult,
   OpenColabState,
   ProviderConfig,
+  TaskProgressEvent,
   TelegramFileKind,
   TelegramFilePayload,
   TelegramInbound,
@@ -50,7 +54,10 @@ interface GatewayDependencies {
   readConversationMemory: (chatId: string, limit: number) => AgentMemoryContext;
   appendConversation: (chatId: string, message: ConversationMessage) => void;
   resetConversationSession: () => string;
-  respond: (input: ProviderAgentInput) => Promise<string>;
+  respond: (
+    input: ProviderAgentInput,
+    options?: ProviderRespondOptions,
+  ) => Promise<string>;
   telegramSender?: TelegramSender;
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;
@@ -58,6 +65,17 @@ interface GatewayDependencies {
 
 const TELEGRAM_FILE_FETCH_TIMEOUT_MS = 10_000;
 const MAX_TELEGRAM_ERROR_CHARS = 1_500;
+const PROGRESS_MESSAGE_THROTTLE_MS = 3_000;
+
+interface ProgressSlotState {
+  lastMessage: string;
+  lastSentAt: number;
+}
+
+interface RequestProgressState {
+  slots: Map<string, ProgressSlotState>;
+  lastMeaningfulMessage: string | null;
+}
 
 export class TelegramGateway {
   private readonly sender: TelegramSender;
@@ -223,6 +241,8 @@ export class TelegramGateway {
 
     const memory = this.deps.readConversationMemory(inbound.chatId, 8);
     let stopTyping: (() => void) | null = null;
+    const progressState = createRequestProgressState();
+    let progressQueue = Promise.resolve();
 
     try {
       stopTyping = this.startTypingFeedback(inbound.chatId, state);
@@ -232,13 +252,31 @@ export class TelegramGateway {
         inbound.files,
       );
       const inboundText = buildInboundText(inbound.text, resolvedFiles);
-      const response = await this.deps.respond({
-        chatId: inbound.chatId,
-        sender: inbound.sender,
-        text: inboundText,
-        files: resolvedFiles,
-        memory,
-      });
+      const response = await this.deps.respond(
+        {
+          chatId: inbound.chatId,
+          sender: inbound.sender,
+          text: inboundText,
+          files: resolvedFiles,
+          memory,
+        },
+        {
+          onProgress: (event) => {
+            progressQueue = progressQueue
+              .then(async () =>
+                this.sendProgressUpdate(
+                  inbound.chatId,
+                  state,
+                  event,
+                  progressState,
+                ),
+              )
+              .catch(() => undefined);
+            return progressQueue;
+          },
+        },
+      );
+      await progressQueue;
 
       const outbound = parseOutboundAgentResponse(response);
       const assistantLog = buildAssistantLogContent(
@@ -289,7 +327,11 @@ export class TelegramGateway {
         sent,
       };
     } catch (error) {
-      const response = buildAgentFailureMessage(error);
+      await progressQueue.catch(() => undefined);
+      const response = buildAgentFailureMessage(
+        error,
+        progressState.lastMeaningfulMessage,
+      );
       logAgentFailure(inbound.chatId, activeAgent.provider, error);
       const sent = await safeSendTelegramMessage(
         this.sender,
@@ -569,6 +611,48 @@ export class TelegramGateway {
       clearInterval(timer);
     };
   }
+
+  private async sendProgressUpdate(
+    chatId: string,
+    state: OpenColabState,
+    event: TaskProgressEvent,
+    requestState: RequestProgressState,
+  ): Promise<void> {
+    const message = normalizeProgressMessage(event.message);
+    if (!message) {
+      return;
+    }
+
+    const slot = resolveProgressSlot(event);
+    const slotState = requestState.slots.get(slot);
+    const now = Date.now();
+    const bypassThrottle =
+      event.kind === "warning" ||
+      event.kind === "needs_input" ||
+      event.kind === "completed";
+    const unchanged = slotState?.lastMessage === message;
+    const tooSoon =
+      !bypassThrottle &&
+      slotState !== undefined &&
+      now - slotState.lastSentAt < PROGRESS_MESSAGE_THROTTLE_MS;
+
+    if (unchanged || tooSoon) {
+      return;
+    }
+
+    const sent = await safeSendTelegramMessage(this.sender, chatId, message, state);
+    if (!sent) {
+      return;
+    }
+
+    requestState.slots.set(slot, {
+      lastMessage: message,
+      lastSentAt: now,
+    });
+    if (event.kind !== "progress") {
+      requestState.lastMeaningfulMessage = message;
+    }
+  }
 }
 
 async function safeSendTelegramMessage(
@@ -584,7 +668,10 @@ async function safeSendTelegramMessage(
   }
 }
 
-function buildAgentFailureMessage(error: unknown): string {
+function buildAgentFailureMessage(
+  error: unknown,
+  lastProgressMessage?: string | null,
+): string {
   const fallback =
     "OpenColab could not complete your request due to a provider/runtime error. Check the gateway logs and retry.";
   const detail =
@@ -594,10 +681,34 @@ function buildAgentFailureMessage(error: unknown): string {
   if (!detail) {
     return fallback;
   }
-  if (detail.length <= MAX_TELEGRAM_ERROR_CHARS) {
-    return detail;
+  const lastProgress = normalizeProgressMessage(lastProgressMessage ?? "");
+  const withProgress =
+    lastProgress && !detail.includes(lastProgress)
+      ? `${detail}\nLast progress: ${lastProgress}`
+      : detail;
+  if (withProgress.length <= MAX_TELEGRAM_ERROR_CHARS) {
+    return withProgress;
   }
-  return `${detail.slice(0, MAX_TELEGRAM_ERROR_CHARS - 3)}...`;
+  return `${withProgress.slice(0, MAX_TELEGRAM_ERROR_CHARS - 3)}...`;
+}
+
+function createRequestProgressState(): RequestProgressState {
+  return {
+    slots: new Map<string, ProgressSlotState>(),
+    lastMeaningfulMessage: null,
+  };
+}
+
+function normalizeProgressMessage(value: string): string {
+  return String(value ?? "").trim();
+}
+
+function resolveProgressSlot(event: TaskProgressEvent): string {
+  return (
+    normalizeProgressMessage(event.slot ?? "") ||
+    normalizeProgressMessage(event.stage ?? "") ||
+    event.kind
+  );
 }
 
 function logAgentFailure(
