@@ -69,22 +69,6 @@ Answer a scientific question by building a medium-depth evidence base from paper
 - Do not rely on abstract-only synthesis when full text is available.
 - Every analytical paragraph must contain `[R#]` citations.
 - Final deliverable is a detailed markdown file named `findings.md`.
-- If `OPENCOLAB_PROGRESS_FILE` is set, emit bounded milestone updates for long-running stages instead of waiting until the full report is finished.
-
-## OpenColab Progress Helper
-
-When running inside OpenColab and `OPENCOLAB_PROGRESS_FILE` is available, use this helper:
-
-```bash
-emit_progress() {
-  if [ -z "${OPENCOLAB_PROGRESS_FILE:-}" ]; then
-    return 0
-  fi
-  printf '%s\n' "$1" >> "$OPENCOLAB_PROGRESS_FILE"
-}
-```
-
-Use it for real milestones only: retrieval start, corpus-size discovery, selected-paper count, download progress, summarization progress, synthesis start, warnings, or blocked runs.
 
 ## Workflow
 
@@ -97,12 +81,6 @@ Extract:
 - Evaluation criteria (accuracy, sample efficiency, robustness, compute, interpretability, etc.).
 
 ### 2. Build query matrix and search
-
-Before starting the search matrix, emit a start update such as:
-
-```bash
-emit_progress '{"kind":"started","stage":"retrieval","slot":"search","message":"Searching for candidate papers across 3 query passes."}'
-```
 
 Run at least 3 query types:
 
@@ -126,8 +104,6 @@ Optional author-centered expansion:
 ```bash
 papercli author "<key author>" --provider all --sort relevance --limit 15 --format json --out research/search/author.json
 ```
-
-After retrieval, emit a milestone update with the candidate-corpus count and the intended deep-read target size.
 
 ### 3. Select 8-12 papers and enrich metadata
 
@@ -155,11 +131,7 @@ while read -r id; do
 done < research/meta/selected_ids.txt
 ```
 
-After downloads finish, emit a milestone update summarizing successes and failures.
-
 ### 4. Create agent-ready paper summaries
-
-Before starting the batch summarizer, emit a milestone update noting that summarization has started. During long summary runs, emit at least one additional progress update with summarized-paper counts before completion.
 
 Delegate this step to the `paper-summary` skill. It centralizes the summary schema, PDF-first evidence rules, and Gemini-based parallel execution.
 
@@ -171,7 +143,7 @@ python3 SKILLS/paper-summary/scripts/gemini_parallel_summary.py \
   --metadata-dir research/meta \
   --summarized-ids research/meta/summarized_ids.txt \
   --failures-tsv research/meta/failures.tsv \
-  --concurrency 4
+  --concurrency 10
 ```
 
 Retry one paper with:
@@ -194,8 +166,6 @@ Summary requirements:
 
 ### 5. Synthesize with explicit comparisons
 
-Before writing `findings.md`, emit a milestone update such as "Paper summaries complete. Building the evidence matrix and final synthesis now."
-
 Build an evidence matrix in the report:
 
 - Rows: papers.
@@ -211,17 +181,21 @@ Then produce:
 ## Key Math Handling
 
 - Extract at least 3 high-signal equations across the corpus when available.
-- Render equations in LaTeX blocks.
+- Write equations in plain-text markdown, not LaTeX blocks.
+- Prefer ASCII-friendly notation that survives raw markdown: use forms like `sum_{i=1 to N}`, `E[...]`, `argmax`, `<=`, `>=`, and `^`.
+- Use a consistent three-line pattern:
+  - `Equation: <name> = <plain-text formula> [R#]`
+  - `Where: <symbol> = <meaning>; ...`
+  - `Interpretation: <role, assumptions, and trade-offs> [R#]`
 - Explain variable meanings and assumptions.
 - Tie each equation to a paper reference on the same line.
 
 Example style:
 
 ```markdown
-\[
-\mathcal{L}(\theta) = \sum*{i=1}^{N} \ell(f*\theta(x_i), y_i) + \lambda \Omega(\theta)
-\]
-Regularized empirical risk objective balancing fit and complexity [R4].
+Equation: L(theta) = sum_{i=1 to N} ell(f_theta(x_i), y_i) + lambda * Omega(theta) [R4]
+Where: f_theta = model with parameters theta; ell = per-example loss; Omega(theta) = regularizer; lambda = regularization weight.
+Interpretation: Regularized empirical risk objective balancing data fit against model complexity [R4].
 ```
 
 ## Output Contract (`findings.md`)
@@ -256,9 +230,8 @@ Paragraph-level synthesis with inline refs [R1][R2].
 
 ## Key Math
 
-\[
-...
-\]
+Equation: <name> = <plain-text formula> [R#]
+Where: <symbol> = <meaning>; ...
 Interpretation [R3].
 
 ## Agreements and Conflicts
