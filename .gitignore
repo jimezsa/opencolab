@@ -7,6 +7,9 @@ opencolab.db-wal
 opencolab.db-shm
 opencolab.db-journal
 opencolab.json
+
+**/*.pyc
+
 projects/**
 !projects/**/
 !projects/**/SKILLS/
