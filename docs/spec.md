@@ -107,6 +107,7 @@ Initialization requirements:
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks
+- default `AGENTS.md` must include the `OPENCOLAB_PROGRESS_FILE` helper and instruct agents to use it only for substantial milestones
 - the default templates must keep only essential, role-appropriate instructions
 - `TODO.md` must be used for active planning and task tracking based on interactions with the human and other agents
 

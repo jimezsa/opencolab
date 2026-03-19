@@ -73,6 +73,12 @@ test("init and agent create seed professor and specialist AGENTS.md templates", 
     assert.equal(professorDoc.includes("MEMORY.md: durable facts learned over time"), true);
     assert.equal(professorDoc.includes("Before deep research, clarify the human's true intention behind the topic."), true);
     assert.equal(professorDoc.includes("Do not invent sources, data, or experiment results."), true);
+    assert.equal(professorDoc.includes("## OpenColab Progress Helper"), true);
+    assert.equal(professorDoc.includes("emit_progress() {"), true);
+    assert.equal(
+      professorDoc.includes("Use it only for substantial milestones: retrieval-wave start, candidate-corpus counts, deep-read selection, download progress, summarization progress, synthesis start, warnings, or blocked runs."),
+      true
+    );
 
     runtime.configureAgent("scout");
     const specialistAgentPath = path.join(buildAgentDir(tempDir, "default", "scout"), "AGENTS.md");

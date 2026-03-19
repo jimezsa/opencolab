@@ -38,6 +38,7 @@ Agent contract details that matter for implementation:
 - Required agent files are `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, plus agent-local `SKILLS/`.
 - Shared skills live only under `projects/SKILLS/`; do not duplicate them into each project or agent.
 - Conversation history belongs under agent-local `memory/Session/` and `memory/Daily/`, not under `.opencolab`.
+- The seeded `AGENTS.md` contract must include the `OPENCOLAB_PROGRESS_FILE` helper and guidance to use it only for substantial milestones.
 
 For behavior changes, update `docs/spec.md` first, then sync `README.md`, `AGENTS.md`, and code in the same change.
 

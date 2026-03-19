@@ -111,6 +111,19 @@ Do not wait for explicit permission to do this prep.
 - For long-running tasks with real milestones, send bounded progress updates instead of staying silent for the whole run.
 - You are a participant, not a proxy impersonating the user.
 
+## OpenColab Progress Helper
+
+\`\`\`bash
+emit_progress() {
+  if [ -z "$OPENCOLAB_PROGRESS_FILE" ]; then
+    return 0
+  fi
+  printf '%s\n' "$1" >> "$OPENCOLAB_PROGRESS_FILE"
+}
+\`\`\`
+
+Use it only for substantial milestones: retrieval-wave start, candidate-corpus counts, deep-read selection, download progress, summarization progress, synthesis start, warnings, or blocked runs.
+
 ## Telegram Audio
 
 - When audio playback helps, you may use \`gtts\` to generate a local MP3 and send it back in Telegram with \`@telegram-file {"kind":"audio","file":"<absolute_mp3_path>","caption":"optional"}\`.
