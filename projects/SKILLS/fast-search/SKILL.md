@@ -76,6 +76,22 @@ If inputs are missing, infer a minimal scope and proceed.
 - Every factual claim must be grounded by references.
 - Include key math when present in papers.
 - Final output must be a markdown file named `findings.md`.
+- If `OPENCOLAB_PROGRESS_FILE` is set, emit bounded milestone updates for long-running stages instead of remaining silent until the end.
+
+## OpenColab Progress Helper
+
+When running inside OpenColab and `OPENCOLAB_PROGRESS_FILE` is available, use this helper:
+
+```bash
+emit_progress() {
+  if [ -z "${OPENCOLAB_PROGRESS_FILE:-}" ]; then
+    return 0
+  fi
+  printf '%s\n' "$1" >> "$OPENCOLAB_PROGRESS_FILE"
+}
+```
+
+Use it only for substantial milestones: retrieval-wave start, candidate-corpus counts, deep-read selection, download progress, summarization progress, synthesis start, warnings, or blocked runs.
 
 ## Workflow
 
