@@ -220,7 +220,7 @@ Each agent directory must include:
 - `BOOTSTRAP.md`
 - `IDENTITY.md`
 - `ALMA.md`
-- `TOOLS.md`
+- `TOOLS.md` (agent-local tooling notes, additions, and overrides)
 - `USER.md`
 - `TODO.md` (active plan and task list)
 - `MEMORY.md` (long-term memory only)
@@ -229,7 +229,8 @@ Each agent directory must include:
 `AGENTS.md` is initialized from built-in lead-agent and specialist-agent templates, including the default operating contract and the OpenColab progress-helper snippet for long-running work.
 `BOOTSTRAP.md` is initialized from a built-in first-run guide to help the agent discover identity and preferences.
 `IDENTITY.md` is initialized from a built-in identity scaffold.
-`TOOLS.md` is initialized from a built-in tools scaffold that lists the available `fast-search`, `pro-search`, and `deep-search` skills with a short description, when to use each one, and how to emit bounded task-progress updates when OpenColab exposes a progress file.
+`TOOLS.md` is initialized as a small local-notes scaffold for agent-specific tooling additions, overrides, and caveats.
+Built-in tool guidance and the default summaries for `fast-search`, `pro-search`, and `deep-search` are injected by OpenColab at prompt-build time, so repo upgrades can update them without overwriting local `TOOLS.md` edits.
 
 Default layout:
 
