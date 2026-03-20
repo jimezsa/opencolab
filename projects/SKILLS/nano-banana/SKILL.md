@@ -1,5 +1,5 @@
 ---
-name: nano-banana.py
+name: nano-banana
 description: Generate and edit images with Google Gemini Nano Banana Pro from prompts and optional reference images, using GEMINI_API_KEY from .env.local when available.
 homepage: https://ai.google.dev/gemini-api/docs/image-generation
 metadata:
@@ -47,7 +47,7 @@ python3 -m pip install google-genai
 
 ## Hard Requirements
 
-- Use `projects/SKILLS/nano-banana.py/scripts/nano_banana.py` for the API call so key loading stays consistent with the repo.
+- Use `projects/SKILLS/nano-banana/scripts/nano_banana.py` for the API call so key loading stays consistent with the repo.
 - Default to `gemini-3-pro-image-preview` unless the user explicitly wants a cheaper or faster model.
 - For edits, pass the existing image with `--input` and tell the model exactly what must stay unchanged.
 - For diagrams, specify the layout, labels, arrow directions, grouping, legend, and aspect ratio explicitly.
@@ -82,7 +82,7 @@ Useful prompt patterns:
 Generate a new image:
 
 ```bash
-python3 projects/SKILLS/nano-banana.py/scripts/nano_banana.py \
+python3 projects/SKILLS/nano-banana/scripts/nano_banana.py \
   --prompt "Create a conference-paper style architecture diagram for a monocular 3D reconstruction pipeline with clearly labeled modules, arrows, and a small legend." \
   --aspect-ratio 16:9 \
   --image-size 2K \
@@ -92,7 +92,7 @@ python3 projects/SKILLS/nano-banana.py/scripts/nano_banana.py \
 Edit an existing image:
 
 ```bash
-python3 projects/SKILLS/nano-banana.py/scripts/nano_banana.py \
+python3 projects/SKILLS/nano-banana/scripts/nano_banana.py \
   --prompt "Edit the provided figure into a polished academic diagram. Keep the layout and labels semantically equivalent, but clean the typography, spacing, arrow routing, and color hierarchy." \
   --input assets/rough-diagram.png \
   --aspect-ratio 16:9 \
@@ -103,7 +103,7 @@ python3 projects/SKILLS/nano-banana.py/scripts/nano_banana.py \
 Use multiple references:
 
 ```bash
-python3 projects/SKILLS/nano-banana.py/scripts/nano_banana.py \
+python3 projects/SKILLS/nano-banana/scripts/nano_banana.py \
   --prompt "Create a product hero image using the bottle from the first reference and the packaging language from the second reference. Keep the bottle shape faithful to the original." \
   --input references/bottle.png \
   --input references/box.png \
@@ -115,7 +115,7 @@ python3 projects/SKILLS/nano-banana.py/scripts/nano_banana.py \
 Use Google Search grounding when real-world accuracy matters:
 
 ```bash
-python3 projects/SKILLS/nano-banana.py/scripts/nano_banana.py \
+python3 projects/SKILLS/nano-banana/scripts/nano_banana.py \
   --prompt "Create an editorial-style travel poster for Berlin using accurate landmark details and current visual references." \
   --google-search \
   --aspect-ratio 3:4 \
@@ -138,5 +138,5 @@ python3 projects/SKILLS/nano-banana.py/scripts/nano_banana.py \
 
 ## Canonical Assets
 
-- Skill doc: `projects/SKILLS/nano-banana.py/SKILL.md`
-- Python runner: `projects/SKILLS/nano-banana.py/scripts/nano_banana.py`
+- Skill doc: `projects/SKILLS/nano-banana/SKILL.md`
+- Python runner: `projects/SKILLS/nano-banana/scripts/nano_banana.py`
