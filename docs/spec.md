@@ -76,7 +76,7 @@ Each agent directory must include:
 - `BOOTSTRAP.md`
 - `IDENTITY.md`
 - `ALMA.md`
-- `TOOLS.md`
+- `TOOLS.md` for agent-local tooling notes, additions, and overrides
 - `USER.md`
 - `TODO.md`
 - `MEMORY.md`
@@ -101,9 +101,10 @@ Initialization requirements:
 - when an agent directory is created, `AGENTS.md` must be seeded from an internal runtime template
 - when an agent directory is created, `BOOTSTRAP.md` must be seeded from an internal runtime template for first-run identity discovery
 - when an agent directory is created, `IDENTITY.md` must be seeded from an internal runtime template
-- when an agent directory is created, `TOOLS.md` must be seeded from an internal runtime template that lists the available `fast-search`, `pro-search`, and `deep-search` skills with only a short description and when-to-use guidance
+- when an agent directory is created, `TOOLS.md` must be seeded from an internal runtime template for agent-local tooling notes, additions, and overrides
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
 - the built-in `fast-search`, `pro-search`, and `deep-search` skills must be available from the shared `projects/SKILLS/` directory
+- built-in tool guidance and built-in skill summaries must be repo-managed and injected into prompts at runtime rather than copied into agent-local `TOOLS.md`
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks
