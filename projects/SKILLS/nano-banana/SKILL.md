@@ -49,6 +49,7 @@ python3 -m pip install google-genai
 
 - Use `projects/SKILLS/nano-banana/scripts/nano_banana.py` for the API call so key loading stays consistent with the repo.
 - Default to `gemini-3-pro-image-preview` unless the user explicitly wants a cheaper or faster model.
+- Save generated images in the current project folder under `images/`, not under `artifacts/`.
 - If the generated image should be sent back to Telegram, emit a raw `@telegram-file {"kind":"photo","file":"<path>","caption":"optional"}` line on its own line after generation. Do not wrap it in backticks or code fences.
 - For edits, pass the existing image with `--input` and tell the model exactly what must stay unchanged.
 - For diagrams, specify the layout, labels, arrow directions, grouping, legend, and aspect ratio explicitly.
@@ -87,7 +88,7 @@ python3 projects/SKILLS/nano-banana/scripts/nano_banana.py \
   --prompt "Create a conference-paper style architecture diagram for a monocular 3D reconstruction pipeline with clearly labeled modules, arrows, and a small legend." \
   --aspect-ratio 16:9 \
   --image-size 2K \
-  --output-prefix artifacts/nano-banana/mono3d-diagram
+  --output-prefix images/mono3d-diagram
 ```
 
 Edit an existing image:
@@ -98,7 +99,7 @@ python3 projects/SKILLS/nano-banana/scripts/nano_banana.py \
   --input assets/rough-diagram.png \
   --aspect-ratio 16:9 \
   --image-size 2K \
-  --output-prefix artifacts/nano-banana/rough-diagram-polished
+  --output-prefix images/rough-diagram-polished
 ```
 
 Use multiple references:
@@ -110,7 +111,7 @@ python3 projects/SKILLS/nano-banana/scripts/nano_banana.py \
   --input references/box.png \
   --aspect-ratio 4:5 \
   --image-size 2K \
-  --output-prefix artifacts/nano-banana/product-hero
+  --output-prefix images/product-hero
 ```
 
 Use Google Search grounding when real-world accuracy matters:
@@ -121,7 +122,7 @@ python3 projects/SKILLS/nano-banana/scripts/nano_banana.py \
   --google-search \
   --aspect-ratio 3:4 \
   --image-size 2K \
-  --output-prefix artifacts/nano-banana/berlin-poster
+  --output-prefix images/berlin-poster
 ```
 
 ### 3. Review outputs
