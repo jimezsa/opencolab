@@ -46,7 +46,7 @@ Do not wait for explicit permission to do this prep.
 - BOOTSTRAP.md: first-run guide to discover identity and user preferences.
 - IDENTITY.md: stable role, domain focus, and responsibilities.
 - ALMA.md: communication style, tone, and behavioral guardrails.
-- TOOLS.md: available tooling and constraints for using it.
+- TOOLS.md: agent-local tooling notes, overrides, and constraints.
 - USER.md: user preferences, goals, constraints, and collaboration norms.
 - TODO.md: active plan and task list from collaboration with the human and other agents.
 - MEMORY.md: durable facts learned over time (not per-message scratch notes).
@@ -69,7 +69,7 @@ Do not wait for explicit permission to do this prep.
 2. Keep long-term facts in MEMORY.md only when they are stable and useful later.
 3. Update USER.md when preferences change, and keep it concise.
 4. Keep TODO.md current with active plan, next actions, and completed items.
-5. Update TOOLS.md when runtime/tooling capabilities change.
+5. Update TOOLS.md when local or project-specific tooling capabilities change.
 6. Read relevant shared skills from \`projects/SKILLS/<skill_id>/SKILL.md\` and relevant agent-local skills from \`SKILLS/<skill_id>/SKILL.md\` before using a specialized workflow.
 7. Treat ALMA.md as style guidance, but do not let style override correctness.
 8. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms.
@@ -273,7 +273,7 @@ Treat these agent files as persistent memory. Read them each session. Update the
 If you change this file, tell the user.
 `;
 
-const DEFAULT_TOOLS_DOC = `# TOOLS
+const BUILTIN_TOOLS_CONTEXT = `[BUILTIN_TOOLS]
 
 Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime).
 
@@ -302,6 +302,21 @@ Use progress updates only for meaningful milestones such as retrieval start, cor
 - \`deep-search\`
   Description: Deep scientific investigation with \`papercli\`.
   When to use: for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support.
+`;
+
+const DEFAULT_TOOLS_DOC = `# TOOLS
+
+Use this file for agent-local or project-specific tooling notes that should persist across sessions.
+
+OpenColab injects repo-managed default tooling guidance and built-in skill summaries at prompt-build time, so upgrades can update those defaults without overwriting this file.
+
+Keep only local additions, overrides, and caveats here.
+
+## Local Tool Notes
+
+- Add machine-specific tools, scripts, or workflow notes here.
+- Note project-specific constraints, caveats, or setup requirements here.
+- Record local overrides to the repo-managed defaults here.
 `;
 
 const DEFAULT_FILE_CONTENT: Record<
@@ -535,6 +550,7 @@ export function buildAgentPromptForInput(
   const { coreContext, longTermMemory } = getPromptContext(rootDir, agent);
   return buildPromptFromSystemContext(
     coreContext,
+    BUILTIN_TOOLS_CONTEXT,
     buildSharedSkillsContext(rootDir),
     buildAgentLocalSkillsContext(rootDir, agent),
     longTermMemory,
@@ -565,6 +581,8 @@ export function buildPiSystemPromptForInput(
     "",
     piContext,
     "",
+    BUILTIN_TOOLS_CONTEXT,
+    "",
     sharedSkillsContext,
     "",
     agentLocalSkillsContext,
@@ -584,6 +602,7 @@ export function buildPiSystemPromptForInput(
 
 function buildPromptFromSystemContext(
   coreContext: string,
+  builtInToolsContext: string,
   sharedSkillsContext: string,
   agentLocalSkillsContext: string,
   longTermMemory: string,
@@ -602,6 +621,8 @@ function buildPromptFromSystemContext(
     "If OPENCOLAB_PROGRESS_FILE is set in the shell environment and the task is long-running, append concise one-line JSON progress events to that file at meaningful milestones instead of staying silent until the end.",
     "",
     coreContext,
+    "",
+    builtInToolsContext,
     "",
     sharedSkillsContext,
     "",
