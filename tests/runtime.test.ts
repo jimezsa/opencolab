@@ -163,7 +163,7 @@ test("init seeds ALMA.md from built-in alma template", () => {
   }
 });
 
-test("init seeds TOOLS.md with available search skill summaries", () => {
+test("init seeds TOOLS.md as a local tooling notes scaffold", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-tools-template-"));
   const runtime = createRuntime(tempDir);
 
@@ -174,43 +174,28 @@ test("init seeds TOOLS.md with available search skill summaries", () => {
     const toolsDoc = fs.readFileSync(toolsPath, "utf8");
     assert.equal(toolsDoc.includes("# TOOLS"), true);
     assert.equal(
-      toolsDoc.includes("Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime)."),
+      toolsDoc.includes("Use this file for agent-local or project-specific tooling notes that should persist across sessions."),
       true
     );
     assert.equal(
-      toolsDoc.includes("Shared project skills live under `projects/SKILLS/`."),
+      toolsDoc.includes("OpenColab injects repo-managed default tooling guidance and built-in skill summaries at prompt-build time"),
       true
     );
     assert.equal(
-      toolsDoc.includes("Agent-local skills live under `SKILLS/` inside the agent folder."),
+      toolsDoc.includes("Keep only local additions, overrides, and caveats here."),
       true
     );
     assert.equal(
-      toolsDoc.includes("If `OPENCOLAB_PROGRESS_FILE` is set in the shell environment and the task is long-running"),
+      toolsDoc.includes("Add machine-specific tools, scripts, or workflow notes here."),
       true
     );
     assert.equal(
-      toolsDoc.includes("appending one-line JSON events to that file"),
+      toolsDoc.includes("Record local overrides to the repo-managed defaults here."),
       true
     );
-    assert.equal(toolsDoc.includes("`fast-search`"), true);
-    assert.equal(toolsDoc.includes("Fast scientific paper scouting with `papercli`."), true);
-    assert.equal(
-      toolsDoc.includes("for a rapid, evidence-grounded literature brief or quick scientific orientation."),
-      true,
-    );
-    assert.equal(toolsDoc.includes("`pro-search`"), true);
-    assert.equal(toolsDoc.includes("Professional paper research with `papercli`."), true);
-    assert.equal(
-      toolsDoc.includes("for serious literature synthesis with stronger methodological depth, cross-paper comparison, and explicit evidence tracking."),
-      true,
-    );
-    assert.equal(toolsDoc.includes("`deep-search`"), true);
-    assert.equal(toolsDoc.includes("Deep scientific investigation with `papercli`."), true);
-    assert.equal(
-      toolsDoc.includes("for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support."),
-      true,
-    );
+    assert.equal(toolsDoc.includes("`fast-search`"), false);
+    assert.equal(toolsDoc.includes("`pro-search`"), false);
+    assert.equal(toolsDoc.includes("`deep-search`"), false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
