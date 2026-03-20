@@ -12,6 +12,7 @@ Top-level sources of truth:
 - `install.sh`: user installer and command shim setup.
 - `projects/SKILLS/`: shared built-in skill library copied into agent prompts, not per-project duplicates.
 - `src/`: TypeScript implementation.
+- `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context.
 - `tests/`: Node `node:test` suite.
 
 Core implementation areas:
@@ -26,6 +27,7 @@ Core implementation areas:
 - `src/provider.ts`: provider defaults, runtime selection, auth-mode support, CLI args, and env wiring.
 - `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling, and provider-to-gateway progress-event forwarding.
 - `src/agent.ts`: agent file seeding, shared/agent-local skill discovery, and prompt assembly.
+- `src/agent-templates.ts`: built-in agent template loading and default-doc resolution.
 - `src/conversation.ts`: per-agent session logs, previous-day summaries, and prompt-memory loading.
 - `src/project-config.ts`: `opencolab.json` defaults, normalization, migration, and project/agent path helpers.
 - `src/config.ts`: root config and local env loading.
