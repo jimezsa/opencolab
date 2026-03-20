@@ -49,6 +49,7 @@ python3 -m pip install google-genai
 
 - Use `projects/SKILLS/nano-banana/scripts/nano_banana.py` for the API call so key loading stays consistent with the repo.
 - Default to `gemini-3-pro-image-preview` unless the user explicitly wants a cheaper or faster model.
+- If the generated image should be sent back to Telegram, emit a raw `@telegram-file {"kind":"photo","file":"<path>","caption":"optional"}` line on its own line after generation. Do not wrap it in backticks or code fences.
 - For edits, pass the existing image with `--input` and tell the model exactly what must stay unchanged.
 - For diagrams, specify the layout, labels, arrow directions, grouping, legend, and aspect ratio explicitly.
 - When exact text matters, write the exact text in the prompt and keep it short.
