@@ -39,6 +39,7 @@ Agent contract details that matter for implementation:
 - Shared skills live only under `projects/SKILLS/`; do not duplicate them into each project or agent.
 - Conversation history belongs under agent-local `memory/Session/` and `memory/Daily/`, not under `.opencolab`.
 - The seeded `AGENTS.md` contract must include the `OPENCOLAB_PROGRESS_FILE` helper and guidance to use it only for substantial milestones.
+- The seeded agent docs must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines rather than markdown-wrapped snippets.
 
 For behavior changes, update `docs/spec.md` first, then sync `README.md`, `AGENTS.md`, and code in the same change.
 
