@@ -278,7 +278,10 @@ export class TelegramGateway {
       );
       await progressQueue;
 
-      const outbound = parseOutboundAgentResponse(response);
+      const outbound = parseOutboundAgentResponse(
+        response,
+        path.resolve(this.config.rootDir, activeAgent.path),
+      );
       const assistantLog = buildAssistantLogContent(
         outbound.text,
         outbound.files,
@@ -1115,7 +1118,7 @@ function buildInboundText(
   return lines.join("\n").trim();
 }
 
-function parseOutboundAgentResponse(raw: string): {
+function parseOutboundAgentResponse(raw: string, localBaseDir: string): {
   text: string;
   files: TelegramOutboundFile[];
 } {
@@ -1125,19 +1128,15 @@ function parseOutboundAgentResponse(raw: string): {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed.startsWith("@telegram-file")) {
-      remaining.push(line);
-      continue;
-    }
-
-    const payloadRaw = trimmed.slice("@telegram-file".length).trim();
+    const payloadRaw = extractTelegramFilePayload(trimmed);
     if (!payloadRaw) {
+      remaining.push(line);
       continue;
     }
 
     try {
       const payload = JSON.parse(payloadRaw) as Record<string, unknown>;
-      const file = normalizeOutboundFile(payload);
+      const file = normalizeOutboundFile(payload, localBaseDir);
       if (file) {
         files.push(file);
       }
@@ -1154,6 +1153,7 @@ function parseOutboundAgentResponse(raw: string): {
 
 function normalizeOutboundFile(
   source: Record<string, unknown>,
+  localBaseDir: string,
 ): TelegramOutboundFile | null {
   const kind = asOutboundKind(source.kind);
   if (!kind) {
@@ -1168,7 +1168,7 @@ function normalizeOutboundFile(
   const caption = asStringValue(source.caption);
   return {
     kind,
-    file,
+    file: resolveOutboundFileReference(file, localBaseDir),
     ...(caption ? { caption } : {}),
   };
 }
@@ -1223,6 +1223,33 @@ function summarizeOutboundFiles(files: TelegramOutboundFile[]): string {
 
   const nouns = files.map((file) => file.kind).join(", ");
   return `Sent ${String(files.length)} file(s): ${nouns}`;
+}
+
+function resolveOutboundFileReference(value: string, localBaseDir: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || path.isAbsolute(trimmed)) {
+    return trimmed;
+  }
+
+  const candidate = path.resolve(localBaseDir, trimmed);
+  return fs.existsSync(candidate) ? candidate : trimmed;
+}
+
+function extractTelegramFilePayload(trimmed: string): string | null {
+  const normalized = unwrapInlineCode(trimmed);
+  if (!normalized.startsWith("@telegram-file")) {
+    return null;
+  }
+
+  const payloadRaw = normalized.slice("@telegram-file".length).trim();
+  return payloadRaw || null;
+}
+
+function unwrapInlineCode(value: string): string {
+  if (value.startsWith("`") && value.endsWith("`") && value.length >= 2) {
+    return value.slice(1, -1).trim();
+  }
+  return value;
 }
 
 function resolveTelegramFileMethod(kind: TelegramFileKind): string {
