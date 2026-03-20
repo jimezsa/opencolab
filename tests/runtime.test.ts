@@ -79,6 +79,11 @@ test("init and agent create seed professor and specialist AGENTS.md templates", 
       professorDoc.includes("Use it only for substantial milestones: retrieval-wave start, candidate-corpus counts, deep-read selection, download progress, summarization progress, synthesis start, warnings, or blocked runs."),
       true
     );
+    assert.equal(professorDoc.includes("## Telegram Files"), true);
+    assert.equal(
+      professorDoc.includes("with no backticks, bullets, or code fences."),
+      true
+    );
 
     runtime.configureAgent("scout");
     const specialistAgentPath = path.join(buildAgentDir(tempDir, "default", "scout"), "AGENTS.md");
@@ -677,6 +682,65 @@ test("provider CLI progress file events are forwarded to Telegram before the fin
     } else {
       process.env.ANTHROPIC_API_KEY = originalAnthropicKey;
     }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("agent response can send telegram files when the directive is backticked and the file path is relative", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-relative-"));
+  const sentTexts: string[] = [];
+  const sentFiles: Array<{ kind: string; file: string; caption?: string }> = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramFileSender: async (_chatId, file) => {
+      sentFiles.push({
+        kind: file.kind,
+        file: file.file,
+        ...(file.caption ? { caption: file.caption } : {})
+      });
+      return true;
+    },
+    agentResponder: async () =>
+      [
+        "Image exists & re-sent.",
+        '`@telegram-file {"kind":"photo","file":"generated.png","caption":"diagram"}`'
+      ].join("\n")
+  });
+
+  try {
+    runtime.init();
+    fs.writeFileSync(path.join(buildAgentDir(tempDir, "default"), "generated.png"), "fake-image-bytes", "utf8");
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "send me the generated image",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.equal(result.response, "Image exists & re-sent.");
+    assert.deepEqual(sentTexts, ["Image exists & re-sent."]);
+    assert.equal(sentFiles.length, 1);
+    assert.deepEqual(sentFiles[0], {
+      kind: "photo",
+      file: path.join(buildAgentDir(tempDir, "default"), "generated.png"),
+      caption: "diagram"
+    });
+  } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
