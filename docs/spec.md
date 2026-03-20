@@ -108,6 +108,7 @@ Initialization requirements:
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks
 - default `AGENTS.md` must include the `OPENCOLAB_PROGRESS_FILE` helper and instruct agents to use it only for substantial milestones
+- default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences
 - the default templates must keep only essential, role-appropriate instructions
 - `TODO.md` must be used for active planning and task tracking based on interactions with the human and other agents
 
@@ -356,6 +357,8 @@ Notes:
 - polling mode must not retry the same failed Telegram update indefinitely once the runtime has consumed it
 - agent responses may include `@telegram-file <json>` directives to send Telegram files:
   - example: `@telegram-file {"kind":"document","file":"<file_id_or_url>","caption":"optional"}`
+  - local file paths may be relative to the active agent working directory or absolute
+  - directive lines may be wrapped in a single pair of backticks and should still be accepted
 - `setup telegram` should register Telegram bot commands via `setMyCommands` so slash-menu suggestions are available
 
 ## 12. Incremental Task Updates
