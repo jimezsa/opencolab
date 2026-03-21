@@ -120,7 +120,7 @@ Initialization requirements:
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks
-- default `AGENTS.md` must include the `OPENCOLAB_PROGRESS_FILE` helper, a valid JSON example, and guidance that agents choose bounded useful progress events rather than milestone-only output
+- default `AGENTS.md` must present `OPENCOLAB_PROGRESS_FILE` as the default OpenColab progress channel, include a valid JSON example, and explain that agents choose bounded useful progress events rather than milestone-only output
 - default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences
 - the default templates must keep only essential, role-appropriate instructions
 - `TODO.md` must be used for active planning and task tracking based on interactions with the human and other agents
@@ -412,6 +412,7 @@ Minimum event shape:
 
 Requirements:
 
+- provider runtimes must create and inject `OPENCOLAB_PROGRESS_FILE` by default for routed agent executions, even when no extra progress configuration is requested by the operator
 - `kind` is required
 - `message` is required and must be concise, concrete, and user-facing
 - `stage` is recommended for routing and de-duplication
@@ -463,6 +464,7 @@ Requirements:
 - updates must report real work completed, real blockers, meaningful counters, or the transition into a new major phase
 - final answers should remain synthesized and complete, not a loose concatenation of earlier progress notes
 - default agent guidance must stop treating "one thoughtful response" as a blanket rule for long-running operational tasks
+- default agent guidance must describe progress updates as a normal OpenColab feature, not an optional add-on the agent has to rediscover
 - default agent guidance must make the JSON progress-event contract explicit enough for weaker agents to copy correctly
 
 Recommended rule of thumb:

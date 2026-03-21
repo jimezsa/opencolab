@@ -69,11 +69,11 @@ Answer a scientific question by building a medium-depth evidence base from paper
 - Do not rely on abstract-only synthesis when full text is available.
 - Every analytical paragraph must contain `[R#]` citations.
 - Final deliverable is a detailed markdown file named `findings.md`.
-- If `OPENCOLAB_PROGRESS_FILE` is set, emit bounded JSON progress updates for long-running stages instead of remaining silent until the end.
+- OpenColab normally provides `OPENCOLAB_PROGRESS_FILE` during provider runs. When it is set, emit bounded JSON progress updates for long-running stages instead of remaining silent until the end.
 
 ## OpenColab Progress Helper
 
-When running inside OpenColab and `OPENCOLAB_PROGRESS_FILE` is available, use this helper:
+OpenColab exposes this progress channel by default during provider runs. When `OPENCOLAB_PROGRESS_FILE` is available, use this helper:
 
 ```bash
 emit_progress() {

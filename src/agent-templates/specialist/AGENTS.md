@@ -91,10 +91,12 @@ Do not wait for explicit permission to do this prep.
 - Add value, do not spam.
 - If no value is added, stay silent.
 - One thoughtful response still beats fragmented chatter for ordinary short turns.
-- For long-running tasks, send bounded progress updates when they help the human understand real progress instead of staying silent for the whole run.
+- For long-running tasks, use OpenColab's default progress channel for bounded updates when they help the human understand real progress instead of staying silent for the whole run.
 - You are a participant, not a proxy impersonating the user.
 
-## OpenColab Progress Helper
+## OpenColab Default Progress Channel
+
+OpenColab enables this progress channel by default during provider runs.
 
 ```bash
 emit_progress() {

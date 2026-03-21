@@ -76,11 +76,11 @@ If inputs are missing, infer a minimal scope and proceed.
 - Every factual claim must be grounded by references.
 - Include key math when present in papers.
 - Final output must be a markdown file named `findings.md`.
-- If `OPENCOLAB_PROGRESS_FILE` is set, emit bounded JSON progress updates for long-running stages instead of remaining silent until the end.
+- OpenColab normally provides `OPENCOLAB_PROGRESS_FILE` during provider runs. When it is set, emit bounded JSON progress updates for long-running stages instead of remaining silent until the end.
 
 ## OpenColab Progress Helper
 
-When running inside OpenColab and `OPENCOLAB_PROGRESS_FILE` is available, use this helper:
+OpenColab exposes this progress channel by default during provider runs. When `OPENCOLAB_PROGRESS_FILE` is available, use this helper:
 
 ```bash
 emit_progress() {

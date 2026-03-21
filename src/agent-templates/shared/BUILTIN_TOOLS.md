@@ -6,7 +6,7 @@ Shared project skills live under `projects/SKILLS/`. Agent-local skills live und
 
 ## Task Progress Updates
 
-If `OPENCOLAB_PROGRESS_FILE` is set in the shell environment and the task is long-running, emit concise one-line JSON progress events to that file when they help the user understand real progress.
+OpenColab enables this progress channel by default during provider runs. When `OPENCOLAB_PROGRESS_FILE` is set in the shell environment and the task is long-running, emit concise one-line JSON progress events to that file when they help the user understand real progress.
 
 Allowed `kind` values:
 

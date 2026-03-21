@@ -87,6 +87,7 @@ opencolab gateway start --port 4646
 
 OpenColab configures `claude`, `codex`, `gemini`, and `pi` for non-interactive runs, so agents can work in the active project without extra terminal prompts.
 Each agent chooses its own provider, and all agent runtimes work inside the project workspace by default.
+Progress updates for long-running runs are also enabled by default, so agents can stream bounded status events back through Telegram without extra setup.
 
 Auth options:
 

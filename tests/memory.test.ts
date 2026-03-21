@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildAgentPromptForInput, ensureAgentFiles } from "../src/agent.js";
+import { buildAgentPromptForInput, buildPiSystemPromptForInput, ensureAgentFiles } from "../src/agent.js";
 import { ConversationStore } from "../src/conversation.js";
 import { createDefaultAgentConfig } from "../src/project-config.js";
 import { createRuntime } from "../src/runtime.js";
@@ -106,6 +106,7 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("User prefers concise plans."), true);
     assert.equal(prompt.includes("[BUILTIN_TOOLS]"), true);
     assert.equal(prompt.includes("Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime)."), true);
+    assert.equal(prompt.includes("OpenColab enables progress updates by default during provider runs."), true);
     assert.equal(prompt.includes("`fast-search`"), true);
     assert.equal(prompt.includes("`block-diagram`"), true);
     assert.equal(prompt.includes("Local helper: `./bin/local-research`"), true);
@@ -118,6 +119,27 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("Working memory (active session, current UTC day):"), true);
     assert.equal(prompt.includes("USER: current-turn-1"), true);
     assert.equal(prompt.includes("ASSISTANT: current-reply-1"), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("pi system prompt includes default progress guidance", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-memory-pi-prompt-"));
+  const agent = createDefaultAgentConfig("default");
+
+  try {
+    ensureAgentFiles(tempDir, agent);
+    const prompt = buildPiSystemPromptForInput(
+      tempDir,
+      agent,
+      {
+        workingMemory: [],
+        previousDaySummary: ""
+      }
+    );
+
+    assert.equal(prompt.includes("OpenColab enables progress updates by default during provider runs."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

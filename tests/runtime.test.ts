@@ -73,7 +73,11 @@ test("init and agent create seed professor, beginner, and specialist AGENTS.md t
     assert.equal(professorDoc.includes("MEMORY.md: durable facts learned over time"), true);
     assert.equal(professorDoc.includes("Before deep research, clarify the human's true intention behind the topic."), true);
     assert.equal(professorDoc.includes("Do not invent sources, data, or experiment results."), true);
-    assert.equal(professorDoc.includes("## OpenColab Progress Helper"), true);
+    assert.equal(professorDoc.includes("## OpenColab Default Progress Channel"), true);
+    assert.equal(
+      professorDoc.includes("OpenColab enables this progress channel by default during provider runs."),
+      true
+    );
     assert.equal(professorDoc.includes("emit_progress() {"), true);
     assert.equal(
       professorDoc.includes("Write one-line JSON events. Allowed `kind` values are `started`, `progress`, `milestone`, `warning`, `needs_input`, and `completed`."),
