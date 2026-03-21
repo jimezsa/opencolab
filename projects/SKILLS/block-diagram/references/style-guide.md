@@ -6,6 +6,8 @@ This skill optimizes for readable technical block diagrams, not decorative art.
 
 - Direction: left to right.
 - Layout engine: `elk`.
+- Render style: `sketch` by default for a hand-drawn look.
+- Switch to `clean` only when the user explicitly asks for a polished, paper-ready, or non-sketch output.
 - Use one dominant flow direction per diagram.
 - Split large architectures into multiple diagrams instead of forcing one dense canvas.
 
@@ -74,4 +76,4 @@ Do not use many unrelated colors. Color should clarify structure, not decorate i
 - beginner: fewer blocks, plainer labels, stronger grouping
 - engineer: normal detail, concrete component names
 - executive: focus on major stages and business-relevant interfaces
-- paper figure: clean labels, crisp pipeline flow, minimal prose
+- paper figure: clean labels, crisp pipeline flow, minimal prose, and usually `clean` render style on explicit request

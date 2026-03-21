@@ -90,7 +90,7 @@ Shared project skills requirements:
 - skills are shared across all agents and all projects and must not be duplicated per agent or per project
 - each skill lives under `projects/SKILLS/<skill_id>/SKILL.md`
 - agent instructions must tell agents to read relevant `SKILL.md` files from the shared `projects/SKILLS/` directory before using a specialized workflow
-- the shared `block-diagram` skill is the deterministic path for autonomous D2 block-diagram generation
+- the shared `block-diagram` skill is the deterministic path for autonomous D2 block-diagram generation and defaults to sketch-style rendering unless the user asks for clean output
 
 Agent-local skills requirements:
 
@@ -480,7 +480,8 @@ The shared `block-diagram` skill must:
 
 - normalize a text architecture brief into components, containers, and directed edges,
 - produce a canonical `.d2` source file,
-- render `.svg` output and optional `.png` output,
+- render sketch-style `.svg` output by default and optional `.png` output,
+- support a clean non-sketch override when the user explicitly asks for it,
 - prefer deterministic D2 rendering over free-form image generation for architecture block diagrams,
 - split large architectures into overview and detail diagrams when one dense diagram would reduce readability.
 - paper summarization progress

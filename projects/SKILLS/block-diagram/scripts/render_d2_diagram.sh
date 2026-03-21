@@ -4,9 +4,10 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  render_d2_diagram.sh --input file.d2 [--svg out.svg] [--png out.png] [--layout elk|dagre] [--theme 0] [--pad 64]
+  render_d2_diagram.sh --input file.d2 [--svg out.svg] [--png out.png] [--layout elk|dagre] [--theme 0] [--pad 64] [--style sketch|clean]
 
 Formats, validates, and renders a D2 diagram. SVG is always rendered. PNG is optional.
+Default style is sketch for a hand-drawn look.
 EOF
 }
 
@@ -16,6 +17,7 @@ png_path=""
 layout="elk"
 theme="0"
 pad="64"
+style="sketch"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -41,6 +43,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --pad)
       pad="${2:-}"
+      shift 2
+      ;;
+    --style)
+      style="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -71,8 +77,32 @@ if [[ "$input_path" != *.d2 ]]; then
   exit 1
 fi
 
+case "$style" in
+  sketch|clean)
+    ;;
+  *)
+    printf 'Style must be one of: sketch, clean. Got: %s\n' "$style" >&2
+    exit 1
+    ;;
+esac
+
 base_path="${input_path%.d2}"
 svg_path="${svg_path:-${base_path}.svg}"
+
+d2_style_args=()
+if [[ "$style" == "sketch" ]]; then
+  d2_style_args+=(--sketch)
+fi
+
+render_args=(
+  --layout "$layout"
+  --theme "$theme"
+  --pad "$pad"
+  --omit-version
+)
+if [[ ${#d2_style_args[@]} -gt 0 ]]; then
+  render_args+=("${d2_style_args[@]}")
+fi
 
 mkdir -p "$(dirname "$svg_path")"
 if [[ -n "$png_path" ]]; then
@@ -82,13 +112,7 @@ fi
 d2 fmt "$input_path" >/dev/null
 d2 validate "$input_path"
 
-d2 \
-  --layout "$layout" \
-  --theme "$theme" \
-  --pad "$pad" \
-  --omit-version \
-  "$input_path" \
-  "$svg_path" >/dev/null
+d2 "${render_args[@]}" "$input_path" "$svg_path" >/dev/null
 
 if [[ ! -f "$svg_path" ]]; then
   printf 'SVG render did not produce an output file: %s\n' "$svg_path" >&2
@@ -96,13 +120,7 @@ if [[ ! -f "$svg_path" ]]; then
 fi
 
 if [[ -n "$png_path" ]]; then
-  d2 \
-    --layout "$layout" \
-    --theme "$theme" \
-    --pad "$pad" \
-    --omit-version \
-    "$input_path" \
-    "$png_path" >/dev/null
+  d2 "${render_args[@]}" "$input_path" "$png_path" >/dev/null
 
   if [[ ! -f "$png_path" ]]; then
     printf 'PNG render did not produce an output file: %s\n' "$png_path" >&2
@@ -112,6 +130,7 @@ fi
 
 printf 'source=%s\n' "$input_path"
 printf 'svg=%s\n' "$svg_path"
+printf 'style=%s\n' "$style"
 if [[ -n "$png_path" ]]; then
   printf 'png=%s\n' "$png_path"
 fi

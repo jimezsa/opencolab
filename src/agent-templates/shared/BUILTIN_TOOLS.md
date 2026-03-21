@@ -28,5 +28,5 @@ Use progress updates only for meaningful milestones such as retrieval start, cor
   Description: Deep scientific investigation with `papercli`.
   When to use: for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support.
 - `block-diagram`
-  Description: Deterministic D2 block diagram generation with SVG and optional PNG rendering.
-  When to use: for clean system, pipeline, model, and component diagrams that agents can generate end to end from a text brief.
+  Description: Deterministic D2 block diagram generation with sketch-style SVG by default and optional PNG rendering.
+  When to use: for system, pipeline, model, and component diagrams that agents can generate end to end from a text brief, using clean mode only when the user explicitly asks for non-sketch output.

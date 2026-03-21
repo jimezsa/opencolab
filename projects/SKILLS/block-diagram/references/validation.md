@@ -10,6 +10,7 @@ Before returning the diagram, check all of these:
 - Labels are short and readable.
 - Only important edges are labeled.
 - The diagram is not overcrowded.
+- The render style matches the request, or defaults to `sketch` when no style was requested.
 - The `.d2` source validates successfully.
 - The SVG renders successfully.
 - If a PNG was requested, the PNG renders successfully.

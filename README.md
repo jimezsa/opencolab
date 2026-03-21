@@ -251,7 +251,7 @@ Shared project skills:
 - the shared skill library lives under `projects/SKILLS/`
 - all agents in all projects share that same skill library
 - built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `nano-banana`, and `block-diagram` skills live there and are not replicated into each agent or project
-- `block-diagram` is the deterministic shared skill for generating autonomous D2-based architecture and system diagrams as `.d2`, `.svg`, and optional `.png` artifacts
+- `block-diagram` is the deterministic shared skill for generating autonomous D2-based architecture and system diagrams as `.d2`, sketch-style `.svg`, and optional `.png` artifacts by default, with clean output available on explicit request
 
 Agent-local skills:
 

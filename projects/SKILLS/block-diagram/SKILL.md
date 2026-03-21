@@ -1,6 +1,6 @@
 ---
 name: block-diagram
-description: Generate accurate, readable D2 block diagrams for software, research, and system explanations from a text brief. Normalize components and edges, write a canonical .d2 source file, render SVG and optional PNG artifacts, and emit Telegram file directives when needed.
+description: Generate accurate, readable D2 block diagrams for software, research, and system explanations from a text brief. Normalize components and edges, write a canonical .d2 source file, render sketch-style SVG and optional PNG artifacts by default, and emit Telegram file directives when needed.
 metadata:
   {
     "opencolab":
@@ -14,9 +14,9 @@ metadata:
 
 # Block Diagram Skill
 
-Use this skill when the user wants a clean block diagram that explains a system, model, pipeline, service, architecture, or workflow.
+Use this skill when the user wants a block diagram that explains a system, model, pipeline, service, architecture, or workflow.
 
-This is the deterministic path for architecture visuals in OpenColab. The source of truth is a D2 file, not an image-generation prompt.
+This is the deterministic path for architecture visuals in OpenColab. The source of truth is a D2 file, not an image-generation prompt. The default rendered style is D2 sketch mode, which gives a hand-drawn look while keeping the diagram deterministic and editable.
 
 ## Mission
 
@@ -40,9 +40,11 @@ Given a textual architecture description:
 - Optional audience: beginner, engineer, executive, paper figure, infra team, and so on.
 - Optional must-include components, flows, or labels.
 - Optional preferred output name.
+- Optional render style: `sketch` or `clean`.
 
 If the user does not provide an audience, assume `engineer`.
 If the user does not provide an output name, derive a short slug from the system name.
+If the user does not provide a render style, use `sketch`.
 
 ## Hard Requirements
 
@@ -55,6 +57,7 @@ If the user does not provide an output name, derive a short slug from the system
 - Use `references/patterns.md` when selecting the diagram structure.
 - Use `references/validation.md` before returning the final result.
 - Use `scripts/render_d2_diagram.sh` to format, validate, and render the final diagram.
+- Default to sketch-style rendering. Only switch to clean rendering when the user explicitly asks for a polished, paper-ready, or non-sketch output.
 - If `OPENCOLAB_PROGRESS_FILE` is set and the task is long enough to justify milestones, emit bounded progress updates for normalization, draft completion, render start, and final artifact creation.
 - If the rendered artifact should be sent to Telegram, emit a raw `@telegram-file {"kind":"document","file":"diagrams/<slug>.svg","caption":"optional"}` or `@telegram-file {"kind":"photo","file":"diagrams/<slug>.png","caption":"optional"}` line on its own line with no backticks or code fences.
 - If PNG rendering is unavailable in the current environment, fall back to the SVG artifact and send it as a Telegram document instead of pretending the PNG exists.
@@ -69,6 +72,7 @@ Translate the request into this internal structure before drawing:
 - audience
 - diagram scope
 - layout direction
+- render style
 - containers or subsystems
 - blocks inside each container
 - directed edges
@@ -106,6 +110,7 @@ Requirements for the D2 source:
 - use containers for subsystems
 - label only important edges
 - preserve exact component names when the user cares about wording
+- let the renderer control sketch versus clean styling unless the request needs D2 source-level style overrides
 
 ### 4. Render the diagram
 
@@ -122,6 +127,8 @@ Notes:
 
 - The renderer formats and validates the D2 source before rendering.
 - The default layout engine is `elk`.
+- The default render style is `sketch`.
+- Use `--style clean` only when the user explicitly asks for a polished, paper-style, or non-sketch diagram.
 - SVG is the default deliverable.
 - PNG is optional, but recommended for Telegram delivery when raster export works in the current environment.
 - If PNG rendering fails, keep the SVG, mention the limitation briefly, and return or send the SVG as a document.
