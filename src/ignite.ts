@@ -63,6 +63,7 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
     "grok-code-fast-1",
   ],
 };
+const BUILT_IN_TOOLS_PROVIDER: ProviderName = "gemini";
 
 export interface IgniteDependencies {
   syncTelegramCommands: (
@@ -87,6 +88,10 @@ export async function runIgnite(
   io.write("|");
   await runStep(io, "* Provider configure model and auth", async (stepIo) =>
     configureProvider(runtime, stepIo),
+  );
+  io.write("|");
+  await runStep(io, "* Built-in tools configure Gemini API key", async (stepIo) =>
+    configureBuiltInTools(runtime, stepIo),
   );
   io.write("|");
   await runStep(io, "* Telegram configure chat and pairing", async (stepIo) =>
@@ -366,6 +371,69 @@ async function configureTelegram(
     io.write(error instanceof Error ? error.message : String(error));
     io.write("Run 'opencolab setup telegram pair start' to retry pairing.");
   }
+}
+
+async function configureBuiltInTools(
+  runtime: OpenColabRuntime,
+  io: IgniteIo,
+): Promise<void> {
+  const builtInToolsEnvVar = getProviderApiKeyEnvVar(BUILT_IN_TOOLS_PROVIDER);
+  const existingBuiltInToolsKey = resolveProviderApiKey(BUILT_IN_TOOLS_PROVIDER);
+  const activeProvider = runtime.getActiveAgent().provider;
+  const activeProviderDefaults = getProviderSetupDefaults(activeProvider.name);
+  const activeProviderAuthMode = resolveProviderAuthMode(
+    activeProvider.name,
+    activeProvider.authMode,
+    activeProviderDefaults.authMode,
+  );
+
+  if (
+    activeProvider.name === BUILT_IN_TOOLS_PROVIDER &&
+    activeProviderAuthMode === "api_key" &&
+    existingBuiltInToolsKey
+  ) {
+    io.write(
+      `Built-in shared tools use ${builtInToolsEnvVar}. Already configured via the active Gemini provider setup.`,
+    );
+    return;
+  }
+
+  if (existingBuiltInToolsKey) {
+    const keepExisting = await askYesNo(
+      io,
+      `${builtInToolsEnvVar} already has a value for Gemini-based built-in shared tools. Keep it?`,
+      true,
+    );
+    if (keepExisting) {
+      io.write(
+        `Built-in shared tools will use the existing ${builtInToolsEnvVar}.`,
+      );
+      return;
+    }
+  } else {
+    const shouldConfigure = await askYesNo(
+      io,
+      `Add ${builtInToolsEnvVar} now so Gemini-based built-in shared tools work?`,
+      true,
+    );
+    if (!shouldConfigure) {
+      io.write(
+        `Built-in shared tools skipped. Set ${builtInToolsEnvVar} later to enable Gemini-based shared tools.`,
+      );
+      return;
+    }
+  }
+
+  const builtInToolsApiKey = await askRequiredWithOptionalDefault(
+    io,
+    `${builtInToolsEnvVar} value`,
+  );
+  writeSecretToLocalEnv(
+    runtime.config.rootDir,
+    builtInToolsEnvVar,
+    builtInToolsApiKey,
+  );
+  io.write(`Saved ${builtInToolsEnvVar} in .env.local for shared tools.`);
 }
 
 async function askProviderName(
