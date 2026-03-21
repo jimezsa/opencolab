@@ -11,9 +11,14 @@ const AGENT_TEMPLATES_DIR_CANDIDATES = [
 ];
 const SHARED_AGENT_TEMPLATE_DIR = "shared";
 const BUILTIN_AGENT_TEMPLATE_DIRS = {
+  beginner: "beginner",
   professor: "professor",
   specialist: "specialist",
 } as const;
+const BUILTIN_AGENT_TEMPLATE_IDS_BY_AGENT_ID: Record<string, BuiltInAgentTemplateId> = {
+  beginner: "beginner",
+  [DEFAULT_AGENT_ID]: "professor",
+};
 
 const TEMPLATE_FILES: Record<keyof AgentFiles | "builtinTools", string> = {
   agents: "AGENTS.md",
@@ -90,7 +95,7 @@ function readTemplateFile(
 }
 
 function resolveBuiltInAgentTemplateId(agentId: string): BuiltInAgentTemplateId {
-  return agentId === DEFAULT_AGENT_ID ? "professor" : "specialist";
+  return BUILTIN_AGENT_TEMPLATE_IDS_BY_AGENT_ID[agentId] ?? "specialist";
 }
 
 const agentTemplateCache = new Map<
