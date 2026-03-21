@@ -18,7 +18,7 @@ Top-level sources of truth:
 Core implementation areas:
 
 - `src/cli.ts`: CLI entrypoint, interactive prompts, setup flows including standalone provider-key writes, and gateway lifecycle commands.
-- `src/ignite.ts`: first-run onboarding for project selection, provider/auth setup, built-in Gemini key setup, Telegram setup, and pairing.
+- `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth setup, built-in Gemini key setup, Telegram setup, and pairing.
 - `src/runtime.ts`: stateful orchestration across config, project state, gateway routing, memory, and provider execution.
 - `src/http.ts`: local HTTP server, health/state endpoints, Telegram webhook ingestion, and optional long polling startup.
 - `src/gateway.ts`: Telegram authorization, pairing, command routing, typing updates, and message/file handling.

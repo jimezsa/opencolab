@@ -53,7 +53,7 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
     "gemini-3.1-pro-preview",
     "gemini-3-flash-preview",
   ],
-  minimax: ["MiniMax-M2.5"],
+  minimax: ["MiniMax-M2.5", "MiniMax-M2.7"],
   xai: [
     "grok-4.20-beta-0309-reasoning",
     "grok-4-fast-non-reasoning",

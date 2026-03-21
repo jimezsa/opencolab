@@ -277,6 +277,51 @@ test("ignite supports configuring the minimax provider", async () => {
   }
 });
 
+test("ignite exposes MiniMax-M2.7 in interactive chooser mode", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-minimax-choose-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = ["", "minimax_test_key_choose", "n", "n"];
+  let modelOptions: string[] | null = null;
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        choose: async (prompt, options) => {
+          if (prompt === "| Provider:") {
+            return "minimax";
+          }
+          if (prompt === "| Model:") {
+            modelOptions = [...options];
+            return "MiniMax-M2.7";
+          }
+          return options[0] ?? "";
+        },
+        write: () => undefined
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.deepEqual(modelOptions, ["MiniMax-M2.5", "MiniMax-M2.7"]);
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "minimax");
+    assert.equal(agent.provider.model, "MiniMax-M2.7");
+    assert.equal(agent.provider.runtime, "claude");
+    assert.equal(process.env.MINIMAX_API_KEY, "minimax_test_key_choose");
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("ignite supports OpenAI oauth mode without asking for API key", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-openai-oauth-"));
   const previousEnv = clearSecretEnvVars();
