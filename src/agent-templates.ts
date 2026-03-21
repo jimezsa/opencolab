@@ -9,8 +9,13 @@ const AGENT_TEMPLATES_DIR_CANDIDATES = [
   path.resolve(MODULE_DIR, "agent-templates"),
   path.resolve(MODULE_DIR, "../../src/agent-templates"),
 ];
+const SHARED_AGENT_TEMPLATE_DIR = "shared";
+const BUILTIN_AGENT_TEMPLATE_DIRS = {
+  professor: "professor",
+  specialist: "specialist",
+} as const;
 
-const TEMPLATE_FILES = {
+const TEMPLATE_FILES: Record<keyof AgentFiles | "builtinTools", string> = {
   agents: "AGENTS.md",
   bootstrap: "BOOTSTRAP.md",
   identity: "IDENTITY.md",
@@ -22,7 +27,8 @@ const TEMPLATE_FILES = {
   builtinTools: "BUILTIN_TOOLS.md",
 } as const;
 
-type DefaultAgentFileKey = Exclude<keyof AgentFiles, "agents">;
+type AgentFileKey = keyof AgentFiles;
+type BuiltInAgentTemplateId = keyof typeof BUILTIN_AGENT_TEMPLATE_DIRS;
 
 function resolveAgentTemplatesDirectory(): string {
   for (const candidate of AGENT_TEMPLATES_DIR_CANDIDATES) {
@@ -36,56 +42,92 @@ function resolveAgentTemplatesDirectory(): string {
   );
 }
 
-function readTemplateFile(fileName: string): string {
-  return fs.readFileSync(
-    path.join(resolveAgentTemplatesDirectory(), fileName),
-    "utf8",
+function resolveSharedTemplatePath(fileName: string): string {
+  const sharedTemplatePath = path.join(
+    resolveAgentTemplatesDirectory(),
+    SHARED_AGENT_TEMPLATE_DIR,
+    fileName,
+  );
+  if (fs.existsSync(sharedTemplatePath)) {
+    return sharedTemplatePath;
+  }
+
+  throw new Error(
+    `OpenColab shared agent template file not found: ${sharedTemplatePath}`,
   );
 }
 
-const AGENTS_DOC_TEMPLATE = readTemplateFile(TEMPLATE_FILES.agents);
+function resolveTemplateFilePath(
+  templateId: BuiltInAgentTemplateId,
+  fileName: string,
+): string {
+  const templatesDir = resolveAgentTemplatesDirectory();
+  const candidates = [
+    path.join(templatesDir, BUILTIN_AGENT_TEMPLATE_DIRS[templateId], fileName),
+    path.join(templatesDir, SHARED_AGENT_TEMPLATE_DIR, fileName),
+  ];
 
-const DEFAULT_AGENT_FILE_CONTENT: Record<DefaultAgentFileKey, string> = {
-  bootstrap: readTemplateFile(TEMPLATE_FILES.bootstrap),
-  identity: readTemplateFile(TEMPLATE_FILES.identity),
-  alma: readTemplateFile(TEMPLATE_FILES.alma),
-  tools: readTemplateFile(TEMPLATE_FILES.tools),
-  user: readTemplateFile(TEMPLATE_FILES.user),
-  todo: readTemplateFile(TEMPLATE_FILES.todo),
-  memory: readTemplateFile(TEMPLATE_FILES.memory),
-};
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
 
-export const BUILTIN_TOOLS_CONTEXT = readTemplateFile(
+  throw new Error(
+    `OpenColab agent template file not found for template "${templateId}" (${fileName}). Looked in: ${candidates.join(", ")}`,
+  );
+}
+
+function readSharedTemplateFile(fileName: string): string {
+  return fs.readFileSync(resolveSharedTemplatePath(fileName), "utf8");
+}
+
+function readTemplateFile(
+  templateId: BuiltInAgentTemplateId,
+  fileName: string,
+): string {
+  return fs.readFileSync(resolveTemplateFilePath(templateId, fileName), "utf8");
+}
+
+function resolveBuiltInAgentTemplateId(agentId: string): BuiltInAgentTemplateId {
+  return agentId === DEFAULT_AGENT_ID ? "professor" : "specialist";
+}
+
+const agentTemplateCache = new Map<
+  BuiltInAgentTemplateId,
+  Record<AgentFileKey, string>
+>();
+
+function loadBuiltInAgentTemplate(
+  templateId: BuiltInAgentTemplateId,
+): Record<AgentFileKey, string> {
+  const cached = agentTemplateCache.get(templateId);
+  if (cached) {
+    return cached;
+  }
+
+  const next: Record<AgentFileKey, string> = {
+    agents: readTemplateFile(templateId, TEMPLATE_FILES.agents),
+    bootstrap: readTemplateFile(templateId, TEMPLATE_FILES.bootstrap),
+    identity: readTemplateFile(templateId, TEMPLATE_FILES.identity),
+    alma: readTemplateFile(templateId, TEMPLATE_FILES.alma),
+    tools: readTemplateFile(templateId, TEMPLATE_FILES.tools),
+    user: readTemplateFile(templateId, TEMPLATE_FILES.user),
+    todo: readTemplateFile(templateId, TEMPLATE_FILES.todo),
+    memory: readTemplateFile(templateId, TEMPLATE_FILES.memory),
+  };
+  agentTemplateCache.set(templateId, next);
+  return next;
+}
+
+export const BUILTIN_TOOLS_CONTEXT = readSharedTemplateFile(
   TEMPLATE_FILES.builtinTools,
 );
 
-export function getDefaultAgentFileContent(key: DefaultAgentFileKey): string {
-  return DEFAULT_AGENT_FILE_CONTENT[key];
-}
-
-export function buildDefaultAgentsDoc(agentId: string): string {
-  const isProfessor = agentId === DEFAULT_AGENT_ID;
-  return AGENTS_DOC_TEMPLATE
-    .replace(
-      "{{TITLE}}",
-      isProfessor ? "Professor Essentials" : "PhD Specialist Essentials",
-    )
-    .replace(
-      "{{ROLE_INTRO}}",
-      isProfessor
-        ? "You are the lab's lead professor agent. Deliver accurate, source-backed, actionable answers with personality and clarity."
-        : "You are a PhD-style specialist agent. Deliver accurate, source-backed, actionable answers within your specialty and surface the sharpest findings.",
-    )
-    .replace(
-      "{{ROLE_CONTEXT}}",
-      isProfessor
-        ? "You set direction, decide when to delegate, and synthesize specialist work into one coherent outcome."
-        : "You collaborate as part of the project agent group and should keep your work scoped, evidence-based, and easy to integrate.",
-    )
-    .replace(
-      "{{ROLE_RULE}}",
-      isProfessor
-        ? "Lead the lab: decide when to work directly, when to delegate, and how to integrate specialist outputs."
-        : "Operate as a PhD-style specialist: own a scoped workstream and report crisp findings, assumptions, and open questions.",
-    );
+export function getBuiltInAgentFileContent(
+  agentId: string,
+  key: AgentFileKey,
+): string {
+  const templateId = resolveBuiltInAgentTemplateId(agentId);
+  return loadBuiltInAgentTemplate(templateId)[key];
 }
