@@ -382,7 +382,7 @@ function usageMain(): string {
     "",
     "Top-level commands:",
     helpCommand("ignite", "Interactive first-run setup"),
-    helpCommand("setup", "Configure model/provider/telegram"),
+    helpCommand("setup", "Configure model/provider/api-key/telegram"),
     helpCommand("project", "Manage/create projects"),
     helpCommand("agent", "Manage/create agents"),
     helpCommand("gateway", "Manage local gateway service"),
@@ -422,7 +422,7 @@ function usageIgnite(): string {
     helpCommand("opencolab ignite", "Run interactive onboarding"),
     "",
     "Notes:",
-    "  - Interactive setup for project/provider/telegram/agent.",
+    "  - Interactive setup for project/provider/built-in-tools/telegram/agent.",
     "  - Press Esc to skip the current step.",
   ]);
 }
@@ -433,6 +433,10 @@ function usageSetup(): string {
     helpCommand(
       "opencolab setup model [flags]",
       "Configure provider, model, and auth",
+    ),
+    helpCommand(
+      "opencolab setup api-key [flags]",
+      "Save one provider API key only",
     ),
     helpCommand(
       "opencolab setup telegram [flags]",
@@ -452,10 +456,26 @@ function usageSetup(): string {
     ),
     "",
     "Try:",
+    helpCommand("setup api-key --help", "Show provider API key flags"),
     helpCommand("setup model --help", "Show model setup flags"),
     helpCommand("setup telegram --help", "Show telegram setup flags"),
     helpCommand("setup telegram commands sync --help", "Show sync flags"),
     helpCommand("setup telegram pair --help", "Show pairing command help"),
+  ]);
+}
+
+function usageSetupApiKey(): string {
+  const providerChoices = getSupportedProviderNames().join("|");
+  return formatHelp([
+    "Usage:",
+    helpCommand(
+      `opencolab setup api-key --provider ${providerChoices} --api-key <value>`,
+      "Save a provider API key without changing the active agent runtime",
+    ),
+    "",
+    "Flags:",
+    helpFlag(`--provider ${providerChoices}`, "Provider identifier"),
+    helpFlag("--api-key <value>", "Provider API key value (saved to .env.local)"),
   ]);
 }
 
@@ -474,6 +494,9 @@ function usageSetupModel(): string {
     helpFlag("--model <model>", "Provider model name"),
     helpFlag("--auth api-key|oauth", "Provider auth mode (OpenAI and Gemini support oauth)"),
     helpFlag("--api-key <value>", "Provider API key value (saved to .env.local)"),
+    "",
+    "Notes:",
+    `  - Use ${accent("opencolab setup api-key")} to save a provider key without changing model/auth.`,
   ]);
 }
 
@@ -580,6 +603,9 @@ function resolveHelp(argv: string[]): string | null {
   }
 
   if (command === "setup") {
+    if (subcommand === "api-key") {
+      return usageSetupApiKey();
+    }
     if (subcommand === "model") {
       return usageSetupModel();
     }
@@ -1038,6 +1064,28 @@ async function main(): Promise<void> {
     console.log(
       `CLI: ${configuredAgent.provider.cliCommand} ${configuredAgent.provider.cliArgs.join(" ")}`,
     );
+    return;
+  }
+
+  if (command === "setup" && subcommand === "api-key") {
+    const { values } = parseFlags([action, ...rest].filter(Boolean));
+    const providerValue = values.provider?.trim();
+    const apiKey = values["api-key"]?.trim() ?? "";
+
+    if (!providerValue) {
+      throw new Error(`${accent("--provider")} is required`);
+    }
+    if (!apiKey) {
+      throw new Error(`${accent("--api-key")} is required`);
+    }
+
+    const providerName = parseProviderName(providerValue, "openai");
+    const keyEnvVar = getProviderApiKeyEnvVar(providerName);
+    writeSecretToLocalEnv(runtime.config.rootDir, keyEnvVar, apiKey);
+
+    console.log("Provider API key saved.");
+    console.log(`Provider: ${providerName}`);
+    console.log(`Env var: ${keyEnvVar}`);
     return;
   }
 
