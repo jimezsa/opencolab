@@ -482,6 +482,9 @@ The shared `block-diagram` skill must:
 - produce a canonical `.d2` source file,
 - render sketch-style `.svg` output by default and optional `.png` output,
 - support a clean non-sketch override when the user explicitly asks for it,
+- default to unlabeled arrows and only add edge labels when they carry concrete meaning such as a protocol, artifact, or payload,
+- avoid generic edge labels such as `input`, `output`, `data`, or similar filler text,
+- prefer compact readable layouts with short connections and reduced whitespace when that does not hurt clarity,
 - prefer deterministic D2 rendering over free-form image generation for architecture block diagrams,
 - split large architectures into overview and detail diagrams when one dense diagram would reduce readability.
 - paper summarization progress

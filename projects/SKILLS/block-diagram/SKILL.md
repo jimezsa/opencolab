@@ -1,6 +1,6 @@
 ---
 name: block-diagram
-description: Generate accurate, readable D2 block diagrams for software, research, and system explanations from a text brief. Normalize components and edges, write a canonical .d2 source file, render sketch-style SVG and optional PNG artifacts by default, and emit Telegram file directives when needed.
+description: Generate accurate, readable D2 block diagrams for software, research, and system explanations from a text brief. Normalize components and edges, write a canonical .d2 source file, render compact sketch-style SVG and optional PNG artifacts by default, keep arrows unlabeled unless a label adds concrete meaning, and emit Telegram file directives when needed.
 metadata:
   {
     "opencolab":
@@ -16,7 +16,7 @@ metadata:
 
 Use this skill when the user wants a block diagram that explains a system, model, pipeline, service, architecture, or workflow.
 
-This is the deterministic path for architecture visuals in OpenColab. The source of truth is a D2 file, not an image-generation prompt. The default rendered style is D2 sketch mode, which gives a hand-drawn look while keeping the diagram deterministic and editable.
+This is the deterministic path for architecture visuals in OpenColab. The source of truth is a D2 file, not an image-generation prompt. The default rendered style is D2 sketch mode, which gives a hand-drawn look while keeping the diagram deterministic and editable. Diagrams should stay compact, and arrows should remain unlabeled unless the label carries specific technical meaning.
 
 ## Mission
 
@@ -52,12 +52,14 @@ If the user does not provide a render style, use `sketch`.
 - Treat the `.d2` file as the canonical artifact and the rendered image as a derived artifact.
 - Do not invent components, edges, protocols, or subsystems that were not implied by the request.
 - If one ambiguity blocks a faithful diagram, ask one targeted question. Otherwise proceed autonomously.
-- Keep the first diagram readable. If the architecture is too dense, split it into an overview diagram plus one focused detail diagram.
+- Keep the first diagram readable and compact. If the architecture is too dense, split it into an overview diagram plus one focused detail diagram.
 - Use `references/style-guide.md` for layout, color semantics, naming, and grouping rules.
 - Use `references/patterns.md` when selecting the diagram structure.
 - Use `references/validation.md` before returning the final result.
 - Use `scripts/render_d2_diagram.sh` to format, validate, and render the final diagram.
 - Default to sketch-style rendering. Only switch to clean rendering when the user explicitly asks for a polished, paper-ready, or non-sketch output.
+- Default to unlabeled arrows. Add edge labels only when they convey specific information such as a protocol, artifact, or payload that the arrow alone would not communicate.
+- Never use generic edge labels such as `input`, `output`, `data`, `result`, `something input`, or `something output`.
 - If `OPENCOLAB_PROGRESS_FILE` is set and the task is long enough to justify milestones, emit bounded progress updates for normalization, draft completion, render start, and final artifact creation.
 - If the rendered artifact should be sent to Telegram, emit a raw `@telegram-file {"kind":"document","file":"diagrams/<slug>.svg","caption":"optional"}` or `@telegram-file {"kind":"photo","file":"diagrams/<slug>.png","caption":"optional"}` line on its own line with no backticks or code fences.
 - If PNG rendering is unavailable in the current environment, fall back to the SVG artifact and send it as a Telegram document instead of pretending the PNG exists.
@@ -105,10 +107,13 @@ Before writing, read:
 
 Requirements for the D2 source:
 
-- default to left-to-right flow
+- default to the smallest readable flow direction; use left-to-right for broad systems and top-down for long pipelines or repeated blocks when that keeps the canvas smaller
 - keep labels short and concrete
 - use containers for subsystems
-- label only important edges
+- keep related nodes close and avoid stretched connections when a tighter readable layout is possible
+- prefer unlabeled edges
+- label only edges whose labels add concrete meaning
+- never use filler labels like `input`, `output`, `data`, or `result`
 - preserve exact component names when the user cares about wording
 - let the renderer control sketch versus clean styling unless the request needs D2 source-level style overrides
 
@@ -128,6 +133,7 @@ Notes:
 - The renderer formats and validates the D2 source before rendering.
 - The default layout engine is `elk`.
 - The default render style is `sketch`.
+- The renderer uses compact spacing by default to reduce unnecessary whitespace and long connections.
 - Use `--style clean` only when the user explicitly asks for a polished, paper-style, or non-sketch diagram.
 - SVG is the default deliverable.
 - PNG is optional, but recommended for Telegram delivery when raster export works in the current environment.

@@ -11,8 +11,8 @@ client: Client
 api: API
 db: Database
 
-client -> api: HTTPS
-api -> db: reads/writes
+client -> api
+api -> db
 ```
 
 ## Containers
@@ -34,10 +34,10 @@ data: Data {
   primary: Primary DB
 }
 
-clients.browser -> backend.gateway: HTTPS
-clients.mobile -> backend.gateway: HTTPS
-backend.gateway -> backend.worker: jobs
-backend.worker -> data.primary: writes
+clients.browser -> backend.gateway
+clients.mobile -> backend.gateway
+backend.gateway -> backend.worker
+backend.worker -> data.primary
 ```
 
 ## Node style block
@@ -55,6 +55,8 @@ encoder: Feature Encoder {
 
 - Start with `direction: right` unless a top-down layout is clearly better.
 - Prefer short node labels such as `Feature Encoder`, not full sentences.
-- Prefer edge labels such as `embeddings`, `events`, `writes`, or `HTTPS`.
+- Prefer unlabeled edges by default.
+- Add edge labels only for concrete semantics such as `HTTPS`, `embeddings`, or `weights`.
+- Do not use generic labels such as `input`, `output`, `data`, or `result`.
 - Use container titles for subsystem names and node labels for concrete components.
 - Keep syntax simple. Do not rely on advanced D2 features unless the diagram actually needs them.

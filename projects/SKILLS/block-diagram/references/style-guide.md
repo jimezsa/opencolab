@@ -9,6 +9,8 @@ This skill optimizes for readable technical block diagrams, not decorative art.
 - Render style: `sketch` by default for a hand-drawn look.
 - Switch to `clean` only when the user explicitly asks for a polished, paper-ready, or non-sketch output.
 - Use one dominant flow direction per diagram.
+- Prefer the smallest readable canvas. For long pipelines or repeated blocks, top-down is often more compact than a wide left-to-right layout.
+- Keep related blocks close so connections stay short.
 - Split large architectures into multiple diagrams instead of forcing one dense canvas.
 
 ## Block naming
@@ -32,10 +34,12 @@ Bad:
 
 ## Edge labeling
 
-- Label only important flows.
-- Use short payload or protocol labels.
-- Prefer `HTTPS`, `events`, `embeddings`, `writes`, `predictions`, `frames`.
-- Do not label every edge unless the diagram is specifically about protocols.
+- Leave edges unlabeled by default.
+- Add a label only when it communicates concrete information the arrow alone would not show.
+- If a label is needed, use a short payload or protocol label.
+- Prefer `HTTPS`, `events`, `embeddings`, `weights`, `queries`, `frames`.
+- Never use generic filler labels such as `input`, `output`, `data`, `result`, `something input`, or `something output`.
+- Do not label every edge unless the diagram is specifically about protocols or typed artifacts.
 
 ## Containers and grouping
 
@@ -69,6 +73,7 @@ Do not use many unrelated colors. Color should clarify structure, not decorate i
 - Overview diagrams: aim for 6 to 12 blocks.
 - If the first draft is more than about 15 blocks, consider splitting it.
 - Avoid crossing arrows where possible.
+- Avoid long empty runs between blocks when a tighter layout is still readable.
 - Avoid legends unless category colors or symbols genuinely need explanation.
 
 ## Audience tuning

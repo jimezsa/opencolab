@@ -6,9 +6,10 @@ Before returning the diagram, check all of these:
 - Every must-include relationship from the request appears in the diagram.
 - No major component was invented without a clear basis in the request.
 - The dominant flow direction is obvious.
+- The layout is compact and avoids unnecessarily long empty connections.
 - Containers reflect real subsystem boundaries rather than arbitrary grouping.
 - Labels are short and readable.
-- Only important edges are labeled.
+- Edges are unlabeled by default, and any remaining labels carry concrete meaning rather than generic `input` or `output` text.
 - The diagram is not overcrowded.
 - The render style matches the request, or defaults to `sketch` when no style was requested.
 - The `.d2` source validates successfully.

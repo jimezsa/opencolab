@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  render_d2_diagram.sh --input file.d2 [--svg out.svg] [--png out.png] [--layout elk|dagre] [--theme 0] [--pad 64] [--style sketch|clean]
+  render_d2_diagram.sh --input file.d2 [--svg out.svg] [--png out.png] [--layout elk|dagre] [--theme 0] [--pad 32] [--style sketch|clean]
 
 Formats, validates, and renders a D2 diagram. SVG is always rendered. PNG is optional.
 Default style is sketch for a hand-drawn look.
@@ -16,8 +16,13 @@ svg_path=""
 png_path=""
 layout="elk"
 theme="0"
-pad="64"
+pad="32"
 style="sketch"
+elk_node_node_between_layers="40"
+elk_padding="[top=20,left=20,bottom=20,right=20]"
+elk_edge_node_between_layers="20"
+dagre_nodesep="40"
+dagre_edgesep="16"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -100,6 +105,19 @@ render_args=(
   --pad "$pad"
   --omit-version
 )
+if [[ "$layout" == "elk" ]]; then
+  render_args+=(
+    --elk-nodeNodeBetweenLayers "$elk_node_node_between_layers"
+    --elk-padding "$elk_padding"
+    --elk-edgeNodeBetweenLayers "$elk_edge_node_between_layers"
+  )
+fi
+if [[ "$layout" == "dagre" ]]; then
+  render_args+=(
+    --dagre-nodesep "$dagre_nodesep"
+    --dagre-edgesep "$dagre_edgesep"
+  )
+fi
 if [[ ${#d2_style_args[@]} -gt 0 ]]; then
   render_args+=("${d2_style_args[@]}")
 fi
