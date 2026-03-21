@@ -1,6 +1,7 @@
 ---
 name: block-diagram
 description: Generate accurate, readable D2 block diagrams for software, research, and system explanations from a text brief. Normalize components and edges, write a canonical .d2 source file, render compact sketch-style SVG and optional PNG artifacts by default, keep arrows unlabeled unless a label adds concrete meaning, and emit Telegram file directives when needed.
+homepage: https://github.com/terrastruct/d2
 metadata:
   {
     "opencolab":
@@ -8,6 +9,23 @@ metadata:
         "emoji": "🧱",
         "os": ["linux", "darwin"],
         "requires": { "bins": ["d2", "bash"] },
+        "install":
+          [
+            {
+              "id": "install-script",
+              "kind": "shell",
+              "script": "curl -fsSL https://d2lang.com/install.sh | sh -s --",
+              "bins": ["d2"],
+              "label": "Install D2 with the official install script",
+            },
+            {
+              "id": "homebrew",
+              "kind": "shell",
+              "script": "brew install d2",
+              "bins": ["d2"],
+              "label": "Install D2 with Homebrew",
+            },
+          ],
       },
   }
 ---
