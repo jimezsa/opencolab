@@ -49,6 +49,8 @@ test("ignite configures project, provider, and telegram", async () => {
     "gpt-5.3-codex",
     "openai_test_key_123",
     "y",
+    "gemini_tools_key_123",
+    "y",
     "123456:telegram_bot_token",
     "10001",
     "n"
@@ -103,9 +105,11 @@ test("ignite configures project, provider, and telegram", async () => {
     assert.equal(state.telegram.chatId, "10001");
     assert.equal(state.telegram.paired, false);
     assert.equal(process.env.OPENAI_API_KEY, "openai_test_key_123");
+    assert.equal(process.env.GEMINI_API_KEY, "gemini_tools_key_123");
     assert.equal(process.env.TELEGRAM_BOT_TOKEN, "123456:telegram_bot_token");
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
     assert.equal(envLocal.includes("OPENAI_API_KEY=openai_test_key_123"), true);
+    assert.equal(envLocal.includes("GEMINI_API_KEY=gemini_tools_key_123"), true);
     assert.equal(envLocal.includes("TELEGRAM_BOT_TOKEN=123456:telegram_bot_token"), true);
 
     assert.equal(agent.id, "professor");
@@ -131,6 +135,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     "api-key",
     "gpt-5.3-codex",
     "openai_test_key_esc",
+    "n",
     ESC_INPUT
   ];
   const outputs: string[] = [];
@@ -185,7 +190,7 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
     model: "gpt-5.3-codex"
   });
 
-  const answers = ["", "y", "n"];
+  const answers = ["", "y", "n", "n"];
   const prompts: string[] = [];
 
   try {
@@ -226,6 +231,7 @@ test("ignite supports configuring the minimax provider", async () => {
     "minimax",
     "MiniMax-M2.5",
     "minimax_test_key_123",
+    "n",
     "n"
   ];
 
@@ -282,6 +288,7 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
     "openai",
     "oauth",
     "gpt-5.3-codex",
+    "n",
     "n"
   ];
   const prompts: string[] = [];
@@ -378,6 +385,7 @@ test("ignite supports Gemini oauth mode without asking for API key", async () =>
     "gemini",
     "oauth",
     "gemini-2.5-pro",
+    "n",
     "n"
   ];
   const prompts: string[] = [];
@@ -422,7 +430,7 @@ test("ignite exposes Gemini preview models in interactive chooser mode", async (
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = ["", "n"];
+  const answers = ["", "n", "n"];
   let modelOptions: string[] | null = null;
 
   try {
@@ -480,6 +488,7 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
     "xai",
     "grok-code-fast-1",
     "xai_test_key_123",
+    "n",
     "n"
   ];
 
@@ -524,6 +533,59 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
     assert.equal(process.env.XAI_API_KEY, "xai_test_key_123");
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
     assert.equal(envLocal.includes("XAI_API_KEY=xai_test_key_123"), true);
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite can save the Gemini built-in tools key without changing the active provider", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-built-in-tools-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "",
+    "openai",
+    "oauth",
+    "gpt-5.3-codex",
+    "y",
+    "gemini_built_in_key_123",
+    "n"
+  ];
+  const outputs: string[] = [];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        write: (line) => {
+          outputs.push(line);
+        }
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "openai");
+    assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(process.env.OPENAI_API_KEY, undefined);
+    assert.equal(process.env.GEMINI_API_KEY, "gemini_built_in_key_123");
+
+    const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envLocal.includes("GEMINI_API_KEY=gemini_built_in_key_123"), true);
+    assert.equal(
+      outputs.some((line) =>
+        line.includes("Saved GEMINI_API_KEY in .env.local for shared tools."),
+      ),
+      true,
+    );
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
