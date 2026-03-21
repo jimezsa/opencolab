@@ -69,6 +69,7 @@ Agent naming guidance:
 - additional agents are PhD-style specialist agents
 - additional agent ids should use memorable, descriptive names that reflect their specialty or work style
 - additional agent ids do not need to follow a rigid `phd_*` naming scheme
+- built-in agent templates live under `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and role folders such as `src/agent-templates/professor/` and `src/agent-templates/specialist/`
 
 Each agent directory must include:
 
@@ -102,6 +103,9 @@ Initialization requirements:
 - when an agent directory is created, `BOOTSTRAP.md` must be seeded from an internal runtime template for first-run identity discovery
 - when an agent directory is created, `IDENTITY.md` must be seeded from an internal runtime template
 - when an agent directory is created, `TOOLS.md` must be seeded from an internal runtime template for agent-local tooling notes, additions, and overrides
+- the default `professor` agent must seed from the built-in `src/agent-templates/professor/` template folder
+- additional agents must seed from the built-in `src/agent-templates/specialist/` template folder unless future runtime configuration chooses another built-in template
+- template-specific files may fall back to `src/agent-templates/shared/` when a role folder does not provide an override
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
 - the built-in `fast-search`, `pro-search`, and `deep-search` skills must be available from the shared `projects/SKILLS/` directory
 - built-in tool guidance and built-in skill summaries must be repo-managed and injected into prompts at runtime rather than copied into agent-local `TOOLS.md`
@@ -502,6 +506,7 @@ v1 is complete when all are true:
 - `opencolab.json` persists active project, all project/agent configs, and one shared Telegram config.
 - The default `professor` agent is created under `projects/<project_id>/AGENTS/professor/`.
 - Additional agents are created under `projects/<project_id>/AGENTS/<agent_id>/`.
+- The default `professor` agent seeds from `src/agent-templates/professor/`, additional agents seed from `src/agent-templates/specialist/`, and shared template files fall back to `src/agent-templates/shared/`.
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
 - Long-running routed tasks can emit bounded intermediate Telegram updates before the final answer.
 - Progress updates are treated as operational events rather than normal assistant conversation turns.
