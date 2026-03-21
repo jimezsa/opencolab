@@ -226,21 +226,24 @@ Each agent directory must include:
 - `MEMORY.md` (long-term memory only)
 - `SKILLS/` (agent-local skills for that agent only)
 
-`AGENTS.md` is initialized from built-in template folders: the fixed lead agent `professor` uses `src/agent-templates/professor/`, additional agents use `src/agent-templates/specialist/`, and shared scaffolds fall back to `src/agent-templates/shared/`.
+`AGENTS.md` is initialized from built-in template folders: the fixed lead agent `professor` uses `src/agent-templates/professor/`, the built-in beginner agent id `beginner` uses `src/agent-templates/beginner/`, additional agents use `src/agent-templates/specialist/`, and shared scaffolds fall back to `src/agent-templates/shared/`.
 `BOOTSTRAP.md` is initialized from a built-in first-run guide to help the agent discover identity and preferences.
 `IDENTITY.md` is initialized from a built-in identity scaffold.
 `TOOLS.md` is initialized as a small local-notes scaffold for agent-specific tooling additions, overrides, and caveats.
+In the current built-in layout, the role folders provide `AGENTS.md` overrides and `src/agent-templates/shared/` provides the shared `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates.
 Built-in tool guidance and the default summaries for `fast-search`, `pro-search`, and `deep-search` are injected by OpenColab at prompt-build time, so repo upgrades can update them without overwriting local `TOOLS.md` edits.
 
 Default layout:
 
 - shared skill library: `projects/SKILLS/`
 - lead agent `professor`: `projects/<project_id>/AGENTS/professor/`
+- built-in beginner agent `beginner`: `projects/<project_id>/AGENTS/beginner/`
 - additional specialist agents: `projects/<project_id>/AGENTS/<agent_id>/`
 
 Naming guidance:
 
 - keep `professor` as the fixed lead agent id
+- use `beginner` when you want the built-in beginner-student template for naive questions, assumption checks, and plain-language explanations
 - give additional agents memorable names that reflect their specialty or work style, such as `paperhound`, `labrat`, or `synthesizer`
 
 Shared project skills:
