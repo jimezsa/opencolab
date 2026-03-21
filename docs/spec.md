@@ -174,6 +174,7 @@ Requirements:
 Required command groups:
 
 - `opencolab ignite`
+- `opencolab setup api-key`
 - `opencolab setup model`
 - `opencolab setup telegram`
 - `opencolab setup telegram pair`
@@ -184,13 +185,15 @@ Required command groups:
 Responsibilities:
 
 - initialize state and default project/agent files when `ignite` runs
+- configure one provider API key without changing the active agent runtime
 - configure provider for the active agent
 - provider configuration must ask for provider and model, and must support provider auth mode selection when available
 - `ignite` should offer curated concrete model options per provider; Gemini options must include `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`
 - OpenAI and Gemini provider auth modes must support `api_key` and `oauth`
-- in `api_key` mode, provider API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `MINIMAX_API_KEY`)
+- in `api_key` mode, provider API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, or `XAI_API_KEY`)
 - in OpenAI `oauth` mode, setup must not require `OPENAI_API_KEY`
 - in Gemini `oauth` mode, setup must not require `GEMINI_API_KEY`
+- Gemini-based built-in shared tools must use `GEMINI_API_KEY` even when the active agent runtime uses a different provider or Gemini `oauth`
 - in OpenAI `oauth` mode, runtime preflight must verify Codex login state and return remediation guidance if login is missing
 - in Gemini `oauth` mode, runtime must return remediation guidance when the CLI reports missing Google login or missing Gemini credentials
 - provider CLI command/args must be auto-derived from internal defaults
@@ -208,9 +211,11 @@ Responsibilities:
 - `opencolab gateway` should support lifecycle commands: `start`, `stop`, `restart`, `status`, and `logs`
 - on macOS, gateway background mode should be managed via user `launchd` agent
 - on Linux, gateway background mode should be managed via user `systemd` service
-- provide an interactive onboarding flow for first-time setup of project selection, provider/model, Telegram setup, and optional pairing
+- provide an interactive onboarding flow for first-time setup of project selection, provider/model, Gemini-based built-in tools key setup, Telegram setup, and optional pairing
 - `ignite` onboarding should allow skipping the current step with `Esc` and continue to the next step
 - `ignite` onboarding should detect existing provider setup and allow keeping or updating it
+- `ignite` onboarding should include an optional step to persist `GEMINI_API_KEY` so Gemini-based built-in shared tools work after setup
+- `opencolab setup api-key` must persist the canonical env var for one specific provider without mutating provider/model/auth settings
 - installer script should make `opencolab` available as a terminal command by installing a user-level shim and ensuring the user bin directory is on `PATH`
 
 ## 8. Telegram Management Commands
@@ -347,7 +352,7 @@ Minimum shape:
 
 Notes:
 
-- secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `TELEGRAM_BOT_TOKEN`)
+- secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `TELEGRAM_BOT_TOKEN`)
 - when OpenAI auth mode is `oauth`, `OPENAI_API_KEY` is optional
 - when Gemini auth mode is `oauth`, `GEMINI_API_KEY` is optional
 - `opencolab.json` must not store raw secret values or env-var secret references
