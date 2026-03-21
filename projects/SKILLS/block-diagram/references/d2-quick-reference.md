@@ -51,6 +51,23 @@ encoder: Feature Encoder {
 }
 ```
 
+## Equation block
+
+Use this when a diagram needs one explicit mathematical expression.
+
+```d2
+direction: right
+
+plankton: Plankton
+formula: Will Steal {
+  equation: |latex
+    \lim_{h \rightarrow 0 } \frac{f(x+h)-f(x)}{h}
+  |
+}
+
+plankton -> formula
+```
+
 ## Important practical rules
 
 - Start with `direction: right` unless a top-down layout is clearly better.
@@ -58,5 +75,7 @@ encoder: Feature Encoder {
 - Prefer unlabeled edges by default.
 - Add edge labels only for concrete semantics such as `HTTPS`, `embeddings`, or `weights`.
 - Do not use generic labels such as `input`, `output`, `data`, or `result`.
+- Add equation blocks only when the math materially clarifies the diagram.
+- Give equation nodes short titles and keep the LaTeX concise.
 - Use container titles for subsystem names and node labels for concrete components.
 - Keep syntax simple. Do not rely on advanced D2 features unless the diagram actually needs them.

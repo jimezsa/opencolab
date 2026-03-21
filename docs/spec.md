@@ -490,6 +490,7 @@ The shared `block-diagram` skill must:
 
 - normalize a text architecture brief into components, containers, and directed edges,
 - produce a canonical `.d2` source file,
+- support optional formula blocks with embedded LaTeX when a mathematically important stage, loss, or objective is clearer as an explicit equation,
 - render sketch-style `.svg` output by default and optional `.png` output,
 - support a clean non-sketch override when the user explicitly asks for it,
 - default to unlabeled arrows and only add edge labels when they carry concrete meaning such as a protocol, artifact, or payload,

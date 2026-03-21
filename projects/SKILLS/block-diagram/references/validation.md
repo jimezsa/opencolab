@@ -10,6 +10,7 @@ Before returning the diagram, check all of these:
 - Containers reflect real subsystem boundaries rather than arbitrary grouping.
 - Labels are short and readable.
 - Edges are unlabeled by default, and any remaining labels carry concrete meaning rather than generic `input` or `output` text.
+- If a formula appears, it is materially relevant, concise, and rendered as a dedicated equation block.
 - The diagram is not overcrowded.
 - The render style matches the request, or defaults to `sketch` when no style was requested.
 - The `.d2` source validates successfully.

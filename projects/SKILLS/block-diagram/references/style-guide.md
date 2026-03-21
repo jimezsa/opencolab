@@ -48,6 +48,14 @@ Bad:
 - Do not nest deeply unless the hierarchy is essential.
 - If there are more than 3 levels of hierarchy, the diagram probably needs to be split.
 
+## Content-heavy blocks
+
+- Add a specialized content block only when the extra content is part of the explanation, not as decoration.
+- Prefer a dedicated node with a short, explicit title instead of stuffing dense content into a normal label.
+- Keep the block adjacent to the stage it explains so the relationship is obvious.
+- Keep embedded content concise enough to remain readable in the rendered diagram.
+- When the specialized content is a formula, use an `equation: |latex` block.
+
 ## Color semantics
 
 Use restrained, consistent color meaning:
