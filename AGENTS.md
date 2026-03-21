@@ -12,7 +12,7 @@ Top-level sources of truth:
 - `install.sh`: user installer and command shim setup.
 - `projects/SKILLS/`: shared built-in skill library copied into agent prompts, not per-project duplicates.
 - `src/`: TypeScript implementation.
-- `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context, with shared files in `shared/` and role-specific folders such as `professor/` and `specialist/`.
+- `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context, with shared files in `shared/` and role-specific folders such as `professor/`, `beginner/`, and `specialist/`.
 - `tests/`: Node `node:test` suite.
 
 Core implementation areas:
