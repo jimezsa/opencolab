@@ -231,7 +231,7 @@ Each agent directory must include:
 `IDENTITY.md` is initialized from a built-in identity scaffold.
 `TOOLS.md` is initialized as a small local-notes scaffold for agent-specific tooling additions, overrides, and caveats.
 In the current built-in layout, the role folders provide `AGENTS.md` overrides and `src/agent-templates/shared/` provides the shared `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates.
-Built-in tool guidance and the default summaries for `fast-search`, `pro-search`, and `deep-search` are injected by OpenColab at prompt-build time, so repo upgrades can update them without overwriting local `TOOLS.md` edits.
+Built-in tool guidance and the default summaries for selected shared skills, including `fast-search`, `pro-search`, `deep-search`, and `block-diagram`, are injected by OpenColab at prompt-build time, so repo upgrades can update them without overwriting local `TOOLS.md` edits.
 
 Default layout:
 
@@ -250,7 +250,8 @@ Shared project skills:
 
 - the shared skill library lives under `projects/SKILLS/`
 - all agents in all projects share that same skill library
-- built-in `fast-search`, `pro-search`, and `deep-search` skills live there and are not replicated into each agent or project
+- built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `nano-banana`, and `block-diagram` skills live there and are not replicated into each agent or project
+- `block-diagram` is the deterministic shared skill for generating autonomous D2-based architecture and system diagrams as `.d2`, `.svg`, and optional `.png` artifacts
 
 Agent-local skills:
 

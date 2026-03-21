@@ -16,7 +16,7 @@ printf '%s\n' '{"kind":"milestone","stage":"search","slot":"search","message":"S
 
 Use progress updates only for meaningful milestones such as retrieval start, corpus counts, download/summarization progress, synthesis start, warnings, or blocked runs. Do not narrate every minor command.
 
-## Available Skills
+## Selected Shared Skills
 
 - `fast-search`
   Description: Fast scientific paper scouting with `papercli`.
@@ -27,3 +27,6 @@ Use progress updates only for meaningful milestones such as retrieval start, cor
 - `deep-search`
   Description: Deep scientific investigation with `papercli`.
   When to use: for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support.
+- `block-diagram`
+  Description: Deterministic D2 block diagram generation with SVG and optional PNG rendering.
+  When to use: for clean system, pipeline, model, and component diagrams that agents can generate end to end from a text brief.

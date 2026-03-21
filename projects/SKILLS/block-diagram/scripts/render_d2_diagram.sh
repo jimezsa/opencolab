@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  render_d2_diagram.sh --input file.d2 [--svg out.svg] [--png out.png] [--layout elk|dagre] [--theme 0] [--pad 64]
+
+Formats, validates, and renders a D2 diagram. SVG is always rendered. PNG is optional.
+EOF
+}
+
+input_path=""
+svg_path=""
+png_path=""
+layout="elk"
+theme="0"
+pad="64"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --input)
+      input_path="${2:-}"
+      shift 2
+      ;;
+    --svg)
+      svg_path="${2:-}"
+      shift 2
+      ;;
+    --png)
+      png_path="${2:-}"
+      shift 2
+      ;;
+    --layout)
+      layout="${2:-}"
+      shift 2
+      ;;
+    --theme)
+      theme="${2:-}"
+      shift 2
+      ;;
+    --pad)
+      pad="${2:-}"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'Unknown argument: %s\n' "$1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$input_path" ]]; then
+  printf 'Missing required --input argument\n' >&2
+  usage >&2
+  exit 1
+fi
+
+if [[ ! -f "$input_path" ]]; then
+  printf 'Input file not found: %s\n' "$input_path" >&2
+  exit 1
+fi
+
+if [[ "$input_path" != *.d2 ]]; then
+  printf 'Input file must end with .d2: %s\n' "$input_path" >&2
+  exit 1
+fi
+
+base_path="${input_path%.d2}"
+svg_path="${svg_path:-${base_path}.svg}"
+
+mkdir -p "$(dirname "$svg_path")"
+if [[ -n "$png_path" ]]; then
+  mkdir -p "$(dirname "$png_path")"
+fi
+
+d2 fmt "$input_path" >/dev/null
+d2 validate "$input_path"
+
+d2 \
+  --layout "$layout" \
+  --theme "$theme" \
+  --pad "$pad" \
+  --omit-version \
+  "$input_path" \
+  "$svg_path" >/dev/null
+
+if [[ ! -f "$svg_path" ]]; then
+  printf 'SVG render did not produce an output file: %s\n' "$svg_path" >&2
+  exit 1
+fi
+
+if [[ -n "$png_path" ]]; then
+  d2 \
+    --layout "$layout" \
+    --theme "$theme" \
+    --pad "$pad" \
+    --omit-version \
+    "$input_path" \
+    "$png_path" >/dev/null
+
+  if [[ ! -f "$png_path" ]]; then
+    printf 'PNG render did not produce an output file: %s\n' "$png_path" >&2
+    exit 1
+  fi
+fi
+
+printf 'source=%s\n' "$input_path"
+printf 'svg=%s\n' "$svg_path"
+if [[ -n "$png_path" ]]; then
+  printf 'png=%s\n' "$png_path"
+fi

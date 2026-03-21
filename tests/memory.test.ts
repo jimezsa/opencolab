@@ -107,8 +107,10 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("[BUILTIN_TOOLS]"), true);
     assert.equal(prompt.includes("Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime)."), true);
     assert.equal(prompt.includes("`fast-search`"), true);
+    assert.equal(prompt.includes("`block-diagram`"), true);
     assert.equal(prompt.includes("Local helper: `./bin/local-research`"), true);
     assert.equal(prompt.includes("[SHARED_SKILLS]"), true);
+    assert.equal(prompt.includes("block-diagram"), true);
     assert.equal(prompt.includes("[AGENT_LOCAL_SKILLS]"), true);
     assert.equal(prompt.includes("Available agent-local skills: solo-mode"), true);
     assert.equal(prompt.includes("[RECENT_EPISODIC_MEMORY]"), true);

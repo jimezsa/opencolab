@@ -90,6 +90,7 @@ Shared project skills requirements:
 - skills are shared across all agents and all projects and must not be duplicated per agent or per project
 - each skill lives under `projects/SKILLS/<skill_id>/SKILL.md`
 - agent instructions must tell agents to read relevant `SKILL.md` files from the shared `projects/SKILLS/` directory before using a specialized workflow
+- the shared `block-diagram` skill is the deterministic path for autonomous D2 block-diagram generation
 
 Agent-local skills requirements:
 
@@ -114,7 +115,7 @@ Initialization requirements:
 - template-specific files may fall back to `src/agent-templates/shared/` when a role folder does not provide an override
 - in the current built-in layout, role folders provide `AGENTS.md` overrides and `src/agent-templates/shared/` provides the shared `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
-- the built-in `fast-search`, `pro-search`, and `deep-search` skills must be available from the shared `projects/SKILLS/` directory
+- the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `nano-banana`, and `block-diagram` skills must be available from the shared `projects/SKILLS/` directory
 - built-in tool guidance and built-in skill summaries must be repo-managed and injected into prompts at runtime rather than copied into agent-local `TOOLS.md`
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
@@ -472,6 +473,16 @@ For paper-search workflows, expected update categories include:
 - candidate corpus size known
 - deep-read or selected-paper set chosen
 - PDF download progress
+
+### 12.5 Diagram Skill Requirements
+
+The shared `block-diagram` skill must:
+
+- normalize a text architecture brief into components, containers, and directed edges,
+- produce a canonical `.d2` source file,
+- render `.svg` output and optional `.png` output,
+- prefer deterministic D2 rendering over free-form image generation for architecture block diagrams,
+- split large architectures into overview and detail diagrams when one dense diagram would reduce readability.
 - paper summarization progress
 - synthesis/report-writing started
 - final report delivered

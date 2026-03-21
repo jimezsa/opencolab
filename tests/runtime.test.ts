@@ -210,6 +210,7 @@ test("init seeds TOOLS.md as a local tooling notes scaffold", () => {
     assert.equal(toolsDoc.includes("`fast-search`"), false);
     assert.equal(toolsDoc.includes("`pro-search`"), false);
     assert.equal(toolsDoc.includes("`deep-search`"), false);
+    assert.equal(toolsDoc.includes("`block-diagram`"), false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
