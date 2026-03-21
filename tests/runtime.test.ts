@@ -54,7 +54,7 @@ test("init does not replicate shared skills into each project", () => {
   }
 });
 
-test("init and agent create seed professor and specialist AGENTS.md templates", () => {
+test("init and agent create seed professor, beginner, and specialist AGENTS.md templates", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-agent-template-"));
   const runtime = createRuntime(tempDir);
 
@@ -84,6 +84,20 @@ test("init and agent create seed professor and specialist AGENTS.md templates", 
       professorDoc.includes("with no backticks, bullets, or code fences."),
       true
     );
+
+    runtime.configureAgent("beginner");
+    const beginnerAgentPath = path.join(buildAgentDir(tempDir, "default", "beginner"), "AGENTS.md");
+    const beginnerDoc = fs.readFileSync(beginnerAgentPath, "utf8");
+    assert.equal(beginnerDoc.includes("# AGENTS.md - Beginner Student Essentials"), true);
+    assert.equal(
+      beginnerDoc.includes("You are the lab's beginner student agent."),
+      true
+    );
+    assert.equal(
+      beginnerDoc.includes("Operate as a beginner student: ask naive but high-value questions, demand plain-language explanations, and surface hidden assumptions or missing steps."),
+      true
+    );
+    assert.notEqual(beginnerDoc, professorDoc);
 
     runtime.configureAgent("scout");
     const specialistAgentPath = path.join(buildAgentDir(tempDir, "default", "scout"), "AGENTS.md");
