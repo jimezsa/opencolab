@@ -78,7 +78,7 @@ source ~/.zprofile
 
 ## Quickstart (Recommended)
 
-Run interactive first-run setup (state initialization, project, model/provider, Telegram, and pairing):
+Run interactive first-run setup (state initialization, project, model/provider, built-in tools key, Telegram, and pairing):
 
 ```bash
 opencolab ignite
@@ -92,6 +92,12 @@ Auth options:
 
 - Use `api_key` when you want env-based auth such as local scripts, servers, or CI.
 - Use `oauth` when you already use the provider CLI locally and want to reuse that login session.
+
+Gemini-based built-in shared tools such as `paper-summary` and `nano-banana` use `GEMINI_API_KEY` even if the active agent runtime uses another provider or Gemini OAuth. `opencolab ignite` now includes a dedicated step for that key, and you can also save one provider key without changing the active agent runtime:
+
+```bash
+opencolab setup api-key --provider gemini --api-key <your_gemini_key>
+```
 
 OpenAI:
 
