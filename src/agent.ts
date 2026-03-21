@@ -7,8 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   BUILTIN_TOOLS_CONTEXT,
-  buildDefaultAgentsDoc,
-  getDefaultAgentFileContent,
+  getBuiltInAgentFileContent,
 } from "./agent-templates.js";
 import type { AgentConfig, AgentFiles, AgentMemoryContext } from "./types.js";
 import { ensureDir } from "./utils.js";
@@ -194,10 +193,7 @@ export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
   for (const [key, fileName] of entries) {
     const filePath = path.join(agentDir, fileName);
     if (!fs.existsSync(filePath)) {
-      const content =
-        key === "agents"
-          ? buildDefaultAgentsDoc(agent.id)
-          : getDefaultAgentFileContent(key);
+      const content = getBuiltInAgentFileContent(agent.id, key);
       fs.writeFileSync(filePath, content, "utf8");
     }
   }
