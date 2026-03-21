@@ -226,7 +226,7 @@ Each agent directory must include:
 - `MEMORY.md` (long-term memory only)
 - `SKILLS/` (agent-local skills for that agent only)
 
-`AGENTS.md` is initialized from built-in lead-agent and specialist-agent templates, including the default operating contract and the OpenColab progress-helper snippet for long-running work.
+`AGENTS.md` is initialized from built-in template folders: the fixed lead agent `professor` uses `src/agent-templates/professor/`, additional agents use `src/agent-templates/specialist/`, and shared scaffolds fall back to `src/agent-templates/shared/`.
 `BOOTSTRAP.md` is initialized from a built-in first-run guide to help the agent discover identity and preferences.
 `IDENTITY.md` is initialized from a built-in identity scaffold.
 `TOOLS.md` is initialized as a small local-notes scaffold for agent-specific tooling additions, overrides, and caveats.
