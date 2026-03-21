@@ -304,6 +304,21 @@ Interpretation and implications [R#].
 | R1  | ...   | ...     | ...  | ...         | `meta/...json`, `pdf/...md`, `pdf/...pdf` |
 ```
 
+## Final Chat Reply
+
+After writing `findings.md`, return a short, friendly summary for the user-facing chat reply. Keep `findings.md` as the full canonical report and do not change its structure.
+
+- Use an executive-summary tone that still reads well in chat.
+- Light emoji use is allowed when it makes the message easier to scan.
+- Include:
+  - one direct-answer line
+  - one coverage line with candidate, deep-read, downloaded, summarized, and failure counts
+  - 3-5 cited takeaways covering the strongest findings and the main disagreements
+  - one short uncertainty or risk line when it materially affects the recommendation
+  - one closing line that points to `findings.md` for the full evidence base
+- Do not paste the full literature map, quantitative tables, or long report sections into chat.
+- If the active channel supports returning files, return `findings.md` after the summary using that channel's file-delivery mechanism.
+
 ## Referencing Standard
 
 - Use `[R1]`, `[R2]`, ... inline everywhere factual.

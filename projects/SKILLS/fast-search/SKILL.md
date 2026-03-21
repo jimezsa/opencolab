@@ -267,6 +267,21 @@ Meaning and assumptions [R2].
 | R2  | Title... | semantic:... | 2023 | `pdf/...md`, `pdf/...pdf` |
 ```
 
+## Final Chat Reply
+
+After writing `findings.md`, return a short, friendly summary for the user-facing chat reply. Do not change the `findings.md` structure to match the chat reply.
+
+- Keep the tone warm and readable, but still evidence-grounded.
+- A small number of emojis is fine when it improves scanability. Prefer at most one emoji per line.
+- Include:
+  - one direct-answer line
+  - one corpus-stats line with selected, downloaded, summarized, and failure counts
+  - 2-3 short cited takeaways
+  - one short limitation or uncertainty line when it materially affects confidence
+  - one short closing line that points to `findings.md`
+- Do not paste large chunks of `findings.md` into the chat reply.
+- If the active channel supports returning files, return `findings.md` after the summary using that channel's file-delivery mechanism.
+
 ## Referencing Rules
 
 - Use `[R#]` inline citations in all analytical sections.

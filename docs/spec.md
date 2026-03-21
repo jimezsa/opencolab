@@ -483,6 +483,17 @@ For paper-search workflows, expected update categories include:
 - candidate corpus size known
 - deep-read or selected-paper set chosen
 - PDF download progress
+- paper summarization progress
+- synthesis/report-writing started
+- final report delivered
+
+The shared `fast-search`, `pro-search`, and `deep-search` skills must also keep their skill-specific `findings.md` format stable while returning a friendlier final chat reply for user-facing interactive runs. That final reply should:
+
+- stay concise instead of dumping the whole report into chat,
+- include a direct answer, corpus coverage stats, and the most important cited takeaways,
+- surface major limitations or uncertainty when they materially affect confidence,
+- allow light emoji use when it improves scanability,
+- and attach or otherwise return `findings.md` when the active channel supports file delivery.
 
 ### 12.5 Diagram Skill Requirements
 
@@ -498,9 +509,6 @@ The shared `block-diagram` skill must:
 - prefer compact readable layouts with short connections and reduced whitespace when that does not hurt clarity,
 - prefer deterministic D2 rendering over free-form image generation for architecture block diagrams,
 - split large architectures into overview and detail diagrams when one dense diagram would reduce readability.
-- paper summarization progress
-- synthesis/report-writing started
-- final report delivered
 
 Examples of acceptable progress text:
 

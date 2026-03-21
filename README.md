@@ -185,6 +185,7 @@ Telegram webhook endpoint:
 
 Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible, using collision-safe local filenames, and the agent receives the caption plus the local file path instead of only Telegram metadata. If Telegram file resolution is slow or fails, routing falls back to caption plus attachment metadata instead of hanging the chat.
 For outbound Telegram files, agents can emit raw `@telegram-file <json>` lines. OpenColab accepts local file paths relative to the active agent directory as well as absolute paths, and it tolerates single-backtick wrapping around the directive line.
+The built-in paper search skills keep their `findings.md` schemas stable, but for user-facing interactive runs they should return a short, friendly summary in chat and return `findings.md` through the active channel when file delivery is supported.
 For long-running work, agents can emit bounded Telegram progress updates before the final answer instead of staying silent for the whole run, choosing when to send `started`, `progress`, `milestone`, `warning`, `needs_input`, or `completed` events.
 If a provider runtime fails because of auth, timeout, missing CLI setup, or another execution error, OpenColab sends a Telegram error reply instead of silently retrying the same message forever.
 

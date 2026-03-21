@@ -275,6 +275,21 @@ Interpretation [R3].
 | R1  | ...   | ...     | ...  | ...         | `meta/...json`, `pdf/...md`, `pdf/...pdf` |
 ```
 
+## Final Chat Reply
+
+After writing `findings.md`, return a short, friendly summary for the user-facing chat reply. Do not alter the `findings.md` format.
+
+- Keep the reply concise, readable, and confident without sounding casual or sloppy.
+- Light emoji use is allowed when it helps the user scan the result quickly.
+- Include:
+  - one direct-answer line
+  - one corpus/method line with selected, downloaded, summarized, and failure counts
+  - 3-4 cited takeaways or comparisons
+  - one short limitations line when there are real coverage gaps or uncertainty
+  - one closing line that points the user to `findings.md` for the full analysis
+- Do not dump the whole evidence matrix or report body into chat.
+- If the active channel supports returning files, return `findings.md` after the summary using that channel's file-delivery mechanism.
+
 ## Referencing Rules
 
 - Use `[R#]` inline for claims, numbers, and equation interpretations.
