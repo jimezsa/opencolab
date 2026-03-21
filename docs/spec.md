@@ -120,7 +120,7 @@ Initialization requirements:
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks
-- default `AGENTS.md` must include the `OPENCOLAB_PROGRESS_FILE` helper and instruct agents to use it only for substantial milestones
+- default `AGENTS.md` must include the `OPENCOLAB_PROGRESS_FILE` helper, a valid JSON example, and guidance that agents choose bounded useful progress events rather than milestone-only output
 - default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences
 - the default templates must keep only essential, role-appropriate instructions
 - `TODO.md` must be used for active planning and task tracking based on interactions with the human and other agents
@@ -430,7 +430,7 @@ Notes:
 For routed tasks with meaningful duration, the gateway should expose progress in this order:
 
 1. immediate acknowledgment
-2. milestone updates during execution
+2. bounded progress updates during execution
 3. final consolidated answer
 
 Requirements:
@@ -446,7 +446,8 @@ Requirements:
 Recommended UX policy:
 
 - send first acknowledgment within 1-2 seconds for long tasks
-- send milestone updates only on meaningful stage changes or significant count deltas
+- let the agent choose whether an event should be `started`, `progress`, `milestone`, `warning`, `needs_input`, or `completed`
+- send updates only on meaningful stage changes, count deltas, blockers, or transitions that help the user
 - prefer editing one progress message for dense counters
 - prefer new messages for major phase changes, warnings, and completion
 - avoid more than a small handful of progress messages per run in group chats
@@ -457,20 +458,22 @@ Built-in skills and default agent guidance must explicitly support bounded inter
 
 Requirements:
 
-- agents should not stay silent for the full duration of a long multi-step task when concrete milestones are known
+- agents should not stay silent for the full duration of a long multi-step task when useful progress can be reported
 - agents should avoid low-signal "thinking aloud" updates
-- updates must report real work completed, real blockers, or the transition into a new major phase
+- updates must report real work completed, real blockers, meaningful counters, or the transition into a new major phase
 - final answers should remain synthesized and complete, not a loose concatenation of earlier progress notes
 - default agent guidance must stop treating "one thoughtful response" as a blanket rule for long-running operational tasks
+- default agent guidance must make the JSON progress-event contract explicit enough for weaker agents to copy correctly
 
 Recommended rule of thumb:
 
+- let the agent decide which events matter, then use `started` for acknowledgment, `progress` for dense counters, `milestone` for stage transitions, `warning` for degraded runs, `needs_input` for blockers, and `completed` for explicit completion when helpful
 - send progress for stage changes, corpus-size changes, downloads, summarization waves, synthesis start, long test phases, bulk edits, or blocking failures
 - do not send progress for every minor shell command or every internal reasoning step
 
 ### 12.4 Search Skill UX Requirements
 
-The shared `fast-search`, `pro-search`, and `deep-search` skills must emit milestone-style progress updates tied to their actual workflow stages.
+The shared `fast-search`, `pro-search`, and `deep-search` skills must support agent-chosen bounded progress updates tied to their actual workflow stages.
 
 For paper-search workflows, expected update categories include:
 
@@ -538,4 +541,4 @@ v1 is complete when all are true:
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
 - Long-running routed tasks can emit bounded intermediate Telegram updates before the final answer.
 - Progress updates are treated as operational events rather than normal assistant conversation turns.
-- Shared search skills emit milestone updates for retrieval, selection, download, summarization, and synthesis phases.
+- Shared search skills support agent-chosen progress events for retrieval, selection, download, summarization, and synthesis phases.

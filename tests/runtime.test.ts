@@ -76,7 +76,11 @@ test("init and agent create seed professor, beginner, and specialist AGENTS.md t
     assert.equal(professorDoc.includes("## OpenColab Progress Helper"), true);
     assert.equal(professorDoc.includes("emit_progress() {"), true);
     assert.equal(
-      professorDoc.includes("Use it only for substantial milestones: retrieval-wave start, candidate-corpus counts, deep-read selection, download progress, summarization progress, synthesis start, warnings, or blocked runs."),
+      professorDoc.includes("Write one-line JSON events. Allowed `kind` values are `started`, `progress`, `milestone`, `warning`, `needs_input`, and `completed`."),
+      true
+    );
+    assert.equal(
+      professorDoc.includes("Let the agent decide what is worth sending."),
       true
     );
     assert.equal(professorDoc.includes("## Telegram Files"), true);

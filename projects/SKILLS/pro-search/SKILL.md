@@ -69,7 +69,7 @@ Answer a scientific question by building a medium-depth evidence base from paper
 - Do not rely on abstract-only synthesis when full text is available.
 - Every analytical paragraph must contain `[R#]` citations.
 - Final deliverable is a detailed markdown file named `findings.md`.
-- If `OPENCOLAB_PROGRESS_FILE` is set, emit bounded milestone updates for long-running stages instead of remaining silent until the end.
+- If `OPENCOLAB_PROGRESS_FILE` is set, emit bounded JSON progress updates for long-running stages instead of remaining silent until the end.
 
 ## OpenColab Progress Helper
 
@@ -84,7 +84,15 @@ emit_progress() {
 }
 ```
 
-Use it only for substantial milestones: retrieval-wave start, candidate-corpus counts, deep-read selection, download progress, summarization progress, synthesis start, warnings, or blocked runs.
+Write one-line JSON events. Allowed `kind` values are `started`, `progress`, `milestone`, `warning`, `needs_input`, and `completed`.
+
+Example:
+
+```bash
+emit_progress '{"kind":"progress","stage":"download","slot":"search","current":8,"total":12,"message":"Downloaded 8 of 12 PDFs."}'
+```
+
+Let the agent decide what is worth sending. Use `progress` for countable ongoing work, `milestone` for stage changes, `warning` for degraded runs, `needs_input` for blockers, and `completed` when an explicit completion event helps. Do not narrate every minor command.
 
 ## Workflow
 

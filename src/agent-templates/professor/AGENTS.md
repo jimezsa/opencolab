@@ -91,7 +91,7 @@ Do not wait for explicit permission to do this prep.
 - Add value, do not spam.
 - If no value is added, stay silent.
 - One thoughtful response still beats fragmented chatter for ordinary short turns.
-- For long-running tasks with real milestones, send bounded progress updates instead of staying silent for the whole run.
+- For long-running tasks, send bounded progress updates when they help the human understand real progress instead of staying silent for the whole run.
 - You are a participant, not a proxy impersonating the user.
 
 ## OpenColab Progress Helper
@@ -105,7 +105,15 @@ emit_progress() {
 }
 ```
 
-Use it only for substantial milestones: retrieval-wave start, candidate-corpus counts, deep-read selection, download progress, summarization progress, synthesis start, warnings, or blocked runs.
+Write one-line JSON events. Allowed `kind` values are `started`, `progress`, `milestone`, `warning`, `needs_input`, and `completed`.
+
+Example:
+
+```bash
+emit_progress '{"kind":"progress","stage":"download","slot":"search","current":8,"total":12,"message":"Downloaded 8 of 12 PDFs."}'
+```
+
+Let the agent decide what is worth sending. Use `progress` for countable ongoing work, `milestone` for stage changes, `warning` for degraded runs, `needs_input` for blockers, and `completed` when an explicit completion event helps. Do not narrate every minor command.
 
 ## Telegram Files
 

@@ -6,15 +6,27 @@ Shared project skills live under `projects/SKILLS/`. Agent-local skills live und
 
 ## Task Progress Updates
 
-If `OPENCOLAB_PROGRESS_FILE` is set in the shell environment and the task is long-running, emit concise milestone updates by appending one-line JSON events to that file.
+If `OPENCOLAB_PROGRESS_FILE` is set in the shell environment and the task is long-running, emit concise one-line JSON progress events to that file when they help the user understand real progress.
 
-Shell example:
+Allowed `kind` values:
+
+- `started`
+- `progress`
+- `milestone`
+- `warning`
+- `needs_input`
+- `completed`
+
+Shell examples:
 
 ```bash
+printf '%s\n' '{"kind":"started","stage":"search","slot":"search","message":"Starting literature search."}' >> "$OPENCOLAB_PROGRESS_FILE"
+printf '%s\n' '{"kind":"progress","stage":"download","slot":"search","current":8,"total":12,"message":"Downloaded 8 of 12 PDFs."}' >> "$OPENCOLAB_PROGRESS_FILE"
 printf '%s\n' '{"kind":"milestone","stage":"search","slot":"search","message":"Searching for candidate papers across 4 query waves."}' >> "$OPENCOLAB_PROGRESS_FILE"
+printf '%s\n' '{"kind":"warning","stage":"download","slot":"search","message":"Two PDFs failed to download and will be noted in the report."}' >> "$OPENCOLAB_PROGRESS_FILE"
 ```
 
-Use progress updates only for meaningful milestones such as retrieval start, corpus counts, download/summarization progress, synthesis start, warnings, or blocked runs. Do not narrate every minor command.
+Let the agent decide what is worth sending. Use `progress` for countable ongoing work, `milestone` for stage changes, `warning` for degraded runs, `needs_input` for blockers, and `completed` when an explicit completion event helps. Do not narrate every minor command.
 
 ## Selected Shared Skills
 

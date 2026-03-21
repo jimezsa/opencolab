@@ -42,7 +42,7 @@ Agent contract details that matter for implementation:
 - The shared `block-diagram` skill defaults to compact layouts with unlabeled arrows; only use edge labels when they carry concrete meaning such as a protocol or payload, not generic `input` or `output` text.
 - Conversation history belongs under agent-local `memory/Session/` and `memory/Daily/`, not under `.opencolab`.
 - `TOOLS.md` is the user-owned local tooling layer; repo-managed built-in tool guidance must be injected at prompt-build time rather than copied into `TOOLS.md`.
-- The seeded `AGENTS.md` contract must include the `OPENCOLAB_PROGRESS_FILE` helper and guidance to use it only for substantial milestones.
+- The seeded `AGENTS.md` contract must include the `OPENCOLAB_PROGRESS_FILE` helper, a valid JSON example, and guidance that agents choose bounded useful progress events instead of milestone-only updates.
 - The seeded agent docs must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines rather than markdown-wrapped snippets.
 
 For behavior changes, update `docs/spec.md` first, then sync `README.md`, `AGENTS.md`, and code in the same change.
