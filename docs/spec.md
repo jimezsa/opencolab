@@ -92,7 +92,7 @@ Shared project skills requirements:
 - agent instructions must tell agents to read relevant `SKILL.md` files from the shared `projects/SKILLS/` directory before using a specialized workflow
 - the shared `block-diagram` skill is the deterministic path for autonomous D2 block-diagram generation and defaults to sketch-style rendering unless the user asks for clean output
 - the shared `fast-search`, `pro-search`, and `deep-search` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
-- the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
+- the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs, must keep retrieval bounded to a selected subset of local papers before answering, and must use the packaged PageIndex Python SDK workflow instead of requiring a repo clone inside each project
 
 Agent-local skills requirements:
 
@@ -196,6 +196,7 @@ Responsibilities:
 - in OpenAI `oauth` mode, setup must not require `OPENAI_API_KEY`
 - in Gemini `oauth` mode, setup must not require `GEMINI_API_KEY`
 - Gemini-based built-in shared tools must use `GEMINI_API_KEY` even when the active agent runtime uses a different provider or Gemini `oauth`
+- SDK-based built-in shared tools may use their own canonical env vars without changing the active agent runtime; `pageindex-grounded` uses `PAGEINDEX_API_KEY`
 - in OpenAI `oauth` mode, runtime preflight must verify Codex login state and return remediation guidance if login is missing
 - in Gemini `oauth` mode, runtime must return remediation guidance when the CLI reports missing Google login or missing Gemini credentials
 - provider CLI command/args must be auto-derived from internal defaults
@@ -523,7 +524,8 @@ Requirements:
 - it must prefer reusing an existing cached tree when the source PDF has not changed
 - it must return answers with exact paper and page references for non-trivial claims whenever the evidence supports that level of grounding
 - if the answer relies only on paper summaries, metadata, or partial local evidence instead of a verified PageIndex tree plus PDF check, it must label that limitation explicitly instead of implying full grounding
-- it must default to the local open-source PageIndex tree-generation workflow and should not require hosted MCP or hosted Chat API integration unless the user explicitly asks for that external-service path
+- it must default to the packaged PageIndex Python SDK workflow and should not require cloning the upstream PageIndex repo inside the current project
+- it must use `PAGEINDEX_API_KEY` for the packaged SDK path
 
 The final user-facing reply from `pageindex-grounded` should:
 
