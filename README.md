@@ -13,12 +13,13 @@
 
 _Accelerating Scientific Discovery_ — Turn one researcher into an always-on autonomous research lab that investigates, builds, and publishes.
 
-## Coming Features
+## Features
 
-- Deep research workflows for scientific papers
-- LaTeX-format paper generation
-- Run experiments on Google Colab notebooks or external GPU servers
-- Agent collaboration across providers: OpenAI, Anthropic, Google, xAI, and more
+- ✅ Deep Research skills for paper search, grounded QA, figure extraction, summaries, and D2 block diagrams.
+- ✅ provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, and xAI.
+- ✅⏳ Multi-project, multi-agent local workspace with CLI and Telegram control.
+- ⏳ Coming: run experiments on Google Colab notebooks or external GPU servers.
+- ⏳ Coming: LaTeX-format paper generation.
 
 **Note:** OpenColab is an early-stage, actively evolving project. Features and documentation are rapidly improving—feedback and contributions are welcome!
 
