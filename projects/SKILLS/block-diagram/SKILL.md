@@ -70,7 +70,8 @@ If the user does not provide a render style, use `sketch`.
 - Use this skill for block diagrams instead of defaulting to a free-form image model.
 - Treat the `.d2` file as the canonical artifact and the rendered image as a derived artifact.
 - Do not invent components, edges, protocols, or subsystems that were not implied by the request.
-- Support optional formula blocks with `equation: |latex` only when a mathematically important transformation, loss, or objective is clearer as an explicit equation.
+- Support optional formula blocks with `equation: |latex` only when a mathematically important transformation, loss, or objective would be materially harder to understand without an explicit equation.
+- Do not generate a formula just because the request mentions math, a model, or an algorithm; include one only when the diagram would otherwise lose important meaning.
 - If one ambiguity blocks a faithful diagram, ask one targeted question. Otherwise proceed autonomously.
 - Keep the first diagram readable and compact. If the architecture is too dense, split it into an overview diagram plus one focused detail diagram.
 - Use `references/style-guide.md` for layout, color semantics, naming, and grouping rules.
@@ -135,7 +136,7 @@ Requirements for the D2 source:
 - label only edges whose labels add concrete meaning
 - never use filler labels like `input`, `output`, `data`, or `result`
 - preserve exact component names when the user cares about wording
-- when a formula is necessary, represent it as a dedicated node with a short title and an `equation: |latex` body instead of cramming math into a normal label
+- when a formula is truly necessary, represent it as a dedicated node with a short title and an `equation: |latex` body instead of cramming math into a normal label
 - let the renderer control sketch versus clean styling unless the request needs D2 source-level style overrides
 
 ### 4. Render the diagram
