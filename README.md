@@ -185,7 +185,7 @@ Telegram webhook endpoint:
 
 Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible, using collision-safe local filenames, and the agent receives the caption plus the local file path instead of only Telegram metadata. If Telegram file resolution is slow or fails, routing falls back to caption plus attachment metadata instead of hanging the chat.
 For outbound Telegram files, agents can emit raw `@telegram-file <json>` lines. OpenColab accepts local file paths relative to the active agent directory as well as absolute paths, and it tolerates single-backtick wrapping around the directive line.
-The built-in paper search skills keep their `findings.md` schemas stable, but for user-facing interactive runs they should return a short, friendly summary in chat and return `findings.md` through the active channel when file delivery is supported.
+The built-in paper search skills keep their `findings.md` schemas stable, generate a companion literature-map block diagram through the shared `block-diagram` skill, and for user-facing interactive runs return a short, friendly summary in chat while sending back `findings.md` plus a PNG-first literature-map diagram when file delivery is supported, with SVG fallback if PNG rendering is unavailable.
 For long-running work, agents can emit bounded Telegram progress updates before the final answer instead of staying silent for the whole run, choosing when to send `started`, `progress`, `milestone`, `warning`, `needs_input`, or `completed` events.
 If a provider runtime fails because of auth, timeout, missing CLI setup, or another execution error, OpenColab sends a Telegram error reply instead of silently retrying the same message forever.
 
@@ -261,6 +261,7 @@ Shared project skills:
 - the shared skill library lives under `projects/SKILLS/`
 - all agents in all projects share that same skill library
 - built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `nano-banana`, and `block-diagram` skills live there and are not replicated into each agent or project
+- the paper search skills use `block-diagram` as their canonical companion-visual workflow for compact literature maps that show how selected papers connect
 - `block-diagram` is the deterministic shared skill for generating autonomous D2-based architecture and system diagrams as `.d2`, compact sketch-style `.svg`, and optional `.png` artifacts by default, with unlabeled arrows unless a label adds concrete meaning, optional LaTeX equation blocks when the diagram genuinely needs them, and clean output available on explicit request
 
 Agent-local skills:

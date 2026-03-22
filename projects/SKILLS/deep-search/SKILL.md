@@ -53,6 +53,7 @@ Deliver an institutional-grade `findings.md` by:
 2. Downloading and reading a broad, diverse paper corpus.
 3. Extracting core ideas, concepts, results, assumptions, and key mathematics.
 4. Producing a detailed markdown report where all claims are grounded by references.
+5. Producing a companion literature-map block diagram that shows how the main papers or paper families connect.
 
 ## Prerequisites
 
@@ -69,6 +70,9 @@ Deliver an institutional-grade `findings.md` by:
 - Never present uncited factual claims.
 - Surface conflicts and uncertainty explicitly.
 - Final output must be a detailed markdown file named `findings.md`.
+- After synthesis, produce a companion literature-map diagram through the shared `block-diagram` skill.
+- The literature map must only show evidence-backed relations such as method lineage, direct comparison, shared benchmark or dataset, critique, or common problem framing.
+- Do not invent paper-to-paper influence or citation edges that are not supported by the corpus.
 - OpenColab normally provides `OPENCOLAB_PROGRESS_FILE` during provider runs. When it is set, emit bounded JSON progress updates for long-running stages instead of remaining silent until the end.
 
 ## OpenColab Progress Helper
@@ -226,6 +230,19 @@ Then analyze:
 - Most defensible practical recommendations.
 - Use the structured paper summaries in `research/pdf/` as the canonical source for cross-paper comparison.
 
+### 7. Produce literature-map block diagram
+
+Delegate this step to the shared `block-diagram` skill. It owns the canonical D2 source, render, validation, and diagram-file delivery flow.
+
+Diagram requirements:
+
+- Base the diagram on the same corpus and `[R#]` references used in `findings.md`.
+- Show how the main papers, method families, benchmark clusters, or critique branches connect through evidence-backed relations only.
+- Prefer compact family clusters when a flat per-paper graph would be noisy.
+- Use a topic-derived slug such as `<topic-slug>-literature-map` under `diagrams/`.
+- Prefer `png` as the primary delivered literature-map artifact.
+- Keep `svg` as the editable or fallback artifact when PNG rendering is unavailable.
+
 ## Key Math Protocol
 
 - Extract 5+ important equations across the corpus when available.
@@ -304,6 +321,12 @@ Interpretation and implications [R#].
 | R1  | ...   | ...     | ...  | ...         | `meta/...json`, `pdf/...md`, `pdf/...pdf` |
 ```
 
+Companion literature-map artifacts:
+
+- `diagrams/<topic-slug>-literature-map.d2`
+- `diagrams/<topic-slug>-literature-map.png`
+- optional `diagrams/<topic-slug>-literature-map.svg`
+
 ## Final Chat Reply
 
 After writing `findings.md`, return a short, friendly summary for the user-facing chat reply. Keep `findings.md` as the full canonical report and do not change its structure.
@@ -313,11 +336,12 @@ After writing `findings.md`, return a short, friendly summary for the user-facin
 - Include:
   - one direct-answer line
   - one coverage line with candidate, deep-read, downloaded, summarized, and failure counts
+  - one short literature-map line explaining how the main papers or paper families connect
   - 3-5 cited takeaways covering the strongest findings and the main disagreements
   - one short uncertainty or risk line when it materially affects the recommendation
   - one closing line that points to `findings.md` for the full evidence base
 - Do not paste the full literature map, quantitative tables, or long report sections into chat.
-- If the active channel supports returning files, return `findings.md` after the summary using that channel's file-delivery mechanism.
+- If the active channel supports returning files, return `findings.md` plus the PNG literature-map diagram after the summary. If PNG rendering is unavailable, return the SVG artifact instead.
 
 ## Referencing Standard
 
@@ -337,3 +361,4 @@ Before finalizing `findings.md`, verify:
 5. References map to real downloaded/local files.
 6. Each deep-read paper has an agent-ready summary in `research/pdf/` unless extraction failed.
 7. Downloaded and summarized counts reconcile with `research/meta/downloaded_ids.txt` and `research/meta/summarized_ids.txt`, and failure events reconcile with `research/meta/failures.tsv`.
+8. A PNG literature-map artifact exists, or an SVG fallback is returned when PNG rendering is unavailable, and the diagram only shows evidence-backed cross-paper connections.

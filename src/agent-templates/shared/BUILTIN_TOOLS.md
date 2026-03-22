@@ -32,13 +32,13 @@ Let the agent decide what is worth sending. Use `progress` for countable ongoing
 
 - `fast-search`
   Description: Fast scientific paper scouting with `papercli`.
-  When to use: for a rapid, evidence-grounded literature brief or quick scientific orientation, with a concise user-facing summary and the detailed `findings.md` kept as the canonical report.
+  When to use: for a rapid, evidence-grounded literature brief or quick scientific orientation, with a concise user-facing summary, a PNG-first companion literature-map diagram showing how the main papers connect, and the detailed `findings.md` kept as the canonical report.
 - `pro-search`
   Description: Professional paper research with `papercli`.
-  When to use: for serious literature synthesis with stronger methodological depth, cross-paper comparison, explicit evidence tracking, and a concise user-facing summary that points to the full `findings.md`.
+  When to use: for serious literature synthesis with stronger methodological depth, cross-paper comparison, explicit evidence tracking, a PNG-first companion paper-connection diagram, and a concise user-facing summary that points to the full `findings.md`.
 - `deep-search`
   Description: Deep scientific investigation with `papercli`.
-  When to use: for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support, while keeping the chat reply concise and the detailed `findings.md` as the full deliverable.
+  When to use: for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support, while also producing a compact PNG-first literature-map diagram and keeping the chat reply concise and the detailed `findings.md` as the full deliverable.
 - `block-diagram`
   Description: Deterministic D2 block diagram generation with sketch-style SVG by default, optional PNG rendering, and optional LaTeX equation blocks when the diagram needs them.
-  When to use: for system, pipeline, model, and component diagrams that agents can generate end to end from a text brief, favoring compact layouts, unlabeled arrows unless a label adds concrete meaning, and equation nodes only when they materially clarify a mathematical stage or objective.
+  When to use: for system, pipeline, model, component, and literature-map diagrams that agents can generate end to end from a text brief, favoring compact layouts, unlabeled arrows unless a label adds concrete meaning, and equation nodes only when they materially clarify a mathematical stage or objective.

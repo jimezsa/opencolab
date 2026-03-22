@@ -91,6 +91,7 @@ Shared project skills requirements:
 - each skill lives under `projects/SKILLS/<skill_id>/SKILL.md`
 - agent instructions must tell agents to read relevant `SKILL.md` files from the shared `projects/SKILLS/` directory before using a specialized workflow
 - the shared `block-diagram` skill is the deterministic path for autonomous D2 block-diagram generation and defaults to sketch-style rendering unless the user asks for clean output
+- the shared `fast-search`, `pro-search`, and `deep-search` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
 
 Agent-local skills requirements:
 
@@ -487,13 +488,25 @@ For paper-search workflows, expected update categories include:
 - synthesis/report-writing started
 - final report delivered
 
+The shared `fast-search`, `pro-search`, and `deep-search` skills must also generate a companion literature-map block diagram through the shared `block-diagram` skill.
+
+That companion diagram should:
+
+- show the selected papers or compact paper-family clusters as nodes,
+- show only evidence-backed relations such as method lineage, direct comparison, shared benchmark or dataset, critique, or common problem framing,
+- avoid invented influence or citation edges that are not supported by the corpus,
+- stay compact and readable, clustering papers when a flat per-paper graph would be noisy,
+- produce companion `.d2` plus rendered diagram artifacts alongside the report,
+- and prefer `.png` as the primary user-facing literature-map artifact, falling back to `.svg` when PNG rendering is unavailable.
+
 The shared `fast-search`, `pro-search`, and `deep-search` skills must also keep their skill-specific `findings.md` format stable while returning a friendlier final chat reply for user-facing interactive runs. That final reply should:
 
 - stay concise instead of dumping the whole report into chat,
 - include a direct answer, corpus coverage stats, and the most important cited takeaways,
+- include one short literature-map line explaining how the main papers or paper families connect,
 - surface major limitations or uncertainty when they materially affect confidence,
 - allow light emoji use when it improves scanability,
-- and attach or otherwise return `findings.md` when the active channel supports file delivery.
+- and attach or otherwise return `findings.md` plus the PNG literature-map diagram when the active channel supports file delivery, falling back to the SVG artifact when PNG rendering is unavailable.
 
 ### 12.5 Diagram Skill Requirements
 

@@ -53,6 +53,7 @@ Answer a scientific question by building a medium-depth evidence base from paper
 - Key mathematical formulations.
 - Cross-paper agreements and disagreements.
 - Explicit references for every non-trivial claim.
+- A companion literature-map block diagram that shows how the main papers or paper families connect.
 
 ## Prerequisites
 
@@ -69,6 +70,9 @@ Answer a scientific question by building a medium-depth evidence base from paper
 - Do not rely on abstract-only synthesis when full text is available.
 - Every analytical paragraph must contain `[R#]` citations.
 - Final deliverable is a detailed markdown file named `findings.md`.
+- After synthesis, produce a companion literature-map diagram through the shared `block-diagram` skill.
+- The literature map must only show evidence-backed relations such as method lineage, direct comparison, shared benchmark or dataset, critique, or common problem framing.
+- Do not invent paper-to-paper influence or citation edges that are not supported by the corpus.
 - OpenColab normally provides `OPENCOLAB_PROGRESS_FILE` during provider runs. When it is set, emit bounded JSON progress updates for long-running stages instead of remaining silent until the end.
 
 ## OpenColab Progress Helper
@@ -202,6 +206,19 @@ Then produce:
 - Practical implications for the user's question.
 - Base the comparison on the structured summaries in `research/pdf/`, not ad hoc free-form notes.
 
+### 6. Produce literature-map block diagram
+
+Delegate this step to the shared `block-diagram` skill. It owns the canonical D2 source, render, validation, and diagram-file delivery flow.
+
+Diagram requirements:
+
+- Base the diagram on the same corpus and `[R#]` references used in `findings.md`.
+- Show how the strongest papers or paper families connect through evidence-backed relations only.
+- Prefer compact family clusters when a flat per-paper graph would be noisy.
+- Use a topic-derived slug such as `<topic-slug>-literature-map` under `diagrams/`.
+- Prefer `png` as the primary delivered literature-map artifact.
+- Keep `svg` as the editable or fallback artifact when PNG rendering is unavailable.
+
 ## Key Math Handling
 
 - Extract at least 3 high-signal equations across the corpus when available.
@@ -275,6 +292,12 @@ Interpretation [R3].
 | R1  | ...   | ...     | ...  | ...         | `meta/...json`, `pdf/...md`, `pdf/...pdf` |
 ```
 
+Companion literature-map artifacts:
+
+- `diagrams/<topic-slug>-literature-map.d2`
+- `diagrams/<topic-slug>-literature-map.png`
+- optional `diagrams/<topic-slug>-literature-map.svg`
+
 ## Final Chat Reply
 
 After writing `findings.md`, return a short, friendly summary for the user-facing chat reply. Do not alter the `findings.md` format.
@@ -284,11 +307,12 @@ After writing `findings.md`, return a short, friendly summary for the user-facin
 - Include:
   - one direct-answer line
   - one corpus/method line with selected, downloaded, summarized, and failure counts
+  - one short literature-map line explaining how the main papers or paper families connect
   - 3-4 cited takeaways or comparisons
   - one short limitations line when there are real coverage gaps or uncertainty
   - one closing line that points the user to `findings.md` for the full analysis
 - Do not dump the whole evidence matrix or report body into chat.
-- If the active channel supports returning files, return `findings.md` after the summary using that channel's file-delivery mechanism.
+- If the active channel supports returning files, return `findings.md` plus the PNG literature-map diagram after the summary. If PNG rendering is unavailable, return the SVG artifact instead.
 
 ## Referencing Rules
 
@@ -304,3 +328,4 @@ After writing `findings.md`, return a short, friendly summary for the user-facin
 - Each processed paper has an agent-ready summary in `research/pdf/` unless extraction failed.
 - Selected, downloaded, and summarized counts reconcile with `research/meta/selected_ids.txt`, `research/meta/downloaded_ids.txt`, and `research/meta/summarized_ids.txt`, and failure events reconcile with `research/meta/failures.tsv`.
 - References map back to local metadata, colocated paper summaries, and downloaded PDFs.
+- A PNG literature-map artifact exists, or an SVG fallback is returned when PNG rendering is unavailable, and the diagram only shows evidence-backed cross-paper connections.
