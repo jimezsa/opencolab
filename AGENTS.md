@@ -41,7 +41,7 @@ Agent contract details that matter for implementation:
 - Shared skills live only under `projects/SKILLS/`; do not duplicate them into each project or agent.
 - The shared `block-diagram` skill defaults to compact layouts with unlabeled arrows, supports optional LaTeX equation blocks when they materially clarify a model or pipeline, and only uses edge labels when they carry concrete meaning such as a protocol or payload, not generic `input` or `output` text.
 - The shared `fast-search`, `pro-search`, and `deep-search` skills must keep their `findings.md` formats stable while also producing a companion literature-map block diagram through `block-diagram`, returning concise, friendly channel-agnostic summaries, and, when appropriate, returning `findings.md` plus a PNG-first diagram through the active channel's file-delivery mechanism, with SVG fallback if PNG rendering is unavailable.
-- The shared `pageindex-grounded` skill is the canonical packaged-SDK path for grounded follow-up QA over already-downloaded papers. It must keep selection bounded, cache PageIndex artifacts under `research/pageindex/`, use `PAGEINDEX_API_KEY`, and answer with exact paper or page references plus explicit limitations when coverage is partial.
+- The shared `pageindex-grounded` skill is the canonical local-first path for grounded follow-up QA over already-downloaded papers. It must keep selection bounded, cache PageIndex trees under `research/pageindex/`, and answer with exact paper or page references plus explicit limitations when coverage is partial.
 - Conversation history belongs under agent-local `memory/Session/` and `memory/Daily/`, not under `.opencolab`.
 - `TOOLS.md` is the user-owned local tooling layer; repo-managed built-in tool guidance must be injected at prompt-build time rather than copied into `TOOLS.md`.
 - The seeded `AGENTS.md` contract must describe `OPENCOLAB_PROGRESS_FILE` as the default OpenColab progress channel, include a valid JSON example, and guide agents to choose bounded useful progress events instead of milestone-only updates.
@@ -110,7 +110,7 @@ PRs should include:
 
 ## Security & Configuration Tips
 - Never commit secrets (API keys, tokens, private keys).
-- Use environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `PAGEINDEX_API_KEY`, `TELEGRAM_BOT_TOKEN`).
+- Use environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `TELEGRAM_BOT_TOKEN`).
 - Keep local runtime artifacts out of git:
   - `opencolab.json`
   - `.env.local`

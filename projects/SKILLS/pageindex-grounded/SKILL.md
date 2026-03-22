@@ -1,7 +1,7 @@
 ---
 name: pageindex-grounded
-description: SDK-backed grounded follow-up QA over already-downloaded papers. Use the packaged PageIndex Python SDK, keep paper selection bounded, cache local manifests and tree artifacts, and answer with exact paper or page references when the evidence supports it.
-homepage: https://docs.pageindex.ai/sdk
+description: Local-first grounded follow-up QA over already-downloaded papers. Build and cache per-paper PageIndex trees, keep paper selection bounded, and answer with exact paper or page references when the evidence supports it.
+homepage: https://github.com/VectifyAI/PageIndex
 metadata:
   {
     "opencolab":
@@ -33,11 +33,11 @@ Do not use this skill as a replacement for `paper-summary`. `paper-summary` rema
 Given a precise question over already-downloaded local papers:
 
 1. Select a bounded local paper set that is likely to contain the answer.
-2. Use the packaged PageIndex Python SDK to submit or reuse those documents.
-3. Cache the returned document ids and tree artifacts under `research/pageindex/`.
-4. Ask a grounded question with citations enabled.
-5. Return a concise answer with exact paper or page references and explicit limitations.
-6. Persist reusable artifacts and answer notes for later follow-up questions.
+2. Generate or reuse cached PageIndex tree artifacts for those papers.
+3. Use the tree structure to retrieve the most relevant sections.
+4. Verify the answer against the tree output, the local PDF, and existing paper summaries when needed.
+5. Return a concise grounded answer with exact paper or page references and explicit limitations.
+6. Persist reusable artifacts under `research/pageindex/`.
 
 ## Prerequisites
 
@@ -45,33 +45,37 @@ Given a precise question over already-downloaded local papers:
 - Optional metadata exists under `research/meta/`.
 - Optional paper summaries exist under `research/pdf/*.md`.
 - `python3` is installed and available in `PATH`.
-- `PAGEINDEX_API_KEY` is set in the environment.
-- Network access is available when the SDK runs.
+- A local checkout of the open-source PageIndex repo exists. Recommended path: `tools/PageIndex`.
+- `OPENAI_API_KEY` is available, or `CHATGPT_API_KEY` is already set for PageIndex's local runner.
 
-Install or upgrade the packaged SDK with:
+If the local PageIndex checkout is missing, only install it when the user explicitly asks for installation or setup work.
+
+Recommended local setup when the user explicitly wants installation:
 
 ```bash
-python3 -m pip install -q --upgrade pageindex
-```
-
-If you are working in a notebook instead of a shell, the equivalent is:
-
-```python
-%pip install -q --upgrade pageindex
+git clone https://github.com/VectifyAI/PageIndex.git tools/PageIndex
+python3 -m pip install -r tools/PageIndex/requirements.txt
 ```
 
 ## Hard Requirements
 
 - Operate only on already-downloaded local PDFs. Do not use this skill to search for new papers.
-- Keep paper selection bounded before retrieval. Default to 1 paper for a single-paper question and 2-5 papers for a cross-paper question.
-- Use the packaged `pageindex` Python SDK. Do not clone the upstream PageIndex repo into the project as part of this workflow.
-- Use the canonical helper script `projects/SKILLS/pageindex-grounded/scripts/pageindex_grounded.py` instead of ad hoc one-off SDK snippets.
-- Persist local artifacts under `research/pageindex/`, including `manifest.json`, `trees/`, and optional `answers/`.
-- Prefer reusing an existing `doc_id` from the local manifest when it is still valid.
-- Enable citations when asking questions through the SDK so PageIndex can return inline references such as `<doc=file.pdf;page=1>`.
+- Keep paper selection bounded before retrieval. Default to:
+  - 1 paper for a single-paper question
+  - 2-5 papers for a cross-paper question
+- Persist PageIndex artifacts under `research/pageindex/`, not in the default `results/` directory.
+- Maintain `research/pageindex/manifest.json` so later runs can reuse existing tree artifacts.
+- Prefer reusing an existing tree when the source PDF has not changed.
+- Bridge auth for the local PageIndex runner with:
+
+```bash
+export CHATGPT_API_KEY="${CHATGPT_API_KEY:-${OPENAI_API_KEY:-}}"
+```
+
 - Final answers must include exact paper or page references for non-trivial claims whenever the local evidence supports that level of grounding.
-- If evidence is partial, summary-only, metadata-only, or not fully verified against the current PDF corpus, say so explicitly.
-- OpenColab normally provides `OPENCOLAB_PROGRESS_FILE` during provider runs. When it is set and the task is long enough to justify updates, emit bounded JSON progress events for selection, submission, polling, tree sync, grounded answer generation, degraded coverage, and final delivery.
+- If evidence is partial, summary-only, metadata-only, or not fully verified against the current PDF, say so explicitly.
+- Default to the local open-source PageIndex workflow. Do not switch to hosted PageIndex MCP or hosted Chat API unless the user explicitly asks for that external-service path.
+- OpenColab normally provides `OPENCOLAB_PROGRESS_FILE` during provider runs. When it is set and the task is long enough to justify updates, emit bounded JSON progress events for selection, indexing, retrieval, verification, degraded coverage, and final delivery.
 
 ## OpenColab Progress Helper
 
@@ -97,12 +101,11 @@ emit_progress '{"kind":"milestone","stage":"pageindex","slot":"grounding","messa
 Useful update categories for this skill:
 
 - selected paper set known
-- SDK install started or completed
-- document submission or reuse started
-- document processing completed
-- tree artifact synced locally
-- grounded answer started or completed
-- degraded run because a PDF, API key, or network dependency is missing
+- cached trees reused
+- tree generation started or completed
+- retrieval and verification started
+- degraded run because a PDF, tree, or local PageIndex checkout is missing
+- final grounded answer written
 
 ## Workflow
 
@@ -121,68 +124,122 @@ Selection guidance:
 - "compare these two papers": 2 papers
 - broader but still bounded comparison: 3-5 papers
 
-### 2. Prepare the local PageIndex workspace
+Record the selected papers in `research/pageindex/manifest.json`.
+
+### 2. Prepare the PageIndex workspace
 
 ```bash
 mkdir -p research/pageindex/{trees,answers}
-python3 -m pip install -q --upgrade pageindex
 ```
 
-### 3. Run the canonical helper script
+Recommended manifest shape:
 
-Index only:
+```json
+{
+  "generated_at": "2026-03-22T12:34:56Z",
+  "papers": [
+    {
+      "safe_id": "arxiv__2501.01234",
+      "paper_id": "arXiv:2501.01234",
+      "title": "Example Paper",
+      "pdf_path": "research/pdf/arxiv__2501.01234.pdf",
+      "summary_path": "research/pdf/arxiv__2501.01234.md",
+      "tree_path": "research/pageindex/trees/arxiv__2501.01234.json",
+      "status": "indexed"
+    }
+  ]
+}
+```
+
+### 3. Generate or refresh per-paper trees
+
+First bridge the expected env var:
 
 ```bash
-python3 projects/SKILLS/pageindex-grounded/scripts/pageindex_grounded.py \
-  --pdf research/pdf/<safe_id>.pdf
+export CHATGPT_API_KEY="${CHATGPT_API_KEY:-${OPENAI_API_KEY:-}}"
 ```
 
-Grounded QA over one or more local papers:
+If the variable is still empty, stop and report the missing prerequisite instead of pretending the run is grounded.
+
+For each selected paper:
 
 ```bash
-python3 projects/SKILLS/pageindex-grounded/scripts/pageindex_grounded.py \
-  --question "What is the exact main claim about the benchmark result?" \
-  --pdf research/pdf/<safe_id>.pdf \
-  --pdf research/pdf/<other_safe_id>.pdf
+python3 tools/PageIndex/run_pageindex.py \
+  --pdf_path research/pdf/<safe_id>.pdf \
+  --model gpt-4o-2024-11-20 \
+  --if-add-node-id yes \
+  --if-add-node-summary yes \
+  --if-add-node-text yes
 ```
 
-The helper script will:
+Then move or copy the generated artifact into the canonical cache path:
 
-- submit or reuse documents through the PageIndex SDK
-- poll until processing completes
-- sync the document tree locally under `research/pageindex/trees/`
-- maintain `research/pageindex/manifest.json`
-- optionally write a grounded answer note under `research/pageindex/answers/`
+- from: `results/<safe_id>_structure.json`
+- to: `research/pageindex/trees/<safe_id>.json`
 
-### 4. Verify the answer when necessary
+If a cached tree already exists and the source PDF has not changed, reuse it.
 
-If the answer depends on exact wording, a figure, a table, or an equation:
+### 4. Retrieve relevant sections with the tree
 
-- check the local PDF directly
-- check the existing `paper-summary` output when it already captured the anchor cleanly
-- preserve the PageIndex citation format in the final answer when it is returned
+For each selected paper:
 
-For cross-paper questions, do this per paper first, then synthesize. Do not merge unrelated documents into one vague answer.
+1. Read `research/pageindex/trees/<safe_id>.json`.
+2. Use node titles, node summaries, node ids, and page ranges to shortlist relevant sections.
+3. Use node text when available to narrow the answer.
+4. If the question depends on exact wording, a figure, a table, or an equation, verify the relevant page or anchor against the local PDF or the existing `paper-summary` output.
 
-### 5. Return the final answer
+For cross-paper questions, do this per paper first, then synthesize. Do not merge trees into one blob and guess.
+
+### 5. Write an optional grounded answer note
+
+When the question is non-trivial, write:
+
+- `research/pageindex/answers/<date>-<topic-slug>.md`
+
+Recommended structure:
+
+```markdown
+# Grounded Answer: <topic>
+
+## Question
+
+...
+
+## Selected Local Papers
+
+- `<safe_id>` ...
+
+## Answer
+
+...
+
+## Evidence
+
+- `[Paper: <safe_id>, pp. 4-5]` ...
+
+## Limitations
+
+...
+```
+
+### 6. Return the final answer
 
 The user-facing reply should:
 
 - answer the question directly
 - name the searched local paper count when it materially affects confidence
 - include exact paper or page references inline or immediately after the supported claim
-- surface missing PDFs, invalid `doc_id`s, missing `PAGEINDEX_API_KEY`, network failures, summary-only evidence, or other limitations that materially affect confidence
+- surface missing PDFs, stale trees, summary-only evidence, or other limitations that materially affect confidence
 - point to the saved grounded answer note when one was written
 
 ## Output Contract
 
 - `research/pageindex/manifest.json`
-- `research/pageindex/trees/<safe_id>.json` for each synchronized paper
+- `research/pageindex/trees/<safe_id>.json` for each indexed paper
 - optional `research/pageindex/answers/<date>-<topic-slug>.md`
-- optional `research/pageindex/answers/<date>-<topic-slug>.json`
 - a concise grounded final reply with exact paper or page references when supported by the local evidence
 
 ## Canonical Assets
 
 - Skill doc: `projects/SKILLS/pageindex-grounded/SKILL.md`
-- SDK helper: `projects/SKILLS/pageindex-grounded/scripts/pageindex_grounded.py`
+- Expected upstream local runner: `tools/PageIndex/run_pageindex.py`

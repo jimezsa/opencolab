@@ -94,7 +94,7 @@ Auth options:
 - Use `api_key` when you want env-based auth such as local scripts, servers, or CI.
 - Use `oauth` when you already use the provider CLI locally and want to reuse that login session.
 
-Gemini-based built-in shared tools such as `paper-summary` and `nano-banana` use `GEMINI_API_KEY` even if the active agent runtime uses another provider or Gemini OAuth. The packaged `pageindex-grounded` skill uses `PAGEINDEX_API_KEY`. `opencolab ignite` now includes a dedicated step for the Gemini key, and you can also save one provider key without changing the active agent runtime:
+Gemini-based built-in shared tools such as `paper-summary` and `nano-banana` use `GEMINI_API_KEY` even if the active agent runtime uses another provider or Gemini OAuth. `opencolab ignite` now includes a dedicated step for that key, and you can also save one provider key without changing the active agent runtime:
 
 ```bash
 opencolab setup api-key --provider gemini --api-key <your_gemini_key>
@@ -185,7 +185,7 @@ Telegram webhook endpoint:
 
 Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible, using collision-safe local filenames, and the agent receives the caption plus the local file path instead of only Telegram metadata. If Telegram file resolution is slow or fails, routing falls back to caption plus attachment metadata instead of hanging the chat.
 For outbound Telegram files, agents can emit raw `@telegram-file <json>` lines. OpenColab accepts local file paths relative to the active agent directory as well as absolute paths, and it tolerates single-backtick wrapping around the directive line.
-The built-in paper search skills keep their `findings.md` schemas stable, generate a companion literature-map block diagram through the shared `block-diagram` skill, and for user-facing interactive runs return a short, friendly summary in chat while sending back `findings.md` plus a PNG-first literature-map diagram when file delivery is supported, with SVG fallback if PNG rendering is unavailable. The shared `pageindex-grounded` skill complements that workflow by answering precise follow-up questions over already-downloaded local papers with bounded paper selection, a local manifest and cached tree artifacts under `research/pageindex/`, and exact paper or page references when the local evidence supports them.
+The built-in paper search skills keep their `findings.md` schemas stable, generate a companion literature-map block diagram through the shared `block-diagram` skill, and for user-facing interactive runs return a short, friendly summary in chat while sending back `findings.md` plus a PNG-first literature-map diagram when file delivery is supported, with SVG fallback if PNG rendering is unavailable. The shared `pageindex-grounded` skill complements that workflow by answering precise follow-up questions over already-downloaded local papers with bounded paper selection, cached PageIndex trees under `research/pageindex/`, and exact paper or page references when the local evidence supports them.
 For long-running work, agents can emit bounded Telegram progress updates before the final answer instead of staying silent for the whole run, choosing when to send `started`, `progress`, `milestone`, `warning`, `needs_input`, or `completed` events.
 If a provider runtime fails because of auth, timeout, missing CLI setup, or another execution error, OpenColab sends a Telegram error reply instead of silently retrying the same message forever.
 
@@ -262,7 +262,7 @@ Shared project skills:
 - all agents in all projects share that same skill library
 - built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `nano-banana`, and `block-diagram` skills live there and are not replicated into each agent or project
 - the paper search skills use `block-diagram` as their canonical companion-visual workflow for compact literature maps that show how selected papers connect
-- `pageindex-grounded` is the packaged PageIndex SDK workflow for already-downloaded papers; it keeps selection bounded, caches per-paper PageIndex artifacts under `research/pageindex/`, and is the right tool for exact follow-up questions after search or summary work is already done
+- `pageindex-grounded` is the local-first grounded QA workflow for already-downloaded papers; it keeps selection bounded, caches per-paper PageIndex trees under `research/pageindex/`, and is the right tool for exact follow-up questions after search or summary work is already done
 - `block-diagram` is the deterministic shared skill for generating autonomous D2-based architecture and system diagrams as `.d2`, compact sketch-style `.svg`, and optional `.png` artifacts by default, with unlabeled arrows unless a label adds concrete meaning, optional LaTeX equation blocks when the diagram genuinely needs them, and clean output available on explicit request
 
 Agent-local skills:
