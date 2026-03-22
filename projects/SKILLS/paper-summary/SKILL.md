@@ -17,6 +17,8 @@ metadata:
 
 Use this skill when PDFs have already been downloaded and the next step is to create deterministic `research/pdf/<safe_id>.md` summaries from those PDFs.
 
+For precise follow-up QA after the summaries exist, switch to the shared `pageindex-grounded` skill instead of stretching this skill into ad hoc question answering.
+
 This skill is the canonical summary step for:
 
 - `SKILLS/fast-search/SKILL.md`

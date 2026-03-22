@@ -34,6 +34,8 @@ metadata:
 
 Use this skill for comprehensive scientific research tasks such as state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support.
 
+If the user later asks an exact follow-up question about a downloaded paper or wants a bounded local verification pass, switch to `pageindex-grounded` for grounded retrieval over the existing PDF corpus.
+
 ## Update This Skill
 
 Only do this if the user explicitly asks to update this skill from the GitHub repo.

@@ -34,6 +34,8 @@ metadata:
 
 Use this skill when the user needs a serious literature synthesis, not a quick scan. This workflow prioritizes methodological depth, cross-paper comparison, and explicit evidence tracking.
 
+If the user later asks an exact follow-up question about a downloaded paper or a bounded local paper subset, switch to `pageindex-grounded` for page-level grounded retrieval instead of forcing that work through the synthesis report alone.
+
 ## Update This Skill
 
 Only do this if the user explicitly asks to update this skill from the GitHub repo.

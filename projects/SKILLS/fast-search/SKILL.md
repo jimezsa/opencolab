@@ -34,6 +34,8 @@ metadata:
 
 Use this skill for a rapid, evidence-grounded literature brief when the user needs quick scientific orientation without sacrificing traceability.
 
+If the user later asks an exact follow-up question about one of the downloaded local papers, use `pageindex-grounded` for that bounded grounded retrieval step instead of treating this search workflow as the final QA layer.
+
 ## Update This Skill
 
 Only do this if the user explicitly asks to update this skill from the GitHub repo.

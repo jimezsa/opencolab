@@ -92,6 +92,7 @@ Shared project skills requirements:
 - agent instructions must tell agents to read relevant `SKILL.md` files from the shared `projects/SKILLS/` directory before using a specialized workflow
 - the shared `block-diagram` skill is the deterministic path for autonomous D2 block-diagram generation and defaults to sketch-style rendering unless the user asks for clean output
 - the shared `fast-search`, `pro-search`, and `deep-search` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
+- the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
 
 Agent-local skills requirements:
 
@@ -116,7 +117,7 @@ Initialization requirements:
 - template-specific files may fall back to `src/agent-templates/shared/` when a role folder does not provide an override
 - in the current built-in layout, role folders provide `AGENTS.md` overrides and `src/agent-templates/shared/` provides the shared `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
-- the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `nano-banana`, and `block-diagram` skills must be available from the shared `projects/SKILLS/` directory
+- the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `nano-banana`, and `block-diagram` skills must be available from the shared `projects/SKILLS/` directory
 - built-in tool guidance and built-in skill summaries must be repo-managed and injected into prompts at runtime rather than copied into agent-local `TOOLS.md`
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
@@ -508,7 +509,31 @@ The shared `fast-search`, `pro-search`, and `deep-search` skills must also keep 
 - allow light emoji use when it improves scanability,
 - and attach or otherwise return `findings.md` plus the PNG literature-map diagram when the active channel supports file delivery, falling back to the SVG artifact when PNG rendering is unavailable.
 
-### 12.5 Diagram Skill Requirements
+### 12.5 PageIndex Grounded Skill Requirements
+
+The shared `pageindex-grounded` skill must complement the paper search and summary workflows rather than replace them.
+
+Requirements:
+
+- it must operate on already-downloaded local PDFs, not on paper discovery
+- it must treat `fast-search`, `pro-search`, and `deep-search` as the retrieval path for finding papers and `paper-summary` as the canonical per-paper summary path
+- it must keep paper selection bounded before retrieval, normally searching 1 paper for a single-paper question and 2-5 papers for a cross-paper question unless the user explicitly asks for broader coverage
+- it must persist PageIndex artifacts under `research/pageindex/`, including `trees/` for cached per-paper tree JSON and `answers/` for optional grounded answer notes
+- it must maintain a machine-readable `research/pageindex/manifest.json` that records selected local papers, PDF paths, tree paths, and freshness or indexing status
+- it must prefer reusing an existing cached tree when the source PDF has not changed
+- it must return answers with exact paper and page references for non-trivial claims whenever the evidence supports that level of grounding
+- if the answer relies only on paper summaries, metadata, or partial local evidence instead of a verified PageIndex tree plus PDF check, it must label that limitation explicitly instead of implying full grounding
+- it must default to the local open-source PageIndex tree-generation workflow and should not require hosted MCP or hosted Chat API integration unless the user explicitly asks for that external-service path
+
+The final user-facing reply from `pageindex-grounded` should:
+
+- start with a direct answer instead of a long process dump
+- state how many local papers were searched and which subset was selected when that matters to confidence
+- include exact paper and page citations inline or immediately after the supported claim
+- surface material uncertainty, stale indexes, or missing local PDFs when those limitations affect confidence
+- point the user to any persisted grounded answer note under `research/pageindex/answers/` when a longer artifact was written
+
+### 12.6 Diagram Skill Requirements
 
 The shared `block-diagram` skill must:
 
@@ -539,7 +564,7 @@ The same pattern should extend to other important long-running tasks, including:
 - batch file conversion
 - report generation
 
-### 12.5 Failure and Recovery UX
+### 12.7 Failure and Recovery UX
 
 Progress support must improve failure handling as well as success handling.
 
