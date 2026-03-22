@@ -185,7 +185,7 @@ Telegram webhook endpoint:
 
 Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible, using collision-safe local filenames, and the agent receives the caption plus the local file path instead of only Telegram metadata. If Telegram file resolution is slow or fails, routing falls back to caption plus attachment metadata instead of hanging the chat.
 For outbound Telegram files, agents can emit raw `@telegram-file <json>` lines. OpenColab accepts local file paths relative to the active agent directory as well as absolute paths, and it tolerates single-backtick wrapping around the directive line.
-The built-in paper search skills keep their `findings.md` schemas stable, generate a companion literature-map block diagram through the shared `block-diagram` skill, and for user-facing interactive runs return a short, friendly summary in chat while sending back `findings.md` plus a PNG-first literature-map diagram when file delivery is supported, with SVG fallback if PNG rendering is unavailable. The shared `pageindex-grounded` skill complements that workflow by answering precise follow-up questions over already-downloaded local papers with bounded paper selection, cached PageIndex trees under `research/pageindex/`, and exact paper or page references when the local evidence supports them.
+The built-in paper search skills keep their `findings.md` schemas stable, generate a companion literature-map block diagram through the shared `block-diagram` skill, and for user-facing interactive runs return a short, friendly summary in chat while sending back `findings.md` plus a PNG-first literature-map diagram when file delivery is supported, with SVG fallback if PNG rendering is unavailable. The shared `pageindex-grounded` skill complements that workflow by answering precise follow-up questions over already-downloaded local papers with bounded paper selection, cached PageIndex trees under `research/pageindex/`, and exact paper or page references when the local evidence supports them. The shared `pdf-figure-extract` skill can then extract architecture and other paper figures from those local PDFs with PyMuPDF, optionally reuse PageIndex to narrow the page search, verify the best candidate multimodally when the active provider supports it, and return the chosen image through the existing Telegram file-delivery path.
 For long-running work, agents can emit bounded Telegram progress updates before the final answer instead of staying silent for the whole run, choosing when to send `started`, `progress`, `milestone`, `warning`, `needs_input`, or `completed` events.
 If a provider runtime fails because of auth, timeout, missing CLI setup, or another execution error, OpenColab sends a Telegram error reply instead of silently retrying the same message forever.
 
@@ -241,7 +241,7 @@ Each agent directory must include:
 `IDENTITY.md` is initialized from a built-in identity scaffold.
 `TOOLS.md` is initialized as a small local-notes scaffold for agent-specific tooling additions, overrides, and caveats.
 In the current built-in layout, the role folders provide `AGENTS.md` overrides and `src/agent-templates/shared/` provides the shared `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates.
-Built-in tool guidance and the default summaries for selected shared skills, including `fast-search`, `pro-search`, `deep-search`, `pageindex-grounded`, and `block-diagram`, are injected by OpenColab at prompt-build time, so repo upgrades can update them without overwriting local `TOOLS.md` edits.
+Built-in tool guidance and the default summaries for selected shared skills, including `fast-search`, `pro-search`, `deep-search`, `pageindex-grounded`, `pdf-figure-extract`, and `block-diagram`, are injected by OpenColab at prompt-build time, so repo upgrades can update them without overwriting local `TOOLS.md` edits.
 
 Default layout:
 
@@ -260,9 +260,10 @@ Shared project skills:
 
 - the shared skill library lives under `projects/SKILLS/`
 - all agents in all projects share that same skill library
-- built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `nano-banana`, and `block-diagram` skills live there and are not replicated into each agent or project
+- built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, and `block-diagram` skills live there and are not replicated into each agent or project
 - the paper search skills use `block-diagram` as their canonical companion-visual workflow for compact literature maps that show how selected papers connect
 - `pageindex-grounded` is the local-first grounded QA workflow for already-downloaded papers; it keeps selection bounded, caches per-paper PageIndex trees under `research/pageindex/`, and is the right tool for exact follow-up questions after search or summary work is already done
+- `pdf-figure-extract` is the local-first figure extraction workflow for already-downloaded papers; it uses PyMuPDF to export paper figures, can optionally reuse `research/pageindex/` to narrow the page search, and asks the active agent to verify the chosen image multimodally before sending it back when the provider supports local image inspection
 - `block-diagram` is the deterministic shared skill for generating autonomous D2-based architecture and system diagrams as `.d2`, compact sketch-style `.svg`, and optional `.png` artifacts by default, with unlabeled arrows unless a label adds concrete meaning, optional LaTeX equation blocks when the diagram genuinely needs them, and clean output available on explicit request
 
 Agent-local skills:

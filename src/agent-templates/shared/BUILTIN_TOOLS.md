@@ -42,6 +42,9 @@ Let the agent decide what is worth sending. Use `progress` for countable ongoing
 - `pageindex-grounded`
   Description: Local-first grounded QA over already-downloaded papers using cached PageIndex trees.
   When to use: for precise follow-up questions, exact claim verification, or bounded cross-paper comparisons that need exact paper or page references from local PDFs after search or summary work is already done.
+- `pdf-figure-extract`
+  Description: Local-first paper figure extraction with PyMuPDF, optional PageIndex-assisted page selection, and multimodal candidate verification before delivery.
+  When to use: for architecture figures, pipeline overviews, system diagrams, tables-as-images, or other paper figures that should be extracted from an already-downloaded local PDF and returned as an image file.
 - `block-diagram`
   Description: Deterministic D2 block diagram generation with sketch-style SVG by default, optional PNG rendering, and optional LaTeX equation blocks when the diagram needs them.
   When to use: for system, pipeline, model, component, and literature-map diagrams that agents can generate end to end from a text brief, favoring compact layouts, unlabeled arrows unless a label adds concrete meaning, and equation nodes only when they materially clarify a mathematical stage or objective.

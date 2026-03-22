@@ -27,6 +27,7 @@ Typical use cases:
 
 Do not use this skill for paper discovery. Use `fast-search`, `pro-search`, or `deep-search` first when the papers are not already local.
 Do not use this skill as a replacement for `paper-summary`. `paper-summary` remains the canonical per-paper summary workflow.
+When the user wants the figure image itself instead of only a grounded answer, hand off to the shared `pdf-figure-extract` skill after you identify the likely paper and page range.
 
 ## Mission
 
@@ -186,7 +187,7 @@ For each selected paper:
 1. Read `research/pageindex/trees/<safe_id>.json`.
 2. Use node titles, node summaries, node ids, and page ranges to shortlist relevant sections.
 3. Use node text when available to narrow the answer.
-4. If the question depends on exact wording, a figure, a table, or an equation, verify the relevant page or anchor against the local PDF or the existing `paper-summary` output.
+4. If the question depends on exact wording, a figure, a table, or an equation, verify the relevant page or anchor against the local PDF or the existing `paper-summary` output. If the user wants the figure artifact returned, pass the likely page(s) to `pdf-figure-extract` instead of trying to answer with text alone.
 
 For cross-paper questions, do this per paper first, then synthesize. Do not merge trees into one blob and guess.
 

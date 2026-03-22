@@ -93,6 +93,7 @@ Shared project skills requirements:
 - the shared `block-diagram` skill is the deterministic path for autonomous D2 block-diagram generation and defaults to sketch-style rendering unless the user asks for clean output
 - the shared `fast-search`, `pro-search`, and `deep-search` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
 - the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
+- the shared `pdf-figure-extract` skill is the canonical path for extracting and returning figures from already-downloaded local PDFs, optionally reusing PageIndex artifacts to narrow page selection before multimodal verification and delivery
 
 Agent-local skills requirements:
 
@@ -117,7 +118,7 @@ Initialization requirements:
 - template-specific files may fall back to `src/agent-templates/shared/` when a role folder does not provide an override
 - in the current built-in layout, role folders provide `AGENTS.md` overrides and `src/agent-templates/shared/` provides the shared `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
-- the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `nano-banana`, and `block-diagram` skills must be available from the shared `projects/SKILLS/` directory
+- the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, and `block-diagram` skills must be available from the shared `projects/SKILLS/` directory
 - built-in tool guidance and built-in skill summaries must be repo-managed and injected into prompts at runtime rather than copied into agent-local `TOOLS.md`
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
@@ -533,7 +534,32 @@ The final user-facing reply from `pageindex-grounded` should:
 - surface material uncertainty, stale indexes, or missing local PDFs when those limitations affect confidence
 - point the user to any persisted grounded answer note under `research/pageindex/answers/` when a longer artifact was written
 
-### 12.6 Diagram Skill Requirements
+### 12.6 PDF Figure Extract Skill Requirements
+
+The shared `pdf-figure-extract` skill must complement grounded QA and diagram workflows by locating and returning figures from already-downloaded local PDFs.
+
+Requirements:
+
+- it must operate only on already-downloaded local PDFs, not on paper discovery
+- it must use PyMuPDF as the local extraction and rendering engine
+- it must support both direct hints such as paper id, page number, or figure number and ambiguous requests such as "send me the architecture figure"
+- it must reuse cached PageIndex artifacts under `research/pageindex/` when they are available and relevant, but PageIndex must remain optional and missing PageIndex must not block extraction
+- it must persist figure artifacts under `research/figures/`, including exported image files plus machine-readable manifest data that records paper id, PDF path, page, bounding box or region metadata, source mode, and confidence-relevant notes
+- it must keep page inspection bounded, preferring grounded or heuristically shortlisted candidate pages instead of exhaustively rasterizing every page when a narrower search is available
+- it must export a user-deliverable image even when the source figure is vector-heavy or mixed-content, using clipped page rendering when a direct embedded-image extraction is not available
+- it must inspect the shortlisted candidate images with the agent's multimodal capability before choosing what to return when the active provider runtime supports local image inspection
+- if the active provider runtime cannot inspect local images or if confidence remains low after inspection, it must say so explicitly and should prefer returning the best candidates with limitations instead of overstating certainty
+- when the active channel supports file delivery, it must return the chosen figure through the `@telegram-file` mechanism
+
+The final user-facing reply from `pdf-figure-extract` should:
+
+- start with a direct answer and the selected figure instead of a long process dump
+- identify the paper and page, and include figure number or nearby caption text when available
+- state whether the result came from `pageindex-assisted` or `standalone` search
+- mention when the returned artifact is a clipped page render rather than a direct embedded-image extraction if that distinction materially affects what the user received
+- surface low-confidence matching, missing multimodal verification, stale PageIndex artifacts, or other material limitations when they affect confidence
+
+### 12.7 Diagram Skill Requirements
 
 The shared `block-diagram` skill must:
 

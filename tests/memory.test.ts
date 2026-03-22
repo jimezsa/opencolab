@@ -109,8 +109,10 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("OpenColab enables progress updates by default during provider runs."), true);
     assert.equal(prompt.includes("`fast-search`"), true);
     assert.equal(prompt.includes("`pageindex-grounded`"), true);
+    assert.equal(prompt.includes("`pdf-figure-extract`"), true);
     assert.equal(prompt.includes("`block-diagram`"), true);
     assert.equal(prompt.includes("exact claim verification"), true);
+    assert.equal(prompt.includes("multimodal candidate verification"), true);
     assert.equal(prompt.includes("companion literature-map diagram"), true);
     assert.equal(prompt.includes("PNG-first"), true);
     assert.equal(prompt.includes("Local helper: `./bin/local-research`"), true);
