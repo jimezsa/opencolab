@@ -318,3 +318,9 @@ pnpm test
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgements
+
+- `PageIndex`: https://github.com/VectifyAI/PageIndex - used by the shared `pageindex-grounded` workflow for grounded local paper QA.
+- `d2`: https://github.com/terrastruct/d2 - used by the shared `block-diagram` workflow for deterministic diagram generation.
+- `PyMuPDF`: https://github.com/pymupdf/PyMuPDF - used by the shared `pdf-figure-extract` workflow for local PDF figure extraction.
