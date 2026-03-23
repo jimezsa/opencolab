@@ -13,6 +13,7 @@ import {
 import type {
   AgentConfig,
   AgentFiles,
+  ExecutionTargetConfig,
   OpenColabState,
   ProjectState,
   ProviderConfig,
@@ -23,6 +24,7 @@ import { nowIso, safeReadJson, writeJson } from "./utils.js";
 const CURRENT_VERSION = 1 as const;
 export const DEFAULT_PROJECT_ID = "default";
 export const DEFAULT_AGENT_ID = "professor";
+export const DEFAULT_RUNPOD_IMAGE = "runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04";
 
 const DEFAULT_AGENT_FILES: AgentFiles = {
   agents: "AGENTS.md",
@@ -59,6 +61,38 @@ function cloneProviderConfig(source: ProviderConfig): ProviderConfig {
   };
 }
 
+function cloneExecutionTargetConfig(source: ExecutionTargetConfig): ExecutionTargetConfig {
+  return {
+    id: source.id,
+    backend: source.backend,
+    enabled: source.enabled,
+    datacenterId: source.datacenterId,
+    cloudType: source.cloudType,
+    gpuType: source.gpuType,
+    gpuCount: source.gpuCount,
+    templateId: source.templateId,
+    imageName: source.imageName,
+    volume: {
+      mode: source.volume.mode,
+      id: source.volume.id,
+      name: source.volume.name,
+      sizeGb: source.volume.sizeGb
+    },
+    ssh: {
+      mode: source.ssh.mode,
+      user: source.ssh.user,
+      port: source.ssh.port,
+      privateKeyPath: source.ssh.privateKeyPath
+    },
+    workspaceRoot: source.workspaceRoot,
+    bootstrapProfile: source.bootstrapProfile,
+    maxRuntimeMinutes: source.maxRuntimeMinutes,
+    idleStopMinutes: source.idleStopMinutes,
+    autoStopPolicy: source.autoStopPolicy,
+    maxEstimatedCostUsd: source.maxEstimatedCostUsd
+  };
+}
+
 export function buildProjectPath(projectId: string): string {
   return `projects/${projectId}`;
 }
@@ -83,6 +117,38 @@ export function createDefaultProviderConfig(providerName: ProviderConfig["name"]
   };
 }
 
+export function createDefaultExecutionTargetConfig(targetId: string): ExecutionTargetConfig {
+  return {
+    id: targetId,
+    backend: "runpod",
+    enabled: true,
+    datacenterId: "US-KS-2",
+    cloudType: "secure",
+    gpuType: "NVIDIA A100 80GB PCIe",
+    gpuCount: 1,
+    templateId: null,
+    imageName: DEFAULT_RUNPOD_IMAGE,
+    volume: {
+      mode: "network_volume",
+      id: null,
+      name: `${targetId}-volume`,
+      sizeGb: 200
+    },
+    ssh: {
+      mode: "public_ip",
+      user: "root",
+      port: null,
+      privateKeyPath: null
+    },
+    workspaceRoot: "/workspace",
+    bootstrapProfile: "python-ml",
+    maxRuntimeMinutes: 360,
+    idleStopMinutes: 15,
+    autoStopPolicy: "stop_on_completion",
+    maxEstimatedCostUsd: null
+  };
+}
+
 export function createDefaultAgentConfig(
   projectId: string,
   agentId = DEFAULT_AGENT_ID,
@@ -103,6 +169,7 @@ export function createDefaultProjectState(projectId = DEFAULT_PROJECT_ID): Proje
     id: projectId,
     path: buildProjectPath(projectId),
     activeAgentId: defaultAgent.id,
+    executionTargets: {},
     agents: {
       [defaultAgent.id]: defaultAgent
     }
@@ -395,7 +462,74 @@ function normalizeProject(projectId: string, source: Record<string, unknown> | n
     id: asString(source.id, projectId),
     path: asString(source.path, defaults.path),
     activeAgentId,
+    executionTargets: normalizeExecutionTargets(
+      projectId,
+      asRecord(source.executionTargets)
+    ),
     agents: normalizedAgents
+  };
+}
+
+function normalizeExecutionTargets(
+  projectId: string,
+  sourceTargets: Record<string, unknown> | null
+): Record<string, ExecutionTargetConfig> {
+  if (!sourceTargets) {
+    return {};
+  }
+
+  const normalizedTargets: Record<string, ExecutionTargetConfig> = {};
+  for (const [candidateId, value] of Object.entries(sourceTargets)) {
+    const normalizedId = asString(asRecord(value)?.id, candidateId).trim();
+    if (!normalizedId) {
+      continue;
+    }
+    normalizedTargets[normalizedId] = normalizeExecutionTarget(
+      projectId,
+      normalizedId,
+      asRecord(value)
+    );
+  }
+  return normalizedTargets;
+}
+
+function normalizeExecutionTarget(
+  projectId: string,
+  targetId: string,
+  source: Record<string, unknown> | null
+): ExecutionTargetConfig {
+  void projectId;
+  const defaults = createDefaultExecutionTargetConfig(targetId);
+  const sourceVolume = asRecord(source?.volume);
+  const sourceSsh = asRecord(source?.ssh);
+  return {
+    id: asString(source?.id, defaults.id),
+    backend: "runpod",
+    enabled: asBoolean(source?.enabled, defaults.enabled),
+    datacenterId: asString(source?.datacenterId, defaults.datacenterId),
+    cloudType: "secure",
+    gpuType: asString(source?.gpuType, defaults.gpuType),
+    gpuCount: asPositiveInteger(source?.gpuCount, defaults.gpuCount),
+    templateId: asNullableString(source?.templateId),
+    imageName: asNullableString(source?.imageName) ?? defaults.imageName,
+    volume: {
+      mode: "network_volume",
+      id: asNullableString(sourceVolume?.id),
+      name: asString(sourceVolume?.name, defaults.volume.name),
+      sizeGb: asPositiveInteger(sourceVolume?.sizeGb, defaults.volume.sizeGb)
+    },
+    ssh: {
+      mode: "public_ip",
+      user: asNullableString(sourceSsh?.user) ?? defaults.ssh.user,
+      port: asNullableInteger(sourceSsh?.port),
+      privateKeyPath: asNullableString(sourceSsh?.privateKeyPath)
+    },
+    workspaceRoot: asString(source?.workspaceRoot, defaults.workspaceRoot),
+    bootstrapProfile: asBootstrapProfile(source?.bootstrapProfile, defaults.bootstrapProfile),
+    maxRuntimeMinutes: asPositiveInteger(source?.maxRuntimeMinutes, defaults.maxRuntimeMinutes),
+    idleStopMinutes: asNullableInteger(source?.idleStopMinutes),
+    autoStopPolicy: asAutoStopPolicy(source?.autoStopPolicy, defaults.autoStopPolicy),
+    maxEstimatedCostUsd: asNullableNumber(source?.maxEstimatedCostUsd)
   };
 }
 
@@ -511,6 +645,63 @@ function asNullableString(value: unknown): string | null {
   }
   const parsed = String(value).trim();
   return parsed ? parsed : null;
+}
+
+function asBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1" || normalized === "yes") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0" || normalized === "no") {
+      return false;
+    }
+  }
+  return fallback;
+}
+
+function asPositiveInteger(value: unknown, fallback: number): number {
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : fallback;
+}
+
+function asNullableInteger(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isInteger(numeric) ? numeric : null;
+}
+
+function asNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function asBootstrapProfile(
+  value: unknown,
+  fallback: ExecutionTargetConfig["bootstrapProfile"]
+): ExecutionTargetConfig["bootstrapProfile"] {
+  if (value === "python-ml" || value === "pytorch-cu12" || value === "minimal-shell") {
+    return value;
+  }
+  return fallback;
+}
+
+function asAutoStopPolicy(
+  value: unknown,
+  fallback: ExecutionTargetConfig["autoStopPolicy"]
+): ExecutionTargetConfig["autoStopPolicy"] {
+  if (value === "stop_on_completion" || value === "keep_warm") {
+    return value;
+  }
+  return fallback;
 }
 
 function asProviderName(value: unknown, fallback: ProviderConfig["name"]) {
