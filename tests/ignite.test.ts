@@ -16,6 +16,7 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
     XAI_API_KEY: process.env.XAI_API_KEY,
+    RUNPOD_API_KEY: process.env.RUNPOD_API_KEY,
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN
   };
   delete process.env.OPENAI_API_KEY;
@@ -24,6 +25,7 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
   delete process.env.GEMINI_API_KEY;
   delete process.env.MINIMAX_API_KEY;
   delete process.env.XAI_API_KEY;
+  delete process.env.RUNPOD_API_KEY;
   delete process.env.TELEGRAM_BOT_TOKEN;
   return previous;
 }
@@ -692,6 +694,62 @@ test("ignite can save the OpenAI key for pageindex-grounded without changing the
         line.includes("Saved OPENAI_API_KEY in .env.local for pageindex-grounded."),
       ),
       true,
+    );
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite can configure an optional Runpod GPU server", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-runpod-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "",
+    "openai",
+    "api-key",
+    "gpt-5.3-codex",
+    "openai_test_key_for_runpod",
+    "n",
+    "n",
+    "y",
+    "y",
+    "runpod_test_key_123",
+    "y",
+    "runpod-a100",
+    "n"
+  ];
+  const outputs: string[] = [];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        write: (line) => {
+          outputs.push(line);
+        }
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(process.env.RUNPOD_API_KEY, "runpod_test_key_123");
+    const target = runtime.getExecutionTarget("runpod-a100");
+    assert.equal(target.backend, "runpod");
+    assert.equal(target.gpuType, "NVIDIA A100 80GB PCIe");
+    assert.equal(target.workspaceRoot, "/workspace");
+
+    const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envLocal.includes("RUNPOD_API_KEY=runpod_test_key_123"), true);
+    assert.equal(
+      outputs.some((line) => line.includes("Configured Runpod GPU server 'runpod-a100'")),
+      true
     );
   } finally {
     restoreSecretEnvVars(previousEnv);
