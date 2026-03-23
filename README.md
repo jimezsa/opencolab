@@ -18,7 +18,7 @@ _Accelerating Scientific Discovery_ — Turn one researcher into an always-on au
 - ✅ Deep Research skills for paper search, grounded QA, figure extraction, summaries, and D2 block diagrams.
 - ✅ Provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, and xAI.
 - ✅⏳ Multi-project, multi-agent local workspace with CLI and Telegram control.
-- ⏳ Coming: Run Experiment on external GPU servers.
+- ✅ Runpod-first remote GPU execution targets with bounded `gpu server` and `gpu job` CLI flows.
 - ⏳ Coming: LaTeX-format paper generation.
 
 **Note:** OpenColab is an early-stage, actively evolving project. Features and documentation are rapidly improving—feedback and contributions are welcome!
@@ -62,9 +62,13 @@ Check [docs/VISION.md](docs/VISION.md) for project direction and [docs/spec.md](
 +-----------------------+
 ```
 
-Current minimalistic architecture:
+Current runtime architecture:
 
-`Telegram -> Gateway -> Active Project -> Active Agent`
+`Telegram -> Gateway -> Active Project -> Active Agent -> Provider Runtime`
+
+Remote experiment path:
+
+`Telegram/CLI -> Active Project -> Active Agent -> Execution Target -> Remote Run`
 
 ## Install
 
@@ -98,6 +102,7 @@ Useful follow-up commands:
 opencolab gateway status
 opencolab project show
 opencolab agent show
+opencolab gpu server list
 ```
 
 ## Manual Run (git clone + Node)
@@ -160,6 +165,59 @@ Provider CLI execution defaults to a 10 minute timeout. Override it in `.env.loc
 OPENCOLAB_CODEX_TIMEOUT_MS=600000
 ```
 
+## Remote GPU with Runpod
+
+OpenColab keeps remote GPU execution separate from the agent reasoning runtime. Providers still handle planning and coding; Runpod is only the remote experiment target.
+
+Common operator flow:
+
+```bash
+# Create or update a project-scoped Runpod target
+opencolab gpu server add \
+  --provider runpod \
+  --server-id runpod-a100 \
+  --datacenter-id US-KS-2 \
+  --gpu-type "NVIDIA A100 80GB PCIe" \
+  --gpu-count 1 \
+  --volume-name default-runpod-a100 \
+  --volume-size-gb 200
+
+# Validate local prerequisites and visible Runpod resources
+opencolab gpu server test --server-id runpod-a100
+
+# Launch a bounded remote job and wait for completion
+opencolab gpu job start \
+  --server-id runpod-a100 \
+  --command "python train.py --epochs 1" \
+  --include projects/default,research \
+  --artifact outputs/train.log,outputs/metrics.json
+```
+
+Available commands:
+
+```bash
+opencolab gpu server add --provider runpod --server-id <id> [flags]
+opencolab gpu server list
+opencolab gpu server show --server-id <id>
+opencolab gpu server test --server-id <id>
+opencolab gpu server remove --server-id <id>
+
+opencolab gpu job start --server-id <id> --command "<command>" [flags]
+opencolab gpu job status --run-id <id>
+opencolab gpu job logs --run-id <id> [--stream stdout|stderr|bootstrap|poller]
+opencolab gpu job fetch --run-id <id>
+opencolab gpu job cancel --run-id <id>
+opencolab gpu job list
+```
+
+Notes:
+
+- `RUNPOD_API_KEY` must exist in `.env.local` or the shell environment.
+- Sync is allowlist-based. Use `--include` and `--exclude` as comma-separated repo-relative paths.
+- Declared `--artifact` paths are relative to the remote working directory on the Pod.
+- Run records live under `projects/<project_id>/experiments/runs/<run_id>/`.
+- Target snapshots are mirrored under `projects/<project_id>/experiments/targets/`.
+
 ## Gateway and Telegram
 
 Start the local gateway server:
@@ -198,6 +256,8 @@ opencolab agent create --agent-id <id> [--path <path>]
 opencolab agent use --agent-id <id>
 opencolab agent list
 opencolab agent show
+opencolab gpu server list
+opencolab gpu job list
 ```
 
 Telegram:
@@ -239,8 +299,9 @@ Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `p
 
 ## Configuration and Development
 
-- `opencolab.json` stores active project state, project and agent maps, per-agent provider config, and shared Telegram pairing state
-- `.env.local` stores secrets such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, and `TELEGRAM_BOT_TOKEN`
+- `opencolab.json` stores active project state, project and agent maps, per-agent provider config, project-scoped execution targets, and shared Telegram pairing state
+- `.env.local` stores secrets such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, and `TELEGRAM_BOT_TOKEN`
+- Remote run manifests, status, logs, sync metadata, and fetched artifacts live under `projects/<project_id>/experiments/`
 - Secret values should not be committed to git
 
 Development commands:
