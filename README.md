@@ -75,10 +75,6 @@ curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh |
 The installer clones OpenColab to `~/.opencolab`, creates `~/.local/bin/opencolab`, and updates your shell PATH profile when needed.
 On macOS, if `opencolab` is not immediately available, run:
 
-```bash
-source ~/.zprofile
-```
-
 ## Quickstart (Recommended)
 
 Run interactive first-run setup:
@@ -86,8 +82,6 @@ Run interactive first-run setup:
 ```bash
 opencolab ignite
 ```
-
-`ignite` initializes state, lets you choose or create a project, configures the active provider and model, optionally stores built-in tool keys, and walks through Telegram setup and pairing.
 
 Then start the local gateway:
 
