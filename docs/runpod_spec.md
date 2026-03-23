@@ -146,6 +146,7 @@ It should describe:
 Example identity:
 
 - `runpod-a100`
+- `runpod-a40`
 - `runpod-4090`
 - `runpod-cheap-train`
 
@@ -218,6 +219,27 @@ Suggested additions to `opencolab.json`:
           "volume": {
             "mode": "network_volume",
             "name": "default-runpod-a100",
+            "sizeGb": 200
+          },
+          "ssh": {
+            "mode": "public_ip"
+          },
+          "workspaceRoot": "/workspace",
+          "bootstrapProfile": "python-ml",
+          "maxRuntimeMinutes": 360,
+          "autoStopPolicy": "stop_on_completion"
+        },
+        "runpod-a40": {
+          "id": "runpod-a40",
+          "backend": "runpod",
+          "enabled": true,
+          "datacenterId": "US-KS-2",
+          "cloudType": "secure",
+          "gpuType": "NVIDIA A40",
+          "gpuCount": 1,
+          "volume": {
+            "mode": "network_volume",
+            "name": "default-runpod-a40",
             "sizeGb": 200
           },
           "ssh": {
