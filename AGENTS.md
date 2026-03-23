@@ -20,6 +20,8 @@ Core implementation areas:
 - `src/cli.ts`: CLI entrypoint, interactive prompts, setup flows including standalone provider-key writes, and gateway lifecycle commands.
 - `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth setup, built-in shared-tool key setup including Gemini and `pageindex-grounded` prerequisites, Telegram setup, and pairing.
 - `src/runtime.ts`: stateful orchestration across config, project state, gateway routing, memory, and provider execution.
+- `src/experiments.ts`: local experiment bookkeeping helpers for target snapshots, run manifests, status files, logs, artifacts, and sync metadata.
+- `src/gpu-providers/runpod/index.ts`: Runpod-backed execution-target validation, Pod lifecycle, SSH sync/bootstrap/launch, and run reconciliation.
 - `src/http.ts`: local HTTP server, health/state endpoints, Telegram webhook ingestion, and optional long polling startup.
 - `src/gateway.ts`: Telegram authorization, pairing, command routing, typing updates, and message/file handling.
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd` and Linux `systemd`.
@@ -61,6 +63,8 @@ Use these commands for normal development:
 - `node dist/src/cli.js gateway start --foreground true --port 4646`
 - `node dist/src/cli.js gateway status`
 - `node dist/src/cli.js project show`
+- `node dist/src/cli.js gpu server list`
+- `node dist/src/cli.js gpu job list`
 
 Useful repository checks:
 
@@ -111,11 +115,12 @@ PRs should include:
 
 ## Security & Configuration Tips
 - Never commit secrets (API keys, tokens, private keys).
-- Use environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `TELEGRAM_BOT_TOKEN`).
+- Use environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, `TELEGRAM_BOT_TOKEN`).
 - Keep local runtime artifacts out of git:
   - `opencolab.json`
   - `.env.local`
   - `.opencolab/`
+  - `projects/*/experiments/runs/`
   - `projects/*/AGENTS/*/memory/`
   - `projects/*/memory/TelegramInbox/`
 - Redact personal or host-identifying information when sharing logs/docs externally.
