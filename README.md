@@ -16,7 +16,7 @@ _Accelerating Scientific Discovery_ — Turn one researcher into an always-on au
 ## Features
 
 - ✅ Deep Research skills for paper search, grounded QA, figure extraction, summaries, and D2 block diagrams.
-- ✅ provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, and xAI.
+- ✅ Provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, and xAI.
 - ✅⏳ Multi-project, multi-agent local workspace with CLI and Telegram control.
 - ⏳ Coming: run experiments on Google Colab notebooks or external GPU servers.
 - ⏳ Coming: LaTeX-format paper generation.
@@ -26,7 +26,7 @@ _Accelerating Scientific Discovery_ — Turn one researcher into an always-on au
 It combines strategic guidance, parallel investigation, and rigorous synthesis so ideas can move from hypothesis to evidence faster.
 The vision is an always-on lab where the research-agent expert group leads execution with discipline, while the human defines initial goals and supports with coordination, key decisions, and key activities.
 
-Check [docs/VISION.md](docs/VISION.md) to see project direction.
+Check [docs/VISION.md](docs/VISION.md) for project direction and [docs/spec.md](docs/spec.md) for the concrete runtime contract.
 
 ## How It Works
 
@@ -62,7 +62,7 @@ Check [docs/VISION.md](docs/VISION.md) to see project direction.
 +-----------------------+
 ```
 
-Current minimalistic Architecture:
+Current minimalistic architecture:
 
 `Telegram -> Gateway -> Active Project -> Active Agent`
 
@@ -71,9 +71,6 @@ Current minimalistic Architecture:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh | bash
 ```
-
-The installer clones OpenColab to `~/.opencolab`, creates `~/.local/bin/opencolab`, and updates your shell PATH profile when needed.
-On macOS, if `opencolab` is not immediately available, run:
 
 ## Quickstart (Recommended)
 
@@ -95,9 +92,159 @@ opencolab gateway start --port 4646
 opencolab gateway start --foreground true --port 4646
 ```
 
-## Technical Guide
+Useful follow-up commands:
 
-For provider auth modes, manual `git clone` setup, gateway and webhook behavior, command reference, agent contract, configuration, and development commands, see [TECHNICAL.md](TECHNICAL.md).
+```bash
+opencolab gateway status
+opencolab project show
+opencolab agent show
+```
+
+## Manual Run (git clone + Node)
+
+If you prefer not to use the installer command shim:
+
+```bash
+git clone https://github.com/jimezsa/opencolab.git
+cd opencolab
+pnpm install
+pnpm run build
+node dist/src/cli.js ignite
+node dist/src/cli.js gateway start --foreground true --port 4646
+```
+
+## Provider Setup and Auth
+
+OpenColab configures provider CLIs for non-interactive runs inside the active project workspace. Each agent stores its own provider configuration, and long-running runs can stream bounded progress updates back through Telegram by default.
+
+- `openai`: `api_key` with `OPENAI_API_KEY` or `oauth` with `codex login`
+- `anthropic`: `api_key` with `ANTHROPIC_API_KEY`
+- `gemini`: `api_key` with `GEMINI_API_KEY` or `oauth` with the `gemini` CLI login
+- `minimax`: `api_key` with `MINIMAX_API_KEY`
+- `xai`: `api_key` with `XAI_API_KEY` through the `pi` runtime
+- Gemini-based shared tools still require `GEMINI_API_KEY` even when the active agent runtime uses another provider or Gemini OAuth
+
+Common setup flows:
+
+```bash
+# Save a Gemini API key for built-in shared tools
+opencolab setup api-key --provider gemini --api-key <your_gemini_key>
+
+# OpenAI OAuth
+codex login
+opencolab setup model --provider openai --auth oauth --model gpt-5.3-codex
+
+# Gemini OAuth
+gemini
+opencolab setup model --provider gemini --auth oauth --model gemini-2.5-pro
+
+# xAI
+opencolab setup model --provider xai --model grok-code-fast-1 --api-key <your_xai_key>
+```
+
+If you want Gemini OAuth, install the CLI first:
+
+```bash
+npm install -g @google/gemini-cli
+```
+
+Provider CLI execution defaults to a 10 minute timeout. Override it in `.env.local` if needed:
+
+```env
+OPENCOLAB_CODEX_TIMEOUT_MS=600000
+```
+
+## Gateway and Telegram
+
+Start the local gateway server:
+
+```bash
+opencolab gateway start --port 4646
+```
+
+Useful lifecycle commands:
+
+```bash
+opencolab gateway status
+opencolab gateway logs
+opencolab gateway stop
+opencolab gateway restart --port 4646
+```
+
+- `gateway start` runs as a background service by default on macOS and Linux
+- Use `opencolab gateway start --foreground true --port 4646` to keep it in the current terminal
+- Telegram webhook endpoint: `POST http://127.0.0.1:4646/api/telegram/webhook`
+- Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible
+- Agents can return files with raw `@telegram-file <json>` lines using relative or absolute local paths
+- Long-running work can emit bounded `started`, `progress`, `milestone`, `warning`, `needs_input`, or `completed` updates before the final answer
+- If provider execution fails because of auth, timeout, or CLI setup problems, OpenColab sends a Telegram error reply instead of silently retrying
+
+## Project and Agent Commands
+
+CLI:
+
+```bash
+opencolab project create --project-id <id>
+opencolab project use --project-id <id>
+opencolab project list
+opencolab project show
+opencolab agent create --agent-id <id> [--path <path>]
+opencolab agent use --agent-id <id>
+opencolab agent list
+opencolab agent show
+```
+
+Telegram:
+
+```text
+/project create <project_id>
+/project use <project_id>
+/project list
+/agent create <agent_id>
+/agent use <agent_id>
+/agent list
+/session reset
+```
+
+Telegram slash-menu aliases:
+
+```text
+/project_list
+/project_create <project_id>
+/project_use <project_id>
+/agent_list
+/agent_create <agent_id>
+/agent_use <agent_id>
+/session_reset
+```
+
+## Agent Layout and Memory
+
+- Agent directories live under `projects/<project_id>/AGENTS/<agent_id>/`
+- Required agent files: `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, plus agent-local `SKILLS/`
+- Shared skills live under `projects/SKILLS/` and are reused across all projects and agents
+- Agent-local skills live under `projects/<project_id>/AGENTS/<agent_id>/SKILLS/`
+- Built-in templates come from `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and role overrides in folders such as `professor/`, `beginner/`, and `specialist/`
+- Current session logs live in `<agent_path>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`
+- Previous-day summaries live in `<agent_path>/memory/Daily/<YYYY-MM-DD>.md`
+- Long-term durable facts belong in `MEMORY.md`
+
+Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, and `block-diagram`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, and `pdf-figure-extract` handles local figure extraction with PyMuPDF.
+
+## Configuration and Development
+
+- `opencolab.json` stores active project state, project and agent maps, per-agent provider config, and shared Telegram pairing state
+- `.env.local` stores secrets such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, and `TELEGRAM_BOT_TOKEN`
+- Secret values should not be committed to git
+
+Development commands:
+
+```bash
+pnpm install
+pnpm run check
+pnpm run build
+pnpm test
+```
 
 ## Inspiration
 

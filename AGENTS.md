@@ -8,8 +8,7 @@ Top-level sources of truth:
 
 - `docs/spec.md`: source of truth for requirements and architecture.
 - `docs/VISION.md`: product direction and long-term intent.
-- `README.md`: quickstart and high-level overview.
-- `TECHNICAL.md`: runtime details, provider setup, command reference, and agent contract.
+- `README.md`: quickstart, high-level overview, and condensed runtime/reference guide.
 - `install.sh`: user installer and command shim setup.
 - `projects/SKILLS/`: shared built-in skill library copied into agent prompts, not per-project duplicates, including search, summarization, grounded paper QA, image, and architecture-diagram workflows.
 - `src/`: TypeScript implementation.
@@ -66,8 +65,8 @@ Use these commands for normal development:
 Useful repository checks:
 
 - `rg --files docs src tests projects/SKILLS`
-- `rg -n "pattern" docs/spec.md docs/VISION.md README.md TECHNICAL.md src tests`
-- `git diff -- docs/spec.md docs/VISION.md README.md TECHNICAL.md AGENTS.md`
+- `rg -n "pattern" docs/spec.md docs/VISION.md README.md src tests`
+- `git diff -- docs/spec.md docs/VISION.md README.md AGENTS.md`
 - `git status --short`
 
 ## Coding Style & Naming Conventions
