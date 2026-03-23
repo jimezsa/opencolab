@@ -16,6 +16,8 @@ import {
   getProviderApiKeyEnvVar,
   resolveEnvVar,
   resolveProviderApiKey,
+  resolveRunpodApiKey,
+  RUNPOD_API_KEY_ENV_VAR,
   resolveTelegramBotToken,
   TELEGRAM_BOT_TOKEN_ENV_VAR,
   writeSecretToLocalEnv,
@@ -102,6 +104,10 @@ export async function runIgnite(
   await runStep(io, "* Telegram configure chat and pairing", async (stepIo) =>
     configureTelegram(runtime, stepIo, deps),
   );
+  io.write("|");
+  await runStep(io, "* Runpod configure optional GPU server", async (stepIo) =>
+    configureRunpod(runtime, stepIo),
+  );
 
   const state = runtime.getState();
   const project = runtime.getActiveProject();
@@ -115,6 +121,7 @@ export async function runIgnite(
   );
   io.write(`Telegram chat: ${state.telegram.chatId ?? "not configured"}`);
   io.write(`Telegram paired: ${state.telegram.paired ? "yes" : "no"}`);
+  io.write(`GPU servers: ${Object.keys(project.executionTargets).length}`);
   io.write("Next: opencolab gateway start --port 4646");
 }
 
@@ -384,6 +391,105 @@ async function configureBuiltInTools(
 ): Promise<void> {
   await configureGeminiBuiltInTools(runtime, io);
   await configurePageIndexGrounded(runtime, io);
+}
+
+async function configureRunpod(
+  runtime: OpenColabRuntime,
+  io: IgniteIo,
+): Promise<void> {
+  const project = runtime.getActiveProject();
+  const existingApiKey = resolveRunpodApiKey();
+  const existingTargets = runtime.listExecutionTargets();
+  const shouldConfigure = await askYesNo(
+    io,
+    existingApiKey || existingTargets.length > 0
+      ? "Runpod already has some setup. Update it?"
+      : "Configure optional Runpod GPU execution now?",
+    false,
+  );
+
+  if (!shouldConfigure) {
+    io.write("Runpod setup skipped.");
+    return;
+  }
+
+  if (existingApiKey) {
+    const keepExisting = await askYesNo(
+      io,
+      `${RUNPOD_API_KEY_ENV_VAR} already has a value. Keep it?`,
+      true,
+    );
+    if (!keepExisting) {
+      const apiKey = await askRequiredWithOptionalDefault(io, `${RUNPOD_API_KEY_ENV_VAR} value`);
+      writeSecretToLocalEnv(runtime.config.rootDir, RUNPOD_API_KEY_ENV_VAR, apiKey);
+      io.write(`Saved ${RUNPOD_API_KEY_ENV_VAR} in .env.local.`);
+    }
+  } else {
+    const shouldWriteKey = await askYesNo(
+      io,
+      `Add ${RUNPOD_API_KEY_ENV_VAR} now so Runpod validation and jobs can run?`,
+      true,
+    );
+    if (shouldWriteKey) {
+      const apiKey = await askRequiredWithOptionalDefault(io, `${RUNPOD_API_KEY_ENV_VAR} value`);
+      writeSecretToLocalEnv(runtime.config.rootDir, RUNPOD_API_KEY_ENV_VAR, apiKey);
+      io.write(`Saved ${RUNPOD_API_KEY_ENV_VAR} in .env.local.`);
+    } else {
+      io.write(`Runpod API key skipped. Set ${RUNPOD_API_KEY_ENV_VAR} later to enable GPU jobs.`);
+    }
+  }
+
+  const shouldCreateServer = await askYesNo(
+    io,
+    existingTargets.length > 0
+      ? "Create or update a default Runpod GPU server for this project?"
+      : "Create the first default Runpod GPU server for this project?",
+    true,
+  );
+  if (!shouldCreateServer) {
+    io.write("GPU server creation skipped.");
+    return;
+  }
+
+  const defaultServerId = existingTargets[0]?.id ?? "runpod-a100";
+  const serverId = await askWithDefault(io, "GPU server id", defaultServerId);
+  runtime.setupExecutionTarget({
+    id: serverId,
+    datacenterId: "US-KS-2",
+    gpuType: "NVIDIA A100 80GB PCIe",
+    gpuCount: 1,
+    volumeName: `${project.id}-${serverId}`,
+    volumeSizeGb: 200,
+    workspaceRoot: "/workspace",
+    bootstrapProfile: "python-ml",
+    maxRuntimeMinutes: 360,
+    autoStopPolicy: "stop_on_completion"
+  });
+  io.write(`Configured Runpod GPU server '${serverId}' with the curated A100 preset.`);
+
+  const shouldTest = await askYesNo(
+    io,
+    "Run lightweight GPU server validation now?",
+    false,
+  );
+  if (!shouldTest) {
+    io.write("GPU server validation skipped.");
+    return;
+  }
+
+  try {
+    const result = await runtime.testExecutionTarget(serverId);
+    io.write(`Validation result for '${serverId}': ${result.ok ? "ready" : "warnings"}.`);
+    for (const detail of result.details) {
+      io.write(detail);
+    }
+    for (const warning of result.warnings) {
+      io.write(`Warning: ${warning}`);
+    }
+  } catch (error) {
+    io.write(error instanceof Error ? error.message : String(error));
+    io.write("Run 'opencolab gpu server test --server-id <id>' after fixing the prerequisites.");
+  }
 }
 
 async function configureGeminiBuiltInTools(
