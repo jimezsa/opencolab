@@ -14,6 +14,7 @@ import {
 import type { OpenColabRuntime } from "./runtime.js";
 import {
   getProviderApiKeyEnvVar,
+  resolveEnvVar,
   resolveProviderApiKey,
   resolveTelegramBotToken,
   TELEGRAM_BOT_TOKEN_ENV_VAR,
@@ -64,6 +65,8 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
   ],
 };
 const BUILT_IN_TOOLS_PROVIDER: ProviderName = "gemini";
+const PAGEINDEX_GROUNDED_PROVIDER: ProviderName = "openai";
+const PAGEINDEX_GROUNDED_ALT_ENV_VAR = "CHATGPT_API_KEY";
 
 export interface IgniteDependencies {
   syncTelegramCommands: (
@@ -90,8 +93,10 @@ export async function runIgnite(
     configureProvider(runtime, stepIo),
   );
   io.write("|");
-  await runStep(io, "* Built-in tools configure Gemini API key", async (stepIo) =>
-    configureBuiltInTools(runtime, stepIo),
+  await runStep(
+    io,
+    "* Built-in tools configure shared skill keys",
+    async (stepIo) => configureBuiltInTools(runtime, stepIo),
   );
   io.write("|");
   await runStep(io, "* Telegram configure chat and pairing", async (stepIo) =>
@@ -377,6 +382,14 @@ async function configureBuiltInTools(
   runtime: OpenColabRuntime,
   io: IgniteIo,
 ): Promise<void> {
+  await configureGeminiBuiltInTools(runtime, io);
+  await configurePageIndexGrounded(runtime, io);
+}
+
+async function configureGeminiBuiltInTools(
+  runtime: OpenColabRuntime,
+  io: IgniteIo,
+): Promise<void> {
   const builtInToolsEnvVar = getProviderApiKeyEnvVar(BUILT_IN_TOOLS_PROVIDER);
   const existingBuiltInToolsKey = resolveProviderApiKey(BUILT_IN_TOOLS_PROVIDER);
   const activeProvider = runtime.getActiveAgent().provider;
@@ -434,6 +447,71 @@ async function configureBuiltInTools(
     builtInToolsApiKey,
   );
   io.write(`Saved ${builtInToolsEnvVar} in .env.local for shared tools.`);
+}
+
+async function configurePageIndexGrounded(
+  runtime: OpenColabRuntime,
+  io: IgniteIo,
+): Promise<void> {
+  const pageIndexEnvVar = getProviderApiKeyEnvVar(PAGEINDEX_GROUNDED_PROVIDER);
+  const existingPageIndexKey = resolveProviderApiKey(PAGEINDEX_GROUNDED_PROVIDER);
+  const existingChatGptKey = resolveEnvVar(PAGEINDEX_GROUNDED_ALT_ENV_VAR);
+  const activeProvider = runtime.getActiveAgent().provider;
+  const activeProviderDefaults = getProviderSetupDefaults(activeProvider.name);
+  const activeProviderAuthMode = resolveProviderAuthMode(
+    activeProvider.name,
+    activeProvider.authMode,
+    activeProviderDefaults.authMode,
+  );
+
+  if (
+    activeProvider.name === PAGEINDEX_GROUNDED_PROVIDER &&
+    activeProviderAuthMode === "api_key" &&
+    existingPageIndexKey
+  ) {
+    io.write(
+      `pageindex-grounded can use ${pageIndexEnvVar}. Already configured via the active OpenAI provider setup.`,
+    );
+    return;
+  }
+
+  if (!existingPageIndexKey && existingChatGptKey) {
+    io.write(
+      `pageindex-grounded can use the existing ${PAGEINDEX_GROUNDED_ALT_ENV_VAR} for the local PageIndex runner.`,
+    );
+    return;
+  }
+
+  if (existingPageIndexKey) {
+    const keepExisting = await askYesNo(
+      io,
+      `${pageIndexEnvVar} already has a value for pageindex-grounded. Keep it?`,
+      true,
+    );
+    if (keepExisting) {
+      io.write(`pageindex-grounded will use the existing ${pageIndexEnvVar}.`);
+      return;
+    }
+  } else {
+    const shouldConfigure = await askYesNo(
+      io,
+      `Add ${pageIndexEnvVar} now so pageindex-grounded can use the local PageIndex runner when tools/PageIndex is available?`,
+      true,
+    );
+    if (!shouldConfigure) {
+      io.write(
+        `pageindex-grounded key setup skipped. Set ${pageIndexEnvVar} later if you want the local PageIndex runner.`,
+      );
+      return;
+    }
+  }
+
+  const pageIndexApiKey = await askRequiredWithOptionalDefault(
+    io,
+    `${pageIndexEnvVar} value`,
+  );
+  writeSecretToLocalEnv(runtime.config.rootDir, pageIndexEnvVar, pageIndexApiKey);
+  io.write(`Saved ${pageIndexEnvVar} in .env.local for pageindex-grounded.`);
 }
 
 async function askProviderName(
