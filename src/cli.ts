@@ -3,6 +3,7 @@
  * OpenColab CLI entrypoint.
  * Parses commands, runs onboarding/setup flows, and starts gateway services.
  */
+import fs from "node:fs";
 import path from "node:path";
 import { emitKeypressEvents } from "node:readline";
 import {
@@ -385,6 +386,7 @@ function usageMain(): string {
     helpCommand("setup", "Configure model/provider/api-key/telegram"),
     helpCommand("project", "Manage/create projects"),
     helpCommand("agent", "Manage/create agents"),
+    helpCommand("gpu", "Manage remote GPU servers and jobs"),
     helpCommand("gateway", "Manage local gateway service"),
     "",
     "Examples:",
@@ -573,6 +575,82 @@ function usageAgent(): string {
   ]);
 }
 
+function usageGpu(): string {
+  return formatHelp([
+    "Usage:",
+    helpCommand("opencolab gpu server [subcommand]", "Manage Runpod-backed GPU servers"),
+    helpCommand("opencolab gpu job [subcommand]", "Manage bounded GPU jobs"),
+    "",
+    "Try:",
+    helpCommand("gpu server --help", "Show gpu server flags"),
+    helpCommand("gpu job --help", "Show gpu job flags")
+  ]);
+}
+
+function usageGpuServer(): string {
+  return formatHelp([
+    "Usage:",
+    helpCommand(
+      "opencolab gpu server add --provider runpod --server-id <id> [flags]",
+      "Create or update a GPU server target"
+    ),
+    helpCommand("opencolab gpu server list", "List GPU server targets"),
+    helpCommand("opencolab gpu server show --server-id <id>", "Print one GPU server target as JSON"),
+    helpCommand("opencolab gpu server test --server-id <id>", "Validate local and Runpod prerequisites"),
+    helpCommand("opencolab gpu server remove --server-id <id>", "Remove a GPU server target"),
+    "",
+    "Flags:",
+    helpFlag("--provider runpod", "Required backend identifier"),
+    helpFlag("--server-id <id>", "Project-scoped GPU server id"),
+    helpFlag("--datacenter-id <id>", "Runpod data center id"),
+    helpFlag("--gpu-type <name>", "Runpod GPU type display name"),
+    helpFlag("--gpu-count <n>", "GPU count"),
+    helpFlag("--image-name <name>", "Container image name"),
+    helpFlag("--template-id <id>", "Runpod template id"),
+    helpFlag("--volume-name <name>", "Attached network volume name"),
+    helpFlag("--volume-size-gb <n>", "Network volume size in GB"),
+    helpFlag("--volume-id <id>", "Existing Runpod network volume id"),
+    helpFlag("--workspace-root <path>", "Remote workspace mount root"),
+    helpFlag("--ssh-user <user>", "SSH username (default: root)"),
+    helpFlag("--ssh-port <n>", "Override SSH port when needed"),
+    helpFlag("--ssh-key-path <path>", "SSH private key path"),
+    helpFlag("--bootstrap-profile python-ml|pytorch-cu12|minimal-shell", "Named bootstrap profile"),
+    helpFlag("--max-runtime-minutes <n>", "Target max runtime"),
+    helpFlag("--idle-stop-minutes <n>", "Idle stop budget for warm Pods"),
+    helpFlag("--auto-stop-policy stop_on_completion|keep_warm", "Pod cleanup policy"),
+    helpFlag("--max-estimated-cost-usd <n>", "Operator-visible budget hint"),
+    helpFlag("--enabled true|false", "Enable or disable the target")
+  ]);
+}
+
+function usageGpuJob(): string {
+  return formatHelp([
+    "Usage:",
+    helpCommand(
+      "opencolab gpu job start --server-id <id> --command <command> [flags]",
+      "Launch a bounded remote GPU job"
+    ),
+    helpCommand("opencolab gpu job status --run-id <id>", "Refresh and print one GPU run status as JSON"),
+    helpCommand("opencolab gpu job logs --run-id <id> [--stream stdout|stderr|bootstrap|poller]", "Print one local run log"),
+    helpCommand("opencolab gpu job fetch --run-id <id>", "Fetch remote logs and artifacts"),
+    helpCommand("opencolab gpu job cancel --run-id <id>", "Cancel a running GPU job"),
+    helpCommand("opencolab gpu job list", "List local GPU run records"),
+    "",
+    "Flags:",
+    helpFlag("--server-id <id>", "Target GPU server id for job start"),
+    helpFlag("--run-id <id>", "Existing local GPU run id"),
+    helpFlag("--command <command>", "Remote shell command to launch"),
+    helpFlag("--include <csv>", "Comma-separated include paths relative to repo root"),
+    helpFlag("--exclude <csv>", "Comma-separated exclude paths relative to repo root"),
+    helpFlag("--artifact <csv>", "Comma-separated artifact paths relative to remote working dir"),
+    helpFlag("--env <csv>", "Comma-separated env var names to forward"),
+    helpFlag("--max-runtime-minutes <n>", "Override target runtime cap"),
+    helpFlag("--strict-artifacts true|false", "Fail if declared artifacts are missing"),
+    helpFlag("--wait true|false", "Wait for terminal completion before returning"),
+    helpFlag("--stream stdout|stderr|bootstrap|poller", "Log stream to print")
+  ]);
+}
+
 function resolveHelp(argv: string[]): string | null {
   const [command, subcommand, action] = argv;
   const wantsHelp =
@@ -627,6 +705,16 @@ function resolveHelp(argv: string[]): string | null {
 
   if (command === "agent") {
     return usageAgent();
+  }
+
+  if (command === "gpu") {
+    if (subcommand === "server") {
+      return usageGpuServer();
+    }
+    if (subcommand === "job") {
+      return usageGpuJob();
+    }
+    return usageGpu();
   }
 
   return usageMain();
@@ -697,6 +785,39 @@ function parseBooleanFlag(
   }
 
   return defaultValue;
+}
+
+function parseOptionalIntegerFlag(value: string | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric)) {
+    throw new Error(`Expected an integer, got '${value}'.`);
+  }
+  return numeric;
+}
+
+function parseOptionalNumberFlag(value: string | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    throw new Error(`Expected a number, got '${value}'.`);
+  }
+  return numeric;
+}
+
+function parseCsvFlag(value: string | undefined): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const items = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return items.length > 0 ? items : undefined;
 }
 
 function resolveCliScriptPath(runtimeRootDir: string): string {
@@ -1306,6 +1427,227 @@ async function main(): Promise<void> {
       console.log(JSON.stringify(runtime.getActiveAgent(), null, 2));
       return;
     }
+  }
+
+  if (command === "gpu") {
+    if (subcommand === "server") {
+      const { values } = parseFlags([action, ...rest].filter(Boolean));
+
+      if (action === "add") {
+        const provider = values.provider?.trim();
+        if (provider !== "runpod") {
+          throw new Error(`${accent("--provider")} must be ${accent("runpod")}`);
+        }
+        const serverId = values["server-id"]?.trim();
+        if (!serverId) {
+          throw new Error(`${accent("--server-id")} is required`);
+        }
+
+        const bootstrapProfile = values["bootstrap-profile"]?.trim();
+        if (
+          bootstrapProfile &&
+          bootstrapProfile !== "python-ml" &&
+          bootstrapProfile !== "pytorch-cu12" &&
+          bootstrapProfile !== "minimal-shell"
+        ) {
+          throw new Error("Unsupported bootstrap profile.");
+        }
+
+        const autoStopPolicy = values["auto-stop-policy"]?.trim();
+        if (
+          autoStopPolicy &&
+          autoStopPolicy !== "stop_on_completion" &&
+          autoStopPolicy !== "keep_warm"
+        ) {
+          throw new Error("Unsupported auto stop policy.");
+        }
+
+        runtime.setupExecutionTarget({
+          id: serverId,
+          enabled:
+            values.enabled === undefined ? undefined : parseBooleanFlag(values.enabled, true),
+          datacenterId: values["datacenter-id"],
+          gpuType: values["gpu-type"],
+          gpuCount: parseOptionalIntegerFlag(values["gpu-count"]),
+          templateId: values["template-id"] ?? undefined,
+          imageName: values["image-name"] ?? undefined,
+          volumeId: values["volume-id"] ?? undefined,
+          volumeName: values["volume-name"],
+          volumeSizeGb: parseOptionalIntegerFlag(values["volume-size-gb"]),
+          workspaceRoot: values["workspace-root"],
+          sshUser: values["ssh-user"] ?? undefined,
+          sshPort: parseOptionalIntegerFlag(values["ssh-port"]),
+          sshPrivateKeyPath: values["ssh-key-path"] ?? undefined,
+          bootstrapProfile: bootstrapProfile as "python-ml" | "pytorch-cu12" | "minimal-shell" | undefined,
+          maxRuntimeMinutes: parseOptionalIntegerFlag(values["max-runtime-minutes"]),
+          idleStopMinutes:
+            values["idle-stop-minutes"] === undefined
+              ? undefined
+              : parseOptionalIntegerFlag(values["idle-stop-minutes"]) ?? null,
+          autoStopPolicy:
+            autoStopPolicy as "stop_on_completion" | "keep_warm" | undefined,
+          maxEstimatedCostUsd: parseOptionalNumberFlag(values["max-estimated-cost-usd"])
+        });
+
+        const target = runtime.getExecutionTarget(serverId);
+        console.log(`Project: ${runtime.getActiveProject().id}`);
+        console.log(`GPU server configured: ${target.id}`);
+        console.log(`Provider: ${target.backend}`);
+        console.log(`GPU: ${target.gpuCount} x ${target.gpuType}`);
+        console.log(`Datacenter: ${target.datacenterId}`);
+        console.log(`Workspace root: ${target.workspaceRoot}`);
+        console.log(`Bootstrap profile: ${target.bootstrapProfile}`);
+        return;
+      }
+
+      if (action === "list") {
+        const targets = runtime.listExecutionTargets();
+        for (const target of targets) {
+          const marker = target.enabled ? "*" : "-";
+          console.log(
+            `${marker} ${target.id} [${target.backend}] ${target.gpuCount}x ${target.gpuType} @ ${target.datacenterId}`
+          );
+        }
+        return;
+      }
+
+      if (action === "show") {
+        const serverId = values["server-id"];
+        if (!serverId) {
+          throw new Error(`${accent("--server-id")} is required`);
+        }
+        console.log(JSON.stringify(runtime.getExecutionTarget(serverId), null, 2));
+        return;
+      }
+
+      if (action === "test") {
+        const serverId = values["server-id"];
+        if (!serverId) {
+          throw new Error(`${accent("--server-id")} is required`);
+        }
+        const result = await runtime.testExecutionTarget(serverId);
+        console.log(`Target: ${result.targetId}`);
+        console.log(`Backend: ${result.backend}`);
+        console.log(`Status: ${result.ok ? "ready" : "warnings"}`);
+        for (const detail of result.details) {
+          console.log(`- ${detail}`);
+        }
+        for (const warning of result.warnings) {
+          console.log(`Warning: ${warning}`);
+        }
+        return;
+      }
+
+      if (action === "remove") {
+        const serverId = values["server-id"];
+        if (!serverId) {
+          throw new Error(`${accent("--server-id")} is required`);
+        }
+        runtime.removeExecutionTarget(serverId);
+        console.log(`GPU server removed: ${serverId}`);
+        return;
+      }
+
+      throw new Error("Unknown gpu server command.");
+    }
+
+    if (subcommand === "job") {
+      const { values } = parseFlags([action, ...rest].filter(Boolean));
+
+      if (action === "start") {
+        const serverId = values["server-id"];
+        const commandValue = values.command;
+        if (!serverId) {
+          throw new Error(`${accent("--server-id")} is required`);
+        }
+        if (!commandValue) {
+          throw new Error(`${accent("--command")} is required`);
+        }
+
+        const status = await runtime.startGpuJob({
+          targetId: serverId,
+          command: commandValue,
+          includePaths: parseCsvFlag(values.include),
+          excludePaths: parseCsvFlag(values.exclude),
+          expectedArtifacts: parseCsvFlag(values.artifact),
+          envVarNames: parseCsvFlag(values.env),
+          strictArtifacts: parseBooleanFlag(values["strict-artifacts"], false),
+          maxRuntimeMinutes: parseOptionalIntegerFlag(values["max-runtime-minutes"]),
+          wait: parseBooleanFlag(values.wait, true)
+        });
+
+        console.log(`Run ID: ${status.runId}`);
+        console.log(`Target: ${status.targetId}`);
+        console.log(`State: ${status.state}`);
+        console.log(`Message: ${status.message}`);
+        return;
+      }
+
+      if (action === "status") {
+        const runId = values["run-id"];
+        if (!runId) {
+          throw new Error(`${accent("--run-id")} is required`);
+        }
+        const status = await runtime.reconcileGpuJob(runId);
+        console.log(JSON.stringify(status, null, 2));
+        return;
+      }
+
+      if (action === "logs") {
+        const runId = values["run-id"];
+        if (!runId) {
+          throw new Error(`${accent("--run-id")} is required`);
+        }
+        const stream = values.stream?.trim() || "stdout";
+        if (stream !== "stdout" && stream !== "stderr" && stream !== "bootstrap" && stream !== "poller") {
+          throw new Error("Unsupported log stream.");
+        }
+        const status = await runtime.reconcileGpuJob(runId);
+        const logPath = status.logs[stream as keyof typeof status.logs];
+        if (!logPath || !fs.existsSync(logPath)) {
+          throw new Error(`No local ${stream} log is available for run '${runId}'.`);
+        }
+        process.stdout.write(fs.readFileSync(logPath, "utf8"));
+        return;
+      }
+
+      if (action === "fetch") {
+        const runId = values["run-id"];
+        if (!runId) {
+          throw new Error(`${accent("--run-id")} is required`);
+        }
+        const status = await runtime.fetchGpuJobOutputs(runId);
+        console.log(`Run ID: ${status.runId}`);
+        console.log(`Fetched artifacts: ${status.fetchedArtifacts.length}`);
+        console.log(`Missing artifacts: ${status.missingArtifacts.length}`);
+        console.log(`State: ${status.state}`);
+        return;
+      }
+
+      if (action === "cancel") {
+        const runId = values["run-id"];
+        if (!runId) {
+          throw new Error(`${accent("--run-id")} is required`);
+        }
+        const status = await runtime.cancelGpuJob(runId);
+        console.log(`Run ID: ${status.runId}`);
+        console.log(`State: ${status.state}`);
+        console.log(`Message: ${status.message}`);
+        return;
+      }
+
+      if (action === "list") {
+        const runs = runtime.listGpuJobs();
+        for (const run of runs) {
+          console.log(`${run.runId} [${run.state}] target=${run.targetId} created=${run.createdAt}`);
+        }
+        return;
+      }
+
+      throw new Error("Unknown gpu job command.");
+    }
+
+    throw new Error("Unknown gpu command. Use 'server' or 'job'.");
   }
 
   throw new Error(`Unknown command: ${argv.join(" ")}`);
