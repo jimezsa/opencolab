@@ -3,10 +3,67 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type { RunpodExecutionService } from "../src/gpu-providers/runpod/index.js";
 import { createRuntime } from "../src/runtime.js";
+import type {
+  ExecutionTargetTestResult,
+  ExperimentRunManifest,
+  ExperimentRunStatus,
+  ExperimentRunSummary
+} from "../src/types.js";
 
 function buildAgentDir(rootDir: string, projectId: string, agentId = "professor"): string {
   return path.join(rootDir, "projects", projectId, "AGENTS", agentId);
+}
+
+function createSampleRunStatus(runId = "run-1"): ExperimentRunStatus {
+  return {
+    runId,
+    projectId: "default",
+    agentId: "professor",
+    targetId: "runpod-a100",
+    backend: "runpod",
+    state: "running",
+    stage: "running",
+    message: "Remote process is still running.",
+    createdAt: "2026-03-23T00:00:00.000Z",
+    updatedAt: "2026-03-23T00:00:00.000Z",
+    startedAt: "2026-03-23T00:00:00.000Z",
+    finishedAt: null,
+    warnings: [],
+    error: null,
+    pod: {
+      id: "pod_123",
+      name: "opencolab-default-runpod-a100",
+      desiredStatus: "RUNNING",
+      publicIp: "1.2.3.4",
+      sshPort: 2200,
+      volumeId: "vol_123",
+      lastObservedAt: "2026-03-23T00:00:00.000Z"
+    },
+    remote: {
+      remoteWorkingDir: "/workspace/projects/default",
+      remoteRunDir: "/workspace/.opencolab/runs/run-1",
+      launchScriptPath: "/workspace/.opencolab/runs/run-1/launch.sh",
+      bootstrapScriptPath: "/workspace/.opencolab/runs/run-1/bootstrap.sh",
+      stdoutPath: "/workspace/.opencolab/runs/run-1/stdout.log",
+      stderrPath: "/workspace/.opencolab/runs/run-1/stderr.log",
+      bootstrapLogPath: "/workspace/.opencolab/runs/run-1/bootstrap.log",
+      pidFilePath: "/workspace/.opencolab/runs/run-1/wrapper.pid",
+      exitCodeFilePath: "/workspace/.opencolab/runs/run-1/exit-code.txt",
+      launchPid: 12345,
+      exitCode: null
+    },
+    logs: {
+      stdout: null,
+      stderr: null,
+      bootstrap: null,
+      poller: null
+    },
+    fetchedArtifacts: [],
+    missingArtifacts: [],
+    progressEvents: []
+  };
 }
 
 test("init creates required agent context files for active project", () => {
@@ -49,6 +106,188 @@ test("init does not replicate shared skills into each project", () => {
   try {
     runtime.init();
     assert.equal(fs.existsSync(path.join(tempDir, "projects", "default", "SKILLS")), false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("setupExecutionTarget persists a project-scoped GPU server and target snapshot", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-execution-target-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupExecutionTarget({
+      id: "runpod-a100",
+      datacenterId: "US-KS-2",
+      gpuType: "NVIDIA A100 80GB PCIe",
+      gpuCount: 1,
+      volumeName: "default-runpod-a100",
+      volumeSizeGb: 200,
+      workspaceRoot: "/workspace",
+      bootstrapProfile: "python-ml",
+      autoStopPolicy: "stop_on_completion"
+    });
+
+    const target = runtime.getExecutionTarget("runpod-a100");
+    assert.equal(target.backend, "runpod");
+    assert.equal(target.datacenterId, "US-KS-2");
+    assert.equal(target.gpuType, "NVIDIA A100 80GB PCIe");
+    assert.equal(target.volume.name, "default-runpod-a100");
+
+    const snapshotPath = path.join(
+      tempDir,
+      "projects",
+      "default",
+      "experiments",
+      "targets",
+      "runpod-a100.json"
+    );
+    assert.equal(fs.existsSync(snapshotPath), true);
+
+    const reloadedRuntime = createRuntime(tempDir);
+    reloadedRuntime.init();
+    const reloadedTarget = reloadedRuntime.getExecutionTarget("runpod-a100");
+    assert.equal(reloadedTarget.volume.sizeGb, 200);
+    assert.equal(reloadedTarget.workspaceRoot, "/workspace");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("startGpuJob delegates to the injected runpod execution service", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-gpu-job-runtime-"));
+  const captured: {
+    projectId?: string;
+    agentId?: string;
+    targetId?: string;
+    command?: string;
+    wait?: boolean;
+  } = {};
+  const status = createSampleRunStatus("run-42");
+  const manifest: ExperimentRunManifest = {
+    runId: "run-42",
+    projectId: "default",
+    agentId: "professor",
+    targetId: "runpod-a100",
+    backend: "runpod",
+    requestedBy: "cli",
+    createdAt: "2026-03-23T00:00:00.000Z",
+    command: "python train.py",
+    envVarNames: [],
+    expectedArtifacts: [],
+    strictArtifacts: false,
+    maxRuntimeMinutes: 60,
+    sourceRevision: null,
+    sync: {
+      workingRoot: ".",
+      includePaths: ["projects/default"],
+      excludePaths: [],
+      remoteWorkspaceRoot: "/workspace",
+      remoteWorkingDir: "/workspace/projects/default",
+      fileCount: 1,
+      totalBytes: 10
+    },
+    targetSnapshot: {
+      id: "runpod-a100",
+      backend: "runpod",
+      enabled: true,
+      datacenterId: "US-KS-2",
+      cloudType: "secure",
+      gpuType: "NVIDIA A100 80GB PCIe",
+      gpuCount: 1,
+      templateId: null,
+      imageName: "runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04",
+      volume: {
+        mode: "network_volume",
+        id: null,
+        name: "default-runpod-a100",
+        sizeGb: 200
+      },
+      ssh: {
+        mode: "public_ip",
+        user: "root",
+        port: null,
+        privateKeyPath: null
+      },
+      workspaceRoot: "/workspace",
+      bootstrapProfile: "python-ml",
+      maxRuntimeMinutes: 360,
+      idleStopMinutes: 15,
+      autoStopPolicy: "stop_on_completion",
+      maxEstimatedCostUsd: null
+    }
+  };
+
+  const fakeService: RunpodExecutionService = {
+    async testTarget(_project, target): Promise<ExecutionTargetTestResult> {
+      return {
+        ok: true,
+        targetId: target.id,
+        backend: target.backend,
+        warnings: [],
+        details: ["ready"]
+      };
+    },
+    async startRun(project, agent, input): Promise<ExperimentRunStatus> {
+      captured.projectId = project.id;
+      captured.agentId = agent.id;
+      captured.targetId = input.target.id;
+      captured.command = input.command;
+      captured.wait = input.wait;
+      return status;
+    },
+    async reconcileRun(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    async fetchRunOutputs(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    async cancelRun(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    listRuns(): ExperimentRunSummary[] {
+      return [
+        {
+          runId: status.runId,
+          targetId: status.targetId,
+          state: status.state,
+          createdAt: status.createdAt,
+          updatedAt: status.updatedAt,
+          command: "python train.py"
+        }
+      ];
+    },
+    readLocalStatus(): ExperimentRunStatus | null {
+      return status;
+    },
+    readLocalManifest(): ExperimentRunManifest | null {
+      return manifest;
+    }
+  };
+
+  const runtime = createRuntime(tempDir, {
+    runpodExecutionService: fakeService
+  });
+
+  try {
+    runtime.init();
+    runtime.setupExecutionTarget({
+      id: "runpod-a100"
+    });
+
+    const result = await runtime.startGpuJob({
+      targetId: "runpod-a100",
+      command: "python train.py",
+      wait: false
+    });
+
+    assert.equal(result.runId, "run-42");
+    assert.equal(captured.projectId, "default");
+    assert.equal(captured.agentId, "professor");
+    assert.equal(captured.targetId, "runpod-a100");
+    assert.equal(captured.command, "python train.py");
+    assert.equal(captured.wait, false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
