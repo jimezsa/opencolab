@@ -38,7 +38,88 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(agent.provider.name, "anthropic");
     assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.deepEqual(project.executionTargets, {});
     assert.equal(state.telegram.paired, false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state normalizes project-scoped execution targets", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-execution-targets-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: DEFAULT_AGENT_ID,
+            executionTargets: {
+              "runpod-a100": {
+                id: "runpod-a100",
+                backend: "runpod",
+                enabled: true,
+                datacenterId: "US-KS-2",
+                cloudType: "secure",
+                gpuType: "NVIDIA A100 80GB PCIe",
+                gpuCount: 1,
+                volume: {
+                  mode: "network_volume",
+                  id: "vol_123",
+                  name: "alpha-runpod-a100",
+                  sizeGb: 200
+                },
+                ssh: {
+                  mode: "public_ip",
+                  user: "root",
+                  privateKeyPath: "~/.ssh/id_ed25519"
+                },
+                workspaceRoot: "/workspace",
+                bootstrapProfile: "python-ml",
+                maxRuntimeMinutes: 360,
+                autoStopPolicy: "stop_on_completion"
+              }
+            },
+            agents: {
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    const target = loaded.projects.alpha.executionTargets["runpod-a100"];
+    assert.equal(target.backend, "runpod");
+    assert.equal(target.enabled, true);
+    assert.equal(target.datacenterId, "US-KS-2");
+    assert.equal(target.cloudType, "secure");
+    assert.equal(target.gpuType, "NVIDIA A100 80GB PCIe");
+    assert.equal(target.volume.id, "vol_123");
+    assert.equal(target.volume.name, "alpha-runpod-a100");
+    assert.equal(target.ssh.user, "root");
+    assert.equal(target.ssh.privateKeyPath, "~/.ssh/id_ed25519");
+    assert.equal(target.bootstrapProfile, "python-ml");
+    assert.equal(target.autoStopPolicy, "stop_on_completion");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
