@@ -13,6 +13,8 @@ v1 supports:
 - one active project at a time
 - one active agent inside the active project
 - one provider runtime per agent: `openai`, `anthropic`, `gemini`, or `minimax`
+- optional project-scoped execution targets for bounded remote GPU experiments
+- one remote experiment backend in scope first: Runpod Pods on Secure Cloud with attached network volumes and SSH access
 - one user channel: Telegram
 - one operator channel: OpenColab CLI
 
@@ -20,16 +22,26 @@ No parallel orchestration between agents/projects is included in this version.
 
 ## 3. Architecture
 
-The runtime execution path is:
+The reasoning runtime path is:
 
-`Telegram -> Gateway -> Active Project -> Active Agent`
+`Telegram -> Gateway -> Active Project -> Active Agent -> Provider Runtime`
+
+The bounded remote experiment path is:
+
+`Telegram/CLI -> Active Project -> Active Agent -> Experiment Planner -> Execution Target -> Remote Run`
 
 Definitions:
 
 - `Project`: isolated workspace entry persisted in `opencolab.json`.
 - `Agent`: assistant instance under a project, with prompt-definition files.
+- `ExecutionTarget`: named remote GPU environment defined at project scope.
+- `ExperimentRun`: bounded remote execution attempt launched against an execution target.
 - `Human`: defines the initial problem, goals, and constraints, then supports the agent group as an assistant for key decisions and key activities.
 - `Gateway`: local service that validates Telegram pairing and routes messages to the active project/agent.
+
+Architecture rule:
+
+- agent provider/runtime and experiment execution target are separate layers; provider configuration must not be overloaded with remote GPU infrastructure state
 
 ## 4. Core Capabilities
 
@@ -42,7 +54,10 @@ Required:
 - Route Telegram messages to the selected project/agent runtime.
 - Route Telegram text and file messages (documents, photos, audio, video, voice, stickers, and related media) to the selected project/agent runtime.
 - For inbound Telegram files, resolve the Telegram `file_id` to a local file inside the active project when possible, using collision-safe local filenames, and pass the local path to the agent runtime alongside metadata and caption text.
+- Create/list/show/test/remove project-scoped GPU execution targets from CLI.
+- Start/status/logs/fetch/cancel/list bounded remote GPU jobs from CLI.
 - Persist project/agent/provider settings plus one shared Telegram configuration in `opencolab.json`.
+- Persist execution-target settings in `opencolab.json` and experiment run records under the active project tree.
 
 Not required in v1:
 
@@ -50,12 +65,30 @@ Not required in v1:
 - multi-user support
 - background autonomous jobs
 - cross-project concurrent execution
+- arbitrary interactive remote shells exposed directly to agents
 
 ## 5. Filesystem Layout
 
 Projects must live under:
 
 - `projects/<project_id>/`
+
+Each project must keep experiment bookkeeping under:
+
+- `projects/<project_id>/experiments/targets/`
+- `projects/<project_id>/experiments/runs/<run_id>/manifest.json`
+- `projects/<project_id>/experiments/runs/<run_id>/status.json`
+- `projects/<project_id>/experiments/runs/<run_id>/logs/`
+- `projects/<project_id>/experiments/runs/<run_id>/artifacts/`
+- `projects/<project_id>/experiments/runs/<run_id>/sync/`
+
+Experiment bookkeeping requirements:
+
+- `manifest.json` is immutable after launch except for implementation-safe metadata enrichment
+- `status.json` is mutable and tracks lifecycle transitions and reconciliation notes
+- `logs/` stores fetched stdout, stderr, bootstrap output, and OpenColab polling notes
+- `artifacts/` stores files copied back from the remote run
+- `sync/` stores generated sync lists or packaging metadata, not a default duplicate of the full project
 
 Each project must keep its agents under:
 
@@ -184,6 +217,8 @@ Required command groups:
 - `opencolab gateway`
 - `opencolab project`
 - `opencolab agent`
+- `opencolab gpu server`
+- `opencolab gpu job`
 
 Responsibilities:
 
@@ -220,6 +255,17 @@ Responsibilities:
 - `ignite` onboarding should detect existing provider setup and allow keeping or updating it
 - `ignite` onboarding should include optional steps to persist `GEMINI_API_KEY` for Gemini-based built-in shared tools and `OPENAI_API_KEY` for `pageindex-grounded` when the local PageIndex runner needs it
 - `opencolab setup api-key` must persist the canonical env var for one specific provider without mutating provider/model/auth settings
+- `opencolab gpu server` must support lifecycle commands: `add`, `list`, `show`, `test`, and `remove`
+- `opencolab gpu job` must support lifecycle commands: `start`, `status`, `logs`, `fetch`, `cancel`, and `list`
+- `gpu server add` must support `--provider runpod`
+- the operator-facing CLI should prefer `gpu server` and `gpu job` naming even if internal state uses a provider-neutral `ExecutionTarget` model
+- Runpod onboarding must remain optional and must not block local-only setup
+- `ignite` onboarding should include an optional Runpod section after the core local setup flow is stable
+- `ignite` should detect whether `RUNPOD_API_KEY` is already available and allow the operator to keep the existing setup, update it, or skip Runpod setup
+- `ignite` must be able to persist `RUNPOD_API_KEY` in `.env.local`
+- `ignite` should be able to create the first named GPU server for the active project using curated defaults rather than raw low-level Runpod choices
+- the first curated Runpod preset should use backend `runpod`, cloud type `secure`, storage mode `network_volume`, workspace root `/workspace`, SSH access, and bootstrap profile `python-ml`
+- `ignite` should be able to run a lightweight GPU server validation test when the operator opts in
 - installer script should make `opencolab` available as a terminal command by installing a user-level shim and ensuring the user bin directory is on `PATH`
 
 ## 8. Telegram Management Commands
@@ -260,6 +306,7 @@ Supported provider identifiers:
 Provider/runtime notes:
 
 - provider configuration is stored on each agent, not on the project
+- execution-target configuration is stored on each project, not on the agent provider config
 - provider config includes auth mode (`api_key` or `oauth` where supported)
 - OpenAI and Gemini support `api_key` and `oauth` auth modes
 - Anthropic and MiniMax are `api_key` only in v1
@@ -343,6 +390,29 @@ Minimum shape:
             "memory": "MEMORY.md"
           }
         }
+      },
+      "executionTargets": {
+        "runpod-a100": {
+          "id": "runpod-a100",
+          "backend": "runpod",
+          "enabled": true,
+          "datacenterId": "US-KS-2",
+          "cloudType": "secure",
+          "gpuType": "NVIDIA A100 80GB PCIe",
+          "gpuCount": 1,
+          "volume": {
+            "mode": "network_volume",
+            "name": "default-runpod-a100",
+            "sizeGb": 200
+          },
+          "ssh": {
+            "mode": "public_ip"
+          },
+          "workspaceRoot": "/workspace",
+          "bootstrapProfile": "python-ml",
+          "maxRuntimeMinutes": 360,
+          "autoStopPolicy": "stop_on_completion"
+        }
       }
     }
   },
@@ -356,13 +426,139 @@ Minimum shape:
 
 Notes:
 
-- secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `TELEGRAM_BOT_TOKEN`)
+- secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, `TELEGRAM_BOT_TOKEN`)
 - when OpenAI auth mode is `oauth`, `OPENAI_API_KEY` is optional
 - when Gemini auth mode is `oauth`, `GEMINI_API_KEY` is optional
+- execution targets belong at project scope, not inside per-agent provider configuration
+- SSH private keys must not be embedded in `opencolab.json`
 - `opencolab.json` must not store raw secret values or env-var secret references
 - extra fields are allowed if they do not break the minimum contract
 
-## 11. Message Handling Rules
+## 11. Execution Targets and Remote GPU Jobs
+
+OpenColab must treat experiment execution targets as a separate control-plane concept from agent provider runtimes.
+
+### 11.1 Execution Target Model
+
+Requirements:
+
+- an `ExecutionTarget` is a named remote GPU environment available to a project
+- execution targets must live at project scope, not inside agent provider config
+- the first supported backend must be `runpod`
+- the first supported Runpod compute product must be `Pods`
+- the first supported cloud class must be `Secure Cloud`
+- the first supported storage mode must be an attached Runpod network volume
+- the first supported remote access mode must be SSH
+- the first supported workspace root on the Pod must be `/workspace`
+- the first supported run style must be non-interactive detached batch execution
+- agents must not receive unrestricted interactive remote shell authority by default
+
+Suggested target fields:
+
+- `id`
+- `backend`
+- `enabled`
+- `datacenterId`
+- `cloudType`
+- `gpuType`
+- `gpuCount`
+- `templateRef` or image/template hint
+- `volume.mode`
+- `volume.name`
+- `volume.sizeGb`
+- `workspaceRoot`
+- `ssh.mode`
+- `bootstrapProfile`
+- `maxRuntimeMinutes`
+- `idleStopMinutes`
+- `autoStopPolicy`
+- `maxEstimatedCostUsd`
+
+Runpod MVP constraints:
+
+- `backend` must be `runpod`
+- `cloudType` must be `secure`
+- `volume.mode` must be `network_volume`
+- `ssh.mode` must be the stable SSH path chosen by the implementation
+
+### 11.2 Run Manifest and Local State
+
+Requirements:
+
+- an `ExperimentRun` is one bounded remote execution attempt launched against an execution target
+- each run must have an immutable local manifest plus mutable status tracking under the project `experiments/runs/` tree
+- the manifest is the canonical local record for reproducibility and debugging
+- the manifest must include run id, project id, agent id, target id, requested command, working directory, environment variable references, sync include list, expected artifact paths, timestamps, and source revision metadata when available
+- status tracking must preserve the last meaningful stage even when provisioning, launch, fetch, or cleanup fails
+
+Suggested run states:
+
+- `draft`
+- `validating`
+- `provisioning`
+- `waiting_for_ssh`
+- `syncing`
+- `bootstrapping`
+- `running`
+- `running_unreachable`
+- `fetching`
+- `completed`
+- `failed`
+- `cancelled`
+- `timed_out`
+- `cleanup_failed`
+
+### 11.3 Required Run Lifecycle
+
+OpenColab must perform this flow for bounded remote jobs:
+
+1. Create a local run manifest.
+2. Validate the selected target and local operator prerequisites.
+3. Ensure the referenced Runpod network volume exists.
+4. Create a Pod or reuse a compatible warm Pod only when policy allows it.
+5. Wait for the Pod to become reachable through SSH.
+6. Sync the selected workspace subset to `/workspace`.
+7. Run the selected bootstrap profile and record the output in run logs.
+8. Launch the experiment as a detached non-interactive batch job.
+9. Poll run status and fetch or tail remote logs.
+10. Emit bounded OpenColab progress events for meaningful state changes.
+11. Fetch declared artifacts and final logs into the local project run folder.
+12. Stop the Pod, or leave it warm only when target policy explicitly allows that behavior.
+13. Mark the run with a terminal status.
+
+### 11.4 Sync, Bootstrap, Progress, and Artifacts
+
+Requirements:
+
+- sync must be allowlist-based rather than a blind full-repository copy
+- each run must define the local working root, include paths, exclude paths, remote working directory, and artifact return paths
+- `.env.local`, `.git/`, `.opencolab/`, `node_modules/`, `dist/`, and `projects/*/AGENTS/*/memory/` must be excluded by default
+- large derived artifacts must not be synced unless the run explicitly includes them
+- bootstrap must use a bounded set of named profiles in the first release rather than arbitrary free-form setup logic
+- the first bootstrap profiles should include `python-ml`, `pytorch-cu12`, and `minimal-shell`
+- remote launch must be detached; the experiment process must not depend on a live SSH session remaining open
+- remote execution must reuse the existing OpenColab progress-event model instead of inventing a second event system
+- each run should declare expected artifact paths before launch
+- OpenColab must fetch declared artifacts automatically, store them under the local run folder, and record missing expected artifacts as warnings or failures depending on strictness
+- final user-facing summaries for remote jobs must distinguish command success, artifact success, and scientific success
+
+### 11.5 Failure, Recovery, Security, and Cost Controls
+
+Requirements:
+
+- `RUNPOD_API_KEY` must live only in `.env.local` or the shell environment
+- OpenColab must never sync `.env.local` or auto-forward all local environment variables to the Pod
+- explicit per-project execution-target allowlists, bounded sync paths, bounded artifact fetch paths, and max runtime limits are required
+- OpenColab must preserve the local run record, logs, and last meaningful status even when the remote job fails
+- cleanup failure must be distinguishable from experiment failure
+- if SSH is interrupted after detached launch and the Pod still appears alive, the run must not be marked failed only because SSH was lost
+- when SSH is lost but the Pod still appears alive, the run should transition to `running_unreachable`, emit a warning progress event, continue checking Pod state through the Runpod control plane, and retry SSH until recovery or timeout
+- Pod termination or restart during the job should be treated as run failure unless the workflow explicitly supports resume
+- artifact or log fetch interruption must be treated as a retryable transfer problem before it is treated as experiment failure
+- each target should be able to express max runtime, idle shutdown behavior, approximate budget ceiling, allowed GPU class, and allowed GPU count
+- operator-facing surfaces must make active remote cost exposure visible enough for routine use
+
+## 12. Message Handling Rules
 
 - if chat is unpaired, gateway replies with pairing-required guidance
 - if paired, gateway processes management commands first
@@ -383,7 +579,7 @@ Notes:
   - directive lines may be wrapped in a single pair of backticks and should still be accepted
 - `setup telegram` should register Telegram bot commands via `setMyCommands` so slash-menu suggestions are available
 
-## 12. Incremental Task Updates
+## 13. Incremental Task Updates
 
 OpenColab must support multi-message Telegram UX for long-running work such as literature search, large codebase analysis, long test runs, multi-step file processing, bulk downloads, or any task where meaningful intermediate milestones exist.
 
@@ -396,7 +592,7 @@ Goals:
 
 Progress updates are a first-class runtime capability, not a prompt-only convention.
 
-### 12.1 Progress Event Contract
+### 13.1 Progress Event Contract
 
 Provider runtimes and agent-facing wrappers must be able to emit structured progress events while the task is still running.
 
@@ -430,7 +626,7 @@ Notes:
 - progress events must not be appended to the agent's normal session conversation log as if they were substantive assistant replies
 - if run telemetry is persisted later, it should live in a separate operational log, not in the conversational memory stream
 
-### 12.2 Gateway Behavior
+### 13.2 Gateway Behavior
 
 For routed tasks with meaningful duration, the gateway should expose progress in this order:
 
@@ -457,7 +653,7 @@ Recommended UX policy:
 - prefer new messages for major phase changes, warnings, and completion
 - avoid more than a small handful of progress messages per run in group chats
 
-### 12.3 Skill and Agent Authoring Rules
+### 13.3 Skill and Agent Authoring Rules
 
 Built-in skills and default agent guidance must explicitly support bounded intermediate updates for long tasks.
 
@@ -477,7 +673,7 @@ Recommended rule of thumb:
 - send progress for stage changes, corpus-size changes, downloads, summarization waves, synthesis start, long test phases, bulk edits, or blocking failures
 - do not send progress for every minor shell command or every internal reasoning step
 
-### 12.4 Search Skill UX Requirements
+### 13.4 Search Skill UX Requirements
 
 The shared `fast-search`, `pro-search`, and `deep-search` skills must support agent-chosen bounded progress updates tied to their actual workflow stages.
 
@@ -511,7 +707,7 @@ The shared `fast-search`, `pro-search`, and `deep-search` skills must also keep 
 - allow light emoji use when it improves scanability,
 - and attach or otherwise return `findings.md` plus the PNG literature-map diagram when the active channel supports file delivery, falling back to the SVG artifact when PNG rendering is unavailable.
 
-### 12.5 PageIndex Grounded Skill Requirements
+### 13.5 PageIndex Grounded Skill Requirements
 
 The shared `pageindex-grounded` skill must complement the paper search and summary workflows rather than replace them.
 
@@ -535,7 +731,7 @@ The final user-facing reply from `pageindex-grounded` should:
 - surface material uncertainty, stale indexes, or missing local PDFs when those limitations affect confidence
 - point the user to any persisted grounded answer note under `research/pageindex/answers/` when a longer artifact was written
 
-### 12.6 PDF Figure Extract Skill Requirements
+### 13.6 PDF Figure Extract Skill Requirements
 
 The shared `pdf-figure-extract` skill must complement grounded QA and diagram workflows by locating and returning figures from already-downloaded local PDFs.
 
@@ -560,7 +756,7 @@ The final user-facing reply from `pdf-figure-extract` should:
 - mention when the returned artifact is a clipped page render rather than a direct embedded-image extraction if that distinction materially affects what the user received
 - surface low-confidence matching, missing multimodal verification, stale PageIndex artifacts, or other material limitations when they affect confidence
 
-### 12.7 Diagram Skill Requirements
+### 13.7 Diagram Skill Requirements
 
 The shared `block-diagram` skill must:
 
@@ -591,7 +787,7 @@ The same pattern should extend to other important long-running tasks, including:
 - batch file conversion
 - report generation
 
-### 12.7 Failure and Recovery UX
+### 13.8 Failure and Recovery UX
 
 Progress support must improve failure handling as well as success handling.
 
@@ -601,7 +797,7 @@ Requirements:
 - warnings that reduce coverage or confidence should be surfaced before the final answer when they materially change the result
 - if the runtime needs human intervention, the user should receive a `needs_input` style message instead of waiting for timeout or generic failure
 
-## 13. Acceptance Criteria
+## 14. Acceptance Criteria
 
 v1 is complete when all are true:
 
@@ -618,3 +814,17 @@ v1 is complete when all are true:
 - Long-running routed tasks can emit bounded intermediate Telegram updates before the final answer.
 - Progress updates are treated as operational events rather than normal assistant conversation turns.
 - Shared search skills support agent-chosen progress events for retrieval, selection, download, summarization, and synthesis phases.
+
+The Runpod-first remote execution milestone is complete when all are true:
+
+- A project can define at least one named execution target in `opencolab.json`.
+- `opencolab gpu server` can add, list, show, test, and remove Runpod-backed targets.
+- `opencolab gpu job` can start, inspect, fetch, cancel, and list bounded remote jobs.
+- OpenColab can provision or reuse a compatible Runpod Pod with a Pod-attached network volume mounted at `/workspace`.
+- OpenColab can sync an allowlisted subset of the local project to the Pod without syncing `.env.local`, `.git/`, or agent memory by default.
+- OpenColab can bootstrap the remote environment through a named profile and record bootstrap output in run logs.
+- OpenColab can launch a detached non-interactive remote command and preserve a local manifest and status record for the run.
+- OpenColab can survive temporary SSH interruption after launch without immediately marking the job failed.
+- OpenColab can emit bounded progress updates during validation, provisioning, sync, bootstrap, execution, and artifact fetch.
+- OpenColab can fetch declared artifacts and logs back into the local project tree.
+- OpenColab can stop the Pod on completion or surface cleanup failure explicitly when teardown does not finish cleanly.
