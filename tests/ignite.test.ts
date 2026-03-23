@@ -11,6 +11,7 @@ const ESC_INPUT = "\u001b";
 function clearSecretEnvVars(): Record<string, string | undefined> {
   const previous = {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    CHATGPT_API_KEY: process.env.CHATGPT_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
@@ -18,6 +19,7 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN
   };
   delete process.env.OPENAI_API_KEY;
+  delete process.env.CHATGPT_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.GEMINI_API_KEY;
   delete process.env.MINIMAX_API_KEY;
@@ -232,6 +234,7 @@ test("ignite supports configuring the minimax provider", async () => {
     "MiniMax-M2.5",
     "minimax_test_key_123",
     "n",
+    "n",
     "n"
   ];
 
@@ -283,7 +286,7 @@ test("ignite exposes MiniMax-M2.7 in interactive chooser mode", async () => {
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = ["", "minimax_test_key_choose", "n", "n"];
+  const answers = ["", "minimax_test_key_choose", "n", "n", "n"];
   let modelOptions: string[] | null = null;
 
   try {
@@ -334,6 +337,7 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
     "oauth",
     "gpt-5.3-codex",
     "n",
+    "n",
     "n"
   ];
   const prompts: string[] = [];
@@ -379,6 +383,7 @@ test("ignite supports configuring the Gemini provider with a concrete model name
     "api-key",
     "gemini-2.5-pro",
     "gemini_test_key_123",
+    "n",
     "n"
   ];
 
@@ -431,6 +436,7 @@ test("ignite supports Gemini oauth mode without asking for API key", async () =>
     "oauth",
     "gemini-2.5-pro",
     "n",
+    "n",
     "n"
   ];
   const prompts: string[] = [];
@@ -475,7 +481,7 @@ test("ignite exposes Gemini preview models in interactive chooser mode", async (
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = ["", "n", "n"];
+  const answers = ["", "n", "n", "n"];
   let modelOptions: string[] | null = null;
 
   try {
@@ -533,6 +539,7 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
     "xai",
     "grok-code-fast-1",
     "xai_test_key_123",
+    "n",
     "n",
     "n"
   ];
@@ -597,6 +604,7 @@ test("ignite can save the Gemini built-in tools key without changing the active 
     "gpt-5.3-codex",
     "y",
     "gemini_built_in_key_123",
+    "n",
     "n"
   ];
   const outputs: string[] = [];
@@ -628,6 +636,60 @@ test("ignite can save the Gemini built-in tools key without changing the active 
     assert.equal(
       outputs.some((line) =>
         line.includes("Saved GEMINI_API_KEY in .env.local for shared tools."),
+      ),
+      true,
+    );
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite can save the OpenAI key for pageindex-grounded without changing the active provider", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-pageindex-grounded-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "",
+    "gemini",
+    "oauth",
+    "gemini-2.5-pro",
+    "n",
+    "y",
+    "pageindex_openai_key_123",
+    "n"
+  ];
+  const outputs: string[] = [];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        write: (line) => {
+          outputs.push(line);
+        }
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "gemini");
+    assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(process.env.GEMINI_API_KEY, undefined);
+    assert.equal(process.env.OPENAI_API_KEY, "pageindex_openai_key_123");
+
+    const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envLocal.includes("OPENAI_API_KEY=pageindex_openai_key_123"), true);
+    assert.equal(
+      outputs.some((line) =>
+        line.includes("Saved OPENAI_API_KEY in .env.local for pageindex-grounded."),
       ),
       true,
     );
