@@ -73,3 +73,48 @@ test("setup api-key saves one provider key without changing the active agent run
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("gpu server add stores a Runpod target and gpu server list shows it", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-server-"));
+
+  try {
+    const runtime = createRuntime(tempDir);
+    runtime.init();
+
+    const addResult = runCli(tempDir, [
+      "gpu",
+      "server",
+      "add",
+      "--provider",
+      "runpod",
+      "--server-id",
+      "runpod-a100",
+      "--datacenter-id",
+      "US-KS-2",
+      "--gpu-type",
+      "NVIDIA A100 80GB PCIe",
+      "--gpu-count",
+      "1",
+      "--volume-name",
+      "default-runpod-a100",
+      "--volume-size-gb",
+      "200"
+    ]);
+
+    assert.equal(addResult.status, 0, addResult.stderr || addResult.stdout);
+    assert.equal(addResult.stdout.includes("GPU server configured: runpod-a100"), true);
+    assert.equal(addResult.stdout.includes("Provider: runpod"), true);
+
+    const listResult = runCli(tempDir, ["gpu", "server", "list"]);
+    assert.equal(listResult.status, 0, listResult.stderr || listResult.stdout);
+    assert.equal(listResult.stdout.includes("runpod-a100 [runpod] 1x NVIDIA A100 80GB PCIe @ US-KS-2"), true);
+
+    const reloadedRuntime = createRuntime(tempDir);
+    reloadedRuntime.init();
+    const target = reloadedRuntime.getExecutionTarget("runpod-a100");
+    assert.equal(target.volume.name, "default-runpod-a100");
+    assert.equal(target.volume.sizeGb, 200);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
