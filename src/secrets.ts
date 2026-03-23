@@ -9,6 +9,7 @@ import { getCanonicalProviderKeyEnvVar } from "./provider.js";
 import type { ProviderName } from "./types.js";
 
 export const TELEGRAM_BOT_TOKEN_ENV_VAR = "TELEGRAM_BOT_TOKEN";
+export const RUNPOD_API_KEY_ENV_VAR = "RUNPOD_API_KEY";
 const OPENAI_OAUTH_STATUS_TIMEOUT_MS = 5_000;
 
 interface CommandResult {
@@ -41,12 +42,20 @@ export function resolveTelegramBotToken(): string | null {
   return readEnvValue(TELEGRAM_BOT_TOKEN_ENV_VAR);
 }
 
+export function resolveRunpodApiKey(): string | null {
+  return readEnvValue(RUNPOD_API_KEY_ENV_VAR);
+}
+
 export function hasProviderApiKey(providerName: ProviderName): boolean {
   return resolveProviderApiKey(providerName) !== null;
 }
 
 export function hasTelegramBotToken(): boolean {
   return resolveTelegramBotToken() !== null;
+}
+
+export function hasRunpodApiKey(): boolean {
+  return resolveRunpodApiKey() !== null;
 }
 
 export function resolveOpenAiOauthStatus(
