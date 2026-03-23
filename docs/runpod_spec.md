@@ -308,6 +308,7 @@ Suggested run states:
 - `syncing`
 - `bootstrapping`
 - `running`
+- `running_unreachable`
 - `fetching`
 - `completed`
 - `failed`
@@ -396,12 +397,49 @@ Required properties:
 - pollable
 - cancelable
 
+Detached launch is mandatory, not optional.
+The remote experiment process must not depend on a live SSH session remaining open.
+If SSH drops after launch, the intended behavior is that the job continues to run on the Pod.
+
 OpenColab should launch a concrete command in a known remote working directory and record:
 
 - exact command string
 - pid or job handle if available
 - launch time
 - remote log file locations
+
+### 15.1 SSH Interruption and Recovery
+
+SSH interruption must be treated as a transport problem first, not as automatic evidence that the experiment failed.
+
+OpenColab should distinguish at least these cases:
+
+- SSH disconnected, but the Pod still appears alive
+- the Pod was terminated or restarted
+- the experiment process exited while the Pod remained alive
+- log or artifact transfer was interrupted even though the experiment may still be running
+
+Required behavior when SSH is interrupted during a running job:
+
+- do not mark the run as `failed` only because SSH was lost
+- transition the run into `running_unreachable` when the Pod still appears alive but SSH or shell access is unavailable
+- emit a `warning` progress event that the run is still believed to be active but is temporarily unreachable
+- continue checking Pod state through the Runpod control plane
+- retry SSH and log access until reconnect, terminal run state, or timeout policy is reached
+- when connectivity returns, reconcile remote state, resume log collection, and continue normal lifecycle handling
+
+Failure classification rules:
+
+- SSH loss alone = degraded state and retry path
+- Pod termination or restart during the job = run failure unless the workflow explicitly supports resume
+- artifact or log fetch interruption = retryable transfer problem, not immediate experiment failure
+
+Recovery records should capture:
+
+- when the connection was lost
+- what the last confirmed remote state was
+- what checks were attempted during the unreachable window
+- when connectivity resumed or when recovery was abandoned
 
 ## 16. Progress Reporting
 
@@ -415,7 +453,7 @@ Typical event sequence:
 - `progress` during sync when counts are meaningful
 - `milestone` when bootstrap starts and completes
 - `milestone` when the experiment command is launched
-- `warning` for degraded runs, partial syncs, partial artifact fetches, or weak confidence in remote state
+- `warning` for degraded runs, temporary SSH interruption, partial syncs, partial artifact fetches, or weak confidence in remote state
 - `completed` when final artifacts and logs have been collected
 
 Progress events are operational, not part of assistant conversation memory.
@@ -451,32 +489,74 @@ These are not the same thing.
 
 The first product surface should be operator-first.
 
+User-facing CLI naming should be explicit about GPU infrastructure and future provider expansion.
+
+Internally, OpenColab may still use a provider-neutral `ExecutionTarget` model.
+The CLI should prefer clearer operator language.
+
 Suggested command families:
 
-- `opencolab target add`
-- `opencolab target list`
-- `opencolab target show`
-- `opencolab target test`
-- `opencolab target remove`
-- `opencolab run start`
-- `opencolab run status`
-- `opencolab run logs`
-- `opencolab run fetch`
-- `opencolab run cancel`
-- `opencolab run list`
+- `opencolab gpu server add --provider runpod`
+- `opencolab gpu server list`
+- `opencolab gpu server show`
+- `opencolab gpu server test`
+- `opencolab gpu server remove`
+- `opencolab gpu job start`
+- `opencolab gpu job status`
+- `opencolab gpu job logs`
+- `opencolab gpu job fetch`
+- `opencolab gpu job cancel`
+- `opencolab gpu job list`
+
+Naming rationale:
+
+- `gpu server` is clearer than `target` for operators
+- `gpu job` is clearer than a generic `run`
+- `--provider` makes the surface extensible for future GPU providers beyond Runpod
+- the internal state model can stay provider-neutral even if the CLI is more concrete
 
 Suggested MVP priorities:
 
-1. target add
-2. target list
-3. target test
-4. run start
-5. run status
-6. run logs
-7. run fetch
-8. run cancel
+1. gpu server add
+2. gpu server list
+3. gpu server test
+4. gpu job start
+5. gpu job status
+6. gpu job logs
+7. gpu job fetch
+8. gpu job cancel
 
 Agent-triggered remote runs can come after the operator-facing commands are stable.
+
+### 18.1 `src/ignite.ts` Onboarding Plan
+
+Runpod should also become part of the first-run and update onboarding flow in `src/ignite.ts`.
+
+This should happen after the core `gpu server` and `gpu job` commands are stable enough to be the underlying implementation path.
+
+The `ignite` plan should include an optional Runpod section that:
+
+- detects whether `RUNPOD_API_KEY` is already available
+- allows the operator to keep existing Runpod setup, update it, or skip it
+- can persist `RUNPOD_API_KEY` in `.env.local`
+- can optionally create the first named GPU server for the active project using `--provider runpod`
+- offers curated default server settings for the first GPU server, rather than forcing raw low-level Runpod choices
+- can optionally run a lightweight server validation or connectivity test
+- remains skippable so local-only onboarding still works cleanly
+
+The first curated `ignite` target preset should favor the MVP path described in this document:
+
+- backend: `runpod`
+- cloud type: `secure`
+- storage mode: `network_volume`
+- workspace root: `/workspace`
+- access mode: `SSH`
+- bootstrap profile: `python-ml`
+
+Responsibility split:
+
+- `src/ignite.ts` should handle setup UX and first GPU server creation
+- `gpu server` and `gpu job` lifecycle commands should remain available outside `ignite` for later changes and repeatable operator control
 
 ## 19. Agent Integration
 
@@ -544,6 +624,13 @@ Required behavior:
 - preserve fetched logs even on failure
 - distinguish `run failed` from `cleanup failed`
 
+SSH-specific recovery rules:
+
+- if SSH is interrupted after detached launch and the Pod is still alive, the run should remain recoverable
+- if SSH is interrupted before launch is confirmed, the run should remain in a non-terminal uncertain state until reconciliation succeeds or timeout policy is reached
+- if the Pod is gone, the run should be treated as failed even if some artifacts survive on a preserved network volume
+- if artifact fetch fails after the experiment finished, the run result should distinguish experiment completion from artifact collection failure
+
 ## 22. Cost and Resource Policy
 
 Cost control is part of the product, not an afterthought.
@@ -606,6 +693,7 @@ The first Runpod milestone is complete when all are true:
 - OpenColab can use a Pod-attached network volume mounted at `/workspace`
 - OpenColab can sync an allowlisted local project subset to the Pod
 - OpenColab can bootstrap the remote environment and record the result
+- OpenColab can survive temporary SSH interruption after launch without immediately marking the job failed
 - OpenColab can stream bounded progress updates during provisioning, sync, bootstrap, run, and artifact fetch
 - OpenColab can fetch declared artifacts and logs back into the project tree
 - OpenColab can stop the Pod on completion or surface cleanup failure explicitly
@@ -621,6 +709,7 @@ These questions should be resolved before promotion into `docs/spec.md`:
 - what is the minimum SSH mode and local dependency set required for reliable sync
 - should OpenColab use `rsync`, `scp`, tar streaming, or an adapter abstraction for sync
 - what exact remote process supervisor pattern should back detached jobs
+- what exact detached-launch mechanism should be the MVP default: `tmux`, `nohup`, background wrapper script, or another approach
 - should artifact declarations be strict by default or best-effort by default
 - how much operator confirmation is needed before a high-cost run starts
 
@@ -631,7 +720,8 @@ After this draft is reviewed, the next documentation step should be:
 1. promote the accepted execution-target model into `docs/spec.md`
 2. update `README.md` to replace the vague remote-GPU placeholder with concrete Runpod-first wording
 3. add operator-facing setup guidance for `RUNPOD_API_KEY`
-4. define the initial shared skill or CLI affordance for launching bounded remote runs
+4. define the `src/ignite.ts` onboarding flow for optional Runpod setup and first-target creation
+5. define the initial shared skill or CLI affordance for launching bounded remote runs
 
 ## 28. References
 
