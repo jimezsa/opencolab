@@ -197,6 +197,7 @@ Responsibilities:
 - in OpenAI `oauth` mode, setup must not require `OPENAI_API_KEY`
 - in Gemini `oauth` mode, setup must not require `GEMINI_API_KEY`
 - Gemini-based built-in shared tools must use `GEMINI_API_KEY` even when the active agent runtime uses a different provider or Gemini `oauth`
+- the shared `pageindex-grounded` skill must be able to use `OPENAI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or OpenAI `oauth`
 - in OpenAI `oauth` mode, runtime preflight must verify Codex login state and return remediation guidance if login is missing
 - in Gemini `oauth` mode, runtime must return remediation guidance when the CLI reports missing Google login or missing Gemini credentials
 - provider CLI command/args must be auto-derived from internal defaults
@@ -214,10 +215,10 @@ Responsibilities:
 - `opencolab gateway` should support lifecycle commands: `start`, `stop`, `restart`, `status`, and `logs`
 - on macOS, gateway background mode should be managed via user `launchd` agent
 - on Linux, gateway background mode should be managed via user `systemd` service
-- provide an interactive onboarding flow for first-time setup of project selection, provider/model, Gemini-based built-in tools key setup, Telegram setup, and optional pairing
+- provide an interactive onboarding flow for first-time setup of project selection, provider/model, built-in shared-tool key setup, Telegram setup, and optional pairing
 - `ignite` onboarding should allow skipping the current step with `Esc` and continue to the next step
 - `ignite` onboarding should detect existing provider setup and allow keeping or updating it
-- `ignite` onboarding should include an optional step to persist `GEMINI_API_KEY` so Gemini-based built-in shared tools work after setup
+- `ignite` onboarding should include optional steps to persist `GEMINI_API_KEY` for Gemini-based built-in shared tools and `OPENAI_API_KEY` for `pageindex-grounded` when the local PageIndex runner needs it
 - `opencolab setup api-key` must persist the canonical env var for one specific provider without mutating provider/model/auth settings
 - installer script should make `opencolab` available as a terminal command by installing a user-level shim and ensuring the user bin directory is on `PATH`
 
