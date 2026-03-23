@@ -33,6 +33,10 @@ export function resolveProviderApiKey(providerName: ProviderName): string | null
   return readEnvValue(getProviderApiKeyEnvVar(providerName));
 }
 
+export function resolveEnvVar(key: string): string | null {
+  return readEnvValue(key);
+}
+
 export function resolveTelegramBotToken(): string | null {
   return readEnvValue(TELEGRAM_BOT_TOKEN_ENV_VAR);
 }
