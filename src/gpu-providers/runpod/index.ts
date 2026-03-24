@@ -47,7 +47,8 @@ const DEFAULT_EXCLUDE_PATHS = [
   ".opencolab/",
   "node_modules/",
   "dist/",
-  "projects/*/AGENTS/*/memory/"
+  "projects/*/AGENTS/*/memory/",
+  "projects/*/experiments/runs/"
 ];
 
 interface RunpodNetworkVolume {
@@ -790,7 +791,14 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
 
     const archivePath = path.join(os.tmpdir(), `${manifest.runId}-sync.tar.gz`);
     try {
-      await this.runLocalCommand("tar", ["-czf", archivePath, "-C", this.config.rootDir, "-T", listPath]);
+      await this.runLocalCommand(
+        "tar",
+        ["-czf", archivePath, "-C", this.config.rootDir, "-T", listPath],
+        {
+          COPYFILE_DISABLE: "1",
+          COPY_EXTENDED_ATTRIBUTES_DISABLE: "1"
+        }
+      );
       const remoteArchivePath = path.posix.join(
         manifest.targetSnapshot.workspaceRoot,
         `.opencolab-sync-${manifest.runId}.tar.gz`
@@ -802,7 +810,9 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
         [
           "set -euo pipefail",
           `mkdir -p ${shellQuote(manifest.targetSnapshot.workspaceRoot)}`,
-          `tar -xzf ${shellQuote(remoteArchivePath)} -C ${shellQuote(manifest.targetSnapshot.workspaceRoot)}`,
+          `tar --no-same-owner -xzf ${shellQuote(remoteArchivePath)} -C ${shellQuote(
+            manifest.targetSnapshot.workspaceRoot
+          )}`,
           `rm -f ${shellQuote(remoteArchivePath)}`,
           `mkdir -p ${shellQuote(path.posix.dirname(manifest.sync.remoteWorkingDir))}`,
           `test -d ${shellQuote(manifest.sync.remoteWorkingDir)}`
@@ -1392,8 +1402,12 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     );
   }
 
-  private async runLocalCommand(command: string, args: string[]): Promise<CommandResult> {
-    return runBufferedCommand(command, args);
+  private async runLocalCommand(
+    command: string,
+    args: string[],
+    extraEnv?: NodeJS.ProcessEnv
+  ): Promise<CommandResult> {
+    return runBufferedCommand(command, args, extraEnv);
   }
 }
 
@@ -1500,10 +1514,15 @@ function buildScpBaseArgs(connection: RunpodSshConnection): string[] {
   return args;
 }
 
-async function runBufferedCommand(command: string, args: string[]): Promise<CommandResult> {
+async function runBufferedCommand(
+  command: string,
+  args: string[],
+  extraEnv?: NodeJS.ProcessEnv
+): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
-      stdio: ["ignore", "pipe", "pipe"]
+      stdio: ["ignore", "pipe", "pipe"],
+      env: extraEnv ? { ...process.env, ...extraEnv } : process.env
     });
     let stdout = "";
     let stderr = "";
