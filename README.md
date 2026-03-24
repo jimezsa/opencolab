@@ -193,6 +193,17 @@ opencolab gpu job start \
   --artifact outputs/train.log,outputs/metrics.json
 ```
 
+Important links:
+
+| Topic | Link |
+| --- | --- |
+| Quickstart / manage Pods | [Manage Pods](https://docs.runpod.io/runpodctl/manage-pods) |
+| GPU types | [GPU types reference](https://docs.runpod.io/references/gpu-types) |
+| Live cloud availability | [runpodctl get cloud](https://docs.runpod.io/runpodctl/reference/runpodctl-get-cloud) |
+| SSH setup | [Use SSH](https://docs.runpod.io/pods/configuration/use-ssh) |
+| Network volumes | [Network volumes](https://docs.runpod.io/storage/network-volumes) |
+| Pod create API | [Create Pod API](https://docs.runpod.io/api-reference/pods/POST/pods) |
+
 Available commands:
 
 ```bash
