@@ -207,18 +207,18 @@ Important links:
 Available commands:
 
 ```bash
-opencolab gpu server add --provider runpod --server-id <id> [flags]
-opencolab gpu server list
-opencolab gpu server show --server-id <id>
-opencolab gpu server test --server-id <id>
-opencolab gpu server remove --server-id <id>
+opencolab gpu server add --provider runpod --server-id <id> [flags]         # Create or update a Runpod GPU target
+opencolab gpu server list                                                    # List configured GPU targets
+opencolab gpu server show --server-id <id>                                   # Print one target as JSON
+opencolab gpu server test --server-id <id>                                   # Check local prerequisites and visible Runpod resources
+opencolab gpu server remove --server-id <id>                                 # Remove one target from project state
 
-opencolab gpu job start --server-id <id> --command "<command>" [flags]
-opencolab gpu job status --run-id <id>
-opencolab gpu job logs --run-id <id> [--stream stdout|stderr|bootstrap|poller]
-opencolab gpu job fetch --run-id <id>
-opencolab gpu job cancel --run-id <id>
-opencolab gpu job list
+opencolab gpu job start --server-id <id> --command "<command>" [flags]       # Start a remote GPU job
+opencolab gpu job status --run-id <id>                                       # Refresh and print job status as JSON
+opencolab gpu job logs --run-id <id> [--stream stdout|stderr|bootstrap|poller] # Print one local log stream
+opencolab gpu job fetch --run-id <id>                                        # Fetch remote logs and declared artifacts
+opencolab gpu job cancel --run-id <id>                                       # Stop the remote job and Pod
+opencolab gpu job list                                                       # List local GPU run records
 ```
 
 Notes:
