@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   detectGatewayServicePlatform,
+  parseGatewayLaunchdRuntimeConfig,
+  parseGatewaySystemdRuntimeConfig,
+  readGatewayServiceRuntimeConfig,
   renderLaunchdPlist,
   renderSystemdUnit
 } from "../src/gateway-service.js";
@@ -31,6 +37,10 @@ test("renderLaunchdPlist includes foreground gateway command and logs", () => {
   assert.equal(output.includes("RunAtLoad"), true);
   assert.equal(output.includes("KeepAlive"), true);
   assert.equal(output.includes("gateway.stdout.log"), true);
+  assert.deepEqual(parseGatewayLaunchdRuntimeConfig(output), {
+    port: 4646,
+    telegramPolling: true,
+  });
 });
 
 test("renderSystemdUnit includes foreground gateway command and restart policy", () => {
@@ -52,4 +62,31 @@ test("renderSystemdUnit includes foreground gateway command and restart policy",
   assert.equal(output.includes("Environment=\"OPENCOLAB_ROOT="), true);
   assert.equal(output.includes("StandardOutput=journal"), true);
   assert.equal(output.includes("StandardError=journal"), true);
+  assert.deepEqual(parseGatewaySystemdRuntimeConfig(output), {
+    port: 4646,
+    telegramPolling: false,
+  });
+});
+
+test("readGatewayServiceRuntimeConfig prefers saved runtime config when present", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-gateway-config-"));
+
+  try {
+    fs.mkdirSync(path.join(tempDir, ".opencolab"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, ".opencolab", "gateway-service.json"),
+      JSON.stringify({
+        port: 4777,
+        telegramPolling: false,
+      }),
+      "utf8",
+    );
+
+    assert.deepEqual(readGatewayServiceRuntimeConfig(tempDir), {
+      port: 4777,
+      telegramPolling: false,
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });
