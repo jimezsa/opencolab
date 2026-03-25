@@ -114,6 +114,45 @@ test("gpu server add stores a Runpod target and gpu server list shows it", () =>
     const target = reloadedRuntime.getExecutionTarget("runpod-a100");
     assert.equal(target.volume.name, "default-runpod-a100");
     assert.equal(target.volume.sizeGb, 200);
+    assert.deepEqual(target.preferredDatacenterIds, ["US-KS-2"]);
+    assert.deepEqual(target.preferredGpuTypes, ["NVIDIA A100 80GB PCIe"]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("gpu server add accepts ordered location and GPU candidates", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-server-candidates-"));
+
+  try {
+    const runtime = createRuntime(tempDir);
+    runtime.init();
+
+    const addResult = runCli(tempDir, [
+      "gpu",
+      "server",
+      "add",
+      "--provider",
+      "runpod",
+      "--server-id",
+      "runpod-flex",
+      "--location",
+      "US-KS-2,CA-MTL-1",
+      "--gpu-type",
+      "NVIDIA A100 80GB PCIe,NVIDIA RTX 4090",
+      "--gpu-count",
+      "1"
+    ]);
+
+    assert.equal(addResult.status, 0, addResult.stderr || addResult.stdout);
+    assert.equal(addResult.stdout.includes("GPU candidates: NVIDIA A100 80GB PCIe, NVIDIA RTX 4090"), true);
+    assert.equal(addResult.stdout.includes("Location candidates: US-KS-2, CA-MTL-1"), true);
+
+    const reloadedRuntime = createRuntime(tempDir);
+    reloadedRuntime.init();
+    const target = reloadedRuntime.getExecutionTarget("runpod-flex");
+    assert.deepEqual(target.preferredDatacenterIds, ["US-KS-2", "CA-MTL-1"]);
+    assert.deepEqual(target.preferredGpuTypes, ["NVIDIA A100 80GB PCIe", "NVIDIA RTX 4090"]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
