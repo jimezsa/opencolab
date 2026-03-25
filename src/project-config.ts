@@ -67,8 +67,10 @@ function cloneExecutionTargetConfig(source: ExecutionTargetConfig): ExecutionTar
     backend: source.backend,
     enabled: source.enabled,
     datacenterId: source.datacenterId,
+    preferredDatacenterIds: [...source.preferredDatacenterIds],
     cloudType: source.cloudType,
     gpuType: source.gpuType,
+    preferredGpuTypes: [...source.preferredGpuTypes],
     gpuCount: source.gpuCount,
     templateId: source.templateId,
     imageName: source.imageName,
@@ -123,8 +125,10 @@ export function createDefaultExecutionTargetConfig(targetId: string): ExecutionT
     backend: "runpod",
     enabled: true,
     datacenterId: "US-KS-2",
+    preferredDatacenterIds: ["US-KS-2"],
     cloudType: "secure",
     gpuType: "NVIDIA A100 80GB PCIe",
+    preferredGpuTypes: ["NVIDIA A100 80GB PCIe"],
     gpuCount: 1,
     templateId: null,
     imageName: DEFAULT_RUNPOD_IMAGE,
@@ -502,13 +506,23 @@ function normalizeExecutionTarget(
   const defaults = createDefaultExecutionTargetConfig(targetId);
   const sourceVolume = asRecord(source?.volume);
   const sourceSsh = asRecord(source?.ssh);
+  const preferredDatacenterIds = normalizeOrderedStrings(
+    asStringArray(source?.preferredDatacenterIds),
+    asNullableString(source?.datacenterId) ?? defaults.datacenterId
+  );
+  const preferredGpuTypes = normalizeOrderedStrings(
+    asStringArray(source?.preferredGpuTypes),
+    asNullableString(source?.gpuType) ?? defaults.gpuType
+  );
   return {
     id: asString(source?.id, defaults.id),
     backend: "runpod",
     enabled: asBoolean(source?.enabled, defaults.enabled),
-    datacenterId: asString(source?.datacenterId, defaults.datacenterId),
+    datacenterId: preferredDatacenterIds[0] ?? defaults.datacenterId,
+    preferredDatacenterIds,
     cloudType: "secure",
-    gpuType: asString(source?.gpuType, defaults.gpuType),
+    gpuType: preferredGpuTypes[0] ?? defaults.gpuType,
+    preferredGpuTypes,
     gpuCount: asPositiveInteger(source?.gpuCount, defaults.gpuCount),
     templateId: asNullableString(source?.templateId),
     imageName: asNullableString(source?.imageName) ?? defaults.imageName,
@@ -645,6 +659,33 @@ function asNullableString(value: unknown): string | null {
   }
   const parsed = String(value).trim();
   return parsed ? parsed : null;
+}
+
+function asStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const items = value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter(Boolean);
+  return items.length > 0 ? items : null;
+}
+
+function normalizeOrderedStrings(values: string[] | null, fallback: string): string[] {
+  const ordered = new Set<string>();
+  for (const value of values ?? []) {
+    const normalized = value.trim();
+    if (normalized) {
+      ordered.add(normalized);
+    }
+  }
+  if (ordered.size === 0) {
+    const fallbackValue = fallback.trim();
+    if (fallbackValue) {
+      ordered.add(fallbackValue);
+    }
+  }
+  return [...ordered];
 }
 
 function asBoolean(value: unknown, fallback: boolean): boolean {
