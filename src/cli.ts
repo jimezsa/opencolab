@@ -602,8 +602,9 @@ function usageGpuServer(): string {
     "Flags:",
     helpFlag("--provider runpod", "Required backend identifier"),
     helpFlag("--server-id <id>", "Project-scoped GPU server id"),
-    helpFlag("--datacenter-id <id>", "Runpod data center id"),
-    helpFlag("--gpu-type <name>", "Runpod GPU type display name"),
+    helpFlag("--location <csv>", "Preferred Runpod data center ids in fallback order"),
+    helpFlag("--datacenter-id <csv>", "Legacy alias for --location"),
+    helpFlag("--gpu-type <csv>", "Accepted Runpod GPU types in preference order"),
     helpFlag("--gpu-count <n>", "GPU count"),
     helpFlag("--image-name <name>", "Container image name"),
     helpFlag("--template-id <id>", "Runpod template id"),
@@ -1466,8 +1467,10 @@ async function main(): Promise<void> {
           id: serverId,
           enabled:
             values.enabled === undefined ? undefined : parseBooleanFlag(values.enabled, true),
-          datacenterId: values["datacenter-id"],
-          gpuType: values["gpu-type"],
+          datacenterId: values.location ?? values["datacenter-id"],
+          preferredDatacenterIds: parseCsvFlag(values.location ?? values["datacenter-id"]),
+          gpuType: parseCsvFlag(values["gpu-type"])?.[0],
+          preferredGpuTypes: parseCsvFlag(values["gpu-type"]),
           gpuCount: parseOptionalIntegerFlag(values["gpu-count"]),
           templateId: values["template-id"] ?? undefined,
           imageName: values["image-name"] ?? undefined,
@@ -1495,6 +1498,12 @@ async function main(): Promise<void> {
         console.log(`Provider: ${target.backend}`);
         console.log(`GPU: ${target.gpuCount} x ${target.gpuType}`);
         console.log(`Datacenter: ${target.datacenterId}`);
+        if (target.preferredGpuTypes.length > 1) {
+          console.log(`GPU candidates: ${target.preferredGpuTypes.join(", ")}`);
+        }
+        if (target.preferredDatacenterIds.length > 1) {
+          console.log(`Location candidates: ${target.preferredDatacenterIds.join(", ")}`);
+        }
         console.log(`Workspace root: ${target.workspaceRoot}`);
         console.log(`Bootstrap profile: ${target.bootstrapProfile}`);
         return;
@@ -1504,8 +1513,16 @@ async function main(): Promise<void> {
         const targets = runtime.listExecutionTargets();
         for (const target of targets) {
           const marker = target.enabled ? "*" : "-";
+          const gpuLabel =
+            target.preferredGpuTypes.length > 1
+              ? `${target.gpuType} (+${String(target.preferredGpuTypes.length - 1)})`
+              : target.gpuType;
+          const datacenterLabel =
+            target.preferredDatacenterIds.length > 1
+              ? `${target.datacenterId} (+${String(target.preferredDatacenterIds.length - 1)})`
+              : target.datacenterId;
           console.log(
-            `${marker} ${target.id} [${target.backend}] ${target.gpuCount}x ${target.gpuType} @ ${target.datacenterId}`
+            `${marker} ${target.id} [${target.backend}] ${target.gpuCount}x ${gpuLabel} @ ${datacenterLabel}`
           );
         }
         return;
