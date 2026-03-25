@@ -258,6 +258,7 @@ Responsibilities:
 - `opencolab gpu server` must support lifecycle commands: `add`, `list`, `show`, `test`, and `remove`
 - `opencolab gpu job` must support lifecycle commands: `start`, `status`, `logs`, `fetch`, `cancel`, and `list`
 - `gpu server add` must support `--provider runpod`
+- `gpu server add` should allow a simplified server definition where the operator mainly chooses location preference and acceptable GPU types while the implementation keeps curated defaults for the rest
 - the operator-facing CLI should prefer `gpu server` and `gpu job` naming even if internal state uses a provider-neutral `ExecutionTarget` model
 - Runpod onboarding must remain optional and must not block local-only setup
 - `ignite` onboarding should include an optional Runpod section after the core local setup flow is stable
@@ -397,8 +398,10 @@ Minimum shape:
           "backend": "runpod",
           "enabled": true,
           "datacenterId": "US-KS-2",
+          "preferredDatacenterIds": ["US-KS-2", "CA-MTL-1"],
           "cloudType": "secure",
           "gpuType": "NVIDIA A100 80GB PCIe",
+          "preferredGpuTypes": ["NVIDIA A100 80GB PCIe", "NVIDIA RTX 4090"],
           "gpuCount": 1,
           "volume": {
             "mode": "network_volume",
@@ -459,8 +462,10 @@ Suggested target fields:
 - `backend`
 - `enabled`
 - `datacenterId`
+- `preferredDatacenterIds`
 - `cloudType`
 - `gpuType`
+- `preferredGpuTypes`
 - `gpuCount`
 - `templateRef` or image/template hint
 - `volume.mode`
@@ -480,6 +485,8 @@ Runpod MVP constraints:
 - `cloudType` must be `secure`
 - `volume.mode` must be `network_volume`
 - `ssh.mode` must be the stable SSH path chosen by the implementation
+- `datacenterId` and `gpuType` remain the primary or first-choice values for compatibility, but the target may also carry ordered fallback lists for location and GPU selection
+- if multiple datacenter candidates are allowed, the implementation must manage network volumes per datacenter rather than assuming one shared volume instance can follow the Pod across locations
 
 ### 11.2 Run Manifest and Local State
 
@@ -514,17 +521,18 @@ OpenColab must perform this flow for bounded remote jobs:
 
 1. Create a local run manifest.
 2. Validate the selected target and local operator prerequisites.
-3. Ensure the referenced Runpod network volume exists.
-4. Create a Pod or reuse a compatible warm Pod only when policy allows it.
-5. Wait for the Pod to become reachable through SSH.
-6. Sync the selected workspace subset to `/workspace`.
-7. Run the selected bootstrap profile and record the output in run logs.
-8. Launch the experiment as a detached non-interactive batch job.
-9. Poll run status and fetch or tail remote logs.
-10. Emit bounded OpenColab progress events for meaningful state changes.
-11. Fetch declared artifacts and final logs into the local project run folder.
-12. Stop the Pod, or leave it warm only when target policy explicitly allows that behavior.
-13. Mark the run with a terminal status.
+3. Resolve the first available compatible Runpod location and GPU combination within the target's allowed candidates.
+4. Ensure the referenced Runpod network volume exists for the selected datacenter.
+5. Create a Pod or reuse a compatible warm Pod only when policy allows it.
+6. Wait for the Pod to become reachable through SSH.
+7. Sync the selected workspace subset to `/workspace`.
+8. Run the selected bootstrap profile and record the output in run logs.
+9. Launch the experiment as a detached non-interactive batch job.
+10. Poll run status and fetch or tail remote logs.
+11. Emit bounded OpenColab progress events for meaningful state changes.
+12. Fetch declared artifacts and final logs into the local project run folder.
+13. Stop the Pod, or leave it warm only when target policy explicitly allows that behavior.
+14. Mark the run with a terminal status.
 
 ### 11.4 Sync, Bootstrap, Progress, and Artifacts
 
@@ -555,6 +563,7 @@ Requirements:
 - when SSH is lost but the Pod still appears alive, the run should transition to `running_unreachable`, emit a warning progress event, continue checking Pod state through the Runpod control plane, and retry SSH until recovery or timeout
 - Pod termination or restart during the job should be treated as run failure unless the workflow explicitly supports resume
 - artifact or log fetch interruption must be treated as a retryable transfer problem before it is treated as experiment failure
+- if the target defines multiple allowed datacenter or GPU candidates, provisioning should try them in deterministic order and surface the attempted combinations in progress or failure reporting
 - each target should be able to express max runtime, idle shutdown behavior, approximate budget ceiling, allowed GPU class, and allowed GPU count
 - operator-facing surfaces must make active remote cost exposure visible enough for routine use
 
@@ -819,6 +828,7 @@ The Runpod-first remote execution milestone is complete when all are true:
 
 - A project can define at least one named execution target in `opencolab.json`.
 - `opencolab gpu server` can add, list, show, test, and remove Runpod-backed targets.
+- Runpod-backed targets can express ordered location and GPU candidates while keeping a primary compatibility value for each.
 - `opencolab gpu job` can start, inspect, fetch, cancel, and list bounded remote jobs.
 - OpenColab can provision or reuse a compatible Runpod Pod with a Pod-attached network volume mounted at `/workspace`.
 - OpenColab can sync an allowlisted subset of the local project to the Pod without syncing `.env.local`, `.git/`, or agent memory by default.
