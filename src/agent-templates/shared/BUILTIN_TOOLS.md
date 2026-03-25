@@ -4,6 +4,15 @@ Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, 
 
 Shared project skills live under `projects/SKILLS/`. Agent-local skills live under `SKILLS/` inside the agent folder. Before using a specialized workflow, read the relevant shared and local `SKILL.md` files and follow them closely.
 
+## OpenColab Maintenance
+
+Use `opencolab upgrade` to upgrade the current OpenColab install itself.
+
+- `opencolab upgrade` always targets the latest `origin/main`
+- a successful upgrade rebuilds OpenColab before returning
+- if the managed background gateway is running, upgrade restarts it with its saved settings
+- treat upgrade as an operator-approved maintenance action because it changes the local install and may interrupt an active gateway
+
 ## Task Progress Updates
 
 OpenColab enables this progress channel by default during provider runs. When `OPENCOLAB_PROGRESS_FILE` is set in the shell environment and the task is long-running, emit concise one-line JSON progress events to that file when they help the user understand real progress.
