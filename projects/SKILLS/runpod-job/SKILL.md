@@ -108,8 +108,8 @@ For a flexible general-purpose server, prefer a short ordered location list and 
 opencolab gpu server add \
   --provider runpod \
   --server-id runpod-flex \
-  --location US-KS-2,CA-MTL-1 \
-  --gpu-type "NVIDIA A100 80GB PCIe,NVIDIA RTX 4090" \
+  --location US-KS-2,US-TX-3,US-CA-2,US-WA-1,CA-MTL-1,CA-MTL-2 \
+  --gpu-type "NVIDIA A100 80GB PCIe,NVIDIA GeForce RTX 4090,NVIDIA RTX A5000,NVIDIA RTX A4500,NVIDIA RTX A4000" \
   --gpu-count 1 \
   --volume-name runpod-flex \
   --volume-size-gb 200 \
@@ -123,7 +123,7 @@ Creation guidance:
 
 - Reuse the user's requested server id when provided.
 - Reuse the user's requested location or GPU constraints when provided.
-- If the user wants "any available GPU", prefer a short ordered list instead of one exact GPU.
+- If the user wants "any available GPU", prefer an ordered list from fastest to cheaper acceptable GPUs instead of one exact GPU.
 - Keep the target bounded and practical. Do not create many nearly-identical targets unless the user asked for that.
 
 ### 4. Validate the target before launch
