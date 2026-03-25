@@ -65,8 +65,10 @@ test("project state normalizes project-scoped execution targets", () => {
                 backend: "runpod",
                 enabled: true,
                 datacenterId: "US-KS-2",
+                preferredDatacenterIds: ["US-KS-2", "CA-MTL-1"],
                 cloudType: "secure",
                 gpuType: "NVIDIA A100 80GB PCIe",
+                preferredGpuTypes: ["NVIDIA A100 80GB PCIe", "NVIDIA RTX 4090"],
                 gpuCount: 1,
                 volume: {
                   mode: "network_volume",
@@ -112,14 +114,69 @@ test("project state normalizes project-scoped execution targets", () => {
     assert.equal(target.backend, "runpod");
     assert.equal(target.enabled, true);
     assert.equal(target.datacenterId, "US-KS-2");
+    assert.deepEqual(target.preferredDatacenterIds, ["US-KS-2", "CA-MTL-1"]);
     assert.equal(target.cloudType, "secure");
     assert.equal(target.gpuType, "NVIDIA A100 80GB PCIe");
+    assert.deepEqual(target.preferredGpuTypes, ["NVIDIA A100 80GB PCIe", "NVIDIA RTX 4090"]);
     assert.equal(target.volume.id, "vol_123");
     assert.equal(target.volume.name, "alpha-runpod-a100");
     assert.equal(target.ssh.user, "root");
     assert.equal(target.ssh.privateKeyPath, "~/.ssh/id_ed25519");
     assert.equal(target.bootstrapProfile, "python-ml");
     assert.equal(target.autoStopPolicy, "stop_on_completion");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state infers fallback candidate lists from legacy fixed Runpod fields", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-execution-target-legacy-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: DEFAULT_AGENT_ID,
+            executionTargets: {
+              "runpod-a100": {
+                id: "runpod-a100",
+                backend: "runpod",
+                datacenterId: "US-KS-2",
+                gpuType: "NVIDIA A100 80GB PCIe"
+              }
+            },
+            agents: {
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    const target = loaded.projects.alpha.executionTargets["runpod-a100"];
+    assert.deepEqual(target.preferredDatacenterIds, ["US-KS-2"]);
+    assert.deepEqual(target.preferredGpuTypes, ["NVIDIA A100 80GB PCIe"]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
