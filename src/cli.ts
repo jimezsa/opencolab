@@ -9,6 +9,7 @@ import { emitKeypressEvents } from "node:readline";
 import {
   getGatewayBackgroundLogCommand,
   getGatewayBackgroundServiceStatus,
+  readGatewayServiceRuntimeConfig,
   restartGatewayBackgroundService,
   startGatewayBackgroundService,
   stopGatewayBackgroundService
@@ -34,6 +35,7 @@ import {
   writeSecretToLocalEnv
 } from "./secrets.js";
 import type { OpenColabState, ProviderAuthMode, ProviderName } from "./types.js";
+import { upgradeOpenColab } from "./upgrade.js";
 
 const PROJECT_PET = "🐙";
 const ESC_INPUT = "\u001b";
@@ -383,6 +385,7 @@ function usageMain(): string {
     "",
     "Top-level commands:",
     helpCommand("ignite", "Interactive first-run setup"),
+    helpCommand("upgrade", "Upgrade OpenColab to the latest main"),
     helpCommand("setup", "Configure model/provider/api-key/telegram"),
     helpCommand("project", "Manage/create projects"),
     helpCommand("agent", "Manage/create agents"),
@@ -391,6 +394,7 @@ function usageMain(): string {
     "",
     "Examples:",
     ...helpExample("opencolab setup --help", "Show setup command help"),
+    ...helpExample("opencolab upgrade --help", "Show upgrade command help"),
     ...helpExample("opencolab setup model --help", "Show setup model flags"),
     ...helpExample(
       "opencolab gateway start --help",
@@ -426,6 +430,22 @@ function usageIgnite(): string {
     "Notes:",
     "  - Interactive setup for project/provider/built-in-tools/telegram/agent.",
     "  - Press Esc to skip the current step.",
+  ]);
+}
+
+function usageUpgrade(): string {
+  return formatHelp([
+    "Usage:",
+    helpCommand(
+      "opencolab upgrade",
+      "Upgrade the current install to the latest origin/main",
+    ),
+    "",
+    "Notes:",
+    "  - Requires a clean tracked git worktree in the current OpenColab install.",
+    "  - Always switches the install to branch main and fast-forwards to origin/main.",
+    "  - Rebuilds OpenColab after pulling changes.",
+    "  - Restarts the managed background gateway with saved settings when it is running.",
   ]);
 }
 
@@ -677,6 +697,10 @@ function resolveHelp(argv: string[]): string | null {
     return usageIgnite();
   }
 
+  if (command === "upgrade") {
+    return usageUpgrade();
+  }
+
   if (command === "gateway" || command === "getway" || command === "web") {
     return usageGateway();
   }
@@ -826,6 +850,10 @@ function resolveCliScriptPath(runtimeRootDir: string): string {
   if (candidate) {
     return path.resolve(candidate);
   }
+  return path.join(runtimeRootDir, "dist", "src", "cli.js");
+}
+
+function resolveBuiltCliScriptPath(runtimeRootDir: string): string {
   return path.join(runtimeRootDir, "dist", "src", "cli.js");
 }
 
@@ -996,6 +1024,48 @@ async function autoSyncTelegramCommandsIfConfigured(
   };
 }
 
+function formatUpgradeDependencyInstallMode(value: "frozen_lockfile" | "fallback"): string {
+  return value === "frozen_lockfile"
+    ? "pnpm install --frozen-lockfile"
+    : "pnpm install (fallback after frozen lockfile failure)";
+}
+
+function printUpgradeGatewayRestartSummary(runtimeRootDir: string): void {
+  try {
+    const { files, status } = getGatewayBackgroundServiceStatus(runtimeRootDir);
+    if (!status.running) {
+      console.log("Gateway restart: skipped (managed background gateway not running).");
+      return;
+    }
+
+    const config = readGatewayServiceRuntimeConfig(runtimeRootDir);
+    if (!config) {
+      console.log(
+        "Gateway restart: skipped (could not resolve saved gateway settings safely).",
+      );
+      console.log(
+        styleCliText("Restart manually with 'opencolab gateway restart' if needed."),
+      );
+      return;
+    }
+
+    restartGatewayBackgroundService({
+      rootDir: runtimeRootDir,
+      cliScriptPath: resolveBuiltCliScriptPath(runtimeRootDir),
+      nodePath: process.execPath,
+      port: config.port,
+      telegramPolling: config.telegramPolling,
+    });
+    console.log(
+      `Gateway restart: restarted (${files.platform}) on port ${String(config.port)} with telegram polling ${config.telegramPolling ? "enabled" : "disabled"}.`,
+    );
+  } catch (error) {
+    console.log(
+      `Gateway restart: skipped (${error instanceof Error ? error.message : String(error)}).`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const [, , ...argv] = process.argv;
   const [command, subcommand, action, ...rest] = argv;
@@ -1088,6 +1158,23 @@ async function main(): Promise<void> {
         "Unknown gateway command. Use 'start', 'stop', 'restart', 'status', or 'logs'.",
       ),
     );
+  }
+
+  if (command === "upgrade") {
+    const runtimeRootDir = resolveRuntimeRootDir();
+    const result = upgradeOpenColab(runtimeRootDir, {
+      nodePath: process.execPath,
+    });
+    console.log("OpenColab upgrade completed.");
+    console.log(`Target branch: main`);
+    console.log(`Previous branch: ${result.previousBranch || "(detached HEAD)"}`);
+    console.log(`Previous revision: ${result.previousRevision}`);
+    console.log(`Current revision: ${result.currentRevision}`);
+    console.log(
+      `Dependency install: ${formatUpgradeDependencyInstallMode(result.dependencyInstallMode)}`,
+    );
+    printUpgradeGatewayRestartSummary(runtimeRootDir);
+    return;
   }
 
   const runtime = createRuntime(resolveRuntimeRootDir());
