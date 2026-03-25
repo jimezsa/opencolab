@@ -85,7 +85,9 @@ export interface ExecutionTargetSetupInput {
   id: string;
   enabled?: boolean;
   datacenterId?: string;
+  preferredDatacenterIds?: string[];
   gpuType?: string;
+  preferredGpuTypes?: string[];
   gpuCount?: number;
   templateId?: string | null;
   imageName?: string | null;
@@ -381,12 +383,26 @@ export class OpenColabRuntime {
     const project = this.getActiveProject();
     const id = normalizeEntityId(input.id);
     const existing = project.executionTargets[id] ?? createDefaultExecutionTargetConfig(id);
+    const preferredDatacenterIds = normalizeOrderedValues(
+      input.preferredDatacenterIds,
+      input.datacenterId,
+      existing.preferredDatacenterIds,
+      existing.datacenterId
+    );
+    const preferredGpuTypes = normalizeOrderedValues(
+      input.preferredGpuTypes,
+      input.gpuType,
+      existing.preferredGpuTypes,
+      existing.gpuType
+    );
     const target: ExecutionTargetConfig = {
       ...existing,
       id,
       enabled: input.enabled ?? existing.enabled,
-      datacenterId: input.datacenterId?.trim() || existing.datacenterId,
-      gpuType: input.gpuType?.trim() || existing.gpuType,
+      datacenterId: preferredDatacenterIds[0] ?? existing.datacenterId,
+      preferredDatacenterIds,
+      gpuType: preferredGpuTypes[0] ?? existing.gpuType,
+      preferredGpuTypes,
       gpuCount: input.gpuCount ?? existing.gpuCount,
       templateId: normalizeNullableText(input.templateId, existing.templateId),
       imageName: normalizeNullableText(input.imageName, existing.imageName),
@@ -584,4 +600,37 @@ function normalizeNullableText(value: string | null | undefined, fallback: strin
   }
   const normalized = value === null ? "" : value.trim();
   return normalized ? normalized : null;
+}
+
+function normalizeOrderedValues(
+  values: string[] | undefined,
+  singleValue: string | undefined,
+  existingValues: string[],
+  fallbackValue: string
+): string[] {
+  const ordered = new Set<string>();
+  const sourceValues =
+    values && values.length > 0
+      ? values
+      : singleValue?.trim()
+        ? [singleValue]
+        : existingValues.length > 0
+          ? existingValues
+          : [fallbackValue];
+
+  for (const value of sourceValues) {
+    const normalized = value.trim();
+    if (normalized) {
+      ordered.add(normalized);
+    }
+  }
+
+  if (ordered.size === 0) {
+    const fallback = fallbackValue.trim();
+    if (fallback) {
+      ordered.add(fallback);
+    }
+  }
+
+  return [...ordered];
 }
