@@ -36,6 +36,8 @@ function createSampleRunStatus(runId = "run-1"): ExperimentRunStatus {
       id: "pod_123",
       name: "opencolab-default-runpod-a100",
       desiredStatus: "RUNNING",
+      datacenterId: "US-KS-2",
+      gpuType: "NVIDIA A100 80GB PCIe",
       publicIp: "1.2.3.4",
       sshPort: 2200,
       volumeId: "vol_123",
@@ -132,7 +134,9 @@ test("setupExecutionTarget persists a project-scoped GPU server and target snaps
     const target = runtime.getExecutionTarget("runpod-a100");
     assert.equal(target.backend, "runpod");
     assert.equal(target.datacenterId, "US-KS-2");
+    assert.deepEqual(target.preferredDatacenterIds, ["US-KS-2"]);
     assert.equal(target.gpuType, "NVIDIA A100 80GB PCIe");
+    assert.deepEqual(target.preferredGpuTypes, ["NVIDIA A100 80GB PCIe"]);
     assert.equal(target.volume.name, "default-runpod-a100");
 
     const snapshotPath = path.join(
@@ -193,8 +197,10 @@ test("startGpuJob delegates to the injected runpod execution service", async () 
       backend: "runpod",
       enabled: true,
       datacenterId: "US-KS-2",
+      preferredDatacenterIds: ["US-KS-2"],
       cloudType: "secure",
       gpuType: "NVIDIA A100 80GB PCIe",
+      preferredGpuTypes: ["NVIDIA A100 80GB PCIe"],
       gpuCount: 1,
       templateId: null,
       imageName: "runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04",
@@ -288,6 +294,29 @@ test("startGpuJob delegates to the injected runpod execution service", async () 
     assert.equal(captured.targetId, "runpod-a100");
     assert.equal(captured.command, "python train.py");
     assert.equal(captured.wait, false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("setupExecutionTarget preserves ordered Runpod fallback candidates", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-execution-target-candidates-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupExecutionTarget({
+      id: "runpod-flex",
+      preferredDatacenterIds: ["US-KS-2", "CA-MTL-1"],
+      preferredGpuTypes: ["NVIDIA A100 80GB PCIe", "NVIDIA RTX 4090"],
+      volumeName: "default-runpod-flex"
+    });
+
+    const target = runtime.getExecutionTarget("runpod-flex");
+    assert.equal(target.datacenterId, "US-KS-2");
+    assert.deepEqual(target.preferredDatacenterIds, ["US-KS-2", "CA-MTL-1"]);
+    assert.equal(target.gpuType, "NVIDIA A100 80GB PCIe");
+    assert.deepEqual(target.preferredGpuTypes, ["NVIDIA A100 80GB PCIe", "NVIDIA RTX 4090"]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
