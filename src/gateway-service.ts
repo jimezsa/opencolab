@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ensureDir } from "./utils.js";
+import { ensureDir, safeReadJson, writeJson } from "./utils.js";
 
 const LAUNCHD_LABEL = "com.opencolab.gateway";
 const SYSTEMD_UNIT_NAME = "opencolab-gateway.service";
@@ -33,6 +33,11 @@ export interface GatewayServiceFiles {
 export interface GatewayServiceStatus {
   running: boolean;
   statusText: string;
+}
+
+export interface GatewayServiceRuntimeConfig {
+  port: number;
+  telegramPolling: boolean;
 }
 
 export function detectGatewayServicePlatform(
@@ -94,6 +99,7 @@ export function startGatewayBackgroundService(
   const files = resolveGatewayServiceFiles(input.rootDir);
   ensureDir(path.dirname(files.configPath));
   ensureDir(path.dirname(files.stdoutLogPath));
+  writeGatewayServiceRuntimeConfig(input.rootDir, input);
 
   if (files.platform === "darwin") {
     fs.writeFileSync(
@@ -154,6 +160,7 @@ export function restartGatewayBackgroundService(
   input: GatewayServiceStartInput,
 ): GatewayServiceFiles {
   const files = resolveGatewayServiceFiles(input.rootDir);
+  writeGatewayServiceRuntimeConfig(input.rootDir, input);
   if (files.platform === "darwin") {
     return startGatewayBackgroundService(input);
   }
@@ -230,6 +237,30 @@ export function getGatewayBackgroundLogCommand(rootDir: string): {
     files,
     command: `journalctl --user -u ${files.systemdUnitName} -f`,
   };
+}
+
+export function readGatewayServiceRuntimeConfig(
+  rootDir: string,
+): GatewayServiceRuntimeConfig | null {
+  const stored = safeReadJson<GatewayServiceRuntimeConfig | null>(
+    gatewayServiceRuntimeConfigPath(rootDir),
+    null,
+  );
+  const normalizedStored = normalizeGatewayServiceRuntimeConfig(stored);
+  if (normalizedStored) {
+    return normalizedStored;
+  }
+
+  const files = resolveGatewayServiceFiles(rootDir);
+  if (!fs.existsSync(files.configPath)) {
+    return null;
+  }
+
+  const raw = fs.readFileSync(files.configPath, "utf8");
+  if (files.platform === "darwin") {
+    return parseGatewayLaunchdRuntimeConfig(raw);
+  }
+  return parseGatewaySystemdRuntimeConfig(raw);
 }
 
 interface LaunchdRenderInput {
@@ -343,6 +374,40 @@ export function renderSystemdUnit(input: SystemdRenderInput): string {
   ].join("\n");
 }
 
+export function parseGatewayLaunchdRuntimeConfig(
+  raw: string,
+): GatewayServiceRuntimeConfig | null {
+  const portMatch = raw.match(
+    /<string>--port<\/string>\s*<string>(\d+)<\/string>/,
+  );
+  const pollingMatch = raw.match(
+    /<string>--telegram-polling<\/string>\s*<string>(true|false)<\/string>/,
+  );
+  if (!portMatch || !pollingMatch) {
+    return null;
+  }
+
+  return normalizeGatewayServiceRuntimeConfig({
+    port: Number(portMatch[1]),
+    telegramPolling: pollingMatch[1] === "true",
+  });
+}
+
+export function parseGatewaySystemdRuntimeConfig(
+  raw: string,
+): GatewayServiceRuntimeConfig | null {
+  const portMatch = raw.match(/"--port"\s+"(\d+)"/);
+  const pollingMatch = raw.match(/"--telegram-polling"\s+"(true|false)"/);
+  if (!portMatch || !pollingMatch) {
+    return null;
+  }
+
+  return normalizeGatewayServiceRuntimeConfig({
+    port: Number(portMatch[1]),
+    telegramPolling: pollingMatch[1] === "true",
+  });
+}
+
 function runCommand(
   command: string,
   args: string[],
@@ -376,4 +441,42 @@ function quoteSystemdValue(value: string): string {
 
 function escapeSystemdEnvironmentValue(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"");
+}
+
+function gatewayServiceRuntimeConfigPath(rootDir: string): string {
+  return path.join(rootDir, ".opencolab", "gateway-service.json");
+}
+
+function writeGatewayServiceRuntimeConfig(
+  rootDir: string,
+  input: GatewayServiceRuntimeConfig,
+): void {
+  writeJson(gatewayServiceRuntimeConfigPath(rootDir), {
+    port: input.port,
+    telegramPolling: input.telegramPolling,
+  });
+}
+
+function normalizeGatewayServiceRuntimeConfig(
+  value: unknown,
+): GatewayServiceRuntimeConfig | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const port = candidate.port;
+  const telegramPolling = candidate.telegramPolling;
+  if (
+    typeof port !== "number" ||
+    !Number.isInteger(port) ||
+    typeof telegramPolling !== "boolean"
+  ) {
+    return null;
+  }
+
+  return {
+    port,
+    telegramPolling,
+  };
 }
