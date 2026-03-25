@@ -99,6 +99,7 @@ opencolab gateway start --foreground true --port 4646
 Useful follow-up commands:
 
 ```bash
+opencolab upgrade
 opencolab gateway status
 opencolab project show
 opencolab agent show
@@ -245,6 +246,7 @@ opencolab gateway start --port 4646
 Useful lifecycle commands:
 
 ```bash
+opencolab upgrade
 opencolab gateway status
 opencolab gateway logs
 opencolab gateway stop
@@ -253,6 +255,7 @@ opencolab gateway restart --port 4646
 
 - `gateway start` runs as a background service by default on macOS and Linux
 - Use `opencolab gateway start --foreground true --port 4646` to keep it in the current terminal
+- `opencolab upgrade` updates the current install to the latest `main`, rebuilds OpenColab, and restarts a managed background gateway with its saved settings
 - Telegram webhook endpoint: `POST http://127.0.0.1:4646/api/telegram/webhook`
 - Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible
 - Agents can return files with raw `@telegram-file <json>` lines using relative or absolute local paths
@@ -264,6 +267,7 @@ opencolab gateway restart --port 4646
 CLI:
 
 ```bash
+opencolab upgrade
 opencolab project create --project-id <id>
 opencolab project use --project-id <id>
 opencolab project list
