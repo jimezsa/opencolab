@@ -157,3 +157,22 @@ test("gpu server add accepts ordered location and GPU candidates", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("upgrade help describes the main-branch upgrade flow", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-upgrade-help-"));
+
+  try {
+    const result = runCli(tempDir, ["upgrade", "--help"]);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(
+      result.stdout.includes("Upgrade the current install to the latest origin/main"),
+      true,
+    );
+    assert.equal(
+      result.stdout.includes("Always switches the install to branch main and fast-forwards to origin/main."),
+      true,
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
