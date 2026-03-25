@@ -743,6 +743,8 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     const target = runtime.getExecutionTarget("runpod-a100");
     assert.equal(target.backend, "runpod");
     assert.equal(target.gpuType, "NVIDIA A100 80GB PCIe");
+    assert.deepEqual(target.preferredGpuTypes, ["NVIDIA A100 80GB PCIe"]);
+    assert.deepEqual(target.preferredDatacenterIds, ["US-KS-2"]);
     assert.equal(target.workspaceRoot, "/workspace");
 
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
