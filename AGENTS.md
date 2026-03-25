@@ -26,6 +26,7 @@ Core implementation areas:
 - `src/gateway.ts`: Telegram authorization, pairing, command routing, typing updates, and message/file handling.
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd` and Linux `systemd`.
 - `src/telegram-poller.ts`: Telegram long-polling loop and update ingestion.
+- `src/upgrade.ts`: in-place OpenColab upgrade flow for fetching `origin/main`, rebuilding, and reporting operator-facing results.
 - `src/provider.ts`: provider defaults, runtime selection, auth-mode support, CLI args, and env wiring.
 - `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling, and provider-to-gateway progress-event forwarding.
 - `src/agent.ts`: agent file seeding, shared/agent-local skill discovery, and prompt assembly.
@@ -60,6 +61,7 @@ Use these commands for normal development:
 - `pnpm run check` (TypeScript typecheck)
 - `pnpm run build`
 - `pnpm test`
+- `node dist/src/cli.js upgrade`
 - `node dist/src/cli.js ignite`
 - `node dist/src/cli.js gateway start --foreground true --port 4646`
 - `node dist/src/cli.js gateway status`
