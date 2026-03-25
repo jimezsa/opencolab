@@ -21,7 +21,7 @@ Core implementation areas:
 - `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth setup, built-in shared-tool key setup including Gemini and `pageindex-grounded` prerequisites, Telegram setup, and pairing.
 - `src/runtime.ts`: stateful orchestration across config, project state, gateway routing, memory, and provider execution.
 - `src/experiments.ts`: local experiment bookkeeping helpers for target snapshots, run manifests, status files, logs, artifacts, and sync metadata.
-- `src/gpu-providers/runpod/index.ts`: Runpod-backed execution-target validation, Pod lifecycle, SSH sync/bootstrap/launch, and run reconciliation.
+- `src/gpu-providers/runpod/index.ts`: Runpod-backed execution-target validation, availability-aware location/GPU selection, Pod lifecycle, SSH sync/bootstrap/launch, and run reconciliation.
 - `src/http.ts`: local HTTP server, health/state endpoints, Telegram webhook ingestion, and optional long polling startup.
 - `src/gateway.ts`: Telegram authorization, pairing, command routing, typing updates, and message/file handling.
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd` and Linux `systemd`.
@@ -91,6 +91,7 @@ Useful repository checks:
   - agent file seeding and prompt assembly (`AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `SKILLS/`)
   - shared skills vs agent-local skills behavior
   - provider defaults, auth modes, CLI args, runtime env wiring, and preflight/remediation behavior
+  - availability-aware Runpod target normalization, fallback selection inputs, and per-location volume behavior
   - `ignite` onboarding branches, including keep-existing setup and Esc-to-skip flows
   - Telegram authorization, pairing flow, slash-command aliases, routing, and file/media handling
   - long-running task progress updates from provider runtime to Telegram without polluting conversation memory
