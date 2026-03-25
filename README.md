@@ -172,22 +172,22 @@ OpenColab keeps remote GPU execution separate from the agent reasoning runtime. 
 Common operator flow:
 
 ```bash
-# Create or update a project-scoped Runpod target
+# Create or update a project-scoped Runpod target with ordered fallback locations and GPUs
 opencolab gpu server add \
   --provider runpod \
-  --server-id runpod-a100 \
-  --datacenter-id US-KS-2 \
-  --gpu-type "NVIDIA A100 80GB PCIe" \
+  --server-id runpod-flex \
+  --location US-KS-2,CA-MTL-1 \
+  --gpu-type "NVIDIA A100 80GB PCIe,NVIDIA RTX 4090" \
   --gpu-count 1 \
-  --volume-name default-runpod-a100 \
+  --volume-name default-runpod-flex \
   --volume-size-gb 200
 
 # Validate local prerequisites and visible Runpod resources
-opencolab gpu server test --server-id runpod-a100
+opencolab gpu server test --server-id runpod-flex
 
 # Launch a bounded remote job and wait for completion
 opencolab gpu job start \
-  --server-id runpod-a100 \
+  --server-id runpod-flex \
   --command "python train.py --epochs 1" \
   --include projects/default,research \
   --artifact outputs/train.log,outputs/metrics.json
@@ -210,7 +210,7 @@ Available commands:
 opencolab gpu server add --provider runpod --server-id <id> [flags]         # Create or update a Runpod GPU target
 opencolab gpu server list                                                    # List configured GPU targets
 opencolab gpu server show --server-id <id>                                   # Print one target as JSON
-opencolab gpu server test --server-id <id>                                   # Check local prerequisites and visible Runpod resources
+opencolab gpu server test --server-id <id>                                   # Check local prerequisites and target candidate readiness
 opencolab gpu server remove --server-id <id>                                 # Remove one target from project state
 
 opencolab gpu job start --server-id <id> --command "<command>" [flags]       # Start a remote GPU job
@@ -224,6 +224,10 @@ opencolab gpu job list                                                       # L
 Notes:
 
 - `RUNPOD_API_KEY` must exist in `.env.local` or the shell environment.
+- Use `--location` for one or more preferred Runpod datacenter ids in fallback order. `--datacenter-id` remains as a legacy alias.
+- `--gpu-type` accepts a comma-separated ordered list, so one logical server can choose the first available acceptable GPU.
+- OpenColab keeps the first location and first GPU as the target's primary values for compatibility, but job provisioning can fall back across the configured candidates.
+- When multiple locations are configured, OpenColab manages Runpod network volumes per datacenter behind the scenes.
 - Sync is allowlist-based. Use `--include` and `--exclude` as comma-separated repo-relative paths.
 - Declared `--artifact` paths are relative to the remote working directory on the Pod.
 - Run records live under `projects/<project_id>/experiments/runs/<run_id>/`.
