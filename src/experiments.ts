@@ -127,6 +127,8 @@ export function createInitialRunStatus(manifest: ExperimentRunManifest): Experim
       id: null,
       name: null,
       desiredStatus: null,
+      datacenterId: null,
+      gpuType: null,
       publicIp: null,
       sshPort: null,
       volumeId: manifest.targetSnapshot.volume.id,
