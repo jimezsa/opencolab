@@ -84,6 +84,11 @@ interface RunpodSshConnection {
   pod: RunpodPod;
 }
 
+interface RunpodPodAllocation {
+  pod: RunpodPod;
+  volume: RunpodNetworkVolume;
+}
+
 interface CommandResult {
   exitCode: number;
   stdout: string;
@@ -137,10 +142,14 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
   async testTarget(project: ProjectState, target: ExecutionTargetConfig): Promise<ExecutionTargetTestResult> {
     const details: string[] = [];
     const warnings: string[] = [];
+    const preferredDatacenterIds = resolvePreferredDatacenterIds(target);
+    const preferredGpuTypes = resolvePreferredGpuTypes(target);
 
     this.validateTargetEnabled(target);
     this.requireRunpodApiKey();
     details.push(`Found ${RUNPOD_API_KEY_ENV_VAR} in environment.`);
+    details.push(`Location candidates: ${preferredDatacenterIds.join(", ")}`);
+    details.push(`GPU candidates: ${preferredGpuTypes.join(", ")}`);
 
     for (const command of ["ssh", "scp", "tar"]) {
       if (!isCommandAvailable(command)) {
@@ -150,22 +159,22 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     }
 
     const volumes = await this.listNetworkVolumes();
-    const volume = this.findMatchingVolume(target, volumes);
-    if (volume) {
-      details.push(`Network volume ready: ${volume.name} (${volume.id})`);
-    } else {
-      warnings.push(
-        `Network volume '${target.volume.name}' was not found in ${target.datacenterId}. It will be created on first job start.`
-      );
+    for (const datacenterId of preferredDatacenterIds) {
+      const volume = this.findMatchingVolume(target, datacenterId, volumes);
+      if (volume) {
+        details.push(`Network volume ready in ${datacenterId}: ${volume.name} (${volume.id})`);
+      } else {
+        warnings.push(
+          `Network volume '${buildVolumeName(target, datacenterId)}' was not found in ${datacenterId}. It will be created on first job start.`
+        );
+      }
     }
 
     const pods = await this.listPods();
-    const compatibleWarmPod = volume
-      ? pods.find((pod) => this.isCompatiblePod(project, target, volume, pod))
-      : null;
-    if (compatibleWarmPod) {
+    const compatibleWarmAllocation = this.findCompatiblePodAllocation(project, target, volumes, pods);
+    if (compatibleWarmAllocation) {
       details.push(
-        `Compatible Pod detected: ${compatibleWarmPod.id} (${compatibleWarmPod.desiredStatus ?? "unknown"})`
+        `Compatible Pod detected: ${compatibleWarmAllocation.pod.id} (${compatibleWarmAllocation.pod.desiredStatus ?? "unknown"}) in ${compatibleWarmAllocation.volume.dataCenterId}`
       );
     } else {
       details.push("No compatible warm Pod detected. A new Pod will be provisioned when needed.");
@@ -280,22 +289,21 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
       this.validateEnvVars(manifest.envVarNames);
       this.validateSyncPlan(syncPlan);
 
-      const volume = await this.ensureNetworkVolume(target);
-      status = setStatus({
-        pod: {
-          ...status.pod,
-          volumeId: volume.id
-        }
-      });
-
       emit({
         kind: "milestone",
         stage: "provisioning",
         message: `Provisioning Runpod Pod for target '${target.id}'.`
       });
       status = setStatus({ state: "provisioning" });
-      const pod = await this.ensureCompatiblePod(project, target, volume);
-      status = this.updateStatusFromPod(project, status, pod);
+      const allocation = await this.ensureCompatiblePod(project, target, emit);
+      status = setStatus({
+        pod: {
+          ...status.pod,
+          volumeId: allocation.volume.id
+        }
+      });
+
+      status = this.updateStatusFromPod(project, status, allocation.pod);
 
       emit({
         kind: "milestone",
@@ -662,20 +670,12 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     }
   }
 
-  private async ensureNetworkVolume(target: ExecutionTargetConfig): Promise<RunpodNetworkVolume> {
-    const volumes = await this.listNetworkVolumes();
-    const existing = this.findMatchingVolume(target, volumes);
-    if (existing) {
-      return existing;
-    }
-    return this.createNetworkVolume(target);
-  }
-
   private findMatchingVolume(
     target: ExecutionTargetConfig,
+    datacenterId: string,
     volumes: RunpodNetworkVolume[]
   ): RunpodNetworkVolume | null {
-    if (target.volume.id) {
+    if (target.volume.id && datacenterId === target.datacenterId) {
       const byId = volumes.find((candidate) => candidate.id === target.volume.id);
       if (byId) {
         return byId;
@@ -684,7 +684,7 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     return (
       volumes.find(
         (candidate) =>
-          candidate.name === target.volume.name && candidate.dataCenterId === target.datacenterId
+          candidate.name === buildVolumeName(target, datacenterId) && candidate.dataCenterId === datacenterId
       ) ?? null
     );
   }
@@ -692,19 +692,50 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
   private async ensureCompatiblePod(
     project: ProjectState,
     target: ExecutionTargetConfig,
-    volume: RunpodNetworkVolume
-  ): Promise<RunpodPod> {
+    emit: (event: TaskProgressEvent) => void
+  ): Promise<RunpodPodAllocation> {
+    const preferredDatacenterIds = resolvePreferredDatacenterIds(target);
+    const preferredGpuTypes = resolvePreferredGpuTypes(target);
+    const volumes = await this.listNetworkVolumes();
     const pods = await this.listPods();
-    const compatible = pods.find((pod) => this.isCompatiblePod(project, target, volume, pod));
-    if (compatible) {
-      if (compatible.desiredStatus === "EXITED") {
-        await this.startPod(compatible.id);
+    const compatibleAllocation = this.findCompatiblePodAllocation(project, target, volumes, pods);
+    if (compatibleAllocation) {
+      emit({
+        kind: "progress",
+        stage: "provisioning",
+        message: `Reusing compatible Runpod Pod in ${compatibleAllocation.volume.dataCenterId}.`
+      });
+      if (compatibleAllocation.pod.desiredStatus === "EXITED") {
+        await this.startPod(compatibleAllocation.pod.id);
         await sleep(5_000);
-        return (await this.getPod(compatible.id)) ?? compatible;
+        return {
+          pod: (await this.getPod(compatibleAllocation.pod.id)) ?? compatibleAllocation.pod,
+          volume: compatibleAllocation.volume
+        };
       }
-      return compatible;
+      return compatibleAllocation;
     }
-    return this.createPod(project, target, volume);
+
+    const errors: string[] = [];
+    for (const datacenterId of preferredDatacenterIds) {
+      emit({
+        kind: "progress",
+        stage: "provisioning",
+        message: `Trying ${datacenterId} with GPU candidates ${preferredGpuTypes.join(", ")}.`
+      });
+      const volume = await this.ensureNetworkVolume(target, datacenterId, volumes);
+      try {
+        const pod = await this.createPod(project, target, volume, datacenterId);
+        return { pod, volume };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(`${datacenterId}: ${message}`);
+      }
+    }
+
+    throw new Error(
+      `No compatible Runpod capacity was available for target '${target.id}'. Tried ${preferredDatacenterIds.join(", ")} with GPU candidates ${preferredGpuTypes.join(", ")}. ${errors.join(" | ")}`
+    );
   }
 
   private isCompatiblePod(
@@ -719,7 +750,7 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     if (!pod.networkVolume || pod.networkVolume.id !== volume.id) {
       return false;
     }
-    if (pod.machine.dataCenterId !== target.datacenterId) {
+    if (pod.machine.dataCenterId !== volume.dataCenterId) {
       return false;
     }
     if (pod.machine.secureCloud !== true) {
@@ -728,7 +759,7 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     if (pod.gpuCount !== target.gpuCount) {
       return false;
     }
-    if (pod.machine.gpuTypeDisplayName !== target.gpuType) {
+    if (!pod.machine.gpuTypeDisplayName || !resolvePreferredGpuTypes(target).includes(pod.machine.gpuTypeDisplayName)) {
       return false;
     }
     const expectedName = buildPodName(project, target);
@@ -1216,6 +1247,8 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
         id: pod.id,
         name: pod.name,
         desiredStatus: pod.desiredStatus,
+        datacenterId: pod.machine.dataCenterId,
+        gpuType: pod.machine.gpuTypeDisplayName,
         publicIp: pod.publicIp,
         sshPort: pod.portMappings["22"] ?? status.pod.sshPort,
         volumeId: pod.networkVolume?.id ?? status.pod.volumeId,
@@ -1262,10 +1295,49 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     return Array.isArray(response) ? response.map((value) => normalizeNetworkVolume(value)) : [];
   }
 
-  private async createNetworkVolume(target: ExecutionTargetConfig): Promise<RunpodNetworkVolume> {
+  private async ensureNetworkVolume(
+    target: ExecutionTargetConfig,
+    datacenterId: string,
+    knownVolumes: RunpodNetworkVolume[]
+  ): Promise<RunpodNetworkVolume> {
+    const existing = this.findMatchingVolume(target, datacenterId, knownVolumes);
+    if (existing) {
+      return existing;
+    }
+    const created = await this.createNetworkVolume(target, datacenterId);
+    knownVolumes.push(created);
+    return created;
+  }
+
+  private findCompatiblePodAllocation(
+    project: ProjectState,
+    target: ExecutionTargetConfig,
+    volumes: RunpodNetworkVolume[],
+    pods: RunpodPod[]
+  ): RunpodPodAllocation | null {
+    for (const datacenterId of resolvePreferredDatacenterIds(target)) {
+      const volume = this.findMatchingVolume(target, datacenterId, volumes);
+      if (!volume) {
+        continue;
+      }
+      const pod = pods.find((candidate) => this.isCompatiblePod(project, target, volume, candidate));
+      if (pod) {
+        return {
+          pod,
+          volume
+        };
+      }
+    }
+    return null;
+  }
+
+  private async createNetworkVolume(
+    target: ExecutionTargetConfig,
+    datacenterId: string
+  ): Promise<RunpodNetworkVolume> {
     const response = await this.requestJson<unknown>("POST", "/networkvolumes", {
-      dataCenterId: target.datacenterId,
-      name: target.volume.name,
+      dataCenterId: datacenterId,
+      name: buildVolumeName(target, datacenterId),
       size: target.volume.sizeGb
     });
     return normalizeNetworkVolume(response);
@@ -1292,15 +1364,17 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
   private async createPod(
     project: ProjectState,
     target: ExecutionTargetConfig,
-    volume: RunpodNetworkVolume
+    volume: RunpodNetworkVolume,
+    datacenterId: string
   ): Promise<RunpodPod> {
+    const preferredGpuTypes = resolvePreferredGpuTypes(target);
     const body: Record<string, unknown> = {
       cloudType: "SECURE",
       computeType: "GPU",
-      dataCenterIds: [target.datacenterId],
+      dataCenterIds: [datacenterId],
       dataCenterPriority: "custom",
-      gpuTypeIds: [target.gpuType],
-      gpuTypePriority: "custom",
+      gpuTypeIds: preferredGpuTypes,
+      gpuTypePriority: preferredGpuTypes.length > 1 ? "availability" : "custom",
       gpuCount: target.gpuCount,
       name: buildPodName(project, target),
       networkVolumeId: volume.id,
@@ -1425,6 +1499,25 @@ function isCommandAvailable(command: string): boolean {
 
 function buildPodName(project: ProjectState, target: ExecutionTargetConfig): string {
   return `opencolab-${project.id}-${target.id}`;
+}
+
+function buildVolumeName(target: ExecutionTargetConfig, datacenterId: string): string {
+  if (datacenterId === target.datacenterId) {
+    return target.volume.name;
+  }
+  return `${target.volume.name}-${normalizeDatacenterSuffix(datacenterId)}`;
+}
+
+function normalizeDatacenterSuffix(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+}
+
+function resolvePreferredDatacenterIds(target: ExecutionTargetConfig): string[] {
+  return target.preferredDatacenterIds.length > 0 ? target.preferredDatacenterIds : [target.datacenterId];
+}
+
+function resolvePreferredGpuTypes(target: ExecutionTargetConfig): string[] {
+  return target.preferredGpuTypes.length > 0 ? target.preferredGpuTypes : [target.gpuType];
 }
 
 function normalizeNetworkVolume(raw: unknown): RunpodNetworkVolume {
