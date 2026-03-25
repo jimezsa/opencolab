@@ -46,8 +46,10 @@ export interface ExecutionTargetConfig {
   backend: ExecutionBackend;
   enabled: boolean;
   datacenterId: string;
+  preferredDatacenterIds: string[];
   cloudType: ExecutionTargetCloudType;
   gpuType: string;
+  preferredGpuTypes: string[];
   gpuCount: number;
   templateId: string | null;
   imageName: string | null;
@@ -227,6 +229,8 @@ export interface ExperimentRunPodStatus {
   id: string | null;
   name: string | null;
   desiredStatus: string | null;
+  datacenterId: string | null;
+  gpuType: string | null;
   publicIp: string | null;
   sshPort: number | null;
   volumeId: string | null;
