@@ -168,6 +168,7 @@ OPENCOLAB_CODEX_TIMEOUT_MS=600000
 ## Remote GPU with Runpod
 
 OpenColab keeps remote GPU execution separate from the agent reasoning runtime. Providers still handle planning and coding; Runpod is only the remote experiment target.
+For agent-driven remote GPU execution through OpenColab, use the shared `runpod-job` skill.
 
 Common operator flow:
 
@@ -310,7 +311,7 @@ Telegram slash-menu aliases:
 - Previous-day summaries live in `<agent_path>/memory/Daily/<YYYY-MM-DD>.md`
 - Long-term durable facts belong in `MEMORY.md`
 
-Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, and `block-diagram`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, and `pdf-figure-extract` handles local figure extraction with PyMuPDF.
+Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, and `runpod-job` handles bounded Runpod GPU server and job orchestration through the OpenColab CLI.
 
 ## Configuration and Development
 
