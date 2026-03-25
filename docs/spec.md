@@ -211,6 +211,7 @@ Requirements:
 Required command groups:
 
 - `opencolab ignite`
+- `opencolab upgrade`
 - `opencolab setup api-key`
 - `opencolab setup model`
 - `opencolab setup telegram`
@@ -224,6 +225,14 @@ Required command groups:
 Responsibilities:
 
 - initialize state and default project/agent files when `ignite` runs
+- `opencolab upgrade` must update the current OpenColab install to the latest `origin/main`
+- `opencolab upgrade` must operate on the current OpenColab install root, not on arbitrary unrelated git repositories
+- `opencolab upgrade` must fail when the install git worktree has tracked local changes instead of attempting a merge
+- `opencolab upgrade` must fetch `origin main`, switch to local branch `main`, fast-forward to `origin/main`, install dependencies, and rebuild
+- `opencolab upgrade` must run a lightweight post-build smoke check before reporting success
+- when a managed background gateway service is running, `opencolab upgrade` must restart it after a successful rebuild
+- gateway restart after upgrade must preserve the configured service port and Telegram polling mode instead of silently reverting to defaults
+- when no managed background gateway service is running, `opencolab upgrade` should print that no automatic restart was performed
 - configure one provider API key without changing the active agent runtime
 - configure provider for the active agent
 - provider configuration must ask for provider and model, and must support provider auth mode selection when available
