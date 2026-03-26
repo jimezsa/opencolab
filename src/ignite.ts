@@ -14,7 +14,6 @@ import {
 import type { OpenColabRuntime } from "./runtime.js";
 import {
   getProviderApiKeyEnvVar,
-  resolveEnvVar,
   resolveProviderApiKey,
   resolveRunpodApiKey,
   RUNPOD_API_KEY_ENV_VAR,
@@ -67,8 +66,7 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
   ],
 };
 const BUILT_IN_TOOLS_PROVIDER: ProviderName = "gemini";
-const PAGEINDEX_GROUNDED_PROVIDER: ProviderName = "openai";
-const PAGEINDEX_GROUNDED_ALT_ENV_VAR = "CHATGPT_API_KEY";
+const PAGEINDEX_GROUNDED_PROVIDER: ProviderName = "gemini";
 
 export interface IgniteDependencies {
   syncTelegramCommands: (
@@ -561,7 +559,6 @@ async function configurePageIndexGrounded(
 ): Promise<void> {
   const pageIndexEnvVar = getProviderApiKeyEnvVar(PAGEINDEX_GROUNDED_PROVIDER);
   const existingPageIndexKey = resolveProviderApiKey(PAGEINDEX_GROUNDED_PROVIDER);
-  const existingChatGptKey = resolveEnvVar(PAGEINDEX_GROUNDED_ALT_ENV_VAR);
   const activeProvider = runtime.getActiveAgent().provider;
   const activeProviderDefaults = getProviderSetupDefaults(activeProvider.name);
   const activeProviderAuthMode = resolveProviderAuthMode(
@@ -576,40 +573,28 @@ async function configurePageIndexGrounded(
     existingPageIndexKey
   ) {
     io.write(
-      `pageindex-grounded can use ${pageIndexEnvVar}. Already configured via the active OpenAI provider setup.`,
-    );
-    return;
-  }
-
-  if (!existingPageIndexKey && existingChatGptKey) {
-    io.write(
-      `pageindex-grounded can use the existing ${PAGEINDEX_GROUNDED_ALT_ENV_VAR} for the local PageIndex runner.`,
+      `pageindex-grounded can use ${pageIndexEnvVar}. Already configured via the active Gemini provider setup.`,
     );
     return;
   }
 
   if (existingPageIndexKey) {
-    const keepExisting = await askYesNo(
-      io,
-      `${pageIndexEnvVar} already has a value for pageindex-grounded. Keep it?`,
-      true,
+    io.write(
+      `pageindex-grounded can use the existing ${pageIndexEnvVar} for the local PageIndex runner.`,
     );
-    if (keepExisting) {
-      io.write(`pageindex-grounded will use the existing ${pageIndexEnvVar}.`);
-      return;
-    }
-  } else {
-    const shouldConfigure = await askYesNo(
-      io,
-      `Add ${pageIndexEnvVar} now so pageindex-grounded can use the local PageIndex runner when tools/PageIndex is available?`,
-      true,
+    return;
+  }
+
+  const shouldConfigure = await askYesNo(
+    io,
+    `Add ${pageIndexEnvVar} now so pageindex-grounded can use Gemini with the local PageIndex runner when tools/PageIndex is available?`,
+    true,
+  );
+  if (!shouldConfigure) {
+    io.write(
+      `pageindex-grounded key setup skipped. Set ${pageIndexEnvVar} later if you want the local PageIndex runner.`,
     );
-    if (!shouldConfigure) {
-      io.write(
-        `pageindex-grounded key setup skipped. Set ${pageIndexEnvVar} later if you want the local PageIndex runner.`,
-      );
-      return;
-    }
+    return;
   }
 
   const pageIndexApiKey = await askRequiredWithOptionalDefault(
