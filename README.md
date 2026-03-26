@@ -91,6 +91,19 @@ Remote experiment path:
 
 `Telegram/CLI -> Active Project -> Active Agent -> Execution Target -> Remote Run`
 
+## Runtime CLI Install Links
+
+Install the upstream runtime CLI that matches the provider you want OpenColab to drive:
+
+| Provider    | Runtime CLI | Install guide                                                                   | Command  |
+| ----------- | ----------- | ------------------------------------------------------------------------------- | -------- |
+| `openai`    | Codex       | [Codex CLI](https://developers.openai.com/codex/cli)                            | `codex`  |
+| `anthropic` | Claude Code | [Claude Code setup](https://code.claude.com/docs/en/getting-started)            | `claude` |
+| `gemini`    | Gemini CLI  | [Gemini CLI installation](https://geminicli.com/docs/get-started/installation/) | `gemini` |
+| `xai`       | PI          | [PI install](https://pi.dev/)                                                   | `pi`     |
+
+`minimax` runs through the `claude` runtime, and `xai` runs through `pi`.
+
 ## Install
 
 ```bash
