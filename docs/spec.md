@@ -120,6 +120,7 @@ Each agent directory must include:
 Shared project skills requirements:
 
 - the repository must expose a shared `projects/SKILLS/` directory
+- published package installs must also ship the built-in shared `projects/SKILLS/` directory so runtime fallback skill discovery does not require a git checkout
 - skills are shared across all agents and all projects and must not be duplicated per agent or per project
 - each skill lives under `projects/SKILLS/<skill_id>/SKILL.md`
 - agent instructions must tell agents to read relevant `SKILL.md` files from the shared `projects/SKILLS/` directory before using a specialized workflow
@@ -146,10 +147,10 @@ Initialization requirements:
 - when an agent directory is created, `USER.md` must be seeded from an internal runtime template
 - when an agent directory is created, `TODO.md` must be seeded from an internal runtime template
 - when an agent directory is created, `MEMORY.md` must be seeded from an internal runtime template
-- the default `professor` agent must seed from the built-in `src/agent-templates/professor/` template folder
-- the built-in `beginner` agent id must seed from the built-in `src/agent-templates/beginner/` template folder
-- additional agents must seed from the built-in `src/agent-templates/specialist/` template folder unless future runtime configuration chooses another built-in template
-- template-specific files may fall back to `src/agent-templates/shared/` when a role folder does not provide an override
+- the default `professor` agent must seed from the built-in `src/agent-templates/professor/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
+- the built-in `beginner` agent id must seed from the built-in `src/agent-templates/beginner/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
+- additional agents must seed from the built-in `src/agent-templates/specialist/` template folder in the source tree unless future runtime configuration chooses another built-in template
+- template-specific files may fall back to `src/agent-templates/shared/` in the source tree when a role folder does not provide an override, and packaged installs must preserve that fallback behavior with shipped runtime assets
 - in the current built-in layout, role folders provide `AGENTS.md` overrides and `src/agent-templates/shared/` provides the shared `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
 - the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, and `runpod-job` skills must be available from the shared `projects/SKILLS/` directory
@@ -225,14 +226,15 @@ Required command groups:
 Responsibilities:
 
 - initialize state and default project/agent files when `ignite` runs
-- `opencolab upgrade` must update the current OpenColab install to the latest `origin/main`
-- `opencolab upgrade` must operate on the current OpenColab install root, not on arbitrary unrelated git repositories
-- `opencolab upgrade` must fail when the install git worktree has tracked local changes instead of attempting a merge
-- `opencolab upgrade` must fetch `origin main`, switch to local branch `main`, fast-forward to `origin/main`, install dependencies, and rebuild
-- `opencolab upgrade` must run a lightweight post-build smoke check before reporting success
-- when a managed background gateway service is running, `opencolab upgrade` must restart it after a successful rebuild
-- gateway restart after upgrade must preserve the configured service port and Telegram polling mode instead of silently reverting to defaults
-- when no managed background gateway service is running, `opencolab upgrade` should print that no automatic restart was performed
+- `opencolab upgrade` must operate on the current OpenColab install root, not on arbitrary unrelated git repositories or on the active workspace directory by mistake
+- when the current OpenColab install is a git/source checkout, `opencolab upgrade` must update that install to the latest `origin/main`
+- when the current OpenColab install is a git/source checkout, `opencolab upgrade` must fail when the install git worktree has tracked local changes instead of attempting a merge
+- when the current OpenColab install is a git/source checkout, `opencolab upgrade` must fetch `origin main`, switch to local branch `main`, fast-forward to `origin/main`, install dependencies, and rebuild
+- when the current OpenColab install is a git/source checkout, `opencolab upgrade` must run a lightweight post-build smoke check before reporting success
+- when the current OpenColab install is a packaged install without the repo git metadata, `opencolab upgrade` must not attempt git operations and should print package-manager upgrade guidance, including an npm global-install example
+- when a managed background gateway service is running, git/source `opencolab upgrade` must restart it after a successful rebuild
+- gateway restart after git/source upgrade must preserve the configured service port and Telegram polling mode instead of silently reverting to defaults
+- when no managed background gateway service is running, git/source `opencolab upgrade` should print that no automatic restart was performed
 - configure one provider API key without changing the active agent runtime
 - configure provider for the active agent
 - provider configuration must ask for provider and model, and must support provider auth mode selection when available
@@ -278,6 +280,9 @@ Responsibilities:
 - the first curated Runpod preset should use backend `runpod`, cloud type `secure`, storage mode `network_volume`, workspace root `/workspace`, SSH access, and bootstrap profile `python-ml`
 - `ignite` should be able to run a lightweight GPU server validation test when the operator opts in
 - installer script should make `opencolab` available as a terminal command by installing a user-level shim and ensuring the user bin directory is on `PATH`
+- npm package installs should also be supported for the `opencolab` CLI without requiring `dist/` to be tracked in git
+- the published npm package must include the built CLI entrypoint, built-in agent templates, and built-in shared skills required for runtime fallback behavior
+- the npm package build artifacts may be generated at pack/publish time rather than committed to the repository
 
 ## 8. Telegram Management Commands
 
@@ -829,7 +834,7 @@ v1 is complete when all are true:
 - The default `professor` agent is created under `projects/<project_id>/AGENTS/professor/`.
 - The optional built-in `beginner` agent is created under `projects/<project_id>/AGENTS/beginner/` when used.
 - Additional agents are created under `projects/<project_id>/AGENTS/<agent_id>/`.
-- The default `professor` agent seeds from `src/agent-templates/professor/`, the built-in `beginner` agent id seeds from `src/agent-templates/beginner/`, additional agents seed from `src/agent-templates/specialist/`, and shared template files fall back to `src/agent-templates/shared/`.
+- The default `professor` agent seeds from the built-in professor template assets, sourced from `src/agent-templates/professor/` in the repository and shipped in packaged installs; the built-in `beginner` agent id and additional agents follow the same built-in template rules with fallback to shared template assets.
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
 - Long-running routed tasks can emit bounded intermediate Telegram updates before the final answer.
 - Progress updates are treated as operational events rather than normal assistant conversation turns.
