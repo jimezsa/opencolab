@@ -242,7 +242,7 @@ Responsibilities:
 - in OpenAI `oauth` mode, setup must not require `OPENAI_API_KEY`
 - in Gemini `oauth` mode, setup must not require `GEMINI_API_KEY`
 - Gemini-based built-in shared tools must use `GEMINI_API_KEY` even when the active agent runtime uses a different provider or Gemini `oauth`
-- the shared `pageindex-grounded` skill must be able to use `OPENAI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or OpenAI `oauth`
+- the shared `pageindex-grounded` skill must be able to use `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini `oauth`
 - in OpenAI `oauth` mode, runtime preflight must verify Codex login state and return remediation guidance if login is missing
 - in Gemini `oauth` mode, runtime must return remediation guidance when the CLI reports missing Google login or missing Gemini credentials
 - provider CLI command/args must be auto-derived from internal defaults
@@ -263,7 +263,7 @@ Responsibilities:
 - provide an interactive onboarding flow for first-time setup of project selection, provider/model, built-in shared-tool key setup, Telegram setup, and optional pairing
 - `ignite` onboarding should allow skipping the current step with `Esc` and continue to the next step
 - `ignite` onboarding should detect existing provider setup and allow keeping or updating it
-- `ignite` onboarding should include optional steps to persist `GEMINI_API_KEY` for Gemini-based built-in shared tools and `OPENAI_API_KEY` for `pageindex-grounded` when the local PageIndex runner needs it
+- `ignite` onboarding should include optional steps to persist `GEMINI_API_KEY` for Gemini-based built-in shared tools and `pageindex-grounded` when the local PageIndex runner needs it
 - `opencolab setup api-key` must persist the canonical env var for one specific provider without mutating provider/model/auth settings
 - `opencolab gpu server` must support lifecycle commands: `add`, `list`, `show`, `test`, and `remove`
 - `opencolab gpu job` must support lifecycle commands: `start`, `status`, `logs`, `fetch`, `cancel`, and `list`
@@ -741,6 +741,7 @@ Requirements:
 - it must return answers with exact paper and page references for non-trivial claims whenever the evidence supports that level of grounding
 - if the answer relies only on paper summaries, metadata, or partial local evidence instead of a verified PageIndex tree plus PDF check, it must label that limitation explicitly instead of implying full grounding
 - it must default to the local open-source PageIndex tree-generation workflow and should not require hosted MCP or hosted Chat API integration unless the user explicitly asks for that external-service path
+- it must use `GEMINI_API_KEY` for the local PageIndex runner rather than depending on `OPENAI_API_KEY` or `CHATGPT_API_KEY`
 
 The final user-facing reply from `pageindex-grounded` should:
 
