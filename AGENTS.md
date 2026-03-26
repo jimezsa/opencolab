@@ -18,7 +18,7 @@ Top-level sources of truth:
 Core implementation areas:
 
 - `src/cli.ts`: CLI entrypoint, interactive prompts, setup flows including standalone provider-key writes, and gateway lifecycle commands.
-- `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth setup, built-in shared-tool key setup including Gemini and `pageindex-grounded` prerequisites, Telegram setup, and pairing.
+- `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth setup, built-in shared-tool key setup including `GEMINI_API_KEY` prerequisites for Gemini shared tools and `pageindex-grounded`, Telegram setup, and pairing.
 - `src/runtime.ts`: stateful orchestration across config, project state, gateway routing, memory, and provider execution.
 - `src/experiments.ts`: local experiment bookkeeping helpers for target snapshots, run manifests, status files, logs, artifacts, and sync metadata.
 - `src/gpu-providers/runpod/index.ts`: Runpod-backed execution-target validation, availability-aware location/GPU selection, Pod lifecycle, SSH sync/bootstrap/launch, and run reconciliation.
@@ -44,7 +44,7 @@ Agent contract details that matter for implementation:
 - Shared skills live only under `projects/SKILLS/`; do not duplicate them into each project or agent.
 - The shared `block-diagram` skill defaults to compact layouts with unlabeled arrows, supports optional LaTeX equation blocks when they materially clarify a model or pipeline, and only uses edge labels when they carry concrete meaning such as a protocol or payload, not generic `input` or `output` text.
 - The shared `fast-search`, `pro-search`, and `deep-search` skills must keep their `findings.md` formats stable while also producing a companion literature-map block diagram through `block-diagram`, returning concise, friendly channel-agnostic summaries, and, when appropriate, returning `findings.md` plus a PNG-first diagram through the active channel's file-delivery mechanism, with SVG fallback if PNG rendering is unavailable.
-- The shared `pageindex-grounded` skill is the canonical local-first path for grounded follow-up QA over already-downloaded papers. It must keep selection bounded, cache PageIndex trees under `research/pageindex/`, and answer with exact paper or page references plus explicit limitations when coverage is partial.
+- The shared `pageindex-grounded` skill is the canonical local-first path for grounded follow-up QA over already-downloaded papers. It must keep selection bounded, cache PageIndex trees under `research/pageindex/`, use `GEMINI_API_KEY` for the local PageIndex runner, and answer with exact paper or page references plus explicit limitations when coverage is partial.
 - The shared `pdf-figure-extract` skill is the canonical local-first path for extracting and returning figures from already-downloaded papers. It must use PyMuPDF, work even when PageIndex artifacts are missing, optionally reuse `research/pageindex/` to narrow candidate pages, and require multimodal verification of shortlisted figure candidates when the active provider supports local image inspection.
 - The shared `runpod-job` skill is the canonical AI-facing path for operating Runpod-backed GPU servers and bounded remote GPU jobs through the OpenColab CLI rather than raw Runpod APIs.
 - Conversation history belongs under agent-local `memory/Session/` and `memory/Daily/`, not under `.opencolab`.
