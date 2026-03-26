@@ -158,18 +158,22 @@ test("gpu server add accepts ordered location and GPU candidates", () => {
   }
 });
 
-test("upgrade help describes the main-branch upgrade flow", () => {
+test("upgrade help describes git and packaged install flows", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-upgrade-help-"));
 
   try {
     const result = runCli(tempDir, ["upgrade", "--help"]);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(
-      result.stdout.includes("Upgrade the current install to the latest origin/main"),
+      result.stdout.includes("Upgrade a git/source install or show packaged-install upgrade guidance"),
       true,
     );
     assert.equal(
-      result.stdout.includes("Always switches the install to branch main and fast-forwards to origin/main."),
+      result.stdout.includes("Git/source installs switch to branch main and fast-forward to origin/main."),
+      true,
+    );
+    assert.equal(
+      result.stdout.includes("Package installs do not run git operations; they print package-manager upgrade guidance instead."),
       true,
     );
   } finally {
