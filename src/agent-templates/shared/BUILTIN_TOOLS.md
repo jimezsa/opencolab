@@ -6,11 +6,12 @@ Shared project skills live under `projects/SKILLS/`. Agent-local skills live und
 
 ## OpenColab Maintenance
 
-Use `opencolab upgrade` to upgrade the current OpenColab install itself.
+Use the install-appropriate upgrade path for OpenColab itself.
 
-- `opencolab upgrade` always targets the latest `origin/main`
-- a successful upgrade rebuilds OpenColab before returning
-- if the managed background gateway is running, upgrade restarts it with its saved settings
+- git/source installs: `opencolab upgrade` targets the latest `origin/main`
+- git/source `opencolab upgrade` rebuilds OpenColab before returning
+- package installs should be upgraded with the package manager, for example `npm install -g opencolab@latest`
+- if the managed background gateway is running, git/source upgrade restarts it with its saved settings
 - treat upgrade as an operator-approved maintenance action because it changes the local install and may interrupt an active gateway
 
 ## Task Progress Updates
