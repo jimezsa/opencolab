@@ -11,7 +11,6 @@ const ESC_INPUT = "\u001b";
 function clearSecretEnvVars(): Record<string, string | undefined> {
   const previous = {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    CHATGPT_API_KEY: process.env.CHATGPT_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
@@ -20,7 +19,6 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN
   };
   delete process.env.OPENAI_API_KEY;
-  delete process.env.CHATGPT_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.GEMINI_API_KEY;
   delete process.env.MINIMAX_API_KEY;
@@ -140,6 +138,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     "gpt-5.3-codex",
     "openai_test_key_esc",
     "n",
+    "n",
     ESC_INPUT
   ];
   const outputs: string[] = [];
@@ -194,7 +193,7 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
     model: "gpt-5.3-codex"
   });
 
-  const answers = ["", "y", "n", "n"];
+  const answers = ["", "y", "n", "n", "n"];
   const prompts: string[] = [];
 
   try {
@@ -641,13 +640,21 @@ test("ignite can save the Gemini built-in tools key without changing the active 
       ),
       true,
     );
+    assert.equal(
+      outputs.some((line) =>
+        line.includes(
+          "pageindex-grounded can use the existing GEMINI_API_KEY for the local PageIndex runner.",
+        ),
+      ),
+      true,
+    );
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
-test("ignite can save the OpenAI key for pageindex-grounded without changing the active provider", async () => {
+test("ignite can save the Gemini key for pageindex-grounded without changing the active provider", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-pageindex-grounded-"));
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
@@ -660,7 +667,7 @@ test("ignite can save the OpenAI key for pageindex-grounded without changing the
     "gemini-2.5-pro",
     "n",
     "y",
-    "pageindex_openai_key_123",
+    "pageindex_gemini_key_123",
     "n"
   ];
   const outputs: string[] = [];
@@ -684,14 +691,14 @@ test("ignite can save the OpenAI key for pageindex-grounded without changing the
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "gemini");
     assert.equal(agent.provider.authMode, "oauth");
-    assert.equal(process.env.GEMINI_API_KEY, undefined);
-    assert.equal(process.env.OPENAI_API_KEY, "pageindex_openai_key_123");
+    assert.equal(process.env.OPENAI_API_KEY, undefined);
+    assert.equal(process.env.GEMINI_API_KEY, "pageindex_gemini_key_123");
 
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
-    assert.equal(envLocal.includes("OPENAI_API_KEY=pageindex_openai_key_123"), true);
+    assert.equal(envLocal.includes("GEMINI_API_KEY=pageindex_gemini_key_123"), true);
     assert.equal(
       outputs.some((line) =>
-        line.includes("Saved OPENAI_API_KEY in .env.local for pageindex-grounded."),
+        line.includes("Saved GEMINI_API_KEY in .env.local for pageindex-grounded."),
       ),
       true,
     );
@@ -713,6 +720,7 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     "api-key",
     "gpt-5.3-codex",
     "openai_test_key_for_runpod",
+    "n",
     "n",
     "n",
     "y",
