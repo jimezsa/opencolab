@@ -1,10 +1,11 @@
 /**
  * OpenColab self-upgrade helpers.
- * Updates the current install to the latest origin/main, rebuilds, and verifies the build.
+ * Updates a git/source install to the latest origin/main, rebuilds, and verifies the build.
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { isGitInstallRoot } from "./install.js";
 
 export interface UpgradeResult {
   previousBranch: string;
@@ -38,7 +39,7 @@ export function upgradeOpenColab(
     runCommand?: UpgradeCommandRunner;
   } = {},
 ): UpgradeResult {
-  assertOpenColabInstallRoot(rootDir);
+  assertGitInstallRoot(rootDir);
 
   const nodePath = options.nodePath ?? process.execPath;
   const runCommand = options.runCommand ?? defaultRunCommand;
@@ -178,20 +179,24 @@ export function upgradeOpenColab(
   };
 }
 
-function assertOpenColabInstallRoot(rootDir: string): void {
+function assertGitInstallRoot(rootDir: string): void {
+  if (isGitInstallRoot(rootDir)) {
+    return;
+  }
+
   const requiredPaths = [
     path.join(rootDir, ".git"),
     path.join(rootDir, "package.json"),
     path.join(rootDir, "src", "cli.ts"),
   ];
-
-  for (const requiredPath of requiredPaths) {
-    if (!fs.existsSync(requiredPath)) {
-      throw new Error(
-        `OpenColab upgrade requires an OpenColab git install root. Missing: ${requiredPath}`,
-      );
-    }
+  const missingPath = requiredPaths.find((requiredPath) => !fs.existsSync(requiredPath));
+  if (missingPath) {
+    throw new Error(
+      `OpenColab upgrade requires a git/source install root. Missing: ${missingPath}`,
+    );
   }
+
+  throw new Error("OpenColab upgrade requires a git/source install root.");
 }
 
 function defaultRunCommand(
