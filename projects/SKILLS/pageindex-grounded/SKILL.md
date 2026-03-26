@@ -157,7 +157,7 @@ For each selected paper:
 ```bash
 python3 tools/PageIndex/run_pageindex.py \
   --pdf_path research/pdf/<safe_id>.pdf \
-  --model gemini-2.5-pro \
+  --model gemini/gemini-3.1-flash-lite-preview \
   --if-add-node-id yes \
   --if-add-node-summary yes \
   --if-add-node-text yes
