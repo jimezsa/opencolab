@@ -132,3 +132,27 @@ test("upgradeOpenColab refuses to run with tracked git changes", () => {
     fs.rmSync(rootDir, { recursive: true, force: true });
   }
 });
+
+test("upgradeOpenColab requires a git/source install root", () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-upgrade-package-"));
+  fs.mkdirSync(path.join(rootDir, "dist", "src"), { recursive: true });
+  fs.writeFileSync(
+    path.join(rootDir, "package.json"),
+    JSON.stringify({ name: "opencolab" }),
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(rootDir, "dist", "src", "cli.js"),
+    "console.log('ok');\n",
+    "utf8",
+  );
+
+  try {
+    assert.throws(
+      () => upgradeOpenColab(rootDir),
+      /git\/source install root/,
+    );
+  } finally {
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+});
