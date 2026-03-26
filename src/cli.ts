@@ -16,6 +16,10 @@ import {
 } from "./gateway-service.js";
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
+import {
+  buildPackageUpgradeMessage,
+  resolveCurrentOpenColabInstall,
+} from "./install.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
 import {
   getProviderSetupDefaults,
@@ -385,7 +389,7 @@ function usageMain(): string {
     "",
     "Top-level commands:",
     helpCommand("ignite", "Interactive first-run setup"),
-    helpCommand("upgrade", "Upgrade OpenColab to the latest main"),
+    helpCommand("upgrade", "Upgrade OpenColab or show package upgrade guidance"),
     helpCommand("setup", "Configure model/provider/api-key/telegram"),
     helpCommand("project", "Manage/create projects"),
     helpCommand("agent", "Manage/create agents"),
@@ -438,14 +442,15 @@ function usageUpgrade(): string {
     "Usage:",
     helpCommand(
       "opencolab upgrade",
-      "Upgrade the current install to the latest origin/main",
+      "Upgrade a git/source install or show packaged-install upgrade guidance",
     ),
     "",
     "Notes:",
-    "  - Requires a clean tracked git worktree in the current OpenColab install.",
-    "  - Always switches the install to branch main and fast-forwards to origin/main.",
-    "  - Rebuilds OpenColab after pulling changes.",
-    "  - Restarts the managed background gateway with saved settings when it is running.",
+    "  - Git/source installs require a clean tracked git worktree in the current OpenColab install.",
+    "  - Git/source installs switch to branch main and fast-forward to origin/main.",
+    "  - Git/source installs rebuild OpenColab after pulling changes.",
+    "  - Package installs do not run git operations; they print package-manager upgrade guidance instead.",
+    "  - Git/source upgrades restart the managed background gateway with saved settings when it is running.",
   ]);
 }
 
@@ -1161,8 +1166,18 @@ async function main(): Promise<void> {
   }
 
   if (command === "upgrade") {
-    const runtimeRootDir = resolveRuntimeRootDir();
-    const result = upgradeOpenColab(runtimeRootDir, {
+    const install = resolveCurrentOpenColabInstall({
+      entryScriptPath: process.argv[1],
+      cwd: resolveRuntimeRootDir(),
+    });
+    if (install.mode !== "git") {
+      for (const line of buildPackageUpgradeMessage(install.packageName)) {
+        console.log(line);
+      }
+      return;
+    }
+
+    const result = upgradeOpenColab(install.rootDir, {
       nodePath: process.execPath,
     });
     console.log("OpenColab upgrade completed.");
@@ -1173,7 +1188,7 @@ async function main(): Promise<void> {
     console.log(
       `Dependency install: ${formatUpgradeDependencyInstallMode(result.dependencyInstallMode)}`,
     );
-    printUpgradeGatewayRestartSummary(runtimeRootDir);
+    printUpgradeGatewayRestartSummary(install.rootDir);
     return;
   }
 
