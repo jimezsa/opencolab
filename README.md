@@ -5,9 +5,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Status-In%20Progress-orange?style=for-the-badge" alt="Project status: In progress">
-  <img src="https://img.shields.io/badge/Node-22%2B-339933?logo=node.js&logoColor=white&style=for-the-badge" alt="Node.js 22+">
-  <img src="https://img.shields.io/badge/pnpm-9%2B-F69220?logo=pnpm&logoColor=white&style=for-the-badge" alt="pnpm 9+">
+  <img src="https://img.shields.io/badge/Status-Alpha-F2A900?style=for-the-badge" alt="Project status: Alpha">
+  <img src="https://img.shields.io/npm/v/opencolab?label=Release&style=for-the-badge" alt="Current release version on npm">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
 </p>
 
