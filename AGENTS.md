@@ -9,10 +9,11 @@ Top-level sources of truth:
 - `docs/spec.md`: source of truth for requirements and architecture.
 - `docs/VISION.md`: product direction and long-term intent.
 - `README.md`: quickstart, high-level overview, and condensed runtime/reference guide.
+- `package.json`: npm package metadata, published CLI surface, and pack/publish lifecycle hooks.
 - `install.sh`: user installer and command shim setup.
-- `projects/SKILLS/`: shared built-in skill library copied into agent prompts, not per-project duplicates, including search, summarization, grounded paper QA, image, and architecture-diagram workflows.
+- `projects/SKILLS/`: shared built-in skill library copied into agent prompts, not per-project duplicates, including search, summarization, grounded paper QA, image, and architecture-diagram workflows. Packaged installs must ship this directory too.
 - `src/`: TypeScript implementation.
-- `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context, with shared files in `shared/` and role-specific folders such as `professor/`, `beginner/`, and `specialist/`.
+- `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context, with shared files in `shared/` and role-specific folders such as `professor/`, `beginner/`, and `specialist/`. Packaged installs must ship the runtime-accessible equivalents.
 - `tests/`: Node `node:test` suite.
 
 Core implementation areas:
@@ -26,7 +27,7 @@ Core implementation areas:
 - `src/gateway.ts`: Telegram authorization, pairing, command routing, typing updates, and message/file handling.
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd` and Linux `systemd`.
 - `src/telegram-poller.ts`: Telegram long-polling loop and update ingestion.
-- `src/upgrade.ts`: in-place OpenColab upgrade flow for fetching `origin/main`, rebuilding, and reporting operator-facing results.
+- `src/upgrade.ts`: install-aware OpenColab upgrade flow for git/source checkouts plus operator-facing guidance for packaged installs.
 - `src/provider.ts`: provider defaults, runtime selection, auth-mode support, CLI args, and env wiring.
 - `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling, and provider-to-gateway progress-event forwarding.
 - `src/agent.ts`: agent file seeding, shared/agent-local skill discovery, and prompt assembly.
@@ -41,7 +42,7 @@ Agent contract details that matter for implementation:
 
 - Agent directories live under `projects/<project_id>/AGENTS/<agent_id>/`.
 - Required agent files are `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, plus agent-local `SKILLS/`.
-- Shared skills live only under `projects/SKILLS/`; do not duplicate them into each project or agent.
+- Shared skills live only under `projects/SKILLS/`; do not duplicate them into each project or agent. Source and packaged installs must both provide the built-in shared skill library.
 - The shared `block-diagram` skill defaults to compact layouts with unlabeled arrows, supports optional LaTeX equation blocks when they materially clarify a model or pipeline, and only uses edge labels when they carry concrete meaning such as a protocol or payload, not generic `input` or `output` text.
 - The shared `fast-search`, `pro-search`, and `deep-search` skills must keep their `findings.md` formats stable while also producing a companion literature-map block diagram through `block-diagram`, returning concise, friendly channel-agnostic summaries, and, when appropriate, returning `findings.md` plus a PNG-first diagram through the active channel's file-delivery mechanism, with SVG fallback if PNG rendering is unavailable.
 - The shared `pageindex-grounded` skill is the canonical local-first path for grounded follow-up QA over already-downloaded papers. It must keep selection bounded, cache PageIndex trees under `research/pageindex/`, use `GEMINI_API_KEY` for the local PageIndex runner, and answer with exact paper or page references plus explicit limitations when coverage is partial.
@@ -75,6 +76,7 @@ Useful repository checks:
 - `rg -n "pattern" docs/spec.md docs/VISION.md README.md src tests`
 - `git diff -- docs/spec.md docs/VISION.md README.md AGENTS.md`
 - `git status --short`
+- `npm pack --dry-run`
 
 ## Coding Style & Naming Conventions
 - Language: TypeScript (Node.js ESM).
@@ -93,6 +95,7 @@ Useful repository checks:
   - `opencolab.json` defaults/migrations
   - agent file seeding and prompt assembly (`AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `SKILLS/`)
   - shared skills vs agent-local skills behavior
+  - npm/package publish surface, packaged asset availability, and install-mode-aware upgrade behavior
   - provider defaults, auth modes, CLI args, runtime env wiring, and preflight/remediation behavior
   - availability-aware Runpod target normalization, fallback selection inputs, and per-location volume behavior
   - `ignite` onboarding branches, including keep-existing setup and Esc-to-skip flows
