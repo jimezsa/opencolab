@@ -31,11 +31,11 @@ Check [docs/VISION.md](docs/VISION.md) for project direction and [docs/spec.md](
 <table align="center">
   <tr>
     <td align="center" width="120">
-      <img src="docs/assets/codex-runtime.svg" alt="Codex runtime" width="42" height="42"><br>
+      <img src="docs/assets/openai-runtime.svg" alt="OpenAI logo for Codex runtime" width="42" height="42"><br>
       <strong>Codex</strong>
     </td>
     <td align="center" width="120">
-      <img src="https://cdn.simpleicons.org/anthropic/191919" alt="Claude Code runtime" width="42" height="42"><br>
+      <img src="docs/assets/claude-runtime.svg" alt="Claude logo for Claude Code runtime" width="42" height="42"><br>
       <strong>Claude Code</strong>
     </td>
     <td align="center" width="120">
