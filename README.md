@@ -150,16 +150,13 @@ OpenColab configures provider CLIs for non-interactive runs inside the active pr
 - `minimax`: `api_key` with `MINIMAX_API_KEY`
 - `xai`: `api_key` with `XAI_API_KEY` through the `pi` runtime
 - Gemini-based shared tools still require `GEMINI_API_KEY` even when the active agent runtime uses another provider or Gemini OAuth
-- `pageindex-grounded` uses `OPENAI_API_KEY` for the local PageIndex runner when the active agent runtime uses another provider or OpenAI OAuth
+- `pageindex-grounded` uses `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini OAuth
 
 Common setup flows:
 
 ```bash
-# Save a Gemini API key for built-in shared tools
+# Save a Gemini API key for Gemini-based shared tools, including pageindex-grounded
 opencolab setup api-key --provider gemini --api-key <your_gemini_key>
-
-# Save an OpenAI API key for pageindex-grounded without changing the active provider runtime
-opencolab setup api-key --provider openai --api-key <your_openai_key>
 
 # OpenAI OAuth
 codex login
