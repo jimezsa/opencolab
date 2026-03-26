@@ -28,6 +28,27 @@ The vision is an always-on lab where the research-agent expert group leads execu
 
 Check [docs/VISION.md](docs/VISION.md) for project direction and [docs/spec.md](docs/spec.md) for the concrete runtime contract.
 
+<table align="center">
+  <tr>
+    <td align="center" width="120">
+      <img src="docs/assets/codex-runtime.svg" alt="Codex runtime" width="42" height="42"><br>
+      <strong>Codex</strong>
+    </td>
+    <td align="center" width="120">
+      <img src="https://cdn.simpleicons.org/anthropic/191919" alt="Claude Code runtime" width="42" height="42"><br>
+      <strong>Claude Code</strong>
+    </td>
+    <td align="center" width="120">
+      <img src="https://cdn.simpleicons.org/googlegemini/4285F4" alt="Gemini CLI runtime" width="42" height="42"><br>
+      <strong>Gemini CLI</strong>
+    </td>
+    <td align="center" width="120">
+      <img src="docs/assets/pi-runtime.svg" alt="PI runtime" width="42" height="42"><br>
+      <strong>PI</strong>
+    </td>
+  </tr>
+</table>
+
 ## How It Works
 
 ```text
