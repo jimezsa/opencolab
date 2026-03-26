@@ -17,8 +17,8 @@ _Accelerating Scientific Discovery_ — Turn one researcher into an always-on au
 
 - ✅ Deep Research swarm skills for paper search, grounded QA, figure extraction, parallel summaries, and D2 block diagrams.
 - ✅ Provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, and xAI.
-- ✅⏳ Multi-project, multi-agent local workspace with CLI and Telegram control.
-- ✅⏳ Run Experiment on external GPU servers(Runpod)
+- ✅ Multi-project, multi-agent local workspace with CLI and Telegram control.
+- ✅ Run Experiment on external GPU servers(Runpod)
 - ⏳ Coming: LaTeX-format paper generation.
 
 **Note:** OpenColab is an early-stage, actively evolving project. Features and documentation are rapidly improving—feedback and contributions are welcome!
