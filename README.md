@@ -106,9 +106,19 @@ Install the upstream runtime CLI that matches the provider you want OpenColab to
 
 ## Install
 
+Published npm package install:
+
+```bash
+npm install -g opencolab
+```
+
+Source install with the repository-managed installer:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh | bash
 ```
+
+If the npm package is not published yet for the version you want, use the source installer or the manual git-clone flow below.
 
 ## Quickstart (Recommended)
 
@@ -133,12 +143,16 @@ opencolab gateway start --foreground true --port 4646
 Useful follow-up commands:
 
 ```bash
-opencolab upgrade
 opencolab gateway status
 opencolab project show
 opencolab agent show
 opencolab gpu server list
 ```
+
+Upgrade notes:
+
+- Git/source installs: `opencolab upgrade`
+- npm/global installs: `npm install -g opencolab@latest`
 
 ## Manual Run (git clone + Node)
 
@@ -286,7 +300,8 @@ opencolab gateway restart --port 4646
 
 - `gateway start` runs as a background service by default on macOS and Linux
 - Use `opencolab gateway start --foreground true --port 4646` to keep it in the current terminal
-- `opencolab upgrade` updates the current install to the latest `main`, rebuilds OpenColab, and restarts a managed background gateway with its saved settings
+- `opencolab upgrade` updates git/source installs to the latest `main`, rebuilds OpenColab, and restarts a managed background gateway with its saved settings
+- npm/global installs should be upgraded with the package manager, for example `npm install -g opencolab@latest`
 - Telegram webhook endpoint: `POST http://127.0.0.1:4646/api/telegram/webhook`
 - Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible
 - Agents can return files with raw `@telegram-file <json>` lines using relative or absolute local paths
