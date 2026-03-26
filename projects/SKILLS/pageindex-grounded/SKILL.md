@@ -47,7 +47,7 @@ Given a precise question over already-downloaded local papers:
 - Optional paper summaries exist under `research/pdf/*.md`.
 - `python3` is installed and available in `PATH`.
 - A local checkout of the open-source PageIndex repo exists. Recommended path: `tools/PageIndex`.
-- `OPENAI_API_KEY` is available, or `CHATGPT_API_KEY` is already set for PageIndex's local runner.
+- `GEMINI_API_KEY` is available for the local PageIndex runner.
 
 If the local PageIndex checkout is missing, only install it when the user explicitly asks for installation or setup work.
 
@@ -67,11 +67,7 @@ python3 -m pip install -r tools/PageIndex/requirements.txt
 - Persist PageIndex artifacts under `research/pageindex/`, not in the default `results/` directory.
 - Maintain `research/pageindex/manifest.json` so later runs can reuse existing tree artifacts.
 - Prefer reusing an existing tree when the source PDF has not changed.
-- Bridge auth for the local PageIndex runner with:
-
-```bash
-export CHATGPT_API_KEY="${CHATGPT_API_KEY:-${OPENAI_API_KEY:-}}"
-```
+- The local PageIndex runner must have `GEMINI_API_KEY` available in the environment.
 
 - Final answers must include exact paper or page references for non-trivial claims whenever the local evidence supports that level of grounding.
 - If evidence is partial, summary-only, metadata-only, or not fully verified against the current PDF, say so explicitly.
@@ -154,20 +150,14 @@ Recommended manifest shape:
 
 ### 3. Generate or refresh per-paper trees
 
-First bridge the expected env var:
-
-```bash
-export CHATGPT_API_KEY="${CHATGPT_API_KEY:-${OPENAI_API_KEY:-}}"
-```
-
-If the variable is still empty, stop and report the missing prerequisite instead of pretending the run is grounded.
+First confirm `GEMINI_API_KEY` is available. If it is missing, stop and report the missing prerequisite instead of pretending the run is grounded.
 
 For each selected paper:
 
 ```bash
 python3 tools/PageIndex/run_pageindex.py \
   --pdf_path research/pdf/<safe_id>.pdf \
-  --model gpt-4o-2024-11-20 \
+  --model gemini-2.5-pro \
   --if-add-node-id yes \
   --if-add-node-summary yes \
   --if-add-node-text yes
