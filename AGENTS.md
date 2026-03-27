@@ -10,7 +10,7 @@ Top-level sources of truth:
 - `docs/VISION.md`: product direction and long-term intent.
 - `README.md`: quickstart, high-level overview, and condensed runtime/reference guide.
 - `package.json`: npm package metadata, published CLI surface, and pack/publish lifecycle hooks.
-- `install.sh`: user installer and command shim setup.
+- `install.sh`: npm-based user installer and command shim setup.
 - `projects/SKILLS/`: shared built-in skill library copied into agent prompts, not per-project duplicates, including search, summarization, grounded paper QA, image, and architecture-diagram workflows. Packaged installs must ship this directory too.
 - `src/`: TypeScript implementation.
 - `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context, with shared files in `shared/` and role-specific folders such as `professor/`, `beginner/`, and `specialist/`. Packaged installs must ship the runtime-accessible equivalents.
