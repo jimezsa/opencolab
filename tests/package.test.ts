@@ -17,3 +17,8 @@ test("package metadata exposes the built CLI and required publish surface", () =
   assert.deepEqual(parsed.files, ["dist/src", "projects/SKILLS"]);
   assert.equal(parsed.scripts?.prepack, "npm run build");
 });
+
+test("repository includes shell and PowerShell installer entrypoints", () => {
+  assert.equal(fs.existsSync(path.join(REPO_ROOT, "install.sh")), true);
+  assert.equal(fs.existsSync(path.join(REPO_ROOT, "install.ps1")), true);
+});
