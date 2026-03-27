@@ -74,8 +74,14 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
   try {
     ensureAgentFiles(tempDir, agent);
     const agentDir = path.join(tempDir, agent.path);
+    const projectDir = path.join(tempDir, "projects", "default");
     fs.writeFileSync(path.join(agentDir, "BOOTSTRAP.md"), "# BOOTSTRAP\n\nBOOTSTRAP_SENTINEL\n", "utf8");
     fs.writeFileSync(path.join(agentDir, "MEMORY.md"), "# MEMORY\n\nUser prefers concise plans.\n", "utf8");
+    fs.writeFileSync(
+      path.join(projectDir, "PROJECT-AND-TEAM.md"),
+      "# PROJECT-AND-TEAM.md\n\nShared goal: ship a clean multi-agent workflow.\n",
+      "utf8"
+    );
     fs.writeFileSync(
       path.join(agentDir, "TOOLS.md"),
       "# TOOLS\n\n- Local helper: `./bin/local-research`\n",
@@ -102,8 +108,11 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     );
 
     assert.equal(prompt.includes("BOOTSTRAP_SENTINEL"), false);
+    assert.equal(prompt.includes("[PROJECT_AND_TEAM]"), true);
+    assert.equal(prompt.includes("Shared goal: ship a clean multi-agent workflow."), true);
     assert.equal(prompt.includes("[LONG_TERM_MEMORY]"), true);
     assert.equal(prompt.includes("User prefers concise plans."), true);
+    assert.ok(prompt.indexOf("[PROJECT_AND_TEAM]") < prompt.indexOf("[LONG_TERM_MEMORY]"));
     assert.equal(prompt.includes("[BUILTIN_TOOLS]"), true);
     assert.equal(prompt.includes("Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime)."), true);
     assert.equal(prompt.includes("Use the install-appropriate upgrade path for OpenColab itself."), true);
@@ -141,6 +150,11 @@ test("pi system prompt includes default progress guidance", () => {
 
   try {
     ensureAgentFiles(tempDir, agent);
+    fs.writeFileSync(
+      path.join(tempDir, "projects", "default", "PROJECT-AND-TEAM.md"),
+      "# PROJECT-AND-TEAM.md\n\nShared goal: coordinate the lab.\n",
+      "utf8"
+    );
     const prompt = buildPiSystemPromptForInput(
       tempDir,
       agent,
@@ -151,6 +165,9 @@ test("pi system prompt includes default progress guidance", () => {
     );
 
     assert.equal(prompt.includes("OpenColab enables progress updates by default during provider runs."), true);
+    assert.equal(prompt.includes("[PROJECT_AND_TEAM]"), true);
+    assert.equal(prompt.includes("Shared goal: coordinate the lab."), true);
+    assert.ok(prompt.indexOf("[PROJECT_AND_TEAM]") < prompt.indexOf("[LONG_TERM_MEMORY]"));
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

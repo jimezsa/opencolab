@@ -16,6 +16,10 @@ function buildAgentDir(rootDir: string, projectId: string, agentId = "professor"
   return path.join(rootDir, "projects", projectId, "AGENTS", agentId);
 }
 
+function buildProjectDir(rootDir: string, projectId: string): string {
+  return path.join(rootDir, "projects", projectId);
+}
+
 function createSampleRunStatus(runId = "run-1"): ExperimentRunStatus {
   return {
     runId,
@@ -81,6 +85,11 @@ test("init creates required agent context files for active project", () => {
     assert.equal(project.id, "default");
     assert.equal(agent.id, "professor");
     assert.equal(agent.path, "projects/default/AGENTS/professor");
+    assert.equal(
+      fs.existsSync(path.join(buildProjectDir(tempDir, "default"), "PROJECT-AND-TEAM.md")),
+      true,
+      "PROJECT-AND-TEAM.md should exist"
+    );
 
     const required = [
       "AGENTS.md",
@@ -338,9 +347,17 @@ test("init and agent create seed professor, beginner, and specialist AGENTS.md t
       true
     );
     assert.equal(professorDoc.includes("## Agent File Map"), true);
+    assert.equal(
+      professorDoc.includes("PROJECT-AND-TEAM.md at the project root: canonical shared project context"),
+      true
+    );
     assert.equal(professorDoc.includes("MEMORY.md: durable facts learned over time"), true);
     assert.equal(professorDoc.includes("Before deep research, clarify the human's true intention behind the topic."), true);
     assert.equal(professorDoc.includes("Do not invent sources, data, or experiment results."), true);
+    assert.equal(
+      professorDoc.includes("Read and follow the maintenance rules inside PROJECT-AND-TEAM.md before editing it."),
+      true
+    );
     assert.equal(professorDoc.includes("## OpenColab Default Progress Channel"), true);
     assert.equal(
       professorDoc.includes("OpenColab enables this progress channel by default during provider runs."),
@@ -431,10 +448,20 @@ test("seeded AGENTS.md reads BOOTSTRAP.md before ALMA.md while bootstrap exists"
       const agentsDoc = fs.readFileSync(agentsPath, "utf8");
 
       const bootstrapStep = "1. If BOOTSTRAP.md exists, read it and follow it before any other startup file.";
-      const almaStep = "2. Read ALMA.md to align voice and behavior.";
+      const identityStep = "2. Read IDENTITY.md to align role, domain focus, and responsibilities.";
+      const almaStep = "3. Read ALMA.md to align voice and behavior.";
+      const projectStep =
+        "7. Read PROJECT-AND-TEAM.md at the project root to align on shared goals, humans, agents, roles, constraints, and key decisions.";
+      const memoryStep = "10. In direct 1:1 context, also read MEMORY.md for long-term context.";
       assert.equal(agentsDoc.includes(bootstrapStep), true);
+      assert.equal(agentsDoc.includes(identityStep), true);
       assert.equal(agentsDoc.includes(almaStep), true);
-      assert.ok(agentsDoc.indexOf(bootstrapStep) < agentsDoc.indexOf(almaStep));
+      assert.equal(agentsDoc.includes(projectStep), true);
+      assert.equal(agentsDoc.includes(memoryStep), true);
+      assert.ok(agentsDoc.indexOf(bootstrapStep) < agentsDoc.indexOf(identityStep));
+      assert.ok(agentsDoc.indexOf(identityStep) < agentsDoc.indexOf(almaStep));
+      assert.ok(agentsDoc.indexOf(almaStep) < agentsDoc.indexOf(projectStep));
+      assert.ok(agentsDoc.indexOf(projectStep) < agentsDoc.indexOf(memoryStep));
       assert.equal(
         agentsDoc.includes("If BOOTSTRAP.md exists, it takes priority over ALMA.md and the rest of the startup sequence."),
         true
@@ -459,6 +486,24 @@ test("init seeds IDENTITY.md from built-in identity template", () => {
     assert.equal(identityDoc.includes("🐙 (default; change if you want)"), true);
     assert.equal(identityDoc.includes("Before investigating deeply, you must clarify the human's true intention for the topic."), true);
     assert.equal(identityDoc.includes("Save this file in the active agent directory as IDENTITY.md."), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("init seeds PROJECT-AND-TEAM.md from built-in project template", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-project-and-team-template-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+
+    const projectContextPath = path.join(buildProjectDir(tempDir, "default"), "PROJECT-AND-TEAM.md");
+    const projectContextDoc = fs.readFileSync(projectContextPath, "utf8");
+    assert.equal(projectContextDoc.includes("# PROJECT-AND-TEAM.md"), true);
+    assert.equal(projectContextDoc.includes("This is the canonical shared project context for all agents in this project."), true);
+    assert.equal(projectContextDoc.includes("Professor is the default curator."), true);
+    assert.equal(projectContextDoc.includes("Role: lead agent"), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -1670,6 +1715,10 @@ test("paired webhook can create and switch projects and agents", async () => {
     assert.equal(runtime.getState().activeProjectId, "alpha");
     assert.equal(runtime.getActiveProject().activeAgentId, "professor");
 
+    assert.equal(
+      fs.existsSync(path.join(buildProjectDir(tempDir, "alpha"), "PROJECT-AND-TEAM.md")),
+      true
+    );
     const professorDir = buildAgentDir(tempDir, "alpha");
     assert.equal(fs.existsSync(path.join(professorDir, "AGENTS.md")), true);
     assert.equal(fs.existsSync(path.join(professorDir, "BOOTSTRAP.md")), true);
