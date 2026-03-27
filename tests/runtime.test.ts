@@ -414,6 +414,37 @@ test("init seeds BOOTSTRAP.md from built-in bootstrap template", () => {
   }
 });
 
+test("seeded AGENTS.md reads BOOTSTRAP.md before ALMA.md while bootstrap exists", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-bootstrap-order-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+
+    for (const agentId of ["professor", "beginner", "scout"]) {
+      if (agentId !== "professor") {
+        runtime.configureAgent(agentId);
+      }
+
+      const seededAgentId = agentId === "scout" ? "scout" : agentId;
+      const agentsPath = path.join(buildAgentDir(tempDir, "default", seededAgentId), "AGENTS.md");
+      const agentsDoc = fs.readFileSync(agentsPath, "utf8");
+
+      const bootstrapStep = "1. If BOOTSTRAP.md exists, read it and follow it before any other startup file.";
+      const almaStep = "2. Read ALMA.md to align voice and behavior.";
+      assert.equal(agentsDoc.includes(bootstrapStep), true);
+      assert.equal(agentsDoc.includes(almaStep), true);
+      assert.ok(agentsDoc.indexOf(bootstrapStep) < agentsDoc.indexOf(almaStep));
+      assert.equal(
+        agentsDoc.includes("If BOOTSTRAP.md exists, it takes priority over ALMA.md and the rest of the startup sequence."),
+        true
+      );
+    }
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("init seeds IDENTITY.md from built-in identity template", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-identity-template-"));
   const runtime = createRuntime(tempDir);
