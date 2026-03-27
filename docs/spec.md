@@ -92,6 +92,7 @@ Experiment bookkeeping requirements:
 
 Each project must keep its agents under:
 
+- shared project context: `projects/<project_id>/PROJECT-AND-TEAM.md`
 - default lead agent (`professor`): `projects/<project_id>/AGENTS/professor/`
 - additional agents: `projects/<project_id>/AGENTS/<agent_id>/`
 - shared skill library: `projects/SKILLS/`
@@ -139,6 +140,7 @@ Agent-local skills requirements:
 
 Initialization requirements:
 
+- when a project is created, `PROJECT-AND-TEAM.md` must be seeded at the project root from an internal runtime template
 - when an agent directory is created, `AGENTS.md` must be seeded from an internal runtime template
 - when an agent directory is created, `BOOTSTRAP.md` must be seeded from an internal runtime template for first-run identity discovery
 - when an agent directory is created, `IDENTITY.md` must be seeded from an internal runtime template
@@ -159,6 +161,8 @@ Initialization requirements:
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks
 - default `AGENTS.md` must require agents to read and follow `BOOTSTRAP.md` before `ALMA.md` whenever `BOOTSTRAP.md` still exists, so first-contact identity setup cannot be skipped
+- default `AGENTS.md` must explain that `PROJECT-AND-TEAM.md` is the canonical shared project context file, lives at project scope, and should be read after `TODO.md` and before `MEMORY.md`
+- default `AGENTS.md` must require agents to read and follow the maintenance rules inside `PROJECT-AND-TEAM.md` before editing it
 - default `AGENTS.md` must present `OPENCOLAB_PROGRESS_FILE` as the default OpenColab progress channel, include a valid JSON example, and explain that agents choose bounded useful progress events rather than milestone-only output
 - default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences
 - the default templates must keep only essential, role-appropriate instructions
@@ -166,11 +170,33 @@ Initialization requirements:
 
 `MEMORY.md` remains reserved for long-term memory only.
 
+`PROJECT-AND-TEAM.md` is project-shared context, not agent-local memory.
+
 OpenColab memory is split into three simple layers:
 
 - working memory: current active session tail from the current UTC day only
 - recent episodic memory: previous UTC day summary
 - long-term semantic memory: curated stable facts in `MEMORY.md`
+
+Prompt construction must load context in this order:
+
+1. `AGENTS.md`
+2. `IDENTITY.md`
+3. `ALMA.md`
+4. `TOOLS.md`
+5. `USER.md`
+6. `TODO.md`
+7. `PROJECT-AND-TEAM.md`
+8. `MEMORY.md`
+9. recent session memory and the current inbound message
+
+Requirements for `PROJECT-AND-TEAM.md`:
+
+- it must be concise, curated, and project-scoped
+- it must capture shared project facts such as goals, constraints, current direction, key decisions, humans, agents, and role ownership
+- it must not store secrets, raw transcripts, scratch notes, or long reasoning dumps
+- it must contain its own short maintenance rules near the top so the file is self-describing when an agent is asked to edit it
+- professor is the default curator, while specialists may propose updates without treating it as a free-for-all notebook
 
 Each agent must also persist Telegram conversation history under:
 

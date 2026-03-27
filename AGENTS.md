@@ -41,6 +41,7 @@ Core implementation areas:
 
 Agent contract details that matter for implementation:
 
+- Each project must seed `projects/<project_id>/PROJECT-AND-TEAM.md` as the canonical shared project context file visible to all agents.
 - Agent directories live under `projects/<project_id>/AGENTS/<agent_id>/`.
 - Required agent files are `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, plus agent-local `SKILLS/`.
 - Shared skills live only under `projects/SKILLS/`; do not duplicate them into each project or agent. Source and packaged installs must both provide the built-in shared skill library.
@@ -52,6 +53,7 @@ Agent contract details that matter for implementation:
 - Conversation history belongs under agent-local `memory/Session/` and `memory/Daily/`, not under `.opencolab`.
 - `TOOLS.md` is the user-owned local tooling layer; repo-managed built-in tool guidance must be injected at prompt-build time rather than copied into `TOOLS.md`.
 - The seeded `AGENTS.md` contract must require agents to read `BOOTSTRAP.md` before `ALMA.md` whenever bootstrap still exists, so first-contact identity setup cannot be skipped.
+- The seeded `AGENTS.md` contract must explain that `PROJECT-AND-TEAM.md` is the project-scoped shared context file, is read after `TODO.md` and before `MEMORY.md`, and must be consulted before agents edit it.
 - The seeded `AGENTS.md` contract must describe `OPENCOLAB_PROGRESS_FILE` as the default OpenColab progress channel, include a valid JSON example, and guide agents to choose bounded useful progress events instead of milestone-only updates.
 - The seeded agent docs must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines rather than markdown-wrapped snippets.
 
@@ -95,7 +97,7 @@ Useful repository checks:
 - Use deterministic tests with the built-in Node test runner.
 - Keep coverage focused on:
   - `opencolab.json` defaults/migrations
-  - agent file seeding and prompt assembly (`AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `SKILLS/`)
+  - project and agent file seeding plus prompt assembly (`PROJECT-AND-TEAM.md`, `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `SKILLS/`)
   - shared skills vs agent-local skills behavior
   - npm/package publish surface, packaged asset availability, and install-mode-aware upgrade behavior
   - provider defaults, auth modes, CLI args, runtime env wiring, and preflight/remediation behavior
