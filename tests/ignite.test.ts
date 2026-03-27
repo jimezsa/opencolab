@@ -126,6 +126,12 @@ test("ignite configures project, provider, and telegram", async () => {
       outputs.some((line) => line.includes("Set GEMINI_API_KEY here: https://aistudio.google.com/app/apikey")),
       true
     );
+    assert.equal(
+      outputs.some((line) =>
+        line.includes("Create a Telegram bot token with BotFather: open https://t.me/BotFather and run /newbot."),
+      ),
+      true
+    );
     assert.equal(outputs.includes("Onboarding complete."), true);
   } finally {
     restoreSecretEnvVars(previousEnv);
