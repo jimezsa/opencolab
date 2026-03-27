@@ -11,6 +11,7 @@ Top-level sources of truth:
 - `README.md`: quickstart, high-level overview, and condensed runtime/reference guide.
 - `package.json`: npm package metadata, published CLI surface, and pack/publish lifecycle hooks.
 - `install.sh`: npm-based user installer and command shim setup.
+- `install.ps1`: Windows PowerShell installer for npm-based user setup and command shim setup.
 - `projects/SKILLS/`: shared built-in skill library copied into agent prompts, not per-project duplicates, including search, summarization, grounded paper QA, image, and architecture-diagram workflows. Packaged installs must ship this directory too.
 - `src/`: TypeScript implementation.
 - `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context, with shared files in `shared/` and role-specific folders such as `professor/`, `beginner/`, and `specialist/`. Packaged installs must ship the runtime-accessible equivalents.
@@ -19,7 +20,7 @@ Top-level sources of truth:
 Core implementation areas:
 
 - `src/cli.ts`: CLI entrypoint, interactive prompts, setup flows including standalone provider-key writes, and gateway lifecycle commands.
-- `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth setup, direct API-key setup links, built-in shared-tool key setup including `GEMINI_API_KEY` prerequisites for Gemini shared tools and `pageindex-grounded`, Telegram setup, and pairing.
+- `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth setup, direct API-key setup links, BotFather token guidance, built-in shared-tool key setup including `GEMINI_API_KEY` prerequisites for Gemini shared tools and `pageindex-grounded`, Telegram setup, and pairing.
 - `src/runtime.ts`: stateful orchestration across config, project state, gateway routing, memory, and provider execution.
 - `src/experiments.ts`: local experiment bookkeeping helpers for target snapshots, run manifests, status files, logs, artifacts, and sync metadata.
 - `src/gpu-providers/runpod/index.ts`: Runpod-backed execution-target validation, availability-aware location/GPU selection, Pod lifecycle, SSH sync/bootstrap/launch, and run reconciliation.
