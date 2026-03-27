@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${OPENCOLAB_REPO_URL:-https://github.com/jimezsa/opencolab.git}"
 INSTALL_DIR="${OPENCOLAB_INSTALL_DIR:-$HOME/.opencolab}"
+PACKAGE_PREFIX="${OPENCOLAB_PACKAGE_PREFIX:-$HOME/.local/share/opencolab}"
 BIN_DIR="${OPENCOLAB_BIN_DIR:-$HOME/.local/bin}"
-BRANCH="${OPENCOLAB_BRANCH:-main}"
-PNPM_VERSION="${OPENCOLAB_PNPM_VERSION:-9.15.5}"
+PACKAGE_SPEC="${OPENCOLAB_PACKAGE_SPEC:-opencolab@latest}"
 SKIP_DEPS="${OPENCOLAB_SKIP_DEPS:-0}"
 SKIP_INIT="${OPENCOLAB_SKIP_INIT:-0}"
 PATH_UPDATED_PROFILE=""
+PACKAGE_CLI_PATH=""
 
 log() {
   printf "[opencolab] %s\n" "$*"
@@ -67,57 +67,6 @@ node_major_version() {
   node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo "0"
 }
 
-install_git() {
-  local os="$1"
-
-  if has_cmd git; then
-    return
-  fi
-
-  log "Installing git..."
-
-  case "$os" in
-    darwin)
-      if has_cmd brew; then
-        brew install git
-      else
-        fail "git is required. Install Homebrew or Xcode command line tools first."
-      fi
-      ;;
-    linux)
-      if has_cmd apt-get; then
-        sudo_cmd apt-get update
-        sudo_cmd apt-get install -y git curl ca-certificates
-      elif has_cmd dnf; then
-        sudo_cmd dnf install -y git curl ca-certificates
-      elif has_cmd yum; then
-        sudo_cmd yum install -y git curl ca-certificates
-      elif has_cmd pacman; then
-        sudo_cmd pacman -Sy --noconfirm git curl ca-certificates
-      elif has_cmd zypper; then
-        sudo_cmd zypper install -y git curl ca-certificates
-      elif has_cmd apk; then
-        sudo_cmd apk add --no-cache git curl ca-certificates
-      else
-        fail "Unsupported Linux package manager. Install git manually."
-      fi
-      ;;
-    windows)
-      if has_cmd winget; then
-        powershell.exe -NoProfile -Command \
-          "winget install -e --id Git.Git --accept-source-agreements --accept-package-agreements"
-      else
-        fail "git is required. Install Git for Windows and rerun."
-      fi
-      ;;
-    *)
-      fail "Unsupported OS. Install git manually and rerun."
-      ;;
-  esac
-
-  has_cmd git || fail "git installation failed."
-}
-
 install_node22() {
   local os="$1"
 
@@ -172,59 +121,47 @@ install_node22() {
   [ "$(node_major_version)" -ge 22 ] || fail "Node.js 22+ is required."
 }
 
-ensure_pnpm() {
-  if has_cmd pnpm; then
+ensure_npm() {
+  if has_cmd npm; then
     return
   fi
 
-  log "Installing pnpm..."
-
-  if has_cmd corepack; then
-    corepack enable
-    corepack prepare "pnpm@${PNPM_VERSION}" --activate
-  elif has_cmd npm; then
-    npm install -g "pnpm@${PNPM_VERSION}"
-  else
-    fail "Could not install pnpm (missing corepack and npm)."
-  fi
-
-  has_cmd pnpm || fail "pnpm installation failed."
+  fail "npm is required. Install Node.js 22+ with npm and rerun."
 }
 
-clone_or_update_repo() {
-  if [ -d "${INSTALL_DIR}/.git" ]; then
-    log "Updating existing repository at ${INSTALL_DIR}..."
-    git -C "$INSTALL_DIR" fetch --depth=1 origin "$BRANCH"
-    git -C "$INSTALL_DIR" checkout "$BRANCH"
-    git -C "$INSTALL_DIR" pull --ff-only origin "$BRANCH"
-    return
-  fi
+resolve_package_cli_path() {
+  local candidates=(
+    "${PACKAGE_PREFIX}/bin/opencolab"
+    "${PACKAGE_PREFIX}/opencolab"
+    "${PACKAGE_PREFIX}/opencolab.cmd"
+  )
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [ -e "$candidate" ]; then
+      printf "%s\n" "$candidate"
+      return
+    fi
+  done
 
-  if [ -e "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null || true)" ]; then
-    fail "Install directory '${INSTALL_DIR}' exists and is not empty."
-  fi
+  fail "Could not find the installed OpenColab CLI under ${PACKAGE_PREFIX}."
+}
 
-  log "Cloning repository to ${INSTALL_DIR}..."
+install_package() {
   mkdir -p "$INSTALL_DIR"
-  git clone --depth=1 --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
+  mkdir -p "$PACKAGE_PREFIX"
+
+  log "Installing ${PACKAGE_SPEC} into ${PACKAGE_PREFIX}..."
+  npm install -g --prefix "$PACKAGE_PREFIX" "$PACKAGE_SPEC"
+  PACKAGE_CLI_PATH="$(resolve_package_cli_path)"
 }
 
-install_project() {
-  cd "$INSTALL_DIR"
-
-  log "Installing dependencies..."
-  if ! pnpm install --frozen-lockfile; then
-    warn "Falling back to 'pnpm install' because lockfile install failed."
-    pnpm install
+initialize_runtime() {
+  if [ "$SKIP_INIT" = "1" ]; then
+    return
   fi
 
-  log "Building project..."
-  pnpm run build
-
-  if [ "$SKIP_INIT" != "1" ]; then
-    log "Initializing runtime state..."
-    node dist/src/cli.js project list >/dev/null
-  fi
+  log "Initializing runtime state..."
+  OPENCOLAB_ROOT="${INSTALL_DIR}" "$PACKAGE_CLI_PATH" project list >/dev/null
 }
 
 install_cli_shim() {
@@ -238,9 +175,8 @@ install_cli_shim() {
   cat > "${BIN_DIR}/opencolab" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-cd "${INSTALL_DIR}"
 export OPENCOLAB_ROOT="${INSTALL_DIR}"
-exec node "${INSTALL_DIR}/dist/src/cli.js" "\$@"
+exec "${PACKAGE_CLI_PATH}" "\$@"
 EOF
   chmod +x "${BIN_DIR}/opencolab"
 }
@@ -290,20 +226,20 @@ main() {
   log "Detected OS: ${os}"
 
   if [ "$SKIP_DEPS" != "1" ]; then
-    install_git "$os"
     install_node22 "$os"
-    ensure_pnpm
   fi
 
-  clone_or_update_repo
-  install_project
+  ensure_npm
+  install_package
+  initialize_runtime
   install_cli_shim "$os"
   ensure_bin_on_path "$os"
 
   cat <<EOF
 
 [opencolab] Installation complete.
-[opencolab] Install path: ${INSTALL_DIR}
+[opencolab] Runtime root: ${INSTALL_DIR}
+[opencolab] Package prefix: ${PACKAGE_PREFIX}
 [opencolab] Command shim: ${BIN_DIR}/opencolab
 
 Next steps:
