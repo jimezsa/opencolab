@@ -122,7 +122,7 @@ curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh |
 Windows PowerShell:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://opencolab.ai/install.ps1 | iex"
+powershell -c "irm https://opencolab.ai/install.ps1 | iex"
 ```
 
 The macOS/Linux installer keeps runtime state under `~/.opencolab` by default and installs the package into a user-owned npm prefix.

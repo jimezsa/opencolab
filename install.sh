@@ -9,7 +9,7 @@ SKIP_DEPS="${OPENCOLAB_SKIP_DEPS:-0}"
 SKIP_INIT="${OPENCOLAB_SKIP_INIT:-0}"
 PATH_UPDATED_PROFILE=""
 PACKAGE_CLI_PATH=""
-WINDOWS_INSTALL_COMMAND='powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://opencolab.ai/install.ps1 | iex"'
+WINDOWS_INSTALL_COMMAND='powershell -c "irm https://opencolab.ai/install.ps1 | iex"'
 
 log() {
   printf "[opencolab] %s\n" "$*"
