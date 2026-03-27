@@ -281,9 +281,10 @@ Responsibilities:
 - `ignite` should be able to create the first named GPU server for the active project using curated defaults rather than raw low-level Runpod choices
 - the first curated Runpod preset should use backend `runpod`, cloud type `secure`, storage mode `network_volume`, workspace root `/workspace`, SSH access, and bootstrap profile `python-ml`
 - `ignite` should be able to run a lightweight GPU server validation test when the operator opts in
-- installer scripts should install the published `opencolab` npm package into a user-owned prefix, make `opencolab` available as a terminal command by installing a user-level shim, and ensure the user bin directory is on `PATH`
+- installer scripts should default to installing the published `opencolab` npm package into a user-owned prefix, make `opencolab` available as a terminal command by installing a user-level shim, and ensure the user bin directory is on `PATH`
 - the repository should provide `install.sh` for macOS/Linux shells and `install.ps1` for Windows PowerShell
 - `install.sh` should fail fast on Windows and direct the user to `install.ps1`
+- installer scripts should also support an explicit opt-in `--hacky` git-clone mode for one-link installs, intended as a hacky fallback when the desired npm package version is unavailable; clone mode should clone or update a repository checkout, build it locally, and expose the same `opencolab` command shim
 - npm package installs should also be supported for the `opencolab` CLI without requiring `dist/` to be tracked in git
 - the published npm package must include the built CLI entrypoint, built-in agent templates, and built-in shared skills required for runtime fallback behavior
 - the npm package build artifacts may be generated at pack/publish time rather than committed to the repository

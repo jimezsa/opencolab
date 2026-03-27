@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+INSTALL_MODE="package"
 INSTALL_DIR="${OPENCOLAB_INSTALL_DIR:-$HOME/.opencolab}"
 PACKAGE_PREFIX="${OPENCOLAB_PACKAGE_PREFIX:-$HOME/.local/share/opencolab}"
 BIN_DIR="${OPENCOLAB_BIN_DIR:-$HOME/.local/bin}"
 PACKAGE_SPEC="${OPENCOLAB_PACKAGE_SPEC:-opencolab@latest}"
+SOURCE_DIR="${OPENCOLAB_CLONE_DIR:-$HOME/.local/share/opencolab/source}"
+REPO_URL="${OPENCOLAB_REPO_URL:-https://github.com/jimezsa/opencolab.git}"
+BRANCH="${OPENCOLAB_BRANCH:-main}"
+PNPM_VERSION="${OPENCOLAB_PNPM_VERSION:-9.15.5}"
 SKIP_DEPS="${OPENCOLAB_SKIP_DEPS:-0}"
 SKIP_INIT="${OPENCOLAB_SKIP_INIT:-0}"
 PATH_UPDATED_PROFILE=""
 PACKAGE_CLI_PATH=""
+CLONE_CLI_PATH=""
 WINDOWS_INSTALL_COMMAND='powershell -c "irm https://opencolab.ai/install.ps1 | iex"'
 
 log() {
@@ -26,6 +32,20 @@ fail() {
 
 has_cmd() {
   command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --hacky)
+        INSTALL_MODE="clone"
+        ;;
+      *)
+        fail "Unsupported installer argument '$1'. Supported flags: --hacky"
+        ;;
+    esac
+    shift
+  done
 }
 
 path_has_dir() {
@@ -66,6 +86,49 @@ node_major_version() {
   fi
 
   node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo "0"
+}
+
+install_git() {
+  local os="$1"
+
+  if has_cmd git; then
+    return
+  fi
+
+  log "Installing git..."
+
+  case "$os" in
+    darwin)
+      if has_cmd brew; then
+        brew install git
+      else
+        fail "git is required for clone mode. Install Homebrew or Xcode command line tools first."
+      fi
+      ;;
+    linux)
+      if has_cmd apt-get; then
+        sudo_cmd apt-get update
+        sudo_cmd apt-get install -y git curl ca-certificates
+      elif has_cmd dnf; then
+        sudo_cmd dnf install -y git curl ca-certificates
+      elif has_cmd yum; then
+        sudo_cmd yum install -y git curl ca-certificates
+      elif has_cmd pacman; then
+        sudo_cmd pacman -Sy --noconfirm git curl ca-certificates
+      elif has_cmd zypper; then
+        sudo_cmd zypper install -y git curl ca-certificates
+      elif has_cmd apk; then
+        sudo_cmd apk add --no-cache git curl ca-certificates
+      else
+        fail "Unsupported Linux package manager. Install git manually."
+      fi
+      ;;
+    *)
+      fail "Unsupported OS. Install git manually and rerun."
+      ;;
+  esac
+
+  has_cmd git || fail "git installation failed."
 }
 
 install_node22() {
@@ -125,6 +188,25 @@ ensure_npm() {
   fail "npm is required. Install Node.js 22+ with npm and rerun."
 }
 
+ensure_pnpm() {
+  if has_cmd pnpm; then
+    return
+  fi
+
+  log "Installing pnpm..."
+
+  if has_cmd corepack; then
+    corepack enable
+    corepack prepare "pnpm@${PNPM_VERSION}" --activate
+  elif has_cmd npm; then
+    npm install -g "pnpm@${PNPM_VERSION}"
+  else
+    fail "Could not install pnpm (missing corepack and npm)."
+  fi
+
+  has_cmd pnpm || fail "pnpm installation failed."
+}
+
 resolve_package_cli_path() {
   local candidates=(
     "${PACKAGE_PREFIX}/bin/opencolab"
@@ -151,13 +233,68 @@ install_package() {
   PACKAGE_CLI_PATH="$(resolve_package_cli_path)"
 }
 
+resolve_clone_cli_path() {
+  local candidate="${SOURCE_DIR}/dist/src/cli.js"
+  if [ -f "$candidate" ]; then
+    printf "%s\n" "$candidate"
+    return
+  fi
+
+  fail "Could not find the built OpenColab CLI under ${SOURCE_DIR}."
+}
+
+clone_or_update_repo() {
+  if [ -d "${SOURCE_DIR}/.git" ]; then
+    log "Updating existing repository at ${SOURCE_DIR}..."
+    git -C "$SOURCE_DIR" fetch --depth=1 origin "$BRANCH"
+    git -C "$SOURCE_DIR" checkout "$BRANCH"
+    git -C "$SOURCE_DIR" pull --ff-only origin "$BRANCH"
+    return
+  fi
+
+  if [ -e "$SOURCE_DIR" ] && [ -n "$(ls -A "$SOURCE_DIR" 2>/dev/null || true)" ]; then
+    fail "Clone directory '${SOURCE_DIR}' exists and is not empty."
+  fi
+
+  log "Cloning repository to ${SOURCE_DIR}..."
+  mkdir -p "$(dirname "$SOURCE_DIR")"
+  git clone --depth=1 --branch "$BRANCH" "$REPO_URL" "$SOURCE_DIR"
+}
+
+install_clone_project() {
+  (
+    cd "$SOURCE_DIR"
+
+    log "Installing dependencies in ${SOURCE_DIR}..."
+    if ! pnpm install --frozen-lockfile; then
+      warn "Falling back to 'pnpm install' because lockfile install failed."
+      pnpm install
+    fi
+
+    log "Building project..."
+    pnpm run build
+  )
+
+  CLONE_CLI_PATH="$(resolve_clone_cli_path)"
+}
+
+run_cli() {
+  if [ "$INSTALL_MODE" = "clone" ]; then
+    OPENCOLAB_ROOT="${INSTALL_DIR}" node "$CLONE_CLI_PATH" "$@"
+    return
+  fi
+
+  OPENCOLAB_ROOT="${INSTALL_DIR}" "$PACKAGE_CLI_PATH" "$@"
+}
+
 initialize_runtime() {
   if [ "$SKIP_INIT" = "1" ]; then
     return
   fi
 
+  mkdir -p "$INSTALL_DIR"
   log "Initializing runtime state..."
-  OPENCOLAB_ROOT="${INSTALL_DIR}" "$PACKAGE_CLI_PATH" project list >/dev/null
+  run_cli project list >/dev/null
 }
 
 install_cli_shim() {
@@ -168,12 +305,21 @@ install_cli_shim() {
   fi
 
   mkdir -p "$BIN_DIR"
-  cat > "${BIN_DIR}/opencolab" <<EOF
+  if [ "$INSTALL_MODE" = "clone" ]; then
+    cat > "${BIN_DIR}/opencolab" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+export OPENCOLAB_ROOT="${INSTALL_DIR}"
+exec node "${CLONE_CLI_PATH}" "\$@"
+EOF
+  else
+    cat > "${BIN_DIR}/opencolab" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 export OPENCOLAB_ROOT="${INSTALL_DIR}"
 exec "${PACKAGE_CLI_PATH}" "\$@"
 EOF
+  fi
   chmod +x "${BIN_DIR}/opencolab"
 }
 
@@ -218,8 +364,10 @@ ensure_bin_on_path() {
 
 main() {
   local os
+  parse_args "$@"
   os="$(detect_os)"
   log "Detected OS: ${os}"
+  log "Install mode: ${INSTALL_MODE}"
 
   if [ "$os" = "windows" ]; then
     fail "Windows is not supported by install.sh. Use: ${WINDOWS_INSTALL_COMMAND}"
@@ -227,17 +375,50 @@ main() {
 
   if [ "$SKIP_DEPS" != "1" ]; then
     install_node22 "$os"
+    if [ "$INSTALL_MODE" = "clone" ]; then
+      install_git "$os"
+      ensure_pnpm
+    fi
   fi
 
-  ensure_npm
-  install_package
+  if [ "$(node_major_version)" -lt 22 ]; then
+    fail "Node.js 22+ is required."
+  fi
+
+  if [ "$INSTALL_MODE" = "clone" ]; then
+    has_cmd git || fail "git is required for clone mode. Install git or rerun without --hacky."
+    has_cmd pnpm || fail "pnpm is required for clone mode. Install pnpm or rerun without OPENCOLAB_SKIP_DEPS=1."
+    clone_or_update_repo
+    install_clone_project
+  else
+    ensure_npm
+    install_package
+  fi
+
   initialize_runtime
   install_cli_shim "$os"
   ensure_bin_on_path "$os"
 
-  cat <<EOF
+  if [ "$INSTALL_MODE" = "clone" ]; then
+    warn "Clone mode is a hacky fallback. The shim runs a locally built checkout from ${SOURCE_DIR}."
+    cat <<EOF
 
 [opencolab] Installation complete.
+[opencolab] Install mode: clone
+[opencolab] Runtime root: ${INSTALL_DIR}
+[opencolab] Source checkout: ${SOURCE_DIR}
+[opencolab] Command shim: ${BIN_DIR}/opencolab
+
+Next steps:
+  ${BIN_DIR}/opencolab ignite
+  ${BIN_DIR}/opencolab gateway start --port 4646
+
+EOF
+  else
+    cat <<EOF
+
+[opencolab] Installation complete.
+[opencolab] Install mode: package
 [opencolab] Runtime root: ${INSTALL_DIR}
 [opencolab] Package prefix: ${PACKAGE_PREFIX}
 [opencolab] Command shim: ${BIN_DIR}/opencolab
@@ -247,6 +428,7 @@ Next steps:
   ${BIN_DIR}/opencolab gateway start --port 4646
 
 EOF
+  fi
 
   if [ -n "$PATH_UPDATED_PROFILE" ]; then
     cat <<EOF

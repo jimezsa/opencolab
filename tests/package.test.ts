@@ -22,3 +22,13 @@ test("repository includes shell and PowerShell installer entrypoints", () => {
   assert.equal(fs.existsSync(path.join(REPO_ROOT, "install.sh")), true);
   assert.equal(fs.existsSync(path.join(REPO_ROOT, "install.ps1")), true);
 });
+
+test("installer scripts expose the hacky clone flag and clone overrides", () => {
+  const installSh = fs.readFileSync(path.join(REPO_ROOT, "install.sh"), "utf8");
+  const installPs1 = fs.readFileSync(path.join(REPO_ROOT, "install.ps1"), "utf8");
+
+  assert.match(installSh, /--hacky/);
+  assert.match(installSh, /OPENCOLAB_CLONE_DIR/);
+  assert.match(installPs1, /--hacky/);
+  assert.match(installPs1, /OPENCOLAB_CLONE_DIR/);
+});

@@ -111,7 +111,7 @@ Published npm package install:
 npm install -g opencolab
 ```
 
-Repository-managed installers using the published npm package:
+Repository-managed installers default to the published npm package:
 
 macOS / Linux:
 
@@ -129,7 +129,27 @@ The macOS/Linux installer keeps runtime state under `~/.opencolab` by default an
 The Windows installer uses `%LOCALAPPDATA%\OpenColab\root` for runtime state, `%LOCALAPPDATA%\OpenColab\package` for the npm prefix, and `%LOCALAPPDATA%\OpenColab\bin\opencolab.cmd` as the user shim.
 `install.sh` now fails fast on Windows and points users to `install.ps1`.
 
-If the npm package is not published yet for the version you want, use the manual git-clone flow below.
+If the npm package is not published yet for the version you want, the one-link installers also support a hacky git-clone mode.
+
+macOS / Linux clone mode:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh | bash -s -- --hacky
+```
+
+Windows PowerShell clone mode:
+
+```powershell
+& ([scriptblock]::Create((irm https://opencolab.ai/install.ps1))) --hacky
+```
+
+Optional clone-mode overrides:
+
+- `OPENCOLAB_CLONE_DIR`: source checkout location
+- `OPENCOLAB_REPO_URL`: git remote to clone
+- `OPENCOLAB_BRANCH`: branch to check out
+
+Clone mode is intentionally rough. It builds a local checkout and wires the `opencolab` shim to `node dist/src/cli.js`.
 
 ## Quickstart (Recommended)
 
