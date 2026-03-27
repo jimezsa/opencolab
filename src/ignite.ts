@@ -67,6 +67,14 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
 };
 const BUILT_IN_TOOLS_PROVIDER: ProviderName = "gemini";
 const PAGEINDEX_GROUNDED_PROVIDER: ProviderName = "gemini";
+const PROVIDER_API_KEY_SETUP_URLS: Record<ProviderName, string> = {
+  openai: "https://platform.openai.com/api-keys",
+  anthropic: "https://platform.claude.com/settings/keys",
+  gemini: "https://aistudio.google.com/app/apikey",
+  minimax: "https://platform.minimax.io/user-center/basic-information",
+  xai: "https://console.x.ai/"
+};
+const RUNPOD_API_KEY_SETUP_URL = "https://www.runpod.io/console/user/settings";
 
 export interface IgniteDependencies {
   syncTelegramCommands: (
@@ -251,6 +259,7 @@ async function configureProvider(
     }
 
     if (shouldWriteProviderKey) {
+      writeApiKeySetupLink(io, providerApiKeyEnvVar, providerName);
       const providerApiKey = await askRequiredWithOptionalDefault(
         io,
         `${providerApiKeyEnvVar} value`,
@@ -418,6 +427,7 @@ async function configureRunpod(
       true,
     );
     if (!keepExisting) {
+      writeRunpodApiKeySetupLink(io);
       const apiKey = await askRequiredWithOptionalDefault(io, `${RUNPOD_API_KEY_ENV_VAR} value`);
       writeSecretToLocalEnv(runtime.config.rootDir, RUNPOD_API_KEY_ENV_VAR, apiKey);
       io.write(`Saved ${RUNPOD_API_KEY_ENV_VAR} in .env.local.`);
@@ -429,6 +439,7 @@ async function configureRunpod(
       true,
     );
     if (shouldWriteKey) {
+      writeRunpodApiKeySetupLink(io);
       const apiKey = await askRequiredWithOptionalDefault(io, `${RUNPOD_API_KEY_ENV_VAR} value`);
       writeSecretToLocalEnv(runtime.config.rootDir, RUNPOD_API_KEY_ENV_VAR, apiKey);
       io.write(`Saved ${RUNPOD_API_KEY_ENV_VAR} in .env.local.`);
@@ -541,6 +552,7 @@ async function configureGeminiBuiltInTools(
     }
   }
 
+  writeApiKeySetupLink(io, builtInToolsEnvVar, BUILT_IN_TOOLS_PROVIDER);
   const builtInToolsApiKey = await askRequiredWithOptionalDefault(
     io,
     `${builtInToolsEnvVar} value`,
@@ -597,6 +609,7 @@ async function configurePageIndexGrounded(
     return;
   }
 
+  writeApiKeySetupLink(io, pageIndexEnvVar, PAGEINDEX_GROUNDED_PROVIDER);
   const pageIndexApiKey = await askRequiredWithOptionalDefault(
     io,
     `${pageIndexEnvVar} value`,
@@ -748,6 +761,18 @@ function withFallbackOption(options: string[], value: string): string[] {
 
 function formatProviderAuthMode(value: ProviderAuthMode): string {
   return value.replaceAll("_", "-");
+}
+
+function writeApiKeySetupLink(
+  io: IgniteIo,
+  envVar: string,
+  providerName: ProviderName,
+): void {
+  io.write(`Set ${envVar} here: ${PROVIDER_API_KEY_SETUP_URLS[providerName]}`);
+}
+
+function writeRunpodApiKeySetupLink(io: IgniteIo): void {
+  io.write(`Set ${RUNPOD_API_KEY_ENV_VAR} here: ${RUNPOD_API_KEY_SETUP_URL}`);
 }
 
 function throwIfEsc(answer: string): void {
