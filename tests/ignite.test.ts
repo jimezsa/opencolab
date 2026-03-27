@@ -118,6 +118,14 @@ test("ignite configures project, provider, and telegram", async () => {
     assert.equal(agent.path, "projects/science/AGENTS/professor");
 
     assert.equal(prompts.length > 0, true);
+    assert.equal(
+      outputs.some((line) => line.includes("Set OPENAI_API_KEY here: https://platform.openai.com/api-keys")),
+      true
+    );
+    assert.equal(
+      outputs.some((line) => line.includes("Set GEMINI_API_KEY here: https://aistudio.google.com/app/apikey")),
+      true
+    );
     assert.equal(outputs.includes("Onboarding complete."), true);
   } finally {
     restoreSecretEnvVars(previousEnv);
@@ -757,6 +765,12 @@ test("ignite can configure an optional Runpod GPU server", async () => {
 
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
     assert.equal(envLocal.includes("RUNPOD_API_KEY=runpod_test_key_123"), true);
+    assert.equal(
+      outputs.some((line) =>
+        line.includes("Set RUNPOD_API_KEY here: https://www.runpod.io/console/user/settings"),
+      ),
+      true
+    );
     assert.equal(
       outputs.some((line) => line.includes("Configured Runpod GPU server 'runpod-a100'")),
       true
