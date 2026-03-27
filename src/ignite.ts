@@ -75,6 +75,7 @@ const PROVIDER_API_KEY_SETUP_URLS: Record<ProviderName, string> = {
   xai: "https://console.x.ai/"
 };
 const RUNPOD_API_KEY_SETUP_URL = "https://www.runpod.io/console/user/settings";
+const TELEGRAM_BOT_TOKEN_SETUP_URL = "https://t.me/BotFather";
 
 export interface IgniteDependencies {
   syncTelegramCommands: (
@@ -316,6 +317,7 @@ async function configureTelegram(
         true,
       ));
     if (!keepExistingToken) {
+      writeTelegramBotTokenSetupHelp(io);
       const botToken = await askRequiredWithOptionalDefault(
         io,
         `${TELEGRAM_BOT_TOKEN_ENV_VAR} value`,
@@ -773,6 +775,12 @@ function writeApiKeySetupLink(
 
 function writeRunpodApiKeySetupLink(io: IgniteIo): void {
   io.write(`Set ${RUNPOD_API_KEY_ENV_VAR} here: ${RUNPOD_API_KEY_SETUP_URL}`);
+}
+
+function writeTelegramBotTokenSetupHelp(io: IgniteIo): void {
+  io.write(
+    `Create a Telegram bot token with BotFather: open ${TELEGRAM_BOT_TOKEN_SETUP_URL} and run /newbot.`,
+  );
 }
 
 function throwIfEsc(answer: string): void {
