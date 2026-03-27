@@ -2,7 +2,8 @@
  * Runtime orchestration layer.
  * Coordinates state persistence, gateway integration, agent execution, and setup actions.
  */
-import { ensureAgentFiles } from "./agent.js";
+import fs from "node:fs";
+import { ensureAgentFiles, ensureProjectAndTeamFile } from "./agent.js";
 import { loadConfig, type OpenColabConfig } from "./config.js";
 import { ConversationStore } from "./conversation.js";
 import {
@@ -159,9 +160,13 @@ export class OpenColabRuntime {
   }
 
   init(): OpenColabState {
+    const hasExistingState = fs.existsSync(this.config.projectConfigPath);
     ensureDir(this.config.stateDir);
     this.state = ensureProjectAndAgent(readProjectState(this.config));
     this.persist();
+    if (!hasExistingState) {
+      ensureProjectAndTeamFile(this.config.rootDir, this.getActiveProject().path);
+    }
     this.ensureActiveProjectFiles();
     return this.state;
   }
@@ -225,6 +230,7 @@ export class OpenColabRuntime {
     };
 
     this.persist();
+    ensureProjectAndTeamFile(this.config.rootDir, project.path);
     this.ensureActiveProjectFiles();
     return this.state;
   }

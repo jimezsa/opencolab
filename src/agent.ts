@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import {
   BUILTIN_TOOLS_CONTEXT,
   getBuiltInAgentFileContent,
+  getBuiltInProjectAndTeamContent,
 } from "./agent-templates.js";
 import type { AgentConfig, AgentFiles, AgentMemoryContext } from "./types.js";
 import { ensureDir } from "./utils.js";
@@ -38,6 +39,9 @@ const PROMPT_DOC_KEYS: Array<Exclude<keyof AgentFiles, "bootstrap" | "memory">> 
   "todo",
 ];
 
+const PROMPT_SECTION_KEYS = [...PROMPT_DOC_KEYS, "projectAndTeam"] as const;
+type PromptSectionKey = (typeof PROMPT_SECTION_KEYS)[number];
+
 const PI_PROMPT_DOC_KEYS: Array<Exclude<keyof AgentFiles, "agents" | "bootstrap" | "memory">> = [
   "identity",
   "alma",
@@ -45,6 +49,21 @@ const PI_PROMPT_DOC_KEYS: Array<Exclude<keyof AgentFiles, "agents" | "bootstrap"
   "user",
   "todo",
 ];
+
+const PI_PROMPT_SECTION_KEYS = new Set<PromptSectionKey>([
+  ...PI_PROMPT_DOC_KEYS,
+  "projectAndTeam",
+]);
+
+const PROMPT_SECTION_LABELS: Record<PromptSectionKey, string> = {
+  agents: "AGENTS",
+  identity: "IDENTITY",
+  alma: "ALMA",
+  tools: "TOOLS",
+  user: "USER",
+  todo: "TODO",
+  projectAndTeam: "PROJECT_AND_TEAM",
+};
 
 const promptContextCache = new Map<
   string,
@@ -77,16 +96,23 @@ function mtimeIfExists(filePath: string): number {
 function getPromptContext(
   rootDir: string,
   agent: AgentConfig,
+  projectPath?: string,
 ): { mtimes: number[]; coreContext: string; piContext: string; longTermMemory: string } {
   const agentDir = resolveAgentDirectory(rootDir, agent.path);
-  const entries = [
-    ...PROMPT_DOC_KEYS.map((key) => [key, agent.files[key]] as const),
-    ["memory", agent.files.memory] as const,
+  const projectDir = resolveProjectDirectoryForAgent(rootDir, agent, projectPath);
+  const sectionEntries = PROMPT_SECTION_KEYS.map((key) => ({
+    key,
+    filePath:
+      key === "projectAndTeam"
+        ? path.join(projectDir, "PROJECT-AND-TEAM.md")
+        : path.join(agentDir, agent.files[key]),
+  }));
+  const memoryPath = path.join(agentDir, agent.files.memory);
+  const cacheKey = `${agentDir}:${projectDir}:${sectionEntries.map(({ filePath }) => filePath).join("|")}:${memoryPath}`;
+  const mtimes = [
+    ...sectionEntries.map(({ filePath }) => mtimeIfExists(filePath)),
+    mtimeIfExists(memoryPath),
   ];
-  const cacheKey = `${agentDir}:${entries.map(([, file]) => file).join("|")}`;
-  const mtimes = entries.map(([, fileName]) =>
-    mtimeIfExists(path.join(agentDir, fileName)),
-  );
 
   const cached = promptContextCache.get(cacheKey);
   if (
@@ -98,15 +124,15 @@ function getPromptContext(
 
   const sections: string[] = [];
   const piSections: string[] = [];
-  for (const [key, fileName] of entries.slice(0, PROMPT_DOC_KEYS.length)) {
-    const content = readIfExists(path.join(agentDir, fileName));
+  for (const { key, filePath } of sectionEntries) {
+    const content = readIfExists(filePath);
     sections.push(
-      `[${String(key).toUpperCase()}]`,
+      `[${PROMPT_SECTION_LABELS[key]}]`,
       content,
     );
-    if (PI_PROMPT_DOC_KEYS.includes(key as (typeof PI_PROMPT_DOC_KEYS)[number])) {
+    if (PI_PROMPT_SECTION_KEYS.has(key)) {
       piSections.push(
-        `[${String(key).toUpperCase()}]`,
+        `[${PROMPT_SECTION_LABELS[key]}]`,
         content,
       );
     }
@@ -115,7 +141,7 @@ function getPromptContext(
     mtimes,
     coreContext: sections.join("\n\n"),
     piContext: piSections.join("\n\n"),
-    longTermMemory: readIfExists(path.join(agentDir, agent.files.memory)).trim(),
+    longTermMemory: readIfExists(memoryPath).trim(),
   };
   promptContextCache.set(cacheKey, next);
   return next;
@@ -126,6 +152,32 @@ export function resolveAgentDirectory(
   agentPath: string,
 ): string {
   return path.isAbsolute(agentPath) ? agentPath : path.join(rootDir, agentPath);
+}
+
+export function resolveProjectDirectory(
+  rootDir: string,
+  projectPath: string,
+): string {
+  return path.isAbsolute(projectPath) ? projectPath : path.join(rootDir, projectPath);
+}
+
+function resolveProjectDirectoryForAgent(
+  rootDir: string,
+  agent: AgentConfig,
+  projectPath?: string,
+): string {
+  if (projectPath?.trim()) {
+    return resolveProjectDirectory(rootDir, projectPath);
+  }
+
+  return path.dirname(path.dirname(resolveAgentDirectory(rootDir, agent.path)));
+}
+
+export function resolveProjectAndTeamPath(
+  rootDir: string,
+  projectPath: string,
+): string {
+  return path.join(resolveProjectDirectory(rootDir, projectPath), "PROJECT-AND-TEAM.md");
 }
 
 export function resolveSharedSkillsDirectory(rootDir: string): string {
@@ -139,6 +191,19 @@ export function resolveSharedSkillsDirectory(rootDir: string): string {
 
 export function resolveAgentSkillsDirectory(rootDir: string, agentPath: string): string {
   return path.join(resolveAgentDirectory(rootDir, agentPath), "SKILLS");
+}
+
+export function ensureProjectAndTeamFile(
+  rootDir: string,
+  projectPath: string,
+): string {
+  const projectDir = resolveProjectDirectory(rootDir, projectPath);
+  ensureDir(projectDir);
+  const filePath = resolveProjectAndTeamPath(rootDir, projectPath);
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, getBuiltInProjectAndTeamContent(), "utf8");
+  }
+  return filePath;
 }
 
 function listSkillNames(skillsDir: string): string[] {
@@ -205,8 +270,9 @@ export function buildAgentPromptForInput(
   agent: AgentConfig,
   memory: AgentMemoryContext,
   userMessage: string,
+  projectPath?: string,
 ): string {
-  const { coreContext, longTermMemory } = getPromptContext(rootDir, agent);
+  const { coreContext, longTermMemory } = getPromptContext(rootDir, agent, projectPath);
   return buildPromptFromSystemContext(
     coreContext,
     BUILTIN_TOOLS_CONTEXT,
@@ -222,8 +288,9 @@ export function buildPiSystemPromptForInput(
   rootDir: string,
   agent: AgentConfig,
   memory: AgentMemoryContext,
+  projectPath?: string,
 ): string {
-  const { piContext, longTermMemory } = getPromptContext(rootDir, agent);
+  const { piContext, longTermMemory } = getPromptContext(rootDir, agent, projectPath);
   const sharedSkillsContext = buildSharedSkillsContext(rootDir);
   const agentLocalSkillsContext = buildAgentLocalSkillsContext(rootDir, agent);
   const transcript = memory.workingMemory

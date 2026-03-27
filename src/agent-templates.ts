@@ -20,7 +20,7 @@ const BUILTIN_AGENT_TEMPLATE_IDS_BY_AGENT_ID: Record<string, BuiltInAgentTemplat
   [DEFAULT_AGENT_ID]: "professor",
 };
 
-const TEMPLATE_FILES: Record<keyof AgentFiles | "builtinTools", string> = {
+const TEMPLATE_FILES: Record<keyof AgentFiles | "builtinTools" | "projectAndTeam", string> = {
   agents: "AGENTS.md",
   bootstrap: "BOOTSTRAP.md",
   identity: "IDENTITY.md",
@@ -30,6 +30,7 @@ const TEMPLATE_FILES: Record<keyof AgentFiles | "builtinTools", string> = {
   todo: "TODO.md",
   memory: "MEMORY.md",
   builtinTools: "BUILTIN_TOOLS.md",
+  projectAndTeam: "PROJECT-AND-TEAM.md",
 } as const;
 
 type AgentFileKey = keyof AgentFiles;
@@ -129,10 +130,18 @@ export const BUILTIN_TOOLS_CONTEXT = readSharedTemplateFile(
   TEMPLATE_FILES.builtinTools,
 );
 
+export const BUILTIN_PROJECT_AND_TEAM_CONTEXT = readSharedTemplateFile(
+  TEMPLATE_FILES.projectAndTeam,
+);
+
 export function getBuiltInAgentFileContent(
   agentId: string,
   key: AgentFileKey,
 ): string {
   const templateId = resolveBuiltInAgentTemplateId(agentId);
   return loadBuiltInAgentTemplate(templateId)[key];
+}
+
+export function getBuiltInProjectAndTeamContent(): string {
+  return BUILTIN_PROJECT_AND_TEAM_CONTEXT;
 }

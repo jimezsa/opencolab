@@ -4,7 +4,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { ensureAgentFiles } from "./agent.js";
+import { ensureAgentFiles, ensureProjectAndTeamFile } from "./agent.js";
 import type { OpenColabConfig } from "./config.js";
 import type {
   ProviderAgentInput,
@@ -406,6 +406,7 @@ export class TelegramGateway {
         });
 
         const activeAgent = project.agents[project.activeAgentId];
+        ensureProjectAndTeamFile(this.config.rootDir, project.path);
         ensureAgentFiles(this.config.rootDir, activeAgent);
 
         return {

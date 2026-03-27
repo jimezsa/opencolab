@@ -16,11 +16,15 @@ If BOOTSTRAP.md exists, use it to discover who you are and how to collaborate wi
 Before doing meaningful work:
 
 1. If BOOTSTRAP.md exists, read it and follow it before any other startup file.
-2. Read ALMA.md to align voice and behavior.
-3. Read USER.md to align with user preferences and constraints.
-4. Use current-session working memory from today's turns only.
-5. Read yesterday's daily summary in memory/Daily/<YYYY-MM-DD>.md when it exists.
-6. In direct 1:1 context, also read MEMORY.md for long-term context.
+2. Read IDENTITY.md to align role, domain focus, and responsibilities.
+3. Read ALMA.md to align voice and behavior.
+4. Read TOOLS.md for local tooling notes, overrides, and constraints.
+5. Read USER.md to align with user preferences and constraints.
+6. Read TODO.md for the active plan and current task state.
+7. Read PROJECT-AND-TEAM.md at the project root to align on shared goals, humans, agents, roles, constraints, and key decisions.
+8. Use current-session working memory from today's turns only.
+9. Read yesterday's daily summary in memory/Daily/<YYYY-MM-DD>.md when it exists.
+10. In direct 1:1 context, also read MEMORY.md for long-term context.
 
 Do not wait for explicit permission to do this prep.
 
@@ -33,6 +37,7 @@ Do not wait for explicit permission to do this prep.
 - TOOLS.md: agent-local tooling notes, overrides, and constraints.
 - USER.md: user preferences, goals, constraints, and collaboration norms.
 - TODO.md: active plan and task list from collaboration with the human and other agents.
+- PROJECT-AND-TEAM.md at the project root: canonical shared project context for goals, humans, agents, roles, constraints, and key decisions.
 - MEMORY.md: durable facts learned over time (not per-message scratch notes).
 - SKILLS/: agent-local skill library for workflows unique to this agent.
 
@@ -42,6 +47,7 @@ Do not wait for explicit permission to do this prep.
 - Daily summaries live in memory/Daily/<YYYY-MM-DD>.md.
 - Working memory should come from the active session and current UTC day only.
 - Recent episodic memory should come from yesterday's daily summary only.
+- PROJECT-AND-TEAM.md is curated shared project context, not transcript storage or scratch memory.
 - MEMORY.md is curated long-term memory, not raw transcript.
 - If something should survive restarts, write it to a file.
 - If the user says "remember this", capture it in the right place.
@@ -50,14 +56,16 @@ Do not wait for explicit permission to do this prep.
 ## How To Use These Files
 
 1. Read all startup files at session start before producing important outputs. If BOOTSTRAP.md exists, it takes priority over ALMA.md and the rest of the startup sequence.
-2. Keep long-term facts in MEMORY.md only when they are stable and useful later.
-3. Update USER.md when preferences change, and keep it concise.
-4. Keep TODO.md current with active plan, next actions, and completed items.
-5. Update TOOLS.md when local or project-specific tooling capabilities change.
-6. Read relevant shared skills from `projects/SKILLS/<skill_id>/SKILL.md` and relevant agent-local skills from `SKILLS/<skill_id>/SKILL.md` before using a specialized workflow.
-7. Treat ALMA.md as style guidance, but do not let style override correctness.
-8. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms, and do not skip it while it still exists.
-9. If you edit any agent file, mention it clearly in your response summary.
+2. Read and follow the maintenance rules inside PROJECT-AND-TEAM.md before editing it.
+3. Suggest careful updates to PROJECT-AND-TEAM.md when shared project facts change, but do not casually rewrite its structure.
+4. Keep long-term facts in MEMORY.md only when they are stable and useful later.
+5. Update USER.md when preferences change, and keep it concise.
+6. Keep TODO.md current with active plan, next actions, and completed items.
+7. Update TOOLS.md when local or project-specific tooling capabilities change.
+8. Read relevant shared skills from `projects/SKILLS/<skill_id>/SKILL.md` and relevant agent-local skills from `SKILLS/<skill_id>/SKILL.md` before using a specialized workflow.
+9. Treat ALMA.md as style guidance, but do not let style override correctness.
+10. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms, and do not skip it while it still exists.
+11. If you edit any agent file, mention it clearly in your response summary.
 
 ## Core Rules
 

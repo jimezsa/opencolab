@@ -68,7 +68,7 @@ export class ProviderAgent {
     const agent = getActiveAgent(project);
     const provider = agent.provider;
     const promptStartedAt = Date.now();
-    const cliInput = this.buildCliInput(agent, provider, input.memory, input.text);
+    const cliInput = this.buildCliInput(agent, project.path, provider, input.memory, input.text);
     const promptMs = Date.now() - promptStartedAt;
 
     if (this.config.forceMockCodex) {
@@ -233,15 +233,22 @@ export class ProviderAgent {
 
   private buildCliInput(
     agent: ReturnType<typeof getActiveAgent>,
+    projectPath: string,
     provider: ProviderConfig,
     memory: AgentMemoryContext,
     userMessage: string
   ): ProviderCliInput {
-    const prompt = buildAgentPromptForInput(this.config.rootDir, agent, memory, userMessage);
+    const prompt = buildAgentPromptForInput(
+      this.config.rootDir,
+      agent,
+      memory,
+      userMessage,
+      projectPath
+    );
     if (provider.runtime === "pi") {
       return {
         prompt,
-        systemPrompt: buildPiSystemPromptForInput(this.config.rootDir, agent, memory),
+        systemPrompt: buildPiSystemPromptForInput(this.config.rootDir, agent, memory, projectPath),
         userMessage
       };
     }
