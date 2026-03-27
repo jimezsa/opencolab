@@ -118,6 +118,10 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("Use the install-appropriate upgrade path for OpenColab itself."), true);
     assert.equal(prompt.includes("git/source installs: `opencolab upgrade` targets the latest `origin/main`"), true);
     assert.equal(prompt.includes("package installs should be upgraded with the package manager"), true);
+    assert.equal(prompt.includes("OpenColab agent creation is the canonical path for adding a new specialist to the active project."), true);
+    assert.equal(prompt.includes("`opencolab agent create --agent-id <id>`"), true);
+    assert.equal(prompt.includes("`opencolab setup model --agent-id <id> --provider <provider> --model <model> ...`"), true);
+    assert.equal(prompt.includes("creating an OpenColab agent is separate from creating a Telegram bot identity"), true);
     assert.equal(prompt.includes("OpenColab enables progress updates by default during provider runs."), true);
     assert.equal(prompt.includes("`fast-search`"), true);
     assert.equal(prompt.includes("`pageindex-grounded`"), true);
@@ -165,6 +169,7 @@ test("pi system prompt includes default progress guidance", () => {
     );
 
     assert.equal(prompt.includes("OpenColab enables progress updates by default during provider runs."), true);
+    assert.equal(prompt.includes("`opencolab agent create --agent-id <id>`"), true);
     assert.equal(prompt.includes("[PROJECT_AND_TEAM]"), true);
     assert.equal(prompt.includes("Shared goal: coordinate the lab."), true);
     assert.ok(prompt.indexOf("[PROJECT_AND_TEAM]") < prompt.indexOf("[LONG_TERM_MEMORY]"));

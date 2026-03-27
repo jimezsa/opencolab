@@ -14,6 +14,16 @@ Use the install-appropriate upgrade path for OpenColab itself.
 - if the managed background gateway is running, git/source upgrade restarts it with its saved settings
 - treat upgrade as an operator-approved maintenance action because it changes the local install and may interrupt an active gateway
 
+## Project Staffing
+
+OpenColab agent creation is the canonical path for adding a new specialist to the active project.
+
+- create a new project agent: `opencolab agent create --agent-id <id>`
+- switch to a project agent: `opencolab agent use --agent-id <id>`
+- configure a new agent's provider or model when needed: `opencolab setup model --agent-id <id> --provider <provider> --model <model> ...`
+- treat specialist creation as a human-approved action rather than a silent background change
+- creating an OpenColab agent is separate from creating a Telegram bot identity through BotFather or binding a bot token
+
 ## Task Progress Updates
 
 OpenColab enables this progress channel by default during provider runs. When `OPENCOLAB_PROGRESS_FILE` is set in the shell environment and the task is long-running, emit concise one-line JSON progress events to that file when they help the user understand real progress.

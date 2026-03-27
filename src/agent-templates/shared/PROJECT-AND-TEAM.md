@@ -9,6 +9,7 @@
 - Professor is the default curator.
 - Specialists may propose updates, but should not casually rewrite the structure.
 - Prefer editing existing sections over appending noisy notes.
+- Record agent status such as proposed, approved, created, configured, active, paused, or archived when it materially affects the project roster.
 
 ## Project
 
@@ -31,4 +32,6 @@
 - professor:
   - Role: lead agent
   - Main contribution: coordination, synthesis, and delegation
+  - Status: active
   - Current focus: unset
+  - Provisioning notes: none

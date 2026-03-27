@@ -163,6 +163,10 @@ Initialization requirements:
 - default `AGENTS.md` must require agents to read and follow `BOOTSTRAP.md` before `ALMA.md` whenever `BOOTSTRAP.md` still exists, so first-contact identity setup cannot be skipped
 - default `AGENTS.md` must explain that `PROJECT-AND-TEAM.md` is the canonical shared project context file, lives at project scope, and should be read after `TODO.md` and before `MEMORY.md`
 - default `AGENTS.md` must require agents to read and follow the maintenance rules inside `PROJECT-AND-TEAM.md` before editing it
+- default `professor` guidance must treat specialist creation as a normal lead-agent responsibility, require human approval before creation, and teach the exact OpenColab CLI path for creation through `opencolab agent create --agent-id <id>`
+- default `professor` guidance must mention follow-up per-agent model setup through `opencolab setup model --agent-id <id> ...` when needed
+- default `professor` guidance must require updating `PROJECT-AND-TEAM.md` after a new specialist is created or approved in principle
+- default `specialist` and `beginner` guidance must state that they do not create more specialists by default and should route staffing recommendations back through `professor`
 - default `AGENTS.md` must present `OPENCOLAB_PROGRESS_FILE` as the default OpenColab progress channel, include a valid JSON example, and explain that agents choose bounded useful progress events rather than milestone-only output
 - default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences
 - the default templates must keep only essential, role-appropriate instructions
@@ -193,10 +197,11 @@ Prompt construction must load context in this order:
 Requirements for `PROJECT-AND-TEAM.md`:
 
 - it must be concise, curated, and project-scoped
-- it must capture shared project facts such as goals, constraints, current direction, key decisions, humans, agents, and role ownership
+- it must capture shared project facts such as goals, constraints, current direction, key decisions, humans, agents, role ownership, and agent lifecycle state when relevant
 - it must not store secrets, raw transcripts, scratch notes, or long reasoning dumps
 - it must contain its own short maintenance rules near the top so the file is self-describing when an agent is asked to edit it
 - professor is the default curator, while specialists may propose updates without treating it as a free-for-all notebook
+- it should be the canonical place where the professor records newly proposed, created, configured, active, paused, or archived specialists when those states matter to the project
 
 Each agent must also persist Telegram conversation history under:
 

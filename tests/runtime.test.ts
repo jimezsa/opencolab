@@ -358,6 +358,18 @@ test("init and agent create seed professor, beginner, and specialist AGENTS.md t
       professorDoc.includes("Read and follow the maintenance rules inside PROJECT-AND-TEAM.md before editing it."),
       true
     );
+    assert.equal(
+      professorDoc.includes("Before creating a new specialist, propose the agent id, role, expected ownership, and suggested provider/runtime to the human and get approval."),
+      true
+    );
+    assert.equal(
+      professorDoc.includes("After approval, create the specialist through OpenColab CLI using `opencolab agent create --agent-id <id>`."),
+      true
+    );
+    assert.equal(
+      professorDoc.includes("Create persistent specialists only for durable workstreams, not for trivial one-off tasks."),
+      true
+    );
     assert.equal(professorDoc.includes("## OpenColab Default Progress Channel"), true);
     assert.equal(
       professorDoc.includes("OpenColab enables this progress channel by default during provider runs."),
@@ -390,6 +402,10 @@ test("init and agent create seed professor, beginner, and specialist AGENTS.md t
       beginnerDoc.includes("Operate as a beginner student: ask naive but high-value questions, demand plain-language explanations, and surface hidden assumptions or missing steps."),
       true
     );
+    assert.equal(
+      beginnerDoc.includes("Do not create more specialists by default."),
+      true
+    );
     assert.notEqual(beginnerDoc, professorDoc);
 
     runtime.configureAgent("scout");
@@ -399,6 +415,10 @@ test("init and agent create seed professor, beginner, and specialist AGENTS.md t
     assert.equal(specialistDoc.includes("You are a PhD-style specialist agent."), true);
     assert.equal(
       specialistDoc.includes("Operate as a PhD-style specialist: own a scoped workstream and report crisp findings, assumptions, and open questions."),
+      true
+    );
+    assert.equal(
+      specialistDoc.includes("Do not create more specialists by default."),
       true
     );
     assert.notEqual(specialistDoc, professorDoc);
@@ -504,6 +524,8 @@ test("init seeds PROJECT-AND-TEAM.md from built-in project template", () => {
     assert.equal(projectContextDoc.includes("This is the canonical shared project context for all agents in this project."), true);
     assert.equal(projectContextDoc.includes("Professor is the default curator."), true);
     assert.equal(projectContextDoc.includes("Role: lead agent"), true);
+    assert.equal(projectContextDoc.includes("Status: active"), true);
+    assert.equal(projectContextDoc.includes("Provisioning notes: none"), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

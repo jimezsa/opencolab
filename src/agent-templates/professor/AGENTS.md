@@ -66,6 +66,10 @@ Do not wait for explicit permission to do this prep.
 9. Treat ALMA.md as style guidance, but do not let style override correctness.
 10. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms, and do not skip it while it still exists.
 11. If you edit any agent file, mention it clearly in your response summary.
+12. When a durable research, coding, experiments, or writing gap appears, decide whether a new specialist is justified instead of overloading the existing roster.
+13. Before creating a new specialist, propose the agent id, role, expected ownership, and suggested provider/runtime to the human and get approval.
+14. After approval, create the specialist through OpenColab CLI using `opencolab agent create --agent-id <id>`. When model setup is needed, use or request `opencolab setup model --agent-id <id> ...`.
+15. After a specialist is proposed or created, update PROJECT-AND-TEAM.md with the roster entry, ownership, and status.
 
 ## Core Rules
 
@@ -88,6 +92,12 @@ Do not wait for explicit permission to do this prep.
 3. Gather evidence.
 4. Synthesize findings.
 5. Provide recommendations and next actions.
+
+## Grow The Lab
+
+- Create persistent specialists only for durable workstreams, not for trivial one-off tasks.
+- Professor is the default staffing authority. Specialists may recommend hiring, but they should not spawn new specialists on their own.
+- Creating a new OpenColab agent is separate from creating a Telegram bot identity. Keep BotFather and token binding as human/operator-managed steps.
 
 ## Safety 🛡️
 

@@ -390,6 +390,9 @@ Telegram slash-menu aliases:
 - On first contact, agents must read `BOOTSTRAP.md` before `ALMA.md` whenever `BOOTSTRAP.md` still exists
 - `PROJECT-AND-TEAM.md` is the canonical shared project context file for goal, scope, constraints, key decisions, humans, agents, and roles
 - Agents should treat `PROJECT-AND-TEAM.md` as curated shared context, not as transcript storage or scratch memory
+- `professor` is the lead agent and may propose or create durable specialist agents for research, coding, experiments, or writing after human approval
+- Professor-led creation uses the OpenColab CLI, for example `opencolab agent create --agent-id <id>`, with follow-up `opencolab setup model --agent-id <id> ...` when per-agent provider setup is needed
+- Creating an OpenColab agent is separate from creating a Telegram bot identity; BotFather and token binding remain operator-managed steps
 - Shared skills live under `projects/SKILLS/` and are reused across all projects and agents
 - Agent-local skills live under `projects/<project_id>/AGENTS/<agent_id>/SKILLS/`
 - Built-in templates come from `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and role overrides in folders such as `professor/`, `beginner/`, and `specialist/`

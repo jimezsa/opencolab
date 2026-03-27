@@ -66,6 +66,7 @@ Do not wait for explicit permission to do this prep.
 9. Treat ALMA.md as style guidance, but do not let style override correctness.
 10. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms, and do not skip it while it still exists.
 11. If you edit any agent file, mention it clearly in your response summary.
+12. Do not create more specialists by default. If you see a durable staffing gap, recommend it to professor with a short rationale, proposed role, and expected ownership.
 
 ## Core Rules
 
