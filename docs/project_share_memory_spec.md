@@ -117,6 +117,29 @@ Recommended ownership:
 
 This keeps the shared project view stable and avoids conflicting edits from several agents.
 
+## 8.1 Local Editing Contract
+
+`PROJECT-AND-TEAM.md` should be self-describing.
+
+That means the file should contain its own short maintenance rules near the top so that any agent asked to edit it can read the rules in the same file before making changes.
+
+Recommended split of responsibilities:
+
+- `AGENTS.md` should tell agents to read and respect `PROJECT-AND-TEAM.md` before editing it
+- `PROJECT-AND-TEAM.md` should define what belongs in the file and how it should be maintained
+
+This is preferable to keeping the edit contract only in `AGENTS.md` because the shared file should remain understandable and governable on its own.
+
+Recommended top section for `PROJECT-AND-TEAM.md`:
+
+- this file is the canonical shared project context for all agents
+- keep it concise and curated
+- record stable project facts, roles, goals, constraints, and key decisions
+- do not store secrets, transcripts, scratch notes, or long reasoning dumps here
+- professor is the default curator
+- specialists may propose updates, but should not casually rewrite the structure
+- prefer editing existing sections over appending noisy notes
+
 ## 9. Prompt Construction Rules
 
 The shared file should be loaded into prompt assembly for every agent.
@@ -162,6 +185,7 @@ Seeded agent instructions should be updated so that all agents understand:
 - it is the canonical shared project context file
 - professor is the default curator
 - agent-local `MEMORY.md` remains private durable memory
+- before editing `PROJECT-AND-TEAM.md`, agents must read and follow the maintenance rules inside that file
 
 This should be reflected in the built-in agent templates, not handled as ad hoc prompt text only.
 
