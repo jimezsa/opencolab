@@ -279,7 +279,7 @@ Responsibilities:
 - `ignite` should be able to create the first named GPU server for the active project using curated defaults rather than raw low-level Runpod choices
 - the first curated Runpod preset should use backend `runpod`, cloud type `secure`, storage mode `network_volume`, workspace root `/workspace`, SSH access, and bootstrap profile `python-ml`
 - `ignite` should be able to run a lightweight GPU server validation test when the operator opts in
-- installer script should make `opencolab` available as a terminal command by installing a user-level shim and ensuring the user bin directory is on `PATH`
+- installer script should install the published `opencolab` npm package into a user-owned prefix, make `opencolab` available as a terminal command by installing a user-level shim, and ensure the user bin directory is on `PATH`
 - npm package installs should also be supported for the `opencolab` CLI without requiring `dist/` to be tracked in git
 - the published npm package must include the built CLI entrypoint, built-in agent templates, and built-in shared skills required for runtime fallback behavior
 - the npm package build artifacts may be generated at pack/publish time rather than committed to the repository
