@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Status-Alpha-F2A900?style=for-the-badge" alt="Project status: Alpha">
+  <img src="https://img.shields.io/badge/Status-Beta-F2A900?style=for-the-badge" alt="Project status: Beta">
   <img src="https://img.shields.io/npm/v/opencolab?label=Release&style=for-the-badge" alt="Current release version on npm">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
 </p>
