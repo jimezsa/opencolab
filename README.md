@@ -179,6 +179,7 @@ OpenColab configures provider CLIs for non-interactive runs inside the active pr
 - `xai`: `api_key` with `XAI_API_KEY` through the `pi` runtime
 - Gemini-based shared tools still require `GEMINI_API_KEY` even when the active agent runtime uses another provider or Gemini OAuth
 - `pageindex-grounded` uses `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini OAuth
+- `opencolab ignite` prints direct setup links before asking for provider and Runpod API key values
 
 Common setup flows:
 
