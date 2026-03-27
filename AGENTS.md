@@ -51,6 +51,7 @@ Agent contract details that matter for implementation:
 - The shared `runpod-job` skill is the canonical AI-facing path for operating Runpod-backed GPU servers and bounded remote GPU jobs through the OpenColab CLI rather than raw Runpod APIs.
 - Conversation history belongs under agent-local `memory/Session/` and `memory/Daily/`, not under `.opencolab`.
 - `TOOLS.md` is the user-owned local tooling layer; repo-managed built-in tool guidance must be injected at prompt-build time rather than copied into `TOOLS.md`.
+- The seeded `AGENTS.md` contract must require agents to read `BOOTSTRAP.md` before `ALMA.md` whenever bootstrap still exists, so first-contact identity setup cannot be skipped.
 - The seeded `AGENTS.md` contract must describe `OPENCOLAB_PROGRESS_FILE` as the default OpenColab progress channel, include a valid JSON example, and guide agents to choose bounded useful progress events instead of milestone-only updates.
 - The seeded agent docs must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines rather than markdown-wrapped snippets.
 
