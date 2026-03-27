@@ -241,6 +241,7 @@ Responsibilities:
 - `ignite` should offer curated concrete model options per provider; Gemini options must include `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`; MiniMax options must include `MiniMax-M2.5` and `MiniMax-M2.7`
 - OpenAI and Gemini provider auth modes must support `api_key` and `oauth`
 - in `api_key` mode, provider API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, or `XAI_API_KEY`)
+- when `ignite` asks for a provider or Runpod API key value, it should print a direct setup URL for that key first
 - in OpenAI `oauth` mode, setup must not require `OPENAI_API_KEY`
 - in Gemini `oauth` mode, setup must not require `GEMINI_API_KEY`
 - Gemini-based built-in shared tools must use `GEMINI_API_KEY` even when the active agent runtime uses a different provider or Gemini `oauth`
