@@ -4,13 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## [Unreleased]
+## [0.1.0] - 2026-03-27
 
 ### Added
 
 - Windows PowerShell one-link installer support via `install.ps1`.
 - Optional `--hacky` git-clone fallback mode for the one-link installers when the desired npm package version is unavailable.
 - Project-scoped `PROJECT-AND-TEAM.md` shared context seeded for new/default projects and loaded into every agent prompt.
+- Professor-led specialist creation guidance, including explicit `opencolab agent create --agent-id <id>` and per-agent `opencolab setup model --agent-id <id> ...` workflow references.
 
 ### Changed
 
@@ -18,6 +19,8 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - Seeded agent startup guidance now requires reading `BOOTSTRAP.md` before `ALMA.md` while bootstrap still exists, preventing first-contact identity setup from being skipped.
 - Seeded agent instructions now treat `PROJECT-AND-TEAM.md` as the canonical shared project context and require agents to follow its maintenance rules before editing it.
 - Prompt construction now loads shared project context after `TODO.md` and before agent-local `MEMORY.md`.
+- Seeded professor guidance now treats specialist hiring as a normal lead-agent responsibility with human approval, while specialist and beginner agents route staffing recommendations back through professor by default.
+- `PROJECT-AND-TEAM.md` now supports recording agent roster status such as proposed, created, configured, active, paused, or archived when it matters to the project.
 
 ## [0.1.0] - 2026-03-26
 
