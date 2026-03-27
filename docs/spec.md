@@ -158,6 +158,7 @@ Initialization requirements:
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks
+- default `AGENTS.md` must require agents to read and follow `BOOTSTRAP.md` before `ALMA.md` whenever `BOOTSTRAP.md` still exists, so first-contact identity setup cannot be skipped
 - default `AGENTS.md` must present `OPENCOLAB_PROGRESS_FILE` as the default OpenColab progress channel, include a valid JSON example, and explain that agents choose bounded useful progress events rather than milestone-only output
 - default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences
 - the default templates must keep only essential, role-appropriate instructions
@@ -186,7 +187,7 @@ Requirements for session storage:
 - working memory should include only the recent turns from the active session and current UTC day
 - recent episodic memory should include only the previous UTC day summary
 - `MEMORY.md` should contain only durable facts, preferences, and recurring constraints
-- `BOOTSTRAP.md` is onboarding scaffolding and should not be treated as permanent prompt context after initialization
+- `BOOTSTRAP.md` is onboarding scaffolding, must be read first while it still exists, and should not be treated as permanent prompt context after initialization
 - inbound Telegram files remain shared project resources and should be stored at project scope (for example under `projects/<project_id>/memory/TelegramInbox/`), not duplicated per agent
 
 ## 6. Telegram Pairing Flow
