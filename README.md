@@ -111,13 +111,23 @@ Published npm package install:
 npm install -g opencolab
 ```
 
-Repository-managed installer using the published npm package:
+Repository-managed installers using the published npm package:
+
+macOS / Linux:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh | bash
 ```
 
-The installer keeps runtime state under `~/.opencolab` by default and installs the package into a user-owned npm prefix.
+Windows PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://opencolab.ai/install.ps1 | iex"
+```
+
+The macOS/Linux installer keeps runtime state under `~/.opencolab` by default and installs the package into a user-owned npm prefix.
+The Windows installer uses `%LOCALAPPDATA%\OpenColab\root` for runtime state, `%LOCALAPPDATA%\OpenColab\package` for the npm prefix, and `%LOCALAPPDATA%\OpenColab\bin\opencolab.cmd` as the user shim.
+`install.sh` now fails fast on Windows and points users to `install.ps1`.
 
 If the npm package is not published yet for the version you want, use the manual git-clone flow below.
 
@@ -179,7 +189,7 @@ OpenColab configures provider CLIs for non-interactive runs inside the active pr
 - `xai`: `api_key` with `XAI_API_KEY` through the `pi` runtime
 - Gemini-based shared tools still require `GEMINI_API_KEY` even when the active agent runtime uses another provider or Gemini OAuth
 - `pageindex-grounded` uses `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini OAuth
-- `opencolab ignite` prints direct setup links before asking for provider and Runpod API key values
+- `opencolab ignite` prints direct setup links before asking for provider and Runpod API key values, and a BotFather instruction before asking for `TELEGRAM_BOT_TOKEN`
 
 Common setup flows:
 
