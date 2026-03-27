@@ -111,13 +111,15 @@ Published npm package install:
 npm install -g opencolab
 ```
 
-Source install with the repository-managed installer:
+Repository-managed installer using the published npm package:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh | bash
 ```
 
-If the npm package is not published yet for the version you want, use the source installer or the manual git-clone flow below.
+The installer keeps runtime state under `~/.opencolab` by default and installs the package into a user-owned npm prefix.
+
+If the npm package is not published yet for the version you want, use the manual git-clone flow below.
 
 ## Quickstart (Recommended)
 
@@ -155,7 +157,7 @@ Upgrade notes:
 
 ## Manual Run (git clone + Node)
 
-If you prefer not to use the installer command shim:
+If you need an unreleased version or prefer to run from a source checkout:
 
 ```bash
 git clone https://github.com/jimezsa/opencolab.git
