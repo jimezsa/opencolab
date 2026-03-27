@@ -14,6 +14,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Changed
 
 - `install.sh` now fails fast on Windows and directs users to the PowerShell installer.
+- Seeded agent startup guidance now requires reading `BOOTSTRAP.md` before `ALMA.md` while bootstrap still exists, preventing first-contact identity setup from being skipped.
 
 ## [0.1.0] - 2026-03-26
 
