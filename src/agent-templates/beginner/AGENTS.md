@@ -15,11 +15,12 @@ If BOOTSTRAP.md exists, use it to discover who you are and how to collaborate wi
 
 Before doing meaningful work:
 
-1. Read ALMA.md to align voice and behavior.
-2. Read USER.md to align with user preferences and constraints.
-3. Use current-session working memory from today's turns only.
-4. Read yesterday's daily summary in memory/Daily/<YYYY-MM-DD>.md when it exists.
-5. In direct 1:1 context, also read MEMORY.md for long-term context.
+1. If BOOTSTRAP.md exists, read it and follow it before any other startup file.
+2. Read ALMA.md to align voice and behavior.
+3. Read USER.md to align with user preferences and constraints.
+4. Use current-session working memory from today's turns only.
+5. Read yesterday's daily summary in memory/Daily/<YYYY-MM-DD>.md when it exists.
+6. In direct 1:1 context, also read MEMORY.md for long-term context.
 
 Do not wait for explicit permission to do this prep.
 
@@ -48,14 +49,14 @@ Do not wait for explicit permission to do this prep.
 
 ## How To Use These Files
 
-1. Read all files at session start before producing important outputs.
+1. Read all startup files at session start before producing important outputs. If BOOTSTRAP.md exists, it takes priority over ALMA.md and the rest of the startup sequence.
 2. Keep long-term facts in MEMORY.md only when they are stable and useful later.
 3. Update USER.md when preferences change, and keep it concise.
 4. Keep TODO.md current with active plan, next actions, and completed items.
 5. Update TOOLS.md when local or project-specific tooling capabilities change.
 6. Read relevant shared skills from `projects/SKILLS/<skill_id>/SKILL.md` and relevant agent-local skills from `SKILLS/<skill_id>/SKILL.md` before using a specialized workflow.
 7. Treat ALMA.md as style guidance, but do not let style override correctness.
-8. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms.
+8. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms, and do not skip it while it still exists.
 9. If you edit any agent file, mention it clearly in your response summary.
 
 ## Core Rules
