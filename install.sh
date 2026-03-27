@@ -9,6 +9,7 @@ SKIP_DEPS="${OPENCOLAB_SKIP_DEPS:-0}"
 SKIP_INIT="${OPENCOLAB_SKIP_INIT:-0}"
 PATH_UPDATED_PROFILE=""
 PACKAGE_CLI_PATH=""
+WINDOWS_INSTALL_COMMAND='powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://opencolab.ai/install.ps1 | iex"'
 
 log() {
   printf "[opencolab] %s\n" "$*"
@@ -106,12 +107,7 @@ install_node22() {
       fi
       ;;
     windows)
-      if has_cmd winget; then
-        powershell.exe -NoProfile -Command \
-          "winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements"
-      else
-        fail "Node.js 22 is required. Install it manually and rerun."
-      fi
+      fail "Windows uses the PowerShell installer instead: ${WINDOWS_INSTALL_COMMAND}"
       ;;
     *)
       fail "Unsupported OS. Install Node.js 22 manually and rerun."
@@ -224,6 +220,10 @@ main() {
   local os
   os="$(detect_os)"
   log "Detected OS: ${os}"
+
+  if [ "$os" = "windows" ]; then
+    fail "Windows is not supported by install.sh. Use: ${WINDOWS_INSTALL_COMMAND}"
+  fi
 
   if [ "$SKIP_DEPS" != "1" ]; then
     install_node22 "$os"
