@@ -3,6 +3,14 @@
   "version": "0.1.1",
   "description": "Personal multi-agent AI research lab",
   "license": "MIT",
+  "homepage": "https://github.com/jimezsa/opencolab/blob/main/CHANGELOG.md",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jimezsa/opencolab.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jimezsa/opencolab/issues"
+  },
   "type": "module",
   "packageManager": "pnpm@9.15.5",
   "files": [
