@@ -75,7 +75,7 @@ test("loadConfig defaults to real codex mode", () => {
   try {
     const config = loadConfig(tempDir);
     assert.equal(config.forceMockCodex, false);
-    assert.equal(config.codexTimeoutMs, 600000);
+    assert.equal(config.codexTimeoutMs, 1800000);
   } finally {
     if (oldForceMock === undefined) {
       delete process.env.OPENCOLAB_FORCE_MOCK_CLI;

@@ -237,10 +237,10 @@ If you want Gemini OAuth, install the CLI first:
 npm install -g @google/gemini-cli
 ```
 
-Provider CLI execution defaults to a 10 minute timeout. Override it in `.env.local` if needed:
+Provider CLI execution defaults to a 30 minute timeout. Override it in `.env.local` if needed:
 
 ```env
-OPENCOLAB_CODEX_TIMEOUT_MS=600000
+OPENCOLAB_CODEX_TIMEOUT_MS=1800000
 ```
 
 ## Remote GPU with Runpod
