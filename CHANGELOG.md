@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- npm package metadata now links the published package back to the GitHub repository, issue tracker, and changelog.
+
+### Changed
+
+- Provider CLI execution now defaults to a 30 minute timeout instead of 10 minutes and remains configurable via `OPENCOLAB_CODEX_TIMEOUT_MS`.
+
 ## [0.1.0] - 2026-03-27
 
 ### Added
