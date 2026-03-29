@@ -127,6 +127,7 @@ powershell -c "irm https://opencolab.ai/install.ps1 | iex"
 
 The macOS/Linux installer keeps runtime state under `~/.opencolab` by default and installs the package into a user-owned npm prefix.
 The Windows installer uses `%LOCALAPPDATA%\OpenColab\root` for runtime state, `%LOCALAPPDATA%\OpenColab\package` for the npm prefix, and `%LOCALAPPDATA%\OpenColab\bin\opencolab.cmd` as the user shim.
+For packaged installs, OpenColab defaults to that runtime root even when you invoke `opencolab` outside the directory. `opencolab.json` and `.env.local` live directly under the runtime root, while internal state lives under `<runtime_root>/.opencolab/`.
 `install.sh` now fails fast on Windows and points users to `install.ps1`.
 
 If the npm package is not published yet for the version you want, the one-link installers also support a hacky git-clone mode.
@@ -404,8 +405,8 @@ Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `p
 
 ## Configuration and Development
 
-- `opencolab.json` stores active project state, project and agent maps, per-agent provider config, project-scoped execution targets, and shared Telegram pairing state
-- `.env.local` stores secrets such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, and `TELEGRAM_BOT_TOKEN`
+- `opencolab.json` stores active project state, project and agent maps, per-agent provider config, project-scoped execution targets, and shared Telegram pairing state at the runtime root
+- `.env.local` stores secrets such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, and `TELEGRAM_BOT_TOKEN` at the runtime root
 - Remote run manifests, status, logs, sync metadata, and fetched artifacts live under `projects/<project_id>/experiments/`
 - Secret values should not be committed to git
 
