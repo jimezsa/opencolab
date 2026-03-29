@@ -190,7 +190,7 @@ export class ProviderAgent {
       const timeoutHandle = setTimeout(() => {
         child.kill("SIGKILL");
         finish(() => reject(new Error(normalizeProviderCliTimeout(provider, authMode))));
-      }, Math.max(this.config.codexTimeoutMs, 1000));
+      }, Math.max(this.config.providerCliTimeoutMs, 1000));
 
       child.stdout.on("data", (chunk: Buffer) => {
         const result = appendLimited(stdout, chunk);
