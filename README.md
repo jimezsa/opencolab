@@ -240,7 +240,7 @@ npm install -g @google/gemini-cli
 Provider CLI execution defaults to a 30 minute timeout. Override it in `.env.local` if needed:
 
 ```env
-OPENCOLAB_CODEX_TIMEOUT_MS=1800000
+OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS=1800000
 ```
 
 ## Remote GPU with Runpod
