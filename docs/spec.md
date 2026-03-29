@@ -243,6 +243,7 @@ Requirements:
 
 Required command groups:
 
+- `opencolab version`
 - `opencolab ignite`
 - `opencolab upgrade`
 - `opencolab setup api-key`
@@ -257,6 +258,8 @@ Required command groups:
 
 Responsibilities:
 
+- when invoked with no command, `opencolab` must show the installed CLI version in its first help screen
+- `opencolab --version`, `opencolab -v`, and `opencolab version` must print the installed CLI version and exit
 - initialize state and default project/agent files when `ignite` runs
 - when `OPENCOLAB_ROOT` is set, CLI and runtime config resolution must use it as the runtime root
 - when `OPENCOLAB_ROOT` is unset and the current execution is a packaged install, CLI and runtime config resolution must default to the platform runtime root (`~/.opencolab` on macOS/Linux, `%LOCALAPPDATA%\OpenColab\root` on Windows) instead of the caller's current working directory
