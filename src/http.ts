@@ -5,6 +5,7 @@
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadConfig } from "./config.js";
+import { resolveRuntimeRootDir } from "./install.js";
 import { createRuntime } from "./runtime.js";
 import { startTelegramPolling, type TelegramPollingHandle } from "./telegram-poller.js";
 
@@ -41,7 +42,7 @@ interface HttpServerOptions {
 
 export function startHttpServer(
   port = loadConfig().localApiPort,
-  cwd = process.cwd(),
+  cwd = resolveRuntimeRootDir(),
   options: HttpServerOptions = {}
 ): void {
   const runtime = createRuntime(cwd);
