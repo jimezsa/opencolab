@@ -145,7 +145,7 @@ export function createDefaultExecutionTargetConfig(targetId: string): ExecutionT
       privateKeyPath: null
     },
     workspaceRoot: "/workspace",
-    bootstrapProfile: "python-ml",
+    bootstrapProfile: "pytorch-cu12",
     maxRuntimeMinutes: 360,
     idleStopMinutes: 15,
     autoStopPolicy: "stop_on_completion",
