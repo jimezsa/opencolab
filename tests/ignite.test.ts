@@ -768,6 +768,7 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     assert.deepEqual(target.preferredGpuTypes, ["NVIDIA A100 80GB PCIe"]);
     assert.deepEqual(target.preferredDatacenterIds, ["US-KS-2"]);
     assert.equal(target.workspaceRoot, "/workspace");
+    assert.equal(target.bootstrapProfile, "pytorch-cu12");
 
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
     assert.equal(envLocal.includes("RUNPOD_API_KEY=runpod_test_key_123"), true);
