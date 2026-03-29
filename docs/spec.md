@@ -129,7 +129,7 @@ Shared project skills requirements:
 - the shared `fast-search`, `pro-search`, and `deep-search` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
 - the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
 - the shared `pdf-figure-extract` skill is the canonical path for extracting and returning figures from already-downloaded local PDFs, optionally reusing PageIndex artifacts to narrow page selection before multimodal verification and delivery
-- the shared `runpod-job` skill is the canonical AI-facing path for creating, validating, and reusing Runpod-backed GPU servers and bounded GPU jobs through the `opencolab gpu server` and `opencolab gpu job` CLI commands rather than raw Runpod APIs
+- the shared `runpod-job` skill is the canonical AI-facing path for creating, validating, and reusing Runpod-backed GPU servers and bounded GPU jobs through the `opencolab gpu server` and `opencolab gpu job` CLI commands rather than raw Runpod APIs, and for longer jobs it should prefer detached launch with `--wait false`, return the `run_id` promptly, inspect status or logs later when the user explicitly asks about the run or asks to monitor it, and when a run fails or degrades it should notify the user clearly and propose the next useful action
 
 Agent-local skills requirements:
 
@@ -317,7 +317,7 @@ Responsibilities:
 - `ignite` should detect whether `RUNPOD_API_KEY` is already available and allow the operator to keep the existing setup, update it, or skip Runpod setup
 - `ignite` must be able to persist `RUNPOD_API_KEY` in `.env.local`
 - `ignite` should be able to create the first named GPU server for the active project using curated defaults rather than raw low-level Runpod choices
-- the first curated Runpod preset should use backend `runpod`, cloud type `secure`, storage mode `network_volume`, workspace root `/workspace`, SSH access, and bootstrap profile `python-ml`
+- the first curated Runpod preset should use backend `runpod`, cloud type `secure`, storage mode `network_volume`, workspace root `/workspace`, SSH access, and bootstrap profile `pytorch-cu12`
 - `ignite` should be able to run a lightweight GPU server validation test when the operator opts in
 - installer scripts should default to installing the published `opencolab` npm package into a user-owned prefix, make `opencolab` available as a terminal command by installing a user-level shim, and ensure the user bin directory is on `PATH`
 - the repository should provide `install.sh` for macOS/Linux shells and `install.ps1` for Windows PowerShell
@@ -471,7 +471,7 @@ Minimum shape:
             "mode": "public_ip"
           },
           "workspaceRoot": "/workspace",
-          "bootstrapProfile": "python-ml",
+          "bootstrapProfile": "pytorch-cu12",
           "maxRuntimeMinutes": 360,
           "autoStopPolicy": "stop_on_completion"
         }
@@ -607,7 +607,7 @@ Requirements:
 - remote execution must reuse the existing OpenColab progress-event model instead of inventing a second event system
 - each run should declare expected artifact paths before launch
 - OpenColab must fetch declared artifacts automatically, store them under the local run folder, and record missing expected artifacts as warnings or failures depending on strictness
-- final user-facing summaries for remote jobs must distinguish command success, artifact success, and scientific success
+- final user-facing summaries for remote jobs must distinguish command success, artifact success, and scientific success, and when a run fails or degrades they should state the failure reason clearly and propose the next useful operator or agent action
 
 ### 11.5 Failure, Recovery, Security, and Cost Controls
 
