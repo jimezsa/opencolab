@@ -19,7 +19,7 @@ Top-level sources of truth:
 
 Core implementation areas:
 
-- `src/cli.ts`: CLI entrypoint, interactive prompts, setup flows including standalone provider-key writes, and gateway lifecycle commands.
+- `src/cli.ts`: CLI entrypoint, top-level help/version output, interactive prompts, setup flows including standalone provider-key writes, and gateway lifecycle commands.
 - `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth setup, direct API-key setup links, BotFather token guidance, built-in shared-tool key setup including `GEMINI_API_KEY` prerequisites for Gemini shared tools and `pageindex-grounded`, Telegram setup, and pairing.
 - `src/runtime.ts`: stateful orchestration across config, project state, gateway routing, memory, and provider execution.
 - `src/experiments.ts`: local experiment bookkeeping helpers for target snapshots, run manifests, status files, logs, artifacts, and sync metadata.
