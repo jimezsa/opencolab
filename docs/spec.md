@@ -258,6 +258,9 @@ Required command groups:
 Responsibilities:
 
 - initialize state and default project/agent files when `ignite` runs
+- when `OPENCOLAB_ROOT` is set, CLI and runtime config resolution must use it as the runtime root
+- when `OPENCOLAB_ROOT` is unset and the current execution is a packaged install, CLI and runtime config resolution must default to the platform runtime root (`~/.opencolab` on macOS/Linux, `%LOCALAPPDATA%\OpenColab\root` on Windows) instead of the caller's current working directory
+- when `OPENCOLAB_ROOT` is unset and the current execution is a git/source checkout, CLI and runtime config resolution may default to the caller's current working directory
 - `opencolab upgrade` must operate on the current OpenColab install root, not on arbitrary unrelated git repositories or on the active workspace directory by mistake
 - when the current OpenColab install is a git/source checkout, `opencolab upgrade` must update that install to the latest `origin/main`
 - when the current OpenColab install is a git/source checkout, `opencolab upgrade` must fail when the install git worktree has tracked local changes instead of attempting a merge
@@ -411,6 +414,7 @@ Planned rollout order:
 ## 10. Configuration Persistence (`opencolab.json`)
 
 `opencolab.json` is the source of truth and must contain project and agent configuration.
+`opencolab.json` and `.env.local` live at the runtime root, while internal runtime/service state lives under `<runtime_root>/.opencolab/`.
 
 Minimum shape:
 
