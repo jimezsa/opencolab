@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const DEFAULT_PROVIDER_CLI_TIMEOUT_MS = 1800000;
+const PROVIDER_CLI_TIMEOUT_ENV_VAR = "OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS";
 
 export interface OpenColabConfig {
   rootDir: string;
@@ -15,7 +16,7 @@ export interface OpenColabConfig {
   piAgentDir: string;
   localApiPort: number;
   forceMockCodex: boolean;
-  codexTimeoutMs: number;
+  providerCliTimeoutMs: number;
 }
 
 export function loadConfig(cwd = process.cwd()): OpenColabConfig {
@@ -30,11 +31,12 @@ export function loadConfig(cwd = process.cwd()): OpenColabConfig {
     piAgentDir: path.join(rootDir, ".opencolab", "pi-agent"),
     localApiPort: Number(process.env.OPENCOLAB_PORT ?? "4646"),
     forceMockCodex: (process.env.OPENCOLAB_FORCE_MOCK_CLI ?? "0") !== "0",
-    codexTimeoutMs: Number(
-      process.env.OPENCOLAB_CODEX_TIMEOUT_MS ??
-        String(DEFAULT_PROVIDER_CLI_TIMEOUT_MS),
-    ),
+    providerCliTimeoutMs: Number(resolveProviderCliTimeoutMs()),
   };
+}
+
+function resolveProviderCliTimeoutMs(): string {
+  return process.env[PROVIDER_CLI_TIMEOUT_ENV_VAR] ?? String(DEFAULT_PROVIDER_CLI_TIMEOUT_MS);
 }
 
 function loadLocalEnv(rootDir: string): void {
