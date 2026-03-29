@@ -249,6 +249,8 @@ OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS=1800000
 
 OpenColab keeps remote GPU execution separate from the agent reasoning runtime. Providers still handle planning and coding; Runpod is only the remote experiment target.
 For agent-driven remote GPU execution through OpenColab, use the shared `runpod-job` skill.
+For longer agent-driven jobs, the skill should usually launch with `--wait false` and return the `run_id` promptly. The agent can inspect `opencolab gpu job status` and `opencolab gpu job logs` later when the user explicitly asks about the running job or asks to monitor it.
+Curated/default Runpod targets use the `pytorch-cu12` bootstrap profile unless the operator overrides it.
 
 Common operator flow:
 
@@ -260,6 +262,7 @@ opencolab gpu server add \
   --location US-KS-2,CA-MTL-1 \
   --gpu-type "NVIDIA A100 80GB PCIe,NVIDIA RTX 4090" \
   --gpu-count 1 \
+  --bootstrap-profile pytorch-cu12 \
   --volume-name default-runpod-flex \
   --volume-size-gb 200
 
@@ -402,7 +405,7 @@ Telegram slash-menu aliases:
 - Previous-day summaries live in `<agent_path>/memory/Daily/<YYYY-MM-DD>.md`
 - Long-term durable facts belong in `MEMORY.md`
 
-Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, and `runpod-job` handles bounded Runpod GPU server and job orchestration through the OpenColab CLI.
+Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, and `runpod-job` handles bounded Runpod GPU server and job orchestration through the OpenColab CLI, preferring detached launch for longer runs so agents can return a `run_id` promptly and inspect the run later on demand while also surfacing failed or degraded runs clearly with a proposed next action.
 
 ## Configuration and Development
 
