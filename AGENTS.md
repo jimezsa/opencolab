@@ -129,7 +129,7 @@ PRs should include:
 ## Security & Configuration Tips
 - Never commit secrets (API keys, tokens, private keys).
 - Use environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, `TELEGRAM_BOT_TOKEN`).
-- Provider CLI execution defaults to 30 minutes and can be overridden locally with `OPENCOLAB_CODEX_TIMEOUT_MS`.
+- Provider CLI execution defaults to 30 minutes and can be overridden locally with `OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS`.
 - Keep local runtime artifacts out of git:
   - `opencolab.json`
   - `.env.local`
