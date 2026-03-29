@@ -14,7 +14,7 @@ _Accelerating Scientific Discovery_ — Turn one researcher into an always-on au
 
 ## Features planned for first release
 
-- ✅ Deep Research swarm skills for paper search, grounded QA, figure extraction, parallel summaries, and D2 block diagrams.
+- ✅ Deep Research swarm skills for paper search, grounded QA (Reasoning-based RAG), figure extraction, parallel summaries, and D2 block diagrams.
 - ✅ Provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, and xAI.
 - ✅ Multi-project, multi-agent local workspace with CLI and Telegram control.
 - ✅ Run Experiment on external GPU servers(Runpod)
@@ -129,6 +129,7 @@ The macOS/Linux installer keeps runtime state under `~/.opencolab` by default an
 The Windows installer uses `%LOCALAPPDATA%\OpenColab\root` for runtime state, `%LOCALAPPDATA%\OpenColab\package` for the npm prefix, and `%LOCALAPPDATA%\OpenColab\bin\opencolab.cmd` as the user shim.
 For packaged installs, OpenColab defaults to that runtime root even when you invoke `opencolab` outside the directory. `opencolab.json` and `.env.local` live directly under the runtime root, while internal state lives under `<runtime_root>/.opencolab/`.
 `install.sh` now fails fast on Windows and points users to `install.ps1`.
+Run `opencolab --version` to print the installed CLI version, or just run `opencolab` to see the version in the top help banner immediately.
 
 If the npm package is not published yet for the version you want, the one-link installers also support a hacky git-clone mode.
 
