@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +12,15 @@ export interface OpenColabInstall {
   rootDir: string;
   mode: OpenColabInstallMode;
   packageName: string;
+}
+
+export interface RuntimeRootResolutionOptions {
+  cwd?: string;
+  entryScriptPath?: string | null;
+  env?: NodeJS.ProcessEnv;
+  homeDir?: string;
+  moduleDir?: string;
+  platform?: NodeJS.Platform;
 }
 
 export function resolveCurrentOpenColabInstall(
@@ -64,6 +74,52 @@ export function buildPackageUpgradeMessage(packageName: string): string[] {
   ];
 }
 
+export function resolveDefaultRuntimeRootDir(
+  options: Pick<RuntimeRootResolutionOptions, "env" | "homeDir" | "platform"> = {}
+): string {
+  const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
+  const homeDir = options.homeDir ?? os.homedir();
+
+  if (platform === "win32") {
+    const localAppData = env.LOCALAPPDATA?.trim();
+    if (localAppData) {
+      return path.join(localAppData, "OpenColab", "root");
+    }
+    return path.join(homeDir, "AppData", "Local", "OpenColab", "root");
+  }
+
+  return path.join(homeDir, ".opencolab");
+}
+
+export function resolveRuntimeRootDir(options: RuntimeRootResolutionOptions = {}): string {
+  const env = options.env ?? process.env;
+  const configured = env.OPENCOLAB_ROOT?.trim();
+  if (configured) {
+    return configured;
+  }
+
+  const cwd = options.cwd ?? process.cwd();
+  if (hasExistingRuntimeState(cwd)) {
+    return cwd;
+  }
+
+  try {
+    const install = resolveCurrentOpenColabInstall({
+      entryScriptPath: options.entryScriptPath ?? process.argv[1],
+      moduleDir: options.moduleDir,
+      cwd
+    });
+    if (install.mode === "package") {
+      return resolveDefaultRuntimeRootDir(options);
+    }
+  } catch {
+    // Fall through to cwd when the current execution does not look like an installed package.
+  }
+
+  return cwd;
+}
+
 function resolveOpenColabPackageRoot(startPath: string): string | null {
   let current = normalizeSearchStart(startPath);
   while (true) {
@@ -108,4 +164,11 @@ function readOpenColabPackageName(rootDir: string): string | null {
   } catch {
     return null;
   }
+}
+
+function hasExistingRuntimeState(rootDir: string): boolean {
+  return (
+    fs.existsSync(path.join(rootDir, "opencolab.json")) ||
+    fs.existsSync(path.join(rootDir, ".env.local"))
+  );
 }
