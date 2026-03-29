@@ -42,6 +42,7 @@ import {
   type TelegramSender,
   type TelegramTypingSender
 } from "./gateway.js";
+import { resolveRuntimeRootDir } from "./install.js";
 import type {
   AgentMemoryContext,
   AgentConfig,
@@ -127,7 +128,7 @@ export class OpenColabRuntime {
   private readonly runpodExecutionService: RunpodExecutionService;
   private readonly gateway: TelegramGateway;
 
-  constructor(cwd = process.cwd(), private readonly options: RuntimeOptions = {}) {
+  constructor(cwd = resolveRuntimeRootDir(), private readonly options: RuntimeOptions = {}) {
     this.config = loadConfig(cwd);
     this.state = ensureProjectAndAgent(readProjectState(this.config));
     this.conversations = new ConversationStore(this.config.rootDir);
@@ -581,7 +582,7 @@ export class OpenColabRuntime {
   }
 }
 
-export function createRuntime(cwd = process.cwd(), options: RuntimeOptions = {}): OpenColabRuntime {
+export function createRuntime(cwd = resolveRuntimeRootDir(), options: RuntimeOptions = {}): OpenColabRuntime {
   return new OpenColabRuntime(cwd, options);
 }
 
