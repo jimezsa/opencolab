@@ -472,7 +472,7 @@ async function configureRunpod(
     volumeName: `${project.id}-${serverId}`,
     volumeSizeGb: 200,
     workspaceRoot: "/workspace",
-    bootstrapProfile: "python-ml",
+    bootstrapProfile: "pytorch-cu12",
     maxRuntimeMinutes: 360,
     autoStopPolicy: "stop_on_completion"
   });
