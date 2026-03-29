@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## [Unreleased]
+## [0.1.2] - 2026-03-29
 
 ### Added
 
@@ -18,7 +18,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 - Legacy support for the `OPENCOLAB_CODEX_TIMEOUT_MS` timeout env var.
 
-## [0.1.0] - 2026-03-27
+## [0.1.1] - 2026-03-27
 
 ### Added
 
