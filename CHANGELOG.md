@@ -12,7 +12,11 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
-- Provider CLI execution now defaults to a 30 minute timeout instead of 10 minutes and remains configurable via `OPENCOLAB_CODEX_TIMEOUT_MS`.
+- Provider CLI execution now defaults to a 30 minute timeout instead of 10 minutes and remains configurable via `OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS`.
+
+### Removed
+
+- Legacy support for the `OPENCOLAB_CODEX_TIMEOUT_MS` timeout env var.
 
 ## [0.1.0] - 2026-03-27
 
