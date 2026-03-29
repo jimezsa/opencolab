@@ -67,7 +67,7 @@ Let the agent decide what is worth sending. Use `progress` for countable ongoing
   When to use: for architecture figures, pipeline overviews, system diagrams, tables-as-images, or other paper figures that should be extracted from an already-downloaded local PDF and returned as an image file.
 - `runpod-job`
   Description: OpenColab CLI workflow for configuring Runpod GPU servers, validating targets, starting bounded remote GPU jobs, polling status, fetching outputs, and cancelling runs when needed.
-  When to use: for code execution, training, evaluation, or other bounded GPU work that should run on Runpod through `opencolab gpu server` and `opencolab gpu job` instead of raw Runpod API calls or manual Pod management.
+  When to use: for code execution, training, evaluation, or other bounded GPU work that should run on Runpod through `opencolab gpu server` and `opencolab gpu job` instead of raw Runpod API calls or manual Pod management. Curated/default targets should use `pytorch-cu12`. For longer runs, prefer detached launch with `--wait false`, return the `run_id` promptly, inspect status or logs later when the user explicitly asks, and when a run fails or degrades, explain the issue clearly and propose the next useful action.
 - `block-diagram`
   Description: Deterministic D2 block diagram generation with sketch-style SVG by default, optional PNG rendering, and optional LaTeX equation blocks when the diagram needs them.
   When to use: for system, pipeline, model, component, and literature-map diagrams that agents can generate end to end from a text brief, favoring compact layouts, unlabeled arrows unless a label adds concrete meaning, and equation nodes only when they materially clarify a mathematical stage or objective.
