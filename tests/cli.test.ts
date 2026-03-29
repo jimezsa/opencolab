@@ -8,6 +8,14 @@ import { createRuntime } from "../src/runtime.js";
 
 const REPO_ROOT = process.cwd();
 const CLI_PATH = path.join(REPO_ROOT, "dist", "src", "cli.js");
+const PACKAGE_VERSION = (() => {
+  const parsed = JSON.parse(
+    fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"),
+  ) as { version?: unknown };
+  return typeof parsed.version === "string" && parsed.version.trim()
+    ? parsed.version.trim()
+    : "unknown";
+})();
 
 function runCli(rootDir: string, args: string[]): {
   status: number | null;
@@ -70,6 +78,43 @@ test("setup api-key saves one provider key without changing the active agent run
     } else {
       process.env.GEMINI_API_KEY = previousGeminiKey;
     }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("bare CLI help shows the installed version immediately", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-version-help-"));
+
+  try {
+    const result = runCli(tempDir, []);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stdout.includes(`OpenColab v${PACKAGE_VERSION}`), true);
+    assert.equal(result.stdout.includes("multi-agent research lab"), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("--version prints the installed CLI version", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-version-flag-"));
+
+  try {
+    const result = runCli(tempDir, ["--version"]);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stdout.trim(), `opencolab ${PACKAGE_VERSION}`);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("version command prints the installed CLI version", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-version-command-"));
+
+  try {
+    const result = runCli(tempDir, ["version"]);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stdout.trim(), `opencolab ${PACKAGE_VERSION}`);
+  } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
