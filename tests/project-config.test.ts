@@ -4,7 +4,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { loadConfig } from "../src/config.js";
-import { readProjectState, updateProjectState } from "../src/project-config.js";
+import {
+  createDefaultExecutionTargetConfig,
+  readProjectState,
+  updateProjectState
+} from "../src/project-config.js";
 
 const DEFAULT_AGENT_ID = "professor";
 
@@ -43,6 +47,11 @@ test("project state defaults to a default project and agent", () => {
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+});
+
+test("default Runpod execution targets use the pytorch-cu12 bootstrap profile", () => {
+  const target = createDefaultExecutionTargetConfig("runpod-a100");
+  assert.equal(target.bootstrapProfile, "pytorch-cu12");
 });
 
 test("project state normalizes project-scoped execution targets", () => {
