@@ -4,6 +4,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { resolveRuntimeRootDir } from "./install.js";
 
 const DEFAULT_PROVIDER_CLI_TIMEOUT_MS = 1800000;
 const PROVIDER_CLI_TIMEOUT_ENV_VAR = "OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS";
@@ -19,7 +20,7 @@ export interface OpenColabConfig {
   providerCliTimeoutMs: number;
 }
 
-export function loadConfig(cwd = process.cwd()): OpenColabConfig {
+export function loadConfig(cwd = resolveRuntimeRootDir()): OpenColabConfig {
   const rootDir = cwd;
   loadLocalEnv(rootDir);
 
