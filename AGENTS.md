@@ -34,8 +34,9 @@ Core implementation areas:
 - `src/agent.ts`: agent file seeding, shared/agent-local skill discovery, and prompt assembly.
 - `src/agent-templates.ts`: built-in agent template loading and default-doc resolution.
 - `src/conversation.ts`: per-agent session logs, previous-day summaries, and prompt-memory loading.
+- `src/install.ts`: install-root detection, package-vs-git install mode behavior, and runtime-root resolution across `OPENCOLAB_ROOT`, packaged-install defaults, and cwd fallback for source checkouts.
 - `src/project-config.ts`: `opencolab.json` defaults, normalization, migration, and project/agent path helpers.
-- `src/config.ts`: root config and local env loading.
+- `src/config.ts`: root config, runtime-root-aware path resolution, and local env loading.
 - `src/secrets.ts`: `.env.local` secret read/write helpers.
 - `src/types.ts`: shared persisted-state and runtime interfaces.
 
