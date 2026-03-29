@@ -8,6 +8,8 @@ import {
   detectOpenColabInstallMode,
   isGitInstallRoot,
   resolveCurrentOpenColabInstall,
+  resolveDefaultRuntimeRootDir,
+  resolveRuntimeRootDir,
 } from "../src/install.js";
 
 function createPackageRoot(prefix: string, packageName = "opencolab"): string {
@@ -66,5 +68,100 @@ test("resolveCurrentOpenColabInstall detects a packaged install without git meta
     ]);
   } finally {
     fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("resolveDefaultRuntimeRootDir uses the platform user runtime root", () => {
+  assert.equal(
+    resolveDefaultRuntimeRootDir({
+      platform: "linux",
+      homeDir: "/home/dev",
+      env: {}
+    }),
+    "/home/dev/.opencolab"
+  );
+  assert.equal(
+    resolveDefaultRuntimeRootDir({
+      platform: "win32",
+      homeDir: "C:\\Users\\Dev",
+      env: { LOCALAPPDATA: "C:\\Users\\Dev\\AppData\\Local" }
+    }),
+    path.join("C:\\Users\\Dev\\AppData\\Local", "OpenColab", "root")
+  );
+});
+
+test("resolveRuntimeRootDir honors OPENCOLAB_ROOT when set", () => {
+  assert.equal(
+    resolveRuntimeRootDir({
+      cwd: "/tmp/work",
+      env: { OPENCOLAB_ROOT: "/tmp/runtime-root" }
+    }),
+    "/tmp/runtime-root"
+  );
+});
+
+test("resolveRuntimeRootDir defaults packaged installs to the user runtime root", () => {
+  const installRoot = createPackageRoot("opencolab-runtime-root-package-", "@acme/opencolab");
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-runtime-root-cwd-"));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-runtime-root-home-"));
+
+  try {
+    const resolved = resolveRuntimeRootDir({
+      cwd,
+      entryScriptPath: path.join(installRoot, "dist", "src", "cli.js"),
+      env: {},
+      homeDir,
+      platform: "linux"
+    });
+
+    assert.equal(resolved, path.join(homeDir, ".opencolab"));
+  } finally {
+    fs.rmSync(installRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+});
+
+test("resolveRuntimeRootDir keeps the current directory for git/source checkouts", () => {
+  const installRoot = createPackageRoot("opencolab-runtime-root-git-");
+  fs.mkdirSync(path.join(installRoot, ".git"), { recursive: true });
+  fs.mkdirSync(path.join(installRoot, "src"), { recursive: true });
+  fs.writeFileSync(path.join(installRoot, "src", "cli.ts"), "export {};\n", "utf8");
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-runtime-root-git-cwd-"));
+
+  try {
+    const resolved = resolveRuntimeRootDir({
+      cwd,
+      entryScriptPath: path.join(installRoot, "dist", "src", "cli.js"),
+      env: {},
+      homeDir: os.tmpdir(),
+      platform: "linux"
+    });
+
+    assert.equal(resolved, cwd);
+  } finally {
+    fs.rmSync(installRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("resolveRuntimeRootDir keeps an existing local runtime root for packaged installs", () => {
+  const installRoot = createPackageRoot("opencolab-runtime-root-existing-", "@acme/opencolab");
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-runtime-root-existing-cwd-"));
+  fs.writeFileSync(path.join(cwd, "opencolab.json"), "{\"version\":1}\n", "utf8");
+
+  try {
+    const resolved = resolveRuntimeRootDir({
+      cwd,
+      entryScriptPath: path.join(installRoot, "dist", "src", "cli.js"),
+      env: {},
+      homeDir: os.tmpdir(),
+      platform: "linux"
+    });
+
+    assert.equal(resolved, cwd);
+  } finally {
+    fs.rmSync(installRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
