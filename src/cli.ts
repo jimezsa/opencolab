@@ -19,6 +19,7 @@ import { runIgnite } from "./ignite.js";
 import {
   buildPackageUpgradeMessage,
   resolveCurrentOpenColabInstall,
+  resolveRuntimeRootDir,
 } from "./install.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
 import {
@@ -788,14 +789,6 @@ function parseProviderAuthMode(
   }
 
   return parsed;
-}
-
-function resolveRuntimeRootDir(): string {
-  const configured = process.env.OPENCOLAB_ROOT?.trim();
-  if (configured) {
-    return configured;
-  }
-  return process.cwd();
 }
 
 function parseBooleanFlag(
