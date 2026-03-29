@@ -50,6 +50,7 @@ const ANSI_WHITE = "\u001b[97m";
 const ANSI_SOFT_WHITE = "\u001b[38;5;240m";
 const ANSI_RESET = "\u001b[0m";
 const HELP_DESCRIPTION_COLUMN = 20;
+const CLI_VERSION = resolveCliVersion();
 
 interface Keypress {
   name?: string;
@@ -374,11 +375,32 @@ function formatHelp(lines: string[]): string {
   return lines.join("\n");
 }
 
+function resolveCliVersion(): string {
+  try {
+    const runtimeRootDir = resolveRuntimeRootDir();
+    const install = resolveCurrentOpenColabInstall({
+      entryScriptPath: process.argv[1],
+      cwd: runtimeRootDir,
+    });
+    const packageJsonPath = path.join(install.rootDir, "package.json");
+    const parsed = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")) as {
+      version?: unknown;
+    };
+    return typeof parsed.version === "string" && parsed.version.trim()
+      ? parsed.version.trim()
+      : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 function usageMain(): string {
   return formatHelp([
-    accent(bold(`${PROJECT_PET} OpenColab`)) + " multi-agent research lab",
+    accent(bold(`${PROJECT_PET} OpenColab v${CLI_VERSION}`)),
+    white("multi-agent research lab"),
     "",
     "Options:",
+    helpCommand("--version", "Show the installed CLI version"),
     helpCommand(
       "<command> --help",
       "Show detailed options for a command or subcommand",
@@ -389,6 +411,7 @@ function usageMain(): string {
     `  ${accent("opencolab <command> [args]")}`,
     "",
     "Top-level commands:",
+    helpCommand("version", "Print the installed CLI version"),
     helpCommand("ignite", "Interactive first-run setup"),
     helpCommand("upgrade", "Upgrade OpenColab or show package upgrade guidance"),
     helpCommand("setup", "Configure model/provider/api-key/telegram"),
@@ -406,6 +429,14 @@ function usageMain(): string {
       "Show gateway start flags",
     ),
   ]);
+}
+
+function resolveVersionOutput(argv: string[]): string | null {
+  const [command] = argv;
+  if (command === "version" || argv.includes("--version") || argv.includes("-v")) {
+    return `opencolab ${CLI_VERSION}`;
+  }
+  return null;
 }
 
 function usageGateway(): string {
@@ -1067,6 +1098,12 @@ function printUpgradeGatewayRestartSummary(runtimeRootDir: string): void {
 async function main(): Promise<void> {
   const [, , ...argv] = process.argv;
   const [command, subcommand, action, ...rest] = argv;
+
+  const versionOutput = resolveVersionOutput(argv);
+  if (versionOutput) {
+    console.log(versionOutput);
+    return;
+  }
 
   const help = resolveHelp(argv);
   if (help) {
