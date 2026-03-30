@@ -46,6 +46,7 @@ import { resolveRuntimeRootDir } from "./install.js";
 import type {
   AgentMemoryContext,
   AgentConfig,
+  ExecutionTargetAvailabilityResult,
   ExecutionTargetConfig,
   ExecutionTargetTestResult,
   ExperimentRunManifest,
@@ -481,6 +482,12 @@ export class OpenColabRuntime {
     const project = this.getActiveProject();
     const target = this.getExecutionTarget(targetId, project.id);
     return this.runpodExecutionService.testTarget(project, target);
+  }
+
+  async checkExecutionTargetAvailability(targetId: string): Promise<ExecutionTargetAvailabilityResult> {
+    const project = this.getActiveProject();
+    const target = this.getExecutionTarget(targetId, project.id);
+    return this.runpodExecutionService.checkTargetAvailability(project, target);
   }
 
   async startGpuJob(input: GpuJobInput): Promise<ExperimentRunStatus> {
