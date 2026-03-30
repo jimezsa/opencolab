@@ -26,6 +26,8 @@ import {
 } from "../../experiments.js";
 import type {
   AgentConfig,
+  ExecutionTargetAvailabilityCandidate,
+  ExecutionTargetAvailabilityResult,
   ExecutionTargetConfig,
   ExecutionTargetTestResult,
   ExperimentRunManifest,
@@ -35,12 +37,14 @@ import type {
   TaskProgressEvent
 } from "../../types.js";
 import { resolveEnvVar, resolveRunpodApiKey, RUNPOD_API_KEY_ENV_VAR } from "../../secrets.js";
-import { ensureDir, nowIso, writeJson } from "../../utils.js";
+import { ensureDir, nowIso, safeReadJson, writeJson } from "../../utils.js";
 
 const RUNPOD_API_BASE_URL = "https://rest.runpod.io/v1";
+const RUNPOD_GRAPHQL_URL = "https://api.runpod.io/graphql";
 const DEFAULT_REMOTE_RUN_ROOT = "/workspace/.opencolab/runs";
 const DEFAULT_SSH_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_STATE_POLL_INTERVAL_MS = 10 * 1000;
+const RUNPOD_STORAGE_COMPATIBILITY_CACHE = "runpod-storage-compatibility.json";
 const DEFAULT_EXCLUDE_PATHS = [
   ".git/",
   ".env.local",
@@ -89,6 +93,40 @@ interface RunpodPodAllocation {
   volume: RunpodNetworkVolume;
 }
 
+interface RunpodGpuAvailability {
+  gpuTypeId: string;
+  displayName: string | null;
+  stockStatus: string | null;
+}
+
+interface RunpodGpuType {
+  id: string;
+  displayName: string | null;
+}
+
+interface RunpodDataCenter {
+  id: string;
+  name: string | null;
+  location: string | null;
+  gpuAvailability: RunpodGpuAvailability[];
+}
+
+interface RunpodPodApiConstraints {
+  compatibleDataCenterIds: string[];
+  compatibleGpuTypeIds: string[];
+}
+
+interface RunpodStorageCompatibilityCacheEntry {
+  datacenterId: string;
+  status: "supported" | "failed";
+  message: string | null;
+  observedAt: string;
+}
+
+interface RunpodStorageCompatibilityCache {
+  datacenters: Record<string, RunpodStorageCompatibilityCacheEntry>;
+}
+
 interface CommandResult {
   exitCode: number;
   stdout: string;
@@ -111,6 +149,10 @@ export interface RunpodJobStartInput {
 
 export interface RunpodExecutionService {
   testTarget(project: ProjectState, target: ExecutionTargetConfig): Promise<ExecutionTargetTestResult>;
+  checkTargetAvailability(
+    project: ProjectState,
+    target: ExecutionTargetConfig
+  ): Promise<ExecutionTargetAvailabilityResult>;
   startRun(
     project: ProjectState,
     agent: AgentConfig,
@@ -195,6 +237,87 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
       backend: target.backend,
       warnings,
       details
+    };
+  }
+
+  async checkTargetAvailability(
+    project: ProjectState,
+    target: ExecutionTargetConfig
+  ): Promise<ExecutionTargetAvailabilityResult> {
+    const preferredDatacenterIds = resolvePreferredDatacenterIds(target);
+    const preferredGpuTypes = resolvePreferredGpuTypes(target);
+    this.validateTargetEnabled(target);
+    this.requireRunpodApiKey();
+
+    const dataCenters = await this.listDataCenters();
+    const podApiConstraints = await this.readPodApiConstraints();
+    const podCompatibleDataCenterIds = new Set(podApiConstraints.compatibleDataCenterIds);
+    const storageCompatibility = this.readObservedStorageCompatibility(project);
+    const candidates: ExecutionTargetAvailabilityCandidate[] = [];
+    const warnings: string[] = [];
+
+    for (const datacenterId of preferredDatacenterIds) {
+      const dataCenter = dataCenters.find((candidate) => candidate.id === datacenterId) ?? null;
+      const storageEntry = storageCompatibility[datacenterId] ?? null;
+      const podApiCompatible = podCompatibleDataCenterIds.has(datacenterId);
+      if (!dataCenter) {
+        warnings.push(`Runpod did not return datacenter '${datacenterId}' in the live availability snapshot.`);
+      }
+      if (!podApiCompatible) {
+        warnings.push(
+          `Datacenter '${datacenterId}' appears in Runpod's live availability feed but is not currently accepted by the Pod create API schema.`
+        );
+      }
+      if (storageEntry?.status === "failed") {
+        warnings.push(
+          `Datacenter '${datacenterId}' previously failed network volume provisioning${storageEntry.message ? `: ${storageEntry.message}` : "."}`
+        );
+      }
+
+      for (const gpuType of preferredGpuTypes) {
+        const availability =
+          dataCenter?.gpuAvailability.find((candidate) => matchesGpuCandidate(gpuType, candidate)) ?? null;
+        candidates.push({
+          datacenterId,
+          datacenterName: dataCenter?.name ?? null,
+          datacenterLocation: dataCenter?.location ?? null,
+          gpuType,
+          stockStatus: availability?.stockStatus ?? null,
+          available: availability !== null,
+          podApiCompatible,
+          storageSupport: storageEntry?.status ?? "unknown",
+          storageWarning: storageEntry?.status === "failed" ? storageEntry.message : null
+        });
+      }
+    }
+
+    const bestCandidate =
+      candidates.find(
+        (candidate) =>
+          candidate.available && candidate.podApiCompatible && candidate.storageSupport !== "failed"
+      ) ??
+      candidates.find((candidate) => candidate.available && candidate.podApiCompatible) ??
+      candidates.find((candidate) => candidate.available) ??
+      null;
+    const hasActionableCandidate = candidates.some(
+      (candidate) =>
+        candidate.available && candidate.podApiCompatible && candidate.storageSupport !== "failed"
+    );
+    if (!hasActionableCandidate) {
+      warnings.push(
+        `No compatible Runpod capacity is available right now. Checked ${preferredDatacenterIds.join(", ")} with GPU candidates ${preferredGpuTypes.join(", ")}.`
+      );
+    }
+    warnings.push("Availability is a live snapshot and may change before launch.");
+
+    return {
+      ok: hasActionableCandidate,
+      targetId: target.id,
+      backend: target.backend,
+      checkedAt: nowIso(),
+      bestCandidate,
+      candidates,
+      warnings
     };
   }
 
@@ -723,8 +846,8 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
         stage: "provisioning",
         message: `Trying ${datacenterId} with GPU candidates ${preferredGpuTypes.join(", ")}.`
       });
-      const volume = await this.ensureNetworkVolume(target, datacenterId, volumes);
       try {
+        const volume = await this.ensureNetworkVolume(target, datacenterId, volumes);
         const pod = await this.createPod(project, target, volume, datacenterId);
         return { pod, volume };
       } catch (error) {
@@ -1295,6 +1418,135 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     return Array.isArray(response) ? response.map((value) => normalizeNetworkVolume(value)) : [];
   }
 
+  private async listDataCenters(): Promise<RunpodDataCenter[]> {
+    const data = await this.requestGraphqlJson<{ dataCenters?: unknown[] }>(`
+      query OpenColabDataCenters {
+        dataCenters {
+          id
+          name
+          location
+          gpuAvailability {
+            gpuTypeId
+            displayName
+            stockStatus
+          }
+        }
+      }
+    `);
+    return Array.isArray(data.dataCenters)
+      ? data.dataCenters.map((value) => normalizeDataCenter(value))
+      : [];
+  }
+
+  private async listGpuTypes(): Promise<RunpodGpuType[]> {
+    const data = await this.requestGraphqlJson<{ gpuTypes?: unknown[] }>(`
+      query OpenColabGpuTypes {
+        gpuTypes {
+          id
+          displayName
+        }
+      }
+    `);
+    return Array.isArray(data.gpuTypes)
+      ? data.gpuTypes.map((value) => normalizeGpuType(value))
+      : [];
+  }
+
+  private async resolveRequestedGpuTypeIds(preferredGpuTypes: string[]): Promise<string[]> {
+    const gpuTypes = await this.listGpuTypes();
+    return preferredGpuTypes.map((value) => {
+      const matched = gpuTypes.find(
+        (candidate) => gpuValuesMatch(value, candidate.id) || gpuValuesMatch(value, candidate.displayName)
+      );
+      return matched?.id ?? value;
+    });
+  }
+
+  private async readPodApiConstraints(): Promise<RunpodPodApiConstraints> {
+    const spec = await this.requestJson<unknown>("GET", "/openapi.json");
+    const schemas = asRecord(asRecord(asRecord(spec)?.components)?.schemas);
+    const podCreateInput = asRecord(schemas?.PodCreateInput);
+    const properties = asRecord(podCreateInput?.properties);
+    const dataCenterIds = extractEnumValues(properties?.dataCenterIds);
+    const gpuTypeIds = extractEnumValues(properties?.gpuTypeIds);
+    return {
+      compatibleDataCenterIds: dataCenterIds,
+      compatibleGpuTypeIds: gpuTypeIds
+    };
+  }
+
+  private storageCompatibilityCachePath(): string {
+    return path.join(this.config.stateDir, RUNPOD_STORAGE_COMPATIBILITY_CACHE);
+  }
+
+  private readStorageCompatibilityCache(): RunpodStorageCompatibilityCache {
+    return safeReadJson<RunpodStorageCompatibilityCache>(this.storageCompatibilityCachePath(), {
+      datacenters: {}
+    });
+  }
+
+  private readObservedStorageCompatibility(
+    project: ProjectState
+  ): Record<string, RunpodStorageCompatibilityCacheEntry> {
+    const merged = { ...this.readStorageCompatibilityCache().datacenters };
+    const runsDir = path.join(this.config.rootDir, project.path, "experiments", "runs");
+    if (!fs.existsSync(runsDir)) {
+      return merged;
+    }
+
+    for (const runId of fs.readdirSync(runsDir)) {
+      const statusPath = path.join(runsDir, runId, "status.json");
+      const status = safeReadJson<ExperimentRunStatus | null>(statusPath, null);
+      if (!status?.error || !status.error.includes("Runpod API POST /networkvolumes failed")) {
+        continue;
+      }
+
+      const explicitMatches = Array.from(
+        status.error.matchAll(
+          /([A-Z]{2,}(?:-[A-Z0-9]+)+): (Runpod API POST \/networkvolumes failed[\s\S]*?)(?= \| [A-Z]{2,}(?:-[A-Z0-9]+)+: |$)/g
+        )
+      );
+      const inferredDatacenterIds =
+        explicitMatches.length > 0
+          ? explicitMatches.map((match) => match[1])
+          : status.progressEvents
+              .filter((event) => event.stage === "provisioning")
+              .map((event) => {
+                const match = event.message.match(/^Trying ([A-Z]{2,}(?:-[A-Z0-9]+)+) with GPU candidates /);
+                return match?.[1] ?? null;
+              })
+              .filter((value): value is string => Boolean(value))
+              .slice(-1);
+
+      for (const datacenterId of inferredDatacenterIds) {
+        const explicitMessage = explicitMatches.find((match) => match[1] === datacenterId)?.[2]?.trim() ?? null;
+        merged[datacenterId] = {
+          datacenterId,
+          status: "failed",
+          message: explicitMessage ?? status.error.trim(),
+          observedAt: status.updatedAt
+        };
+      }
+    }
+
+    return merged;
+  }
+
+  private rememberStorageCompatibility(
+    datacenterId: string,
+    status: RunpodStorageCompatibilityCacheEntry["status"],
+    message: string | null
+  ): void {
+    const cache = this.readStorageCompatibilityCache();
+    cache.datacenters[datacenterId] = {
+      datacenterId,
+      status,
+      message,
+      observedAt: nowIso()
+    };
+    writeJson(this.storageCompatibilityCachePath(), cache);
+  }
+
   private async ensureNetworkVolume(
     target: ExecutionTargetConfig,
     datacenterId: string,
@@ -1302,11 +1554,21 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
   ): Promise<RunpodNetworkVolume> {
     const existing = this.findMatchingVolume(target, datacenterId, knownVolumes);
     if (existing) {
+      this.rememberStorageCompatibility(datacenterId, "supported", null);
       return existing;
     }
-    const created = await this.createNetworkVolume(target, datacenterId);
-    knownVolumes.push(created);
-    return created;
+    try {
+      const created = await this.createNetworkVolume(target, datacenterId);
+      knownVolumes.push(created);
+      this.rememberStorageCompatibility(datacenterId, "supported", null);
+      return created;
+    } catch (error) {
+      const message = error instanceof Error ? error.message.trim() : String(error);
+      if (classifyStorageCompatibilityFailure(message)) {
+        this.rememberStorageCompatibility(datacenterId, "failed", message);
+      }
+      throw error;
+    }
   }
 
   private findCompatiblePodAllocation(
@@ -1367,7 +1629,7 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     volume: RunpodNetworkVolume,
     datacenterId: string
   ): Promise<RunpodPod> {
-    const preferredGpuTypes = resolvePreferredGpuTypes(target);
+    const preferredGpuTypes = await this.resolveRequestedGpuTypeIds(resolvePreferredGpuTypes(target));
     const body: Record<string, unknown> = {
       cloudType: "SECURE",
       computeType: "GPU",
@@ -1431,6 +1693,44 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
       return undefined as T;
     }
     return JSON.parse(responseText) as T;
+  }
+
+  private async requestGraphqlJson<T>(
+    query: string,
+    variables?: Record<string, unknown>
+  ): Promise<T> {
+    const apiKey = this.requireRunpodApiKey();
+    const response = await fetch(RUNPOD_GRAPHQL_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query,
+        ...(variables ? { variables } : {})
+      })
+    });
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      throw new Error(
+        `Runpod GraphQL request failed (${response.status}): ${responseText || response.statusText}`
+      );
+    }
+    if (!responseText) {
+      throw new Error("Runpod GraphQL returned an empty response.");
+    }
+
+    const payload = JSON.parse(responseText) as { data?: T; errors?: Array<{ message?: unknown }> };
+    if (Array.isArray(payload.errors) && payload.errors.length > 0) {
+      const message = String(payload.errors[0]?.message ?? "Unknown Runpod GraphQL error.");
+      throw new Error(`Runpod GraphQL error: ${message}`);
+    }
+    if (!payload.data) {
+      throw new Error("Runpod GraphQL response did not include data.");
+    }
+    return payload.data;
   }
 
   private async ensureRemoteDir(connection: RunpodSshConnection, remoteDir: string): Promise<void> {
@@ -1520,6 +1820,57 @@ function resolvePreferredGpuTypes(target: ExecutionTargetConfig): string[] {
   return target.preferredGpuTypes.length > 0 ? target.preferredGpuTypes : [target.gpuType];
 }
 
+function matchesGpuCandidate(candidate: string, availability: RunpodGpuAvailability): boolean {
+  return gpuValuesMatch(candidate, availability.gpuTypeId) || gpuValuesMatch(candidate, availability.displayName);
+}
+
+function gpuValuesMatch(left: string | null | undefined, right: string | null | undefined): boolean {
+  const leftKeys = buildGpuLookupKeys(left);
+  const rightKeys = buildGpuLookupKeys(right);
+  if (leftKeys.length === 0 || rightKeys.length === 0) {
+    return false;
+  }
+  return leftKeys.some((leftKey) => rightKeys.includes(leftKey));
+}
+
+function buildGpuLookupKeys(value: string | null | undefined): string[] {
+  const normalized = normalizeLookupValue(value);
+  if (!normalized) {
+    return [];
+  }
+  const relaxed = normalized
+    .replace(/\b(nvidia|geforce)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return Array.from(new Set([normalized, relaxed].filter((candidate) => candidate.length > 0)));
+}
+
+function normalizeLookupValue(value: string | null | undefined): string {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function classifyStorageCompatibilityFailure(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("create network volume") &&
+    (normalized.includes("storage cluster") || normalized.includes("failed to find data center"))
+  );
+}
+
+function extractEnumValues(raw: unknown): string[] {
+  const source = asRecord(raw);
+  const items = asRecord(source?.items);
+  const values = Array.isArray(items?.enum) ? items.enum : [];
+  return values
+    .map((value) => asNullableString(value))
+    .filter((value): value is string => Boolean(value));
+}
+
 function normalizeNetworkVolume(raw: unknown): RunpodNetworkVolume {
   const source = asRecord(raw);
   return {
@@ -1527,6 +1878,34 @@ function normalizeNetworkVolume(raw: unknown): RunpodNetworkVolume {
     name: asString(source?.name, ""),
     size: Number(source?.size ?? 0),
     dataCenterId: asString(source?.dataCenterId, "")
+  };
+}
+
+function normalizeDataCenter(raw: unknown): RunpodDataCenter {
+  const source = asRecord(raw);
+  const rawAvailability = Array.isArray(source?.gpuAvailability) ? source.gpuAvailability : [];
+  return {
+    id: asString(source?.id, ""),
+    name: asNullableString(source?.name),
+    location: asNullableString(source?.location),
+    gpuAvailability: rawAvailability.map((value) => normalizeGpuAvailability(value))
+  };
+}
+
+function normalizeGpuAvailability(raw: unknown): RunpodGpuAvailability {
+  const source = asRecord(raw);
+  return {
+    gpuTypeId: asString(source?.gpuTypeId, ""),
+    displayName: asNullableString(source?.displayName),
+    stockStatus: asNullableString(source?.stockStatus)
+  };
+}
+
+function normalizeGpuType(raw: unknown): RunpodGpuType {
+  const source = asRecord(raw);
+  return {
+    id: asString(source?.id, ""),
+    displayName: asNullableString(source?.displayName)
   };
 }
 
