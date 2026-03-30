@@ -307,10 +307,13 @@ Responsibilities:
 - `ignite` onboarding should detect existing provider setup and allow keeping or updating it
 - `ignite` onboarding should include optional steps to persist `GEMINI_API_KEY` for Gemini-based built-in shared tools and `pageindex-grounded` when the local PageIndex runner needs it
 - `opencolab setup api-key` must persist the canonical env var for one specific provider without mutating provider/model/auth settings
-- `opencolab gpu server` must support lifecycle commands: `add`, `list`, `show`, `test`, and `remove`
+- `opencolab gpu server` must support lifecycle commands: `add`, `list`, `show`, `availability`, `test`, and `remove`
 - `opencolab gpu job` must support lifecycle commands: `start`, `status`, `logs`, `fetch`, `cancel`, and `list`
 - `gpu server add` must support `--provider runpod`
 - `gpu server add` should allow a simplified server definition where the operator mainly chooses location preference and acceptable GPU types while the implementation keeps curated defaults for the rest
+- `gpu server availability` must inspect live Runpod datacenter and GPU stock for one named target without mutating project state
+- `gpu server availability` should use the same ordered datacenter and GPU candidate lists that launch uses, report the best currently matching option when one exists, and state clearly that the result is only a live snapshot rather than a reservation
+- `gpu server availability` should warn when a datacenter appears in live stock but is not currently accepted by the Runpod Pod create API, and should also surface known prior network-volume provisioning failures for candidate datacenters when that evidence exists locally
 - the operator-facing CLI should prefer `gpu server` and `gpu job` naming even if internal state uses a provider-neutral `ExecutionTarget` model
 - Runpod onboarding must remain optional and must not block local-only setup
 - `ignite` onboarding should include an optional Runpod section after the core local setup flow is stable
@@ -623,6 +626,7 @@ Requirements:
 - Pod termination or restart during the job should be treated as run failure unless the workflow explicitly supports resume
 - artifact or log fetch interruption must be treated as a retryable transfer problem before it is treated as experiment failure
 - if the target defines multiple allowed datacenter or GPU candidates, provisioning should try them in deterministic order and surface the attempted combinations in progress or failure reporting
+- operators should be able to inspect the current compatible datacenter and GPU combinations for a named target before launch through a live availability command, and that command must use the same candidate ordering as provisioning while stating that capacity can change before launch
 - each target should be able to express max runtime, idle shutdown behavior, approximate budget ceiling, allowed GPU class, and allowed GPU count
 - operator-facing surfaces must make active remote cost exposure visible enough for routine use
 
@@ -887,7 +891,7 @@ v1 is complete when all are true:
 The Runpod-first remote execution milestone is complete when all are true:
 
 - A project can define at least one named execution target in `opencolab.json`.
-- `opencolab gpu server` can add, list, show, test, and remove Runpod-backed targets.
+- `opencolab gpu server` can add, list, show, inspect availability for, test, and remove Runpod-backed targets.
 - Runpod-backed targets can express ordered location and GPU candidates while keeping a primary compatibility value for each.
 - `opencolab gpu job` can start, inspect, fetch, cancel, and list bounded remote jobs.
 - OpenColab can provision or reuse a compatible Runpod Pod with a Pod-attached network volume mounted at `/workspace`.
