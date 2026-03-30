@@ -30,6 +30,7 @@ import type {
   ExecutionTargetAvailabilityResult,
   ExecutionTargetConfig,
   ExecutionTargetTestResult,
+  ExperimentRunExecResult,
   ExperimentRunManifest,
   ExperimentRunStatus,
   ExperimentRunSummary,
@@ -153,6 +154,7 @@ export interface RunpodExecutionService {
     project: ProjectState,
     target: ExecutionTargetConfig
   ): Promise<ExecutionTargetAvailabilityResult>;
+  execRunCommand(project: ProjectState, runId: string, command: string): Promise<ExperimentRunExecResult>;
   startRun(
     project: ProjectState,
     agent: AgentConfig,
@@ -526,6 +528,57 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
       status = await this.finalizeCompletedRun(project, manifest, status, connection);
     }
     return status;
+  }
+
+  async execRunCommand(project: ProjectState, runId: string, command: string): Promise<ExperimentRunExecResult> {
+    this.validateCommandInput(command);
+    this.validateSshDependency();
+
+    const initialStatus = this.requireStatus(project, runId);
+    if (isTerminalRunState(initialStatus.state)) {
+      throw new Error(
+        `Run '${runId}' is in terminal state '${initialStatus.state}'. Remote exec is only available while the Pod is active.`
+      );
+    }
+    if (isPreSshRunState(initialStatus.state)) {
+      throw new Error(`Run '${runId}' is not ready for SSH-backed exec yet. Current state: '${initialStatus.state}'.`);
+    }
+
+    const manifest = this.requireManifest(project, runId);
+    const status = await this.reconcileRun(project, runId);
+    if (isTerminalRunState(status.state)) {
+      throw new Error(
+        `Run '${runId}' is no longer available for remote exec. Current state: '${status.state}'.`
+      );
+    }
+    if (status.state === "running_unreachable") {
+      throw new Error(`Run '${runId}' is still live but SSH is temporarily unavailable.`);
+    }
+    if (!isSshExecutableRunState(status.state)) {
+      throw new Error(`Run '${runId}' is not ready for SSH-backed exec. Current state: '${status.state}'.`);
+    }
+    if (!status.pod.id) {
+      throw new Error(`Run '${runId}' has no active Pod id recorded.`);
+    }
+
+    const pod = await this.getPodOrNull(status.pod.id);
+    if (!pod) {
+      throw new Error(`Run '${runId}' Pod is no longer available.`);
+    }
+
+    const connection = await this.tryOpenSshConnection(manifest.targetSnapshot, pod);
+    if (!connection) {
+      throw new Error(`Run '${runId}' is still live but SSH is temporarily unavailable.`);
+    }
+
+    const result = await this.runRemoteScriptAllowExitCode(connection, command.trim());
+    return {
+      runId,
+      targetId: status.targetId,
+      exitCode: result.exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr
+    };
   }
 
   async fetchRunOutputs(project: ProjectState, runId: string): Promise<ExperimentRunStatus> {
@@ -1305,6 +1358,12 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     }
   }
 
+  private validateSshDependency(): void {
+    if (!isCommandAvailable("ssh")) {
+      throw new Error("Missing required local dependency: ssh");
+    }
+  }
+
   private validateEnvVars(envVarNames: string[]): void {
     for (const envVarName of envVarNames) {
       if (!resolveEnvVar(envVarName)) {
@@ -1763,6 +1822,13 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     );
   }
 
+  private async runRemoteScriptAllowExitCode(connection: RunpodSshConnection, script: string): Promise<CommandResult> {
+    return this.runLocalCommandAllowExitCode(
+      "ssh",
+      [...buildSshBaseArgs(connection), `${connection.user}@${connection.host}`, `bash -lc ${shellQuote(script)}`]
+    );
+  }
+
   private async streamRemoteScriptToFile(
     connection: RunpodSshConnection,
     script: string,
@@ -1782,6 +1848,14 @@ export class RunpodExecutionServiceImpl implements RunpodExecutionService {
     extraEnv?: NodeJS.ProcessEnv
   ): Promise<CommandResult> {
     return runBufferedCommand(command, args, extraEnv);
+  }
+
+  private async runLocalCommandAllowExitCode(
+    command: string,
+    args: string[],
+    extraEnv?: NodeJS.ProcessEnv
+  ): Promise<CommandResult> {
+    return runBufferedCommandAllowExitCode(command, args, extraEnv);
   }
 }
 
@@ -1991,6 +2065,18 @@ async function runBufferedCommand(
   args: string[],
   extraEnv?: NodeJS.ProcessEnv
 ): Promise<CommandResult> {
+  const result = await runBufferedCommandAllowExitCode(command, args, extraEnv);
+  if (result.exitCode !== 0) {
+    throw new Error(`${command} failed (${String(result.exitCode)}): ${result.stderr.trim() || result.stdout.trim()}`);
+  }
+  return result;
+}
+
+async function runBufferedCommandAllowExitCode(
+  command: string,
+  args: string[],
+  extraEnv?: NodeJS.ProcessEnv
+): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
@@ -2009,14 +2095,17 @@ async function runBufferedCommand(
       reject(error);
     });
     child.on("close", (exitCode) => {
-      const code = exitCode ?? 1;
-      if (code !== 0) {
-        reject(new Error(`${command} failed (${String(code)}): ${stderr.trim() || stdout.trim()}`));
-        return;
-      }
-      resolve({ exitCode: code, stdout, stderr });
+      resolve({ exitCode: exitCode ?? 1, stdout, stderr });
     });
   });
+}
+
+function isPreSshRunState(state: ExperimentRunStatus["state"]): boolean {
+  return state === "draft" || state === "validating" || state === "provisioning";
+}
+
+function isSshExecutableRunState(state: ExperimentRunStatus["state"]): boolean {
+  return state === "waiting_for_ssh" || state === "syncing" || state === "bootstrapping" || state === "running";
 }
 
 async function runStreamingCommand(command: string, args: string[], outputPath: string): Promise<void> {
