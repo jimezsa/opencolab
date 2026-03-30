@@ -694,6 +694,10 @@ function usageGpuJob(): string {
     ),
     helpCommand("opencolab gpu job status --run-id <id>", "Refresh and print one GPU run status as JSON"),
     helpCommand("opencolab gpu job logs --run-id <id> [--stream stdout|stderr|bootstrap|poller]", "Print one local run log"),
+    helpCommand(
+      "opencolab gpu job exec --run-id <id> --command <command>",
+      "Run one bounded remote command over the launched Pod SSH path"
+    ),
     helpCommand("opencolab gpu job fetch --run-id <id>", "Fetch remote logs and artifacts"),
     helpCommand("opencolab gpu job cancel --run-id <id>", "Cancel a running GPU job"),
     helpCommand("opencolab gpu job list", "List local GPU run records"),
@@ -1803,6 +1807,23 @@ async function main(): Promise<void> {
           throw new Error(`No local ${stream} log is available for run '${runId}'.`);
         }
         process.stdout.write(fs.readFileSync(logPath, "utf8"));
+        return;
+      }
+
+      if (action === "exec") {
+        const runId = values["run-id"];
+        const commandValue = values.command;
+        if (!runId) {
+          throw new Error(`${accent("--run-id")} is required`);
+        }
+        if (!commandValue) {
+          throw new Error(`${accent("--command")} is required`);
+        }
+        const result = await runtime.execGpuJobCommand({
+          runId,
+          command: commandValue
+        });
+        console.log(JSON.stringify(result, null, 2));
         return;
       }
 
