@@ -290,6 +290,14 @@ export interface ExperimentRunSummary {
   command: string;
 }
 
+export interface ExperimentRunExecResult {
+  runId: string;
+  targetId: string;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
 export interface ExecutionTargetTestResult {
   ok: boolean;
   targetId: string;
