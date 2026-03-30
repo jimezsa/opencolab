@@ -245,6 +245,8 @@ Provider CLI execution defaults to a 30 minute timeout. Override it in `.env.loc
 OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS=1800000
 ```
 
+If a routed provider run hits that timeout, OpenColab preserves the inbound request plus a compact recovery note in the agent's active session memory so the next turn can resume from the last known stage instead of starting cold.
+
 ## Remote GPU with Runpod
 
 OpenColab keeps remote GPU execution separate from the agent reasoning runtime. Providers still handle planning and coding; Runpod is only the remote experiment target.
