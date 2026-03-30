@@ -223,6 +223,26 @@ test("gpu server help describes the availability command", () => {
   }
 });
 
+test("gpu job help describes the exec command", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-job-help-"));
+
+  try {
+    const result = runCli(tempDir, ["gpu", "job", "--help"]);
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(
+      result.stdout.includes("opencolab gpu job exec --run-id <id> --command <command>"),
+      true
+    );
+    assert.equal(
+      result.stdout.includes("Run one bounded remote command over the launched Pod SSH path"),
+      true
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("upgrade help describes git and packaged install flows", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-upgrade-help-"));
 
