@@ -297,3 +297,25 @@ export interface ExecutionTargetTestResult {
   warnings: string[];
   details: string[];
 }
+
+export interface ExecutionTargetAvailabilityCandidate {
+  datacenterId: string;
+  datacenterName: string | null;
+  datacenterLocation: string | null;
+  gpuType: string;
+  stockStatus: string | null;
+  available: boolean;
+  podApiCompatible: boolean;
+  storageSupport: "supported" | "failed" | "unknown";
+  storageWarning: string | null;
+}
+
+export interface ExecutionTargetAvailabilityResult {
+  ok: boolean;
+  targetId: string;
+  backend: ExecutionBackend;
+  checkedAt: string;
+  bestCandidate: ExecutionTargetAvailabilityCandidate | null;
+  candidates: ExecutionTargetAvailabilityCandidate[];
+  warnings: string[];
+}
