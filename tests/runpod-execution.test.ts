@@ -4,8 +4,71 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { loadConfig } from "../src/config.js";
+import { createInitialRunStatus, writeExperimentRunManifest, writeExperimentRunStatus } from "../src/experiments.js";
 import { createDefaultExecutionTargetConfig, createDefaultProjectState } from "../src/project-config.js";
 import { RunpodExecutionServiceImpl } from "../src/gpu-providers/runpod/index.js";
+import type { ExperimentRunManifest, ExperimentRunStatus } from "../src/types.js";
+
+function createRunManifest(target = createDefaultExecutionTargetConfig("runpod-flex")): ExperimentRunManifest {
+  return {
+    runId: "run-1234",
+    projectId: "default",
+    agentId: "professor",
+    targetId: target.id,
+    backend: target.backend,
+    requestedBy: "cli",
+    createdAt: "2026-03-30T00:00:00.000Z",
+    command: "python train.py",
+    envVarNames: [],
+    expectedArtifacts: [],
+    strictArtifacts: false,
+    maxRuntimeMinutes: 60,
+    sourceRevision: null,
+    sync: {
+      workingRoot: ".",
+      includePaths: ["projects/default"],
+      excludePaths: [],
+      remoteWorkspaceRoot: "/workspace",
+      remoteWorkingDir: "/workspace/projects/default",
+      fileCount: 1,
+      totalBytes: 10
+    },
+    targetSnapshot: target
+  };
+}
+
+function createRunningStatus(manifest: ExperimentRunManifest): ExperimentRunStatus {
+  const status = createInitialRunStatus(manifest);
+  return {
+    ...status,
+    state: "running",
+    stage: "running",
+    message: "Remote process is still running.",
+    startedAt: manifest.createdAt,
+    pod: {
+      ...status.pod,
+      id: "pod_123",
+      name: "opencolab-default-runpod-flex",
+      desiredStatus: "RUNNING",
+      datacenterId: "US-KS-2",
+      gpuType: "NVIDIA A100 80GB PCIe",
+      publicIp: "1.2.3.4",
+      sshPort: 2200,
+      volumeId: "vol_123",
+      lastObservedAt: manifest.createdAt
+    },
+    remote: {
+      ...status.remote,
+      remoteRunDir: "/workspace/.opencolab/runs/run-1234",
+      launchScriptPath: "/workspace/.opencolab/runs/run-1234/launch.sh",
+      stdoutPath: "/workspace/.opencolab/runs/run-1234/stdout.log",
+      stderrPath: "/workspace/.opencolab/runs/run-1234/stderr.log",
+      pidFilePath: "/workspace/.opencolab/runs/run-1234/wrapper.pid",
+      exitCodeFilePath: "/workspace/.opencolab/runs/run-1234/exit-code.txt",
+      launchPid: 12345
+    }
+  };
+}
 
 test("Runpod execution falls back to the next preferred datacenter when capacity is unavailable", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-runpod-fallback-"));
@@ -381,6 +444,137 @@ test("Runpod createPod normalizes shorthand GPU names to canonical Runpod GPU id
     assert.deepEqual((capturedBody as { gpuTypeIds?: string[] } | null)?.gpuTypeIds, [
       "NVIDIA GeForce RTX 4090"
     ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("Runpod execRunCommand returns stdout stderr and exit code from the launched Pod", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-runpod-exec-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    const service = new RunpodExecutionServiceImpl(config) as any;
+    const project = createDefaultProjectState("default");
+    const target = createDefaultExecutionTargetConfig("runpod-flex");
+    const manifest = createRunManifest(target);
+    const status = createRunningStatus(manifest);
+
+    writeExperimentRunManifest(tempDir, project, manifest);
+    writeExperimentRunStatus(tempDir, project, status);
+
+    const livePod = {
+      id: "pod_123",
+      name: "opencolab-default-runpod-flex",
+      desiredStatus: "RUNNING",
+      image: "runpod/pytorch:latest",
+      publicIp: "1.2.3.4",
+      portMappings: { "22": 2200 },
+      volumeMountPath: "/workspace",
+      networkVolume: {
+        id: "vol_123",
+        name: "runpod-flex-us-ks-2",
+        size: 50,
+        dataCenterId: "US-KS-2"
+      },
+      machine: {
+        dataCenterId: "US-KS-2",
+        secureCloud: true,
+        gpuTypeDisplayName: "NVIDIA A100 80GB PCIe"
+      },
+      gpuCount: 1,
+      costPerHr: "1.23"
+    };
+
+    let executedCommand = "";
+    service.validateSshDependency = () => {};
+    service.reconcileRun = async () => status;
+    service.getPodOrNull = async () => livePod;
+    service.tryOpenSshConnection = async () => ({
+      host: "1.2.3.4",
+      port: 2200,
+      user: "root",
+      privateKeyPath: null,
+      pod: livePod
+    });
+    service.runRemoteScriptAllowExitCode = async (_connection: unknown, script: string) => {
+      executedCommand = script;
+      return {
+        exitCode: 7,
+        stdout: "gpu output\n",
+        stderr: "remote warning\n"
+      };
+    };
+
+    const result = await service.execRunCommand(project, manifest.runId, "nvidia-smi");
+
+    assert.equal(executedCommand, "nvidia-smi");
+    assert.equal(result.runId, manifest.runId);
+    assert.equal(result.targetId, target.id);
+    assert.equal(result.exitCode, 7);
+    assert.equal(result.stdout, "gpu output\n");
+    assert.equal(result.stderr, "remote warning\n");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("Runpod execRunCommand rejects runs whose Pod is live but SSH is unreachable", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-runpod-exec-unreachable-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    const service = new RunpodExecutionServiceImpl(config) as any;
+    const project = createDefaultProjectState("default");
+    const target = createDefaultExecutionTargetConfig("runpod-flex");
+    const manifest = createRunManifest(target);
+    const status = createRunningStatus(manifest);
+
+    writeExperimentRunManifest(tempDir, project, manifest);
+    writeExperimentRunStatus(tempDir, project, status);
+
+    service.validateSshDependency = () => {};
+    service.reconcileRun = async () => ({
+      ...status,
+      state: "running_unreachable",
+      message: "Pod is still alive but SSH is temporarily unavailable."
+    });
+
+    await assert.rejects(
+      service.execRunCommand(project, manifest.runId, "nvidia-smi"),
+      /still live but SSH is temporarily unavailable/
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("Runpod execRunCommand rejects terminal runs", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-runpod-exec-terminal-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    const service = new RunpodExecutionServiceImpl(config) as any;
+    const project = createDefaultProjectState("default");
+    const target = createDefaultExecutionTargetConfig("runpod-flex");
+    const manifest = createRunManifest(target);
+    const status = {
+      ...createRunningStatus(manifest),
+      state: "completed" as const,
+      stage: "completed",
+      message: "Remote run completed.",
+      finishedAt: "2026-03-30T00:10:00.000Z"
+    };
+
+    writeExperimentRunManifest(tempDir, project, manifest);
+    writeExperimentRunStatus(tempDir, project, status);
+
+    service.validateSshDependency = () => {};
+
+    await assert.rejects(
+      service.execRunCommand(project, manifest.runId, "nvidia-smi"),
+      /terminal state 'completed'/
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
