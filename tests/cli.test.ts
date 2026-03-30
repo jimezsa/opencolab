@@ -203,6 +203,26 @@ test("gpu server add accepts ordered location and GPU candidates", () => {
   }
 });
 
+test("gpu server help describes the availability command", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-server-help-"));
+
+  try {
+    const result = runCli(tempDir, ["gpu", "server", "--help"]);
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(
+      result.stdout.includes("opencolab gpu server availability --server-id <id>"),
+      true
+    );
+    assert.equal(
+      result.stdout.includes("Check live Runpod datacenter and GPU availability for one target"),
+      true
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("upgrade help describes git and packaged install flows", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-upgrade-help-"));
 
