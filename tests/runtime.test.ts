@@ -6,6 +6,7 @@ import path from "node:path";
 import type { RunpodExecutionService } from "../src/gpu-providers/runpod/index.js";
 import { createRuntime } from "../src/runtime.js";
 import type {
+  ExecutionTargetAvailabilityResult,
   ExecutionTargetTestResult,
   ExperimentRunManifest,
   ExperimentRunStatus,
@@ -244,6 +245,39 @@ test("startGpuJob delegates to the injected runpod execution service", async () 
         details: ["ready"]
       };
     },
+    async checkTargetAvailability(_project, target): Promise<ExecutionTargetAvailabilityResult> {
+      return {
+        ok: true,
+        targetId: target.id,
+        backend: target.backend,
+        checkedAt: "2026-03-23T00:00:00.000Z",
+        bestCandidate: {
+          datacenterId: "US-KS-2",
+          datacenterName: "Kansas City",
+          datacenterLocation: "Kansas City, USA",
+          gpuType: "NVIDIA A100 80GB PCIe",
+          stockStatus: "Low",
+          available: true,
+          podApiCompatible: true,
+          storageSupport: "supported",
+          storageWarning: null
+        },
+        candidates: [
+          {
+            datacenterId: "US-KS-2",
+            datacenterName: "Kansas City",
+            datacenterLocation: "Kansas City, USA",
+            gpuType: "NVIDIA A100 80GB PCIe",
+            stockStatus: "Low",
+            available: true,
+            podApiCompatible: true,
+            storageSupport: "supported",
+            storageWarning: null
+          }
+        ],
+        warnings: ["Availability is a live snapshot and may change before launch."]
+      };
+    },
     async startRun(project, agent, input): Promise<ExperimentRunStatus> {
       captured.projectId = project.id;
       captured.agentId = agent.id;
@@ -303,6 +337,98 @@ test("startGpuJob delegates to the injected runpod execution service", async () 
     assert.equal(captured.targetId, "runpod-a100");
     assert.equal(captured.command, "python train.py");
     assert.equal(captured.wait, false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("checkExecutionTargetAvailability delegates to the injected runpod execution service", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-gpu-availability-runtime-"));
+  const status = createSampleRunStatus("run-42");
+  let requestedTargetId: string | undefined;
+
+  const fakeService: RunpodExecutionService = {
+    async testTarget(_project, target): Promise<ExecutionTargetTestResult> {
+      return {
+        ok: true,
+        targetId: target.id,
+        backend: target.backend,
+        warnings: [],
+        details: ["ready"]
+      };
+    },
+    async checkTargetAvailability(_project, target): Promise<ExecutionTargetAvailabilityResult> {
+      requestedTargetId = target.id;
+      return {
+        ok: true,
+        targetId: target.id,
+        backend: target.backend,
+        checkedAt: "2026-03-23T00:00:00.000Z",
+        bestCandidate: {
+          datacenterId: "US-KS-2",
+          datacenterName: "Kansas City",
+          datacenterLocation: "Kansas City, USA",
+          gpuType: "NVIDIA A100 80GB PCIe",
+          stockStatus: "Medium",
+          available: true,
+          podApiCompatible: true,
+          storageSupport: "supported",
+          storageWarning: null
+        },
+        candidates: [
+          {
+            datacenterId: "US-KS-2",
+            datacenterName: "Kansas City",
+            datacenterLocation: "Kansas City, USA",
+            gpuType: "NVIDIA A100 80GB PCIe",
+            stockStatus: "Medium",
+            available: true,
+            podApiCompatible: true,
+            storageSupport: "supported",
+            storageWarning: null
+          }
+        ],
+        warnings: ["Availability is a live snapshot and may change before launch."]
+      };
+    },
+    async startRun(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    async reconcileRun(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    async fetchRunOutputs(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    async cancelRun(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    listRuns(): ExperimentRunSummary[] {
+      return [];
+    },
+    readLocalStatus(): ExperimentRunStatus | null {
+      return status;
+    },
+    readLocalManifest(): ExperimentRunManifest | null {
+      return null;
+    }
+  };
+
+  const runtime = createRuntime(tempDir, {
+    runpodExecutionService: fakeService
+  });
+
+  try {
+    runtime.init();
+    runtime.setupExecutionTarget({
+      id: "runpod-a100"
+    });
+
+    const result = await runtime.checkExecutionTargetAvailability("runpod-a100");
+
+    assert.equal(requestedTargetId, "runpod-a100");
+    assert.equal(result.ok, true);
+    assert.equal(result.bestCandidate?.gpuType, "NVIDIA A100 80GB PCIe");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
