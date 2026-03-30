@@ -658,6 +658,106 @@ The runtime should still decide whether the request is admissible under project 
 
 This design keeps the current agent/provider contract intact while making remote execution possible.
 
+### 19.1 Minimal SSH-Backed Pod Access Plan
+
+The smallest useful agent-facing SSH feature is not a raw interactive shell.
+It is a bounded remote command surface that reuses the Pod SSH path OpenColab already needs for sync, bootstrap, and job launch.
+
+The first surface should be:
+
+- `opencolab gpu job exec --run-id <id> --command "<remote_command>"`
+
+Example:
+
+- `opencolab gpu job exec --run-id <id> --command "nvidia-smi"`
+- `opencolab gpu job exec --run-id <id> --command "ls -la /workspace"`
+- `opencolab gpu job exec --run-id <id> --command "tail -n 100 /workspace/.opencolab/runs/<id>/bootstrap.log"`
+
+Why this should be the first agent-facing SSH feature:
+
+- it gives the agent direct access to the launched Pod through the existing SSH control path
+- it keeps execution non-interactive and bounded, which is much easier to reason about than a raw shell
+- it matches how agents already consume tool feedback: stdout, stderr, and exit status
+- it avoids teaching the agent to assemble SSH host, port, user, and key details manually
+
+Why this should be `run_id`-scoped rather than `server_id`-scoped:
+
+- a named execution target can launch different Pods over time
+- the `run_id` is the stable handle for one concrete remote execution attempt
+- the run record already persists both the target snapshot and the live Pod connection details observed during launch
+
+Minimal execution contract:
+
+- input:
+  - `run_id`
+  - one remote shell command string
+- output:
+  - `runId`
+  - `targetId`
+  - `exitCode`
+  - `stdout`
+  - `stderr`
+
+Suggested operator and agent semantics:
+
+- the command should reconcile the run first before attempting remote execution
+- if the Pod is still alive and SSH is reachable, execute the command remotely and return the result
+- if the Pod exists but SSH is temporarily unavailable, return a clear degraded error rather than pretending the Pod is gone
+- if the run is already terminal and the Pod is no longer available, fail clearly
+
+Alive-state policy for the first version:
+
+- SSH-backed exec should be attempted for runs in:
+  - `waiting_for_ssh`
+  - `syncing`
+  - `bootstrapping`
+  - `running`
+- runs in `running_unreachable` should be treated as live-but-not-currently-reachable
+- runs in terminal states such as `completed`, `failed`, `cancelled`, or `timed_out` should be rejected by default in the minimal version
+
+This gives the agent a clear answer to "which jobs are alive?":
+
+- the agent gets a `run_id` from `gpu job start`
+- later it can inspect `gpu job list`
+- before SSH-backed exec, the runtime should refresh the run and decide whether the Pod is still live and reachable
+- the agent should not need to reason about Pod IPs, forwarded SSH ports, or raw SSH credentials directly
+
+Implementation direction:
+
+- add a new Runpod execution service method that:
+  - reads the local run manifest and status
+  - refreshes the run state
+  - rebuilds the SSH connection from stored run data
+  - reuses the existing remote-script execution helper
+  - returns stdout, stderr, and exit code
+- add a matching runtime method
+- add `gpu job exec` parsing and help text to the CLI
+- keep the first version synchronous and non-interactive
+- do not add TTY allocation, port forwarding, or generic shell persistence in the first pass
+
+Data source requirements for connection reconstruction:
+
+- SSH user and private key path should come from the run's target snapshot
+- public IP and forwarded SSH port should come from the run's current Pod status
+- the command should fail clearly if those fields are absent or stale
+
+Documentation and test expectations:
+
+- promote the new command into `docs/spec.md` when this draft is accepted
+- update `README.md`, `AGENTS.md`, and the shared `runpod-job` skill so agents know to prefer `gpu job exec` for direct Pod inspection
+- add tests for:
+  - CLI help text
+  - run-scoped resolution
+  - reachable vs unreachable Pod behavior
+  - terminal-state rejection
+  - stdout, stderr, and exit-code propagation
+
+Follow-on after the minimal version:
+
+- `opencolab gpu job ssh --run-id <id>` for human operators who want a raw interactive shell
+- optional JSON output mode for stable agent parsing
+- optional policy controls for allowing or denying remote exec on certain targets or projects
+
 ## 20. Security Model
 
 The Runpod MVP should assume remote compute is powerful and expensive, and therefore risky if left unconstrained.
