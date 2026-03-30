@@ -653,6 +653,10 @@ function usageGpuServer(): string {
     ),
     helpCommand("opencolab gpu server list", "List GPU server targets"),
     helpCommand("opencolab gpu server show --server-id <id>", "Print one GPU server target as JSON"),
+    helpCommand(
+      "opencolab gpu server availability --server-id <id>",
+      "Check live Runpod datacenter and GPU availability for one target"
+    ),
     helpCommand("opencolab gpu server test --server-id <id>", "Validate local and Runpod prerequisites"),
     helpCommand("opencolab gpu server remove --server-id <id>", "Remove a GPU server target"),
     "",
@@ -1666,6 +1670,48 @@ async function main(): Promise<void> {
           throw new Error(`${accent("--server-id")} is required`);
         }
         console.log(JSON.stringify(runtime.getExecutionTarget(serverId), null, 2));
+        return;
+      }
+
+      if (action === "availability") {
+        const serverId = values["server-id"];
+        if (!serverId) {
+          throw new Error(`${accent("--server-id")} is required`);
+        }
+        const result = await runtime.checkExecutionTargetAvailability(serverId);
+        console.log(`Target: ${result.targetId}`);
+        console.log(`Backend: ${result.backend}`);
+        console.log(`Checked At: ${result.checkedAt}`);
+        console.log(`Status: ${result.ok ? "available" : "unavailable"}`);
+        if (result.bestCandidate) {
+          const datacenterLabel =
+            result.bestCandidate.datacenterLocation &&
+            result.bestCandidate.datacenterLocation !== result.bestCandidate.datacenterId
+              ? `${result.bestCandidate.datacenterId} (${result.bestCandidate.datacenterLocation})`
+              : result.bestCandidate.datacenterId;
+          const stockLabel = result.bestCandidate.stockStatus ? ` [${result.bestCandidate.stockStatus}]` : "";
+          console.log(`Best match now: ${datacenterLabel} / ${result.bestCandidate.gpuType}${stockLabel}`);
+        }
+        for (const candidate of result.candidates) {
+          const datacenterLabel =
+            candidate.datacenterLocation && candidate.datacenterLocation !== candidate.datacenterId
+              ? `${candidate.datacenterId} (${candidate.datacenterLocation})`
+              : candidate.datacenterId;
+          const stockLabel = candidate.available ? candidate.stockStatus ?? "available" : "unavailable";
+          const compatibilityHints: string[] = [];
+          if (!candidate.podApiCompatible) {
+            compatibilityHints.push("pod-api incompatible");
+          }
+          if (candidate.storageSupport === "failed") {
+            compatibilityHints.push("storage failed");
+          }
+          const hintLabel =
+            compatibilityHints.length > 0 ? ` | ${compatibilityHints.join(", ")}` : "";
+          console.log(`- ${datacenterLabel} | ${candidate.gpuType} | ${stockLabel}${hintLabel}`);
+        }
+        for (const warning of result.warnings) {
+          console.log(`Warning: ${warning}`);
+        }
         return;
       }
 
