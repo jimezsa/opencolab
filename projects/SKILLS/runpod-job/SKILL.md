@@ -1,6 +1,6 @@
 ---
 name: runpod-job
-description: Launch and manage bounded Runpod GPU jobs through the OpenColab CLI. Create or reuse a project-scoped GPU server, validate it, start a remote job with bounded sync and artifact paths, monitor status and logs, fetch outputs, and cancel runs when needed.
+description: Launch and manage bounded Runpod GPU jobs through the OpenColab CLI. Create or reuse a project-scoped GPU server, check live target availability, validate it, start a remote job with bounded sync and artifact paths, monitor status and logs, fetch outputs, and cancel runs when needed.
 metadata:
   {
     "opencolab":
@@ -19,6 +19,7 @@ Typical use cases:
 
 - create the first Runpod GPU server for the current project
 - reuse an existing OpenColab Runpod server target
+- check which configured datacenter and GPU candidates are live right now
 - launch a bounded remote GPU job
 - inspect status, logs, and fetched artifacts
 - cancel a stuck or unnecessary GPU run
@@ -32,7 +33,7 @@ Do not use this skill for direct Runpod API work unless the user is explicitly f
 
 1. Use the installed `opencolab` CLI command available in the current environment.
 2. Reuse an existing GPU server when possible; create one only when needed.
-3. Validate the target before launching expensive work.
+3. Check live availability and validate the target before launching expensive work when current stock matters.
 4. Start a bounded remote GPU job with minimal include paths, explicit artifact paths, and explicit env forwarding.
 5. Poll status, inspect logs, fetch outputs, or cancel the run as needed.
 6. Return a concise summary with the server id, run id, state, important logs, and fetched artifacts.
@@ -42,6 +43,9 @@ Do not use this skill for direct Runpod API work unless the user is explicitly f
 - Use the OpenColab CLI, not the raw Runpod REST API.
 - Prefer an existing server target before creating a new one.
 - When creating a new general-purpose target, prefer ordered fallback locations and GPU candidates instead of a single rigid datacenter or GPU whenever that matches the user's intent.
+- When current stock, datacenter choice, or GPU choice matters, run `opencolab gpu server availability --server-id <id>` before launch.
+- Treat availability as a live snapshot, not a reservation. A later launch can still fail if capacity changes.
+- Pay attention to availability warnings such as `pod-api incompatible` or `storage failed`; do not present those candidates as healthy launch options without explanation.
 - Keep sync allowlist-based. Include only the files or directories the remote command really needs.
 - Never blindly forward all environment variables. Use `--env` only for the specific names the remote job requires.
 - Declare expected artifacts up front with `--artifact` whenever the user expects outputs back.
@@ -134,13 +138,20 @@ Creation guidance:
 
 ```bash
 opencolab gpu server test --server-id <server_id>
+opencolab gpu server availability --server-id <server_id>
 ```
 
 Read the result carefully:
 
-- proceed when the target is ready or only has acceptable warnings
+- `gpu server test` checks local prerequisites and visible Runpod resources
+- `gpu server availability` checks the current matching datacenter and GPU stock in launch order
+- proceed when the target is ready and availability shows at least one healthy candidate
 - stop and explain missing prerequisites such as `RUNPOD_API_KEY`
 - if the warning is only about a missing network volume, that is normally acceptable because OpenColab can create it on first job start
+- if availability shows `pod-api incompatible`, treat that candidate as not launchable even if stock appears live
+- if availability shows `storage failed`, prefer another datacenter because this workspace has already seen network-volume provisioning fail there
+- if no healthy candidate is currently available, explain that clearly and either adjust the target or wait instead of launching blindly
+- remind the user that availability can change between the snapshot and actual launch
 
 ### 5. Plan bounded sync, env, and artifacts
 
@@ -225,6 +236,8 @@ Inspection guidance:
 - If the user asks to keep watching, then it is reasonable to poll again. Otherwise inspect once, answer, and stop.
 - When the run reaches a terminal state, fetch outputs if needed and summarize the final state plus the most relevant log findings.
 - If the run failed, timed out, or degraded, propose the next useful action such as inspecting `stderr`, fetching artifacts, adjusting includes or env vars, rerunning on another target, or cancelling the run.
+- If launch fails right after a healthy availability snapshot, explain that the snapshot did not reserve capacity and that the next useful action is usually another availability check or a different candidate target.
+- If the run reaches `bootstrapping`, explain that Pod provisioning and SSH already succeeded and the problem is now bootstrap or remote setup time rather than GPU discovery.
 
 Fetch outputs:
 
