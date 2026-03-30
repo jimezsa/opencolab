@@ -129,7 +129,7 @@ Shared project skills requirements:
 - the shared `fast-search`, `pro-search`, and `deep-search` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
 - the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
 - the shared `pdf-figure-extract` skill is the canonical path for extracting and returning figures from already-downloaded local PDFs, optionally reusing PageIndex artifacts to narrow page selection before multimodal verification and delivery
-- the shared `runpod-job` skill is the canonical AI-facing path for creating, validating, and reusing Runpod-backed GPU servers and bounded GPU jobs through the `opencolab gpu server` and `opencolab gpu job` CLI commands rather than raw Runpod APIs, and for longer jobs it should prefer detached launch with `--wait false`, return the `run_id` promptly, inspect status or logs later when the user explicitly asks about the run or asks to monitor it, and when a run fails or degrades it should notify the user clearly and propose the next useful action
+- the shared `runpod-job` skill is the canonical AI-facing path for creating, validating, and reusing Runpod-backed GPU servers and bounded GPU jobs through the `opencolab gpu server` and `opencolab gpu job` CLI commands rather than raw Runpod APIs, and for longer jobs it should prefer detached launch with `--wait false`, return the `run_id` promptly, inspect status or logs later when the user explicitly asks about the run or asks to monitor it, use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when remote SSH-backed access is needed, and when a run fails or degrades it should notify the user clearly and propose the next useful action
 
 Agent-local skills requirements:
 
@@ -308,12 +308,15 @@ Responsibilities:
 - `ignite` onboarding should include optional steps to persist `GEMINI_API_KEY` for Gemini-based built-in shared tools and `pageindex-grounded` when the local PageIndex runner needs it
 - `opencolab setup api-key` must persist the canonical env var for one specific provider without mutating provider/model/auth settings
 - `opencolab gpu server` must support lifecycle commands: `add`, `list`, `show`, `availability`, `test`, and `remove`
-- `opencolab gpu job` must support lifecycle commands: `start`, `status`, `logs`, `fetch`, `cancel`, and `list`
+- `opencolab gpu job` must support lifecycle commands: `start`, `status`, `logs`, `exec`, `fetch`, `cancel`, and `list`
 - `gpu server add` must support `--provider runpod`
 - `gpu server add` should allow a simplified server definition where the operator mainly chooses location preference and acceptable GPU types while the implementation keeps curated defaults for the rest
 - `gpu server availability` must inspect live Runpod datacenter and GPU stock for one named target without mutating project state
 - `gpu server availability` should use the same ordered datacenter and GPU candidate lists that launch uses, report the best currently matching option when one exists, and state clearly that the result is only a live snapshot rather than a reservation
 - `gpu server availability` should warn when a datacenter appears in live stock but is not currently accepted by the Runpod Pod create API, and should also surface known prior network-volume provisioning failures for candidate datacenters when that evidence exists locally
+- `gpu job exec` must run one bounded remote shell command against the Pod associated with one `run_id`, rather than against a generic server target
+- `gpu job exec` should reconcile the run first, fail clearly when the run is not yet SSH-usable or is already terminal, and treat `running_unreachable` as a live-but-not-currently-reachable degraded state
+- `gpu job exec` should return a stable machine-readable result including `runId`, `targetId`, `exitCode`, `stdout`, and `stderr`
 - the operator-facing CLI should prefer `gpu server` and `gpu job` naming even if internal state uses a provider-neutral `ExecutionTarget` model
 - Runpod onboarding must remain optional and must not block local-only setup
 - `ignite` onboarding should include an optional Runpod section after the core local setup flow is stable
@@ -893,7 +896,7 @@ The Runpod-first remote execution milestone is complete when all are true:
 - A project can define at least one named execution target in `opencolab.json`.
 - `opencolab gpu server` can add, list, show, inspect availability for, test, and remove Runpod-backed targets.
 - Runpod-backed targets can express ordered location and GPU candidates while keeping a primary compatibility value for each.
-- `opencolab gpu job` can start, inspect, fetch, cancel, and list bounded remote jobs.
+- `opencolab gpu job` can start, inspect, exec into, fetch, cancel, and list bounded remote jobs.
 - OpenColab can provision or reuse a compatible Runpod Pod with a Pod-attached network volume mounted at `/workspace`.
 - OpenColab can sync an allowlisted subset of the local project to the Pod without syncing `.env.local`, `.git/`, or agent memory by default.
 - OpenColab can bootstrap the remote environment through a named profile and record bootstrap output in run logs.
