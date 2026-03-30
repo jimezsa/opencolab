@@ -269,6 +269,9 @@ opencolab gpu server add \
 # Validate local prerequisites and visible Runpod resources
 opencolab gpu server test --server-id runpod-flex
 
+# Check which configured datacenter / GPU candidates are live right now
+opencolab gpu server availability --server-id runpod-flex
+
 # Launch a bounded remote job without blocking the agent
 start_output="$(
   opencolab gpu job start \
@@ -302,6 +305,7 @@ Available commands:
 opencolab gpu server add --provider runpod --server-id <id> [flags]         # Create or update a Runpod GPU target
 opencolab gpu server list                                                    # List configured GPU targets
 opencolab gpu server show --server-id <id>                                   # Print one target as JSON
+opencolab gpu server availability --server-id <id>                           # Check live datacenter/GPU capacity for one target
 opencolab gpu server test --server-id <id>                                   # Check local prerequisites and target candidate readiness
 opencolab gpu server remove --server-id <id>                                 # Remove one target from project state
 
@@ -318,6 +322,8 @@ Notes:
 - `RUNPOD_API_KEY` must exist in `.env.local` or the shell environment.
 - Use `--location` for one or more preferred Runpod datacenter ids in fallback order. `--datacenter-id` remains as a legacy alias.
 - `--gpu-type` accepts a comma-separated ordered list, so one logical server can choose the first available acceptable GPU.
+- `opencolab gpu server availability --server-id <id>` shows a live snapshot of matching datacenter/GPU stock before launch; it helps pick a target, but it does not reserve capacity.
+- The availability output also warns about known launch blockers such as datacenters rejected by the current Pod API schema or locally observed network-volume provisioning failures.
 - OpenColab keeps the first location and first GPU as the target's primary values for compatibility, but job provisioning can fall back across the configured candidates.
 - When multiple locations are configured, OpenColab manages Runpod network volumes per datacenter behind the scenes.
 - Sync is allowlist-based. Use `--include` and `--exclude` as comma-separated repo-relative paths.
