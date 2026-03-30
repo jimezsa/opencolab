@@ -49,6 +49,7 @@ import type {
   ExecutionTargetAvailabilityResult,
   ExecutionTargetConfig,
   ExecutionTargetTestResult,
+  ExperimentRunExecResult,
   ExperimentRunManifest,
   ExperimentRunStatus,
   ExperimentRunSummary,
@@ -118,6 +119,11 @@ export interface GpuJobInput {
   strictArtifacts?: boolean;
   maxRuntimeMinutes?: number;
   wait?: boolean;
+}
+
+export interface GpuJobExecInput {
+  runId: string;
+  command: string;
 }
 
 export class OpenColabRuntime {
@@ -537,6 +543,11 @@ export class OpenColabRuntime {
   async reconcileGpuJob(runId: string): Promise<ExperimentRunStatus> {
     const project = this.getActiveProject();
     return this.runpodExecutionService.reconcileRun(project, runId);
+  }
+
+  async execGpuJobCommand(input: GpuJobExecInput): Promise<ExperimentRunExecResult> {
+    const project = this.getActiveProject();
+    return this.runpodExecutionService.execRunCommand(project, input.runId, input.command);
   }
 
   async fetchGpuJobOutputs(runId: string): Promise<ExperimentRunStatus> {
