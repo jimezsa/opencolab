@@ -249,7 +249,7 @@ OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS=1800000
 
 OpenColab keeps remote GPU execution separate from the agent reasoning runtime. Providers still handle planning and coding; Runpod is only the remote experiment target.
 For agent-driven remote GPU execution through OpenColab, use the shared `runpod-job` skill.
-For longer agent-driven jobs, the skill should usually launch with `--wait false` and return the `run_id` promptly. The agent can inspect `opencolab gpu job status` and `opencolab gpu job logs` later when the user explicitly asks about the running job or asks to monitor it.
+For longer agent-driven jobs, the skill should usually launch with `--wait false` and return the `run_id` promptly. The agent can inspect `opencolab gpu job status` and `opencolab gpu job logs` later when the user explicitly asks about the running job or asks to monitor it, and can use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when SSH-backed access is needed.
 Curated/default Runpod targets use the `pytorch-cu12` bootstrap profile unless the operator overrides it.
 
 Common operator flow:
@@ -286,6 +286,9 @@ run_id="$(printf '%s\n' "$start_output" | awk -F': ' '/^Run ID:/ {print $2}')"
 
 # Later, inspect the running job when needed
 opencolab gpu job status --run-id "$run_id"
+
+# Run one bounded command directly on the launched Pod when needed
+opencolab gpu job exec --run-id "$run_id" --command "nvidia-smi"
 ```
 
 Important links:
@@ -312,6 +315,7 @@ opencolab gpu server remove --server-id <id>                                 # R
 opencolab gpu job start --server-id <id> --command "<command>" [flags]       # Start a remote GPU job
 opencolab gpu job status --run-id <id>                                       # Refresh and print job status as JSON
 opencolab gpu job logs --run-id <id> [--stream stdout|stderr|bootstrap|poller] # Print one local log stream
+opencolab gpu job exec --run-id <id> --command "<command>"                   # Run one bounded remote command over the job Pod SSH path
 opencolab gpu job fetch --run-id <id>                                        # Fetch remote logs and declared artifacts
 opencolab gpu job cancel --run-id <id>                                       # Stop the remote job and Pod
 opencolab gpu job list                                                       # List local GPU run records
@@ -328,6 +332,7 @@ Notes:
 - When multiple locations are configured, OpenColab manages Runpod network volumes per datacenter behind the scenes.
 - Sync is allowlist-based. Use `--include` and `--exclude` as comma-separated repo-relative paths.
 - Declared `--artifact` paths are relative to the remote working directory on the Pod.
+- `opencolab gpu job exec --run-id <id> --command "<command>"` is the minimal direct-Pod access path for agents and prints JSON with `runId`, `targetId`, `exitCode`, `stdout`, and `stderr`.
 - Run records live under `projects/<project_id>/experiments/runs/<run_id>/`.
 - Target snapshots are mirrored under `projects/<project_id>/experiments/targets/`.
 
