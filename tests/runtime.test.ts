@@ -8,6 +8,7 @@ import { createRuntime } from "../src/runtime.js";
 import type {
   ExecutionTargetAvailabilityResult,
   ExecutionTargetTestResult,
+  ExperimentRunExecResult,
   ExperimentRunManifest,
   ExperimentRunStatus,
   ExperimentRunSummary
@@ -286,6 +287,15 @@ test("startGpuJob delegates to the injected runpod execution service", async () 
       captured.wait = input.wait;
       return status;
     },
+    async execRunCommand(_project, runId, command): Promise<ExperimentRunExecResult> {
+      return {
+        runId,
+        targetId: "runpod-a100",
+        exitCode: 0,
+        stdout: command,
+        stderr: ""
+      };
+    },
     async reconcileRun(): Promise<ExperimentRunStatus> {
       return status;
     },
@@ -394,6 +404,15 @@ test("checkExecutionTargetAvailability delegates to the injected runpod executio
     async startRun(): Promise<ExperimentRunStatus> {
       return status;
     },
+    async execRunCommand(_project, runId, command): Promise<ExperimentRunExecResult> {
+      return {
+        runId,
+        targetId: "runpod-a100",
+        exitCode: 0,
+        stdout: command,
+        stderr: ""
+      };
+    },
     async reconcileRun(): Promise<ExperimentRunStatus> {
       return status;
     },
@@ -429,6 +448,89 @@ test("checkExecutionTargetAvailability delegates to the injected runpod executio
     assert.equal(requestedTargetId, "runpod-a100");
     assert.equal(result.ok, true);
     assert.equal(result.bestCandidate?.gpuType, "NVIDIA A100 80GB PCIe");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("execGpuJobCommand delegates to the injected runpod execution service", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-gpu-exec-runtime-"));
+  const status = createSampleRunStatus("run-42");
+  const captured: { projectId?: string; runId?: string; command?: string } = {};
+
+  const fakeService: RunpodExecutionService = {
+    async testTarget(_project, target): Promise<ExecutionTargetTestResult> {
+      return {
+        ok: true,
+        targetId: target.id,
+        backend: target.backend,
+        warnings: [],
+        details: ["ready"]
+      };
+    },
+    async checkTargetAvailability(_project, target): Promise<ExecutionTargetAvailabilityResult> {
+      return {
+        ok: true,
+        targetId: target.id,
+        backend: target.backend,
+        checkedAt: "2026-03-23T00:00:00.000Z",
+        bestCandidate: null,
+        candidates: [],
+        warnings: []
+      };
+    },
+    async startRun(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    async execRunCommand(project, runId, command): Promise<ExperimentRunExecResult> {
+      captured.projectId = project.id;
+      captured.runId = runId;
+      captured.command = command;
+      return {
+        runId,
+        targetId: "runpod-a100",
+        exitCode: 0,
+        stdout: "nvidia-smi output",
+        stderr: ""
+      };
+    },
+    async reconcileRun(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    async fetchRunOutputs(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    async cancelRun(): Promise<ExperimentRunStatus> {
+      return status;
+    },
+    listRuns(): ExperimentRunSummary[] {
+      return [];
+    },
+    readLocalStatus(): ExperimentRunStatus | null {
+      return status;
+    },
+    readLocalManifest(): ExperimentRunManifest | null {
+      return null;
+    }
+  };
+
+  const runtime = createRuntime(tempDir, {
+    runpodExecutionService: fakeService
+  });
+
+  try {
+    runtime.init();
+    const result = await runtime.execGpuJobCommand({
+      runId: "run-42",
+      command: "nvidia-smi"
+    });
+
+    assert.equal(captured.projectId, "default");
+    assert.equal(captured.runId, "run-42");
+    assert.equal(captured.command, "nvidia-smi");
+    assert.equal(result.targetId, "runpod-a100");
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.stdout, "nvidia-smi output");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
