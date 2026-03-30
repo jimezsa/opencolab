@@ -215,6 +215,8 @@ Requirements for session storage:
 - `/session reset` starts a new session folder for the active agent
 - conversation logs must not be stored in `.opencolab`
 - raw session logs are archival and must not be fed wholesale into provider prompts
+- routed agent executions must append the inbound user turn before provider execution begins so timeout or failure does not erase the request from session history
+- timed-out or failed routed executions must append a compact assistant recovery entry to the active session so the next turn can resume from the last known state without replaying the whole transcript
 - working memory should include only the recent turns from the active session and current UTC day
 - recent episodic memory should include only the previous UTC day summary
 - `MEMORY.md` should contain only durable facts, preferences, and recurring constraints
@@ -872,6 +874,21 @@ Requirements:
 - if a long task fails after partial work, the user should receive a short failure message that includes the last meaningful completed stage when available
 - warnings that reduce coverage or confidence should be surfaced before the final answer when they materially change the result
 - if the runtime needs human intervention, the user should receive a `needs_input` style message instead of waiting for timeout or generic failure
+
+### 13.9 Provider Timeout Recovery
+
+Provider CLI timeout is a normal failure mode, not an edge case. OpenColab must preserve enough context for the next turn to resume cleanly when `OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS` is reached.
+
+Requirements:
+
+- when a routed provider execution reaches `OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS`, the runtime must preserve resumable context instead of failing as a stateless dead end
+- the active session transcript must already contain the inbound user request before the timeout occurs
+- timeout handling must append a compact assistant recovery entry to the active session transcript
+- the recovery entry must be concise and should include: timeout occurred, provider, model, timeout limit, last meaningful progress message when available, and a short next-action hint
+- the next routed prompt may include the compact timeout recovery entry as working memory, but must not inject raw progress streams or large CLI logs into normal prompt memory
+- progress events remain operational metadata and must not be copied verbatim into the normal conversation transcript just because a timeout occurred
+- bounded runtime telemetry for timed-out executions may be persisted separately from conversation memory, but if persisted it must live in a separate operational log rather than in `memory/Session/` as synthetic assistant chatter
+- timeout handling should attempt a short final progress flush before forceful termination when the provider runtime supports it, but the recovery record must not depend on that flush succeeding
 
 ## 14. Acceptance Criteria
 
