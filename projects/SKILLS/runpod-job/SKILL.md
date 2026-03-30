@@ -1,6 +1,6 @@
 ---
 name: runpod-job
-description: Launch and manage bounded Runpod GPU jobs through the OpenColab CLI. Create or reuse a project-scoped GPU server, check live target availability, validate it, start a remote job with bounded sync and artifact paths, monitor status and logs, fetch outputs, and cancel runs when needed.
+description: Launch and manage bounded Runpod GPU jobs through the OpenColab CLI. Create or reuse a project-scoped GPU server, check live target availability, validate it, start a remote job with bounded sync and artifact paths, inspect the launched Pod with bounded SSH-backed commands when needed, monitor status and logs, fetch outputs, and cancel runs when needed.
 metadata:
   {
     "opencolab":
@@ -21,6 +21,7 @@ Typical use cases:
 - reuse an existing OpenColab Runpod server target
 - check which configured datacenter and GPU candidates are live right now
 - launch a bounded remote GPU job
+- inspect a launched Pod with one bounded SSH-backed command
 - inspect status, logs, and fetched artifacts
 - cancel a stuck or unnecessary GPU run
 
@@ -52,6 +53,7 @@ Do not use this skill for direct Runpod API work unless the user is explicitly f
 - Treat remote jobs as detached batch jobs, not interactive shells.
 - When creating a new general-purpose Runpod target without a user override, prefer `--bootstrap-profile pytorch-cu12`.
 - For longer jobs, prefer `opencolab gpu job start --wait false`, return the `run_id` promptly, and do not sit in a polling loop by default.
+- When direct Pod inspection is needed after launch, prefer `opencolab gpu job exec --run-id <id> --command "<remote command>"` over exposing raw SSH details.
 - Inspect status or logs after launch only when the user explicitly asks about the run, asks to monitor it, or asks for fetched outputs.
 - If `OPENCOLAB_PROGRESS_FILE` is available and the run is long enough to justify updates, emit bounded progress events for target setup, validation, launch, polling, degraded runs, and final delivery.
 - Final answers must include the run id, target id, current or final state, and whether artifacts were fetched successfully.
@@ -203,12 +205,26 @@ If `run_id` is empty, stop and report the launch output instead of pretending th
 
 After detached launch, return the `run_id` to the user instead of staying in a monitoring loop. The user can come back later and ask about the run, and then you can inspect it with the commands below.
 
+When bounded direct Pod access is needed after launch, use:
+
+```bash
+opencolab gpu job exec --run-id <run_id> --command "<remote_command>"
+```
+
+This command is the minimal SSH-backed Pod inspection path. Treat it as a bounded remote command runner, not as an interactive shell.
+
 ### 7. Inspect, fetch, or cancel later
 
 Status:
 
 ```bash
 opencolab gpu job status --run-id <run_id>
+```
+
+Bounded direct Pod command:
+
+```bash
+opencolab gpu job exec --run-id <run_id> --command "nvidia-smi"
 ```
 
 Logs:
@@ -231,8 +247,10 @@ opencolab gpu job logs --run-id <run_id> --stream stderr
 Inspection guidance:
 
 - Prefer `stdout` and `stderr` for the most relevant new findings; use `poller` when state transitions need clarification.
+- Use `gpu job exec` for one-off remote inspection when the user needs current Pod state that is not already visible in the stored logs.
 - Do not dump a huge full log unless the user explicitly asks for raw logs. Summarize the important new lines.
 - Treat `running_unreachable` as degraded but still active; mention it clearly instead of calling the run failed.
+- If `gpu job exec` reports that the run is not yet SSH-usable, explain the current run state rather than pretending direct Pod access exists already.
 - If the user asks to keep watching, then it is reasonable to poll again. Otherwise inspect once, answer, and stop.
 - When the run reaches a terminal state, fetch outputs if needed and summarize the final state plus the most relevant log findings.
 - If the run failed, timed out, or degraded, propose the next useful action such as inspecting `stderr`, fetching artifacts, adjusting includes or env vars, rerunning on another target, or cancelling the run.
