@@ -243,6 +243,8 @@ export class TelegramGateway {
     let stopTyping: (() => void) | null = null;
     const progressState = createRequestProgressState();
     let progressQueue = Promise.resolve();
+    let inboundText = "";
+    let appendedUserTurn = false;
 
     try {
       stopTyping = this.startTypingFeedback(inbound.chatId, state);
@@ -251,7 +253,13 @@ export class TelegramGateway {
         project.path,
         inbound.files,
       );
-      const inboundText = buildInboundText(inbound.text, resolvedFiles);
+      inboundText = buildInboundText(inbound.text, resolvedFiles);
+      this.deps.appendConversation(inbound.chatId, {
+        role: "user",
+        content: inboundText,
+        at: nowIso(),
+      });
+      appendedUserTurn = true;
       const response = await this.deps.respond(
         {
           chatId: inbound.chatId,
@@ -286,12 +294,6 @@ export class TelegramGateway {
         outbound.text,
         outbound.files,
       );
-
-      this.deps.appendConversation(inbound.chatId, {
-        role: "user",
-        content: inboundText,
-        at: nowIso(),
-      });
 
       this.deps.appendConversation(inbound.chatId, {
         role: "assistant",
@@ -335,6 +337,18 @@ export class TelegramGateway {
         error,
         progressState.lastMeaningfulMessage,
       );
+      if (appendedUserTurn) {
+        this.deps.appendConversation(inbound.chatId, {
+          role: "assistant",
+          content: buildAssistantRecoveryLog(
+            error,
+            activeAgent.provider,
+            this.config.providerCliTimeoutMs,
+            progressState.lastMeaningfulMessage,
+          ),
+          at: nowIso(),
+        });
+      }
       logAgentFailure(inbound.chatId, activeAgent.provider, error);
       const sent = await safeSendTelegramMessage(
         this.sender,
@@ -696,6 +710,42 @@ function buildAgentFailureMessage(
   return `${withProgress.slice(0, MAX_TELEGRAM_ERROR_CHARS - 3)}...`;
 }
 
+function buildAssistantRecoveryLog(
+  error: unknown,
+  provider: ProviderConfig,
+  timeoutMs: number,
+  lastProgressMessage?: string | null,
+): string {
+  const lines: string[] = [];
+  const providerLabel = `${provider.name}/${provider.model}`;
+  const lastProgress = truncateForRecovery(normalizeProgressMessage(lastProgressMessage ?? ""), 220);
+
+  if (isProviderTimeoutError(error)) {
+    lines.push(
+      `Previous attempt timed out after ${formatTimeoutForRecovery(timeoutMs)} using ${providerLabel}.`
+    );
+    if (lastProgress) {
+      lines.push(`Last progress: ${lastProgress}`);
+    }
+    lines.push("Next action: resume from the last completed stage or narrow the task before retrying.");
+    return lines.join("\n");
+  }
+
+  const detail = truncateForRecovery(
+    error instanceof Error ? error.message : String(error ?? ""),
+    220
+  );
+  lines.push(`Previous attempt failed using ${providerLabel}.`);
+  if (detail) {
+    lines.push(`Failure: ${detail}`);
+  }
+  if (lastProgress) {
+    lines.push(`Last progress: ${lastProgress}`);
+  }
+  lines.push("Next action: address the runtime issue and retry from the last known stage.");
+  return lines.join("\n");
+}
+
 function createRequestProgressState(): RequestProgressState {
   return {
     slots: new Map<string, ProgressSlotState>(),
@@ -705,6 +755,29 @@ function createRequestProgressState(): RequestProgressState {
 
 function normalizeProgressMessage(value: string): string {
   return String(value ?? "").trim();
+}
+
+function isProviderTimeoutError(error: unknown): boolean {
+  const detail = error instanceof Error ? error.message : String(error ?? "");
+  return /\bcli timed out\b/i.test(detail);
+}
+
+function formatTimeoutForRecovery(timeoutMs: number): string {
+  if (timeoutMs > 0 && timeoutMs % 60_000 === 0) {
+    return `${String(timeoutMs / 60_000)}m`;
+  }
+  if (timeoutMs > 0 && timeoutMs % 1_000 === 0) {
+    return `${String(timeoutMs / 1_000)}s`;
+  }
+  return `${String(timeoutMs)}ms`;
+}
+
+function truncateForRecovery(value: string, limit: number): string {
+  const normalized = normalizeProgressMessage(value);
+  if (!normalized || normalized.length <= limit) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(limit - 3, 0))}...`;
 }
 
 function resolveProgressSlot(event: TaskProgressEvent): string {
