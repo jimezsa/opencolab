@@ -269,12 +269,20 @@ opencolab gpu server add \
 # Validate local prerequisites and visible Runpod resources
 opencolab gpu server test --server-id runpod-flex
 
-# Launch a bounded remote job and wait for completion
-opencolab gpu job start \
-  --server-id runpod-flex \
-  --command "python train.py --epochs 1" \
-  --include projects/default,research \
-  --artifact outputs/train.log,outputs/metrics.json
+# Launch a bounded remote job without blocking the agent
+start_output="$(
+  opencolab gpu job start \
+    --server-id runpod-flex \
+    --command "python train.py --epochs 1" \
+    --include projects/default,research \
+    --artifact outputs/train.log,outputs/metrics.json \
+    --wait false
+)"
+printf '%s\n' "$start_output"
+run_id="$(printf '%s\n' "$start_output" | awk -F': ' '/^Run ID:/ {print $2}')"
+
+# Later, inspect the running job when needed
+opencolab gpu job status --run-id "$run_id"
 ```
 
 Important links:
