@@ -550,7 +550,67 @@ Suggested MVP priorities:
 
 Agent-triggered remote runs can come after the operator-facing commands are stable.
 
-### 18.1 `src/ignite.ts` Onboarding Plan
+### 18.1 Live Availability Check Plan
+
+Operators need a way to inspect current compatible Runpod capacity before they try to launch a Pod.
+
+Today, target validation can confirm local prerequisites, visible volumes, and reusable warm Pods, but a brand-new Pod allocation still discovers live GPU scarcity only when provisioning is attempted.
+That is too late for the operator workflow when a preferred datacenter or GPU class is often unavailable.
+
+The first availability-check surface should be:
+
+- `opencolab gpu server availability --server-id <id>`
+
+This command should:
+
+- load the existing named execution target
+- read its ordered datacenter and GPU candidate lists
+- query Runpod live cloud availability through a read-only control-plane path
+- filter the live inventory to the target's acceptable candidates
+- return a snapshot of what is available now, grouped or ordered by the same datacenter and GPU preference order that actual provisioning will use
+
+MVP scope:
+
+- target-scoped only, using `--server-id`
+- no persistence in `opencolab.json`
+- no reservation semantics
+- no change to the underlying provisioning fallback behavior
+
+Suggested output shape:
+
+- a short summary line such as `Best match now: CA-MTL-1 / NVIDIA RTX 4090`
+- one line per candidate or matched result showing datacenter, GPU type, and current availability
+- an explicit note when no compatible capacity is available right now
+- a warning that the result is only a moment-in-time snapshot and capacity may disappear before launch
+
+Implementation direction:
+
+- add a read-only availability query to the Runpod execution service in `src/gpu-providers/runpod/index.ts`
+- prefer direct Runpod API access for live cloud inventory rather than shelling out to `runpodctl`
+- normalize the response into a small internal result model for CLI rendering
+- reuse the same datacenter and GPU candidate ordering helpers used by provisioning so the checker and launcher stay aligned
+
+Launch interaction requirements:
+
+- `gpu job start` should keep the existing fallback provisioning loop
+- the availability command should improve operator visibility, not replace real allocation attempts
+- launch-time errors should still report the exact attempted datacenter and GPU combinations
+
+Follow-on expansion after MVP:
+
+- optional ad hoc mode such as `opencolab gpu server availability --location <csv> --gpu-type <csv>` for checking capacity before saving a target
+- optional JSON output for scripting
+- optional exposure of extra inventory hints such as price, stock class, or raw capacity labels when Runpod provides them
+
+Documentation and testing plan:
+
+- add the new command to `docs/spec.md` when this draft is promoted
+- update `README.md` operator examples to show checking availability before launch
+- add CLI tests for help text and human-readable output
+- add Runpod service tests for filtering, ordering, empty-result handling, and auth or API failures
+- add a regression test that availability results are treated as advisory snapshots, not guarantees
+
+### 18.2 `src/ignite.ts` Onboarding Plan
 
 Runpod should also become part of the first-run and update onboarding flow in `src/ignite.ts`.
 
