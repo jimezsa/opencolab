@@ -1291,6 +1291,123 @@ test("provider CLI progress file events are forwarded to Telegram before the fin
   }
 });
 
+test("timed out routed runs preserve a compact recovery summary for the next turn", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-timeout-recovery-"));
+  const sentTexts: string[] = [];
+  const seenWorkingMemory: string[][] = [];
+  const originalConsoleError = console.error;
+  let callCount = 0;
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    agentResponder: async ({ memory, text }, options) => {
+      seenWorkingMemory.push(memory.workingMemory.map((entry) => entry.content));
+      if (callCount === 0) {
+        callCount += 1;
+        await options?.onProgress?.({
+          kind: "started",
+          stage: "retrieval",
+          slot: "search",
+          message: "Searching across 2 retrieval waves."
+        });
+        await options?.onProgress?.({
+          kind: "milestone",
+          stage: "selection",
+          slot: "search_selection",
+          message: "Selected 4 papers for deep read."
+        });
+        throw new Error("openai CLI timed out");
+      }
+
+      callCount += 1;
+      return `resume:${text}`;
+    }
+  });
+
+  try {
+    console.error = () => undefined;
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    const provider = runtime.getActiveAgent().provider;
+
+    const first = await runtime.handleTelegramWebhook({
+      message: {
+        text: "Investigate sparse autoencoders",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(first.ok, false);
+    assert.equal(first.action, "agent_error");
+    assert.equal(first.response.includes("openai CLI timed out"), true);
+    assert.equal(first.response.includes("Last progress: Selected 4 papers for deep read."), true);
+    assert.equal(sentTexts.includes(first.response), true);
+
+    const sessionsDir = path.join(buildAgentDir(tempDir, "default"), "memory", "Session");
+    const sessionDirs = fs
+      .readdirSync(sessionsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    const historyPath = path.join(
+      sessionsDir,
+      sessionDirs[0],
+      `${new Date().toISOString().slice(0, 10)}.jsonl`
+    );
+    const lines = fs.readFileSync(historyPath, "utf8").trim().split(/\r?\n/);
+    assert.equal(lines.length, 2);
+
+    const firstTurn = JSON.parse(lines[0]) as { role: string; content: string };
+    const recoveryTurn = JSON.parse(lines[1]) as { role: string; content: string };
+    assert.equal(firstTurn.role, "user");
+    assert.equal(firstTurn.content, "Investigate sparse autoencoders");
+    assert.equal(recoveryTurn.role, "assistant");
+    assert.equal(
+      recoveryTurn.content.includes(
+        `Previous attempt timed out after 30m using ${provider.name}/${provider.model}.`
+      ),
+      true
+    );
+    assert.equal(
+      recoveryTurn.content.includes("Last progress: Selected 4 papers for deep read."),
+      true
+    );
+    assert.equal(
+      recoveryTurn.content.includes(
+        "Next action: resume from the last completed stage or narrow the task before retrying."
+      ),
+      true
+    );
+
+    const second = await runtime.handleTelegramWebhook({
+      message: {
+        text: "Continue from the last stage",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(second.ok, true);
+    assert.equal(second.action, "agent_response");
+    assert.equal(second.response, "resume:Continue from the last stage");
+    assert.deepEqual(seenWorkingMemory, [
+      [],
+      ["Investigate sparse autoencoders", recoveryTurn.content]
+    ]);
+  } finally {
+    console.error = originalConsoleError;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("agent response can send telegram files when the directive is backticked and the file path is relative", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-relative-"));
   const sentTexts: string[] = [];
