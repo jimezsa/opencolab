@@ -251,7 +251,7 @@ If a routed provider run hits that timeout, OpenColab preserves the inbound requ
 
 OpenColab keeps remote GPU execution separate from the agent reasoning runtime. Providers still handle planning and coding; Runpod is only the remote experiment target.
 For agent-driven remote GPU execution through OpenColab, use the shared `runpod-job` skill.
-The skill should launch jobs in detached mode with `--wait false` and return the `run_id` promptly. The agent can inspect `opencolab gpu job status` and `opencolab gpu job logs` later when the user explicitly asks about the running job or asks to monitor it, and can use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when SSH-backed access is needed.
+The skill should launch jobs in detached mode with `--wait false` and return the `run_id` promptly. Before the agent reports on a launched or monitored run, it should refresh the run with `opencolab gpu job status --run-id <id>` so the latest remote logs are downloaded locally, then review `bootstrap`, `stdout`, `stderr`, and `poller`. It can use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when SSH-backed access is needed.
 Curated/default Runpod targets use the `pytorch-cu12` bootstrap profile unless the operator overrides it.
 
 Common operator flow:
@@ -288,6 +288,10 @@ run_id="$(printf '%s\n' "$start_output" | awk -F': ' '/^Run ID:/ {print $2}')"
 
 # Later, inspect the running job when needed
 opencolab gpu job status --run-id "$run_id"
+opencolab gpu job logs --run-id "$run_id" --stream bootstrap
+opencolab gpu job logs --run-id "$run_id" --stream stdout
+opencolab gpu job logs --run-id "$run_id" --stream stderr
+opencolab gpu job logs --run-id "$run_id" --stream poller
 
 # Run one bounded command directly on the launched Pod when needed
 opencolab gpu job exec --run-id "$run_id" --command "nvidia-smi"
@@ -426,7 +430,7 @@ Telegram slash-menu aliases:
 - Previous-day summaries live in `<agent_path>/memory/Daily/<YYYY-MM-DD>.md`
 - Long-term durable facts belong in `MEMORY.md`
 
-Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, and `runpod-job` handles bounded Runpod GPU server and job orchestration through the OpenColab CLI, always launching jobs in detached mode so agents can return a `run_id` promptly and inspect the run later on demand while also surfacing failed or degraded runs clearly with a proposed next action.
+Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, and `runpod-job` handles bounded Runpod GPU server and job orchestration through the OpenColab CLI, always launching jobs in detached mode, refreshing local log snapshots before reporting on a run, and surfacing failed or degraded runs clearly with a proposed next action.
 
 ## Configuration and Development
 
