@@ -341,6 +341,8 @@ Gateway must support project/agent management commands from authorized, paired c
 
 Minimum supported commands:
 
+- `/projects`
+- `/agents`
 - `/project create <project_id>`
 - `/project use <project_id>`
 - `/project list`
@@ -351,8 +353,19 @@ Minimum supported commands:
 
 Messages that are not management commands are routed to the active agent.
 
+Interactive selection requirements:
+
+- `/projects` must return a project picker with inline Telegram buttons for every known project plus a cancel button
+- tapping a project button must switch the active project through the same selection logic used by `/project use <project_id>`
+- `/agents` must return an agent picker with inline Telegram buttons for every agent in the active project plus a cancel button
+- tapping an agent button must switch the active agent through the same selection logic used by `/agent use <agent_id>`
+- gateway must accept Telegram `callback_query` updates for these button taps, answer the callback query, and send a clear selection confirmation
+- the text-based `/project ...` and `/agent ...` commands must remain supported as a fallback
+
 Menu alias compatibility (for Telegram slash command popup):
 
+- `/projects` -> interactive project picker
+- `/agents` -> interactive agent picker
 - `/project_list` -> `/project list`
 - `/project_create <project_id>` -> `/project create <project_id>`
 - `/project_use <project_id>` -> `/project use <project_id>`

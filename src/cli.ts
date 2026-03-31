@@ -75,6 +75,8 @@ type TelegramCommandScope =
   | { type: "chat"; chat_id: string };
 
 const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
+  { command: "projects", description: "Pick active project" },
+  { command: "agents", description: "Pick active agent" },
   { command: "project_list", description: "List projects" },
   {
     command: "project_create",

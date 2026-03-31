@@ -27,6 +27,8 @@ import type {
   TelegramFileKind,
   TelegramFilePayload,
   TelegramInbound,
+  TelegramInlineButton,
+  TelegramMessageOptions,
   TelegramOutboundFile,
 } from "./types.js";
 import { resolveTelegramBotToken } from "./secrets.js";
@@ -36,6 +38,7 @@ export type TelegramSender = (
   chatId: string,
   text: string,
   state: OpenColabState,
+  options?: TelegramMessageOptions,
 ) => Promise<boolean>;
 
 export type TelegramTypingSender = (
@@ -45,6 +48,12 @@ export type TelegramTypingSender = (
 export type TelegramFileSender = (
   chatId: string,
   file: TelegramOutboundFile,
+  state: OpenColabState,
+) => Promise<boolean>;
+
+export type TelegramCallbackAnswerer = (
+  callbackQueryId: string,
+  text: string | undefined,
   state: OpenColabState,
 ) => Promise<boolean>;
 
@@ -61,11 +70,20 @@ interface GatewayDependencies {
   telegramSender?: TelegramSender;
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;
+  telegramCallbackAnswerer?: TelegramCallbackAnswerer;
 }
 
 const TELEGRAM_FILE_FETCH_TIMEOUT_MS = 10_000;
 const MAX_TELEGRAM_ERROR_CHARS = 1_500;
+const MAX_TELEGRAM_CALLBACK_TEXT_CHARS = 180;
 const PROGRESS_MESSAGE_THROTTLE_MS = 3_000;
+
+interface ManagementCommandResult {
+  nextState?: OpenColabState;
+  response: string;
+  options?: TelegramMessageOptions;
+  callbackAnswerText?: string;
+}
 
 interface ProgressSlotState {
   lastMessage: string;
@@ -81,6 +99,7 @@ export class TelegramGateway {
   private readonly sender: TelegramSender;
   private readonly typingSender: TelegramTypingSender;
   private readonly fileSender: TelegramFileSender;
+  private readonly callbackAnswerer: TelegramCallbackAnswerer;
 
   constructor(
     private readonly config: OpenColabConfig,
@@ -90,6 +109,8 @@ export class TelegramGateway {
     this.typingSender =
       deps.telegramTypingSender ?? defaultTelegramTypingSender;
     this.fileSender = deps.telegramFileSender ?? defaultTelegramFileSender;
+    this.callbackAnswerer =
+      deps.telegramCallbackAnswerer ?? defaultTelegramCallbackAnswerer;
   }
 
   async startPairing(): Promise<{
@@ -212,24 +233,37 @@ export class TelegramGateway {
       };
     }
 
-    let commandResult: { nextState?: OpenColabState; response: string } | null =
-      null;
+    let commandResult: ManagementCommandResult | null = null;
     try {
       commandResult = this.tryHandleManagementCommand(inbound, state);
     } catch (error) {
       commandResult = {
         response: error instanceof Error ? error.message : String(error),
+        callbackAnswerText: "Command failed.",
       };
     }
     if (commandResult) {
+      const responseState = commandResult.nextState
+        ? ensureProjectAndAgent(commandResult.nextState)
+        : state;
       if (commandResult.nextState) {
         this.deps.saveState(commandResult.nextState);
+      }
+
+      if (inbound.callbackQueryId) {
+        await safeAnswerTelegramCallback(
+          this.callbackAnswerer,
+          inbound.callbackQueryId,
+          truncateTelegramCallbackText(commandResult.callbackAnswerText ?? commandResult.response),
+          responseState,
+        );
       }
 
       const sent = await this.sender(
         inbound.chatId,
         commandResult.response,
-        state,
+        responseState,
+        commandResult.options,
       );
       return {
         ok: true,
@@ -370,7 +404,11 @@ export class TelegramGateway {
   private tryHandleManagementCommand(
     inbound: TelegramInbound,
     state: OpenColabState,
-  ): { nextState?: OpenColabState; response: string } | null {
+  ): ManagementCommandResult | null {
+    if (inbound.kind === "callback_query") {
+      return this.tryHandleManagementCallback(inbound, state);
+    }
+
     const text = normalizeManagementInput(inbound.commandText);
     if (!text.startsWith("/")) {
       return null;
@@ -380,6 +418,14 @@ export class TelegramGateway {
     const scope = normalizeCommandToken(tokens[0]).toLowerCase();
     const action = normalizeCommandToken(tokens[1]).toLowerCase();
     const value = tokens[2];
+
+    if (scope === "/projects") {
+      return this.renderProjectPicker(state);
+    }
+
+    if (scope === "/agents") {
+      return this.renderAgentPicker(getActiveProject(state));
+    }
 
     if (scope === "/project") {
       if (action === "list") {
@@ -436,35 +482,12 @@ export class TelegramGateway {
           };
         }
 
-        const projectId = normalizeEntityId(value);
-        const target = state.projects[projectId];
-        if (!target) {
-          return {
-            response: `Unknown project: ${projectId}`,
-          };
-        }
-
-        const nextState = ensureProjectAndAgent({
-          ...state,
-          activeProjectId: projectId,
-        });
-
-        const activeAgent =
-          target.agents[target.activeAgentId] ??
-          Object.values(target.agents)[0];
-        if (activeAgent) {
-          ensureAgentFiles(this.config.rootDir, activeAgent);
-        }
-
-        return {
-          nextState,
-          response: `Active project: ${projectId}`,
-        };
+        return this.selectProject(state, value, "Project selected.");
       }
 
       return {
         response:
-          "Project commands: /project list | /project create <project_id> | /project use <project_id>",
+          "Project commands: /projects | /project list | /project create <project_id> | /project use <project_id>",
       };
     }
 
@@ -526,35 +549,12 @@ export class TelegramGateway {
           };
         }
 
-        const agentId = normalizeEntityId(value);
-        if (!project.agents[agentId]) {
-          return {
-            response: `Unknown agent in project '${project.id}': ${agentId}`,
-          };
-        }
-
-        const nextState = ensureProjectAndAgent({
-          ...state,
-          projects: {
-            ...state.projects,
-            [project.id]: {
-              ...project,
-              activeAgentId: agentId,
-            },
-          },
-        });
-
-        ensureAgentFiles(this.config.rootDir, project.agents[agentId]);
-
-        return {
-          nextState,
-          response: `Active agent: ${agentId} (project ${project.id})`,
-        };
+        return this.selectAgent(state, value, "Agent selected.");
       }
 
       return {
         response:
-          "Agent commands: /agent list | /agent create <agent_id> | /agent use <agent_id>",
+          "Agent commands: /agents | /agent list | /agent create <agent_id> | /agent use <agent_id>",
       };
     }
 
@@ -573,7 +573,102 @@ export class TelegramGateway {
 
     return {
       response:
-        "Supported commands: /project list | /project create <project_id> | /project use <project_id> | /agent list | /agent create <agent_id> | /agent use <agent_id> | /session reset",
+        "Supported commands: /projects | /project list | /project create <project_id> | /project use <project_id> | /agents | /agent list | /agent create <agent_id> | /agent use <agent_id> | /session reset",
+    };
+  }
+
+  private tryHandleManagementCallback(
+    inbound: TelegramInbound,
+    state: OpenColabState,
+  ): ManagementCommandResult {
+    const callbackData = String(inbound.callbackData ?? "").trim();
+    const [scope, action, value] = callbackData.split(":");
+
+    if (callbackData === "ui:cancel") {
+      return {
+        response: "Selection cancelled.",
+        callbackAnswerText: "Selection cancelled.",
+      };
+    }
+
+    if (scope === "prj" && action === "use" && value) {
+      return this.selectProject(state, value, "Project selected.");
+    }
+
+    if (scope === "agt" && action === "use" && value) {
+      return this.selectAgent(state, value, "Agent selected.");
+    }
+
+    return {
+      response: "Unknown Telegram button action.",
+      callbackAnswerText: "Unknown action.",
+    };
+  }
+
+  private selectProject(
+    state: OpenColabState,
+    projectIdRaw: string,
+    callbackAnswerText: string,
+  ): ManagementCommandResult {
+    const projectId = normalizeEntityId(projectIdRaw);
+    const target = state.projects[projectId];
+    if (!target) {
+      return {
+        response: `Unknown project: ${projectId}`,
+        callbackAnswerText: "Unknown project.",
+      };
+    }
+
+    const nextState = ensureProjectAndAgent({
+      ...state,
+      activeProjectId: projectId,
+    });
+
+    const activeAgent =
+      target.agents[target.activeAgentId] ??
+      Object.values(target.agents)[0];
+    if (activeAgent) {
+      ensureAgentFiles(this.config.rootDir, activeAgent);
+    }
+
+    return {
+      nextState,
+      response: `Active project: ${projectId}`,
+      callbackAnswerText,
+    };
+  }
+
+  private selectAgent(
+    state: OpenColabState,
+    agentIdRaw: string,
+    callbackAnswerText: string,
+  ): ManagementCommandResult {
+    const project = getActiveProject(state);
+    const agentId = normalizeEntityId(agentIdRaw);
+    if (!project.agents[agentId]) {
+      return {
+        response: `Unknown agent in project '${project.id}': ${agentId}`,
+        callbackAnswerText: "Unknown agent.",
+      };
+    }
+
+    const nextState = ensureProjectAndAgent({
+      ...state,
+      projects: {
+        ...state.projects,
+        [project.id]: {
+          ...project,
+          activeAgentId: agentId,
+        },
+      },
+    });
+
+    ensureAgentFiles(this.config.rootDir, project.agents[agentId]);
+
+    return {
+      nextState,
+      response: `Active agent: ${agentId} (project ${project.id})`,
+      callbackAnswerText,
     };
   }
 
@@ -599,6 +694,76 @@ export class TelegramGateway {
     });
 
     return [`Agents in ${project.id} (${entries.length})`, ...lines].join("\n");
+  }
+
+  private renderProjectPicker(state: OpenColabState): ManagementCommandResult {
+    const entries = Object.values(state.projects).sort((a, b) =>
+      a.id.localeCompare(b.id),
+    );
+    const lines = entries.map((project) => {
+      const marker = project.id === state.activeProjectId ? "*" : "-";
+      return `${marker} ${project.id} (active agent: ${project.activeAgentId})`;
+    });
+
+    return {
+      response: [
+        `Projects (${entries.length})`,
+        `Current: ${state.activeProjectId}`,
+        "Tap a project to switch.",
+        "",
+        ...lines,
+      ].join("\n"),
+      options: {
+        inlineKeyboard: [
+          ...chunkInlineButtons(
+            entries.map((project) => ({
+              text:
+                project.id === state.activeProjectId
+                  ? `* ${project.id}`
+                  : project.id,
+              callbackData: `prj:use:${project.id}`,
+            })),
+          ),
+          [{ text: "Cancel", callbackData: "ui:cancel" }],
+        ],
+      },
+    };
+  }
+
+  private renderAgentPicker(
+    project: OpenColabState["projects"][string],
+  ): ManagementCommandResult {
+    const entries = Object.values(project.agents).sort((a, b) =>
+      a.id.localeCompare(b.id),
+    );
+    const lines = entries.map((agent) => {
+      const marker = agent.id === project.activeAgentId ? "*" : "-";
+      return `${marker} ${agent.id} [${agent.provider.name}:${agent.provider.model}]`;
+    });
+
+    return {
+      response: [
+        `Agents in ${project.id} (${entries.length})`,
+        `Current: ${project.activeAgentId}`,
+        "Tap an agent to switch.",
+        "",
+        ...lines,
+      ].join("\n"),
+      options: {
+        inlineKeyboard: [
+          ...chunkInlineButtons(
+            entries.map((agent) => ({
+              text:
+                agent.id === project.activeAgentId
+                  ? `* ${agent.id}`
+                  : agent.id,
+              callbackData: `agt:use:${agent.id}`,
+            })),
+          ),
+          [{ text: "Cancel", callbackData: "ui:cancel" }],
+        ],
+      },
+    };
   }
 
   private startTypingFeedback(
@@ -678,9 +843,23 @@ async function safeSendTelegramMessage(
   chatId: string,
   text: string,
   state: OpenColabState,
+  options?: TelegramMessageOptions,
 ): Promise<boolean> {
   try {
-    return await sender(chatId, text, state);
+    return await sender(chatId, text, state, options);
+  } catch {
+    return false;
+  }
+}
+
+async function safeAnswerTelegramCallback(
+  answerer: TelegramCallbackAnswerer,
+  callbackQueryId: string,
+  text: string | undefined,
+  state: OpenColabState,
+): Promise<boolean> {
+  try {
+    return await answerer(callbackQueryId, text, state);
   } catch {
     return false;
   }
@@ -780,6 +959,14 @@ function truncateForRecovery(value: string, limit: number): string {
   return `${normalized.slice(0, Math.max(limit - 3, 0))}...`;
 }
 
+function truncateTelegramCallbackText(value: string): string {
+  const normalized = normalizeProgressMessage(value);
+  if (!normalized || normalized.length <= MAX_TELEGRAM_CALLBACK_TEXT_CHARS) {
+    return normalized;
+  }
+  return `${normalized.slice(0, MAX_TELEGRAM_CALLBACK_TEXT_CHARS - 3)}...`;
+}
+
 function resolveProgressSlot(event: TaskProgressEvent): string {
   return (
     normalizeProgressMessage(event.slot ?? "") ||
@@ -806,6 +993,7 @@ export async function defaultTelegramSender(
   chatId: string,
   text: string,
   state: OpenColabState,
+  options?: TelegramMessageOptions,
 ): Promise<boolean> {
   void state;
   const token = resolveTelegramBotToken();
@@ -824,6 +1012,50 @@ export async function defaultTelegramSender(
         body: JSON.stringify({
           chat_id: chatId,
           text,
+          ...(options?.inlineKeyboard
+            ? {
+                reply_markup: {
+                  inline_keyboard: options.inlineKeyboard.map((row) =>
+                    row.map((button) => ({
+                      text: button.text,
+                      callback_data: button.callbackData,
+                    })),
+                  ),
+                },
+              }
+            : {}),
+        }),
+      },
+    );
+
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function defaultTelegramCallbackAnswerer(
+  callbackQueryId: string,
+  text: string | undefined,
+  state: OpenColabState,
+): Promise<boolean> {
+  void state;
+  const token = resolveTelegramBotToken();
+  if (!token) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/answerCallbackQuery`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          callback_query_id: callbackQueryId,
+          ...(text ? { text: truncateTelegramCallbackText(text) } : {}),
         }),
       },
     );
@@ -924,6 +1156,38 @@ function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {
     return null;
   }
 
+  const callbackQuery = asRecord(root.callback_query);
+  if (callbackQuery) {
+    const callbackMessage = asRecord(callbackQuery.message);
+    const callbackChat = asRecord(callbackMessage?.chat);
+    const callbackData = String(callbackQuery.data ?? "").trim();
+    if (
+      !callbackMessage ||
+      !callbackChat ||
+      callbackChat.id === undefined ||
+      callbackChat.id === null ||
+      !callbackData
+    ) {
+      return null;
+    }
+
+    return {
+      kind: "callback_query",
+      chatId: String(callbackChat.id),
+      sender: parseSender(asRecord(callbackQuery.from)),
+      commandText: "",
+      text: "",
+      files: [],
+      callbackQueryId: String(callbackQuery.id ?? "").trim() || undefined,
+      callbackData,
+      callbackMessageId:
+        callbackMessage.message_id === undefined ||
+        callbackMessage.message_id === null
+          ? undefined
+          : String(callbackMessage.message_id),
+    };
+  }
+
   const message = asRecord(root.message) ?? asRecord(root.edited_message);
   if (!message) {
     return null;
@@ -941,6 +1205,7 @@ function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {
   }
 
   return {
+    kind: "message",
     chatId: String(chat.id),
     sender: parseSender(asRecord(message.from)),
     commandText: text,
@@ -1027,6 +1292,17 @@ function normalizeCommandToken(token: string | undefined): string {
   }
 
   return token.split("@")[0] ?? token;
+}
+
+function chunkInlineButtons(
+  buttons: TelegramInlineButton[],
+  size = 2,
+): TelegramInlineButton[][] {
+  const rows: TelegramInlineButton[][] = [];
+  for (let index = 0; index < buttons.length; index += size) {
+    rows.push(buttons.slice(index, index + size));
+  }
+  return rows;
 }
 
 function parseInboundFiles(

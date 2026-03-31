@@ -160,12 +160,27 @@ export interface TelegramOutboundFile {
   caption?: string;
 }
 
+export interface TelegramInlineButton {
+  text: string;
+  callbackData: string;
+}
+
+export type TelegramInlineKeyboard = TelegramInlineButton[][];
+
+export interface TelegramMessageOptions {
+  inlineKeyboard?: TelegramInlineKeyboard;
+}
+
 export interface TelegramInbound {
+  kind: "message" | "callback_query";
   chatId: string;
   sender: string;
   commandText: string;
   text: string;
   files: TelegramFilePayload[];
+  callbackQueryId?: string;
+  callbackData?: string;
+  callbackMessageId?: string;
 }
 
 export interface GatewayResult {

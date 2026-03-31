@@ -391,6 +391,8 @@ opencolab gpu job list
 Telegram:
 
 ```text
+/projects
+/agents
 /project create <project_id>
 /project use <project_id>
 /project list
@@ -403,6 +405,8 @@ Telegram:
 Telegram slash-menu aliases:
 
 ```text
+/projects
+/agents
 /project_list
 /project_create <project_id>
 /project_use <project_id>
@@ -411,6 +415,8 @@ Telegram slash-menu aliases:
 /agent_use <agent_id>
 /session_reset
 ```
+
+`/projects` and `/agents` open inline-button pickers in Telegram so users can switch the active project or agent with one tap. The older `/project ...` and `/agent ...` text commands remain available as fallback.
 
 ## Agent Layout and Memory
 

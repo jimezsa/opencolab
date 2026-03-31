@@ -2170,3 +2170,158 @@ test("paired webhook supports telegram menu alias commands", async () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("paired webhook renders project and agent pickers with inline buttons", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-pickers-"));
+  const sentMessages: Array<{
+    text: string;
+    inlineKeyboard?: Array<Array<{ text: string; callbackData: string }>>;
+  }> = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text, _state, options) => {
+      sentMessages.push({
+        text,
+        inlineKeyboard: options?.inlineKeyboard
+      });
+      return true;
+    },
+    agentResponder: async ({ text }) => `research:${text}`
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentMessages.length = 0;
+
+    runtime.createProject("alpha");
+    runtime.configureAgent("scout");
+    runtime.useAgent("professor");
+    runtime.createProject("beta");
+    runtime.configureAgent("reviewer");
+    runtime.useProject("alpha");
+
+    const projectPicker = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/projects",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(projectPicker.ok, true);
+    assert.equal(projectPicker.action, "management_command");
+    assert.equal(projectPicker.response.includes("Current: alpha"), true);
+    assert.equal(sentMessages.length, 1);
+
+    const projectButtons = sentMessages[0].inlineKeyboard?.flat() ?? [];
+    assert.equal(projectButtons.some((button) => button.callbackData === "prj:use:alpha"), true);
+    assert.equal(projectButtons.some((button) => button.callbackData === "prj:use:beta"), true);
+    assert.equal(projectButtons.some((button) => button.callbackData === "ui:cancel"), true);
+
+    sentMessages.length = 0;
+
+    const agentPicker = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/agents",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(agentPicker.ok, true);
+    assert.equal(agentPicker.action, "management_command");
+    assert.equal(agentPicker.response.includes("Agents in alpha"), true);
+    assert.equal(sentMessages.length, 1);
+
+    const agentButtons = sentMessages[0].inlineKeyboard?.flat() ?? [];
+    assert.equal(agentButtons.some((button) => button.callbackData === "agt:use:professor"), true);
+    assert.equal(agentButtons.some((button) => button.callbackData === "agt:use:scout"), true);
+    assert.equal(agentButtons.some((button) => button.callbackData === "agt:use:reviewer"), false);
+    assert.equal(agentButtons.some((button) => button.callbackData === "ui:cancel"), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("paired webhook can switch projects and agents via callback queries", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-callback-selection-"));
+  const sentTexts: string[] = [];
+  const callbackAnswers: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramCallbackAnswerer: async (_callbackQueryId, text) => {
+      callbackAnswers.push(text ?? "");
+      return true;
+    },
+    agentResponder: async ({ text }) => `research:${text}`
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    runtime.createProject("alpha");
+    runtime.createProject("beta");
+    runtime.configureAgent("reviewer");
+    runtime.useProject("alpha");
+
+    const projectSelection = await runtime.handleTelegramWebhook({
+      callback_query: {
+        id: "cb_project_1",
+        data: "prj:use:beta",
+        from: { username: "alice" },
+        message: {
+          message_id: 101,
+          text: "Projects",
+          chat: { id: "10001" }
+        }
+      }
+    });
+
+    assert.equal(projectSelection.ok, true);
+    assert.equal(projectSelection.action, "management_command");
+    assert.equal(runtime.getState().activeProjectId, "beta");
+    assert.equal(sentTexts.includes("Active project: beta"), true);
+    assert.equal(callbackAnswers.includes("Project selected."), true);
+
+    sentTexts.length = 0;
+
+    const agentSelection = await runtime.handleTelegramWebhook({
+      callback_query: {
+        id: "cb_agent_1",
+        data: "agt:use:reviewer",
+        from: { username: "alice" },
+        message: {
+          message_id: 102,
+          text: "Agents",
+          chat: { id: "10001" }
+        }
+      }
+    });
+
+    assert.equal(agentSelection.ok, true);
+    assert.equal(agentSelection.action, "management_command");
+    assert.equal(runtime.getActiveProject().id, "beta");
+    assert.equal(runtime.getActiveProject().activeAgentId, "reviewer");
+    assert.equal(sentTexts.includes("Active agent: reviewer (project beta)"), true);
+    assert.equal(callbackAnswers.includes("Agent selected."), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
