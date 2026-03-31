@@ -423,3 +423,336 @@ The right feature is:
 3. send the full assistant answer as a second normal Telegram message at the end
 
 That gives users a clearer and more trustworthy research workflow UX.
+
+## Interactive Command Interface Plan
+
+## Goal
+
+Improve Telegram project and agent selection so users can choose from clickable buttons instead of typing ids manually.
+
+The first target UX is:
+
+1. User types `/projects`.
+2. OpenColab replies with the current project plus a list of project buttons.
+3. User taps one project button.
+4. OpenColab switches the active project and confirms the selection.
+
+And similarly:
+
+1. User types `/agents`.
+2. OpenColab replies with the current active project plus a list of agent buttons.
+3. User taps one agent button.
+4. OpenColab switches the active agent and confirms the selection.
+
+This should reduce typing friction and make Telegram control feel more like a real interface instead of a raw command shell.
+
+## Desired User Experience
+
+Example `/projects` response:
+
+```text
+Projects
+Current: alpha
+Tap a project to switch.
+```
+
+With inline buttons:
+
+```text
+[alpha] [beta]
+[gamma] [delta]
+[Cancel]
+```
+
+Example `/agents` response:
+
+```text
+Agents in alpha
+Current: professor
+Tap an agent to switch.
+```
+
+With inline buttons:
+
+```text
+[professor] [scout]
+[planner] [reviewer]
+[Cancel]
+```
+
+Key UX rules:
+
+- Use inline keyboards, not reply keyboards.
+- Keep the selection flow to one command and one tap whenever possible.
+- Confirm the new active project or agent after selection.
+- Preserve the current text-command flow as a fallback.
+- Do not require users to type ids when they are choosing from an existing list.
+- Keep creation text-based for now: `/project create <id>` and `/agent create <id>`.
+
+## Non-Goals For V1
+
+- No button-based project or agent creation flow.
+- No free-text modal input flow inside Telegram.
+- No deep multi-step wizard for provider setup or configuration.
+- No redesign of normal agent-response messaging.
+- No attempt to support every Telegram UI primitive at once.
+
+## Product Decision
+
+OpenColab should support both:
+
+- text management commands, for scripting and power users
+- button-driven selection commands, for faster Telegram interaction
+
+The button-driven commands should be the primary Telegram UX for choosing existing projects and agents.
+
+Recommended commands:
+
+- `/projects` for interactive project selection
+- `/agents` for interactive agent selection
+
+Backward-compatible commands should remain supported:
+
+- `/project list`
+- `/project use <project_id>`
+- `/agent list`
+- `/agent use <agent_id>`
+
+## Current State In This Repository
+
+Current Telegram management is text-only:
+
+- `src/gateway.ts` parses only inbound `message` and `edited_message`
+- `src/gateway.ts` management handling is based on slash-command text tokens
+- `src/gateway.ts` outbound Telegram delivery supports plain text and files
+- `src/types.ts` does not model Telegram `callback_query`
+- `src/cli.ts` syncs slash-menu commands with `setMyCommands`, but not button flows
+
+This means button-based selection is not a rendering tweak.
+It requires explicit callback-query support in the Telegram gateway.
+
+## Proposed Architecture
+
+### 1. Add button-first selection commands
+
+Introduce two new Telegram commands:
+
+- `/projects`
+- `/agents`
+
+Behavior:
+
+- `/projects` renders the project picker
+- `/agents` renders the agent picker for the active project
+
+The older `/project ...` and `/agent ...` commands stay valid.
+
+### 2. Add inbound callback-query support
+
+Extend the Telegram inbound model so the gateway can parse button taps.
+
+The gateway needs to understand:
+
+- callback query id
+- callback query data
+- source chat id
+- source message id
+- tapping user identity
+
+Without this, Telegram button presses cannot be routed back into project or agent selection logic.
+
+### 3. Add outbound inline-keyboard support
+
+Extend Telegram sending helpers so OpenColab can send:
+
+- `sendMessage` with `reply_markup.inline_keyboard`
+- `editMessageText` for updating selection messages when useful
+- `answerCallbackQuery` so Telegram acknowledges button taps cleanly
+
+V1 does not need a general UI framework.
+It only needs enough support to send a message with buttons and handle the result.
+
+### 4. Reuse existing selection logic
+
+Do not create separate project-selection and agent-selection state machines just for buttons.
+
+Instead:
+
+- keep one source of truth for project switching
+- keep one source of truth for agent switching
+- have both text commands and callback actions call the same internal selection helpers
+
+This reduces drift between button behavior and text-command behavior.
+
+### 5. Keep callback actions stateless and compact
+
+Use compact callback payloads such as:
+
+```text
+prj:use:alpha
+agt:use:scout
+prj:page:2
+agt:page:1
+ui:cancel
+```
+
+Rules:
+
+- callback data must stay below Telegram size limits
+- callback data should be parseable without server-side UI session state
+- server-side state should only be introduced if pagination later requires it
+
+### 6. Add pagination only when needed
+
+If project or agent counts are small, show all options in one keyboard.
+
+If the list gets too large:
+
+- add `Prev` and `Next` buttons
+- keep the current selection visible
+- preserve stable sort order
+
+Pagination should be an implementation detail, not a new command family.
+
+### 7. Confirm selection clearly
+
+After a successful tap:
+
+- answer the callback query
+- switch the active project or agent
+- send or edit a short confirmation such as:
+  - `Active project: alpha`
+  - `Active agent: scout (project alpha)`
+
+The user should never have to guess whether the tap succeeded.
+
+## Command Surface Recommendation
+
+Recommended Telegram command surface after the change:
+
+- `/projects` -> interactive project picker
+- `/agents` -> interactive agent picker
+- `/project create <project_id>`
+- `/agent create <agent_id>`
+- `/session reset`
+
+Backward compatibility:
+
+- keep `/project list`, `/project use <project_id>`
+- keep `/agent list`, `/agent use <agent_id>`
+- keep the current slash-menu aliases until the new commands are fully adopted
+
+## Concrete Implementation Plan
+
+### Phase 1: Spec and command design
+
+1. Add the new Telegram UX contract to `docs/spec.md`.
+2. Define the canonical commands as `/projects` and `/agents`.
+3. Decide the callback-data format and button layout rules.
+4. Decide whether selection responses should edit the picker message, send a new confirmation, or both.
+
+### Phase 2: Telegram transport foundation
+
+1. Extend inbound Telegram parsing to support `callback_query`.
+2. Extend outbound Telegram helpers to support inline keyboards.
+3. Add `answerCallbackQuery`.
+4. Add optional `editMessageText` support for button flows.
+
+### Phase 3: Gateway command integration
+
+1. Add `/projects` and `/agents` command handlers in `src/gateway.ts`.
+2. Add project-picker rendering.
+3. Add agent-picker rendering scoped to the active project.
+4. Route callback actions back into the existing project and agent selection logic.
+5. Keep text commands fully working.
+
+### Phase 4: Telegram command sync
+
+1. Update `src/cli.ts` command sync to register `/projects` and `/agents`.
+2. Keep old aliases during the transition period.
+3. Make the new interactive commands the primary surfaced UX in Telegram menus.
+
+### Phase 5: UX refinement
+
+1. Add cancel buttons.
+2. Add pagination only if needed.
+3. Improve confirmation copy.
+4. Decide when editing the original picker message is better than sending a second message.
+
+## Recommended File Changes
+
+- `docs/spec.md`
+  - add the Telegram interactive command contract
+- `README.md`
+  - document the new Telegram picker commands
+- `src/types.ts`
+  - add Telegram callback-query and keyboard-related types
+- `src/gateway.ts`
+  - add `/projects` and `/agents` handlers
+  - add callback-query routing
+  - add picker rendering and selection handling
+- `src/cli.ts`
+  - add synced Telegram commands for the new picker UX
+- `tests/runtime.test.ts`
+  - cover picker command and callback behavior
+- optional focused gateway tests
+  - callback parsing
+  - keyboard rendering
+  - pagination behavior
+
+## Test Plan
+
+Add deterministic tests for:
+
+- `/projects` returns a project picker instead of only plain text
+- tapping a project button switches the active project
+- `/agents` returns only agents from the active project
+- tapping an agent button switches the active agent
+- unauthorized callback queries are rejected
+- unpaired callback queries are rejected
+- old text commands still work after the new picker flow lands
+- large project or agent lists paginate correctly if pagination is enabled
+- invalid or stale callback payloads fail cleanly
+
+## Risks And Edge Cases
+
+### Telegram-side
+
+- callback queries must be answered promptly or Telegram shows a stuck spinner
+- inline keyboards add a new payload shape that current code does not parse
+- message edits can fail if the content is unchanged
+- callback data has strict size limits
+
+### Runtime-side
+
+- button taps must not bypass authorization or pairing checks
+- project and agent selection logic must not diverge between text and button paths
+- concurrent button taps should not leave the runtime in an ambiguous state
+
+### UX-side
+
+- overly large keyboards become hard to use
+- mixing old and new commands can confuse users if naming is inconsistent
+- button labels should stay short and unambiguous
+
+## Implementation Notes
+
+- Start with selection only, not creation.
+- Prefer inline keyboards over reply keyboards.
+- Prefer stateless callback payloads.
+- Reuse existing project and agent switching logic rather than duplicating it.
+- Before code implementation, sync the accepted behavior into `docs/spec.md` so the main spec stays authoritative.
+
+## Bottom Line
+
+The right Telegram improvement is not just "show a text list of projects and agents."
+
+The right improvement is:
+
+1. `/projects` opens a clickable project picker
+2. `/agents` opens a clickable agent picker
+3. taps route through callback queries
+4. the gateway reuses the existing selection logic
+5. old text commands remain available as fallback
+
+That gives Telegram a much faster and more legible command interface without turning it into a separate product surface.
