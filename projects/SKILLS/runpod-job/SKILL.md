@@ -36,7 +36,7 @@ Do not use this skill for direct Runpod API work unless the user is explicitly f
 2. Reuse an existing GPU server when possible; create one only when needed.
 3. Check live availability and validate the target before launching expensive work when current stock matters.
 4. Start a bounded remote GPU job in detached mode with minimal include paths, explicit artifact paths, and explicit env forwarding.
-5. Poll status, inspect logs, fetch outputs, or cancel the run as needed.
+5. Refresh local log snapshots, poll status, inspect logs, fetch outputs, or cancel the run as needed.
 6. Return a concise summary with the server id, run id, state, important logs, and fetched artifacts.
 
 ## Hard Requirements
@@ -54,10 +54,12 @@ Do not use this skill for direct Runpod API work unless the user is explicitly f
 - When creating a new general-purpose Runpod target without a user override, prefer `--bootstrap-profile pytorch-cu12`.
 - Launch jobs with `opencolab gpu job start --wait false` only; never use `--wait true` in this skill.
 - Return the `run_id` promptly after launch and do not sit in a polling loop by default.
+- Before reporting on a run, always refresh it with `opencolab gpu job status --run-id <run_id>` so the latest remote log snapshots are downloaded locally.
+- When summarizing a run, always review all four local log streams: `bootstrap`, `stdout`, `stderr`, and `poller`.
 - When direct Pod inspection is needed after launch, prefer `opencolab gpu job exec --run-id <id> --command "<remote command>"` over exposing raw SSH details.
 - Inspect status or logs after launch only when the user explicitly asks about the run, asks to monitor it, or asks for fetched outputs.
 - If `OPENCOLAB_PROGRESS_FILE` is available and the run is long enough to justify updates, emit bounded progress events for target setup, validation, launch, polling, degraded runs, and final delivery.
-- Final answers must include the run id, target id, current or final state, and whether artifacts were fetched successfully.
+- Final answers must include the run id, target id, current or final state, whether log snapshots were refreshed successfully, and whether artifacts were fetched successfully.
 - When a run fails, times out, or degrades, notify the user clearly and propose the next useful action instead of stopping at the raw failure state.
 
 ## OpenColab Progress Helper
@@ -83,6 +85,7 @@ Useful update categories for this skill:
 - new target created
 - target validation started or degraded
 - detached launch with a run id
+- local log snapshots refreshed
 - later status, log, or artifact inspection when the user asks
 - warning states such as `running_unreachable`, `cleanup_failed`, or missing artifacts
 
@@ -221,6 +224,7 @@ opencolab gpu job exec --run-id <run_id> --command "nvidia-smi"
 Logs:
 
 ```bash
+opencolab gpu job logs --run-id <run_id> --stream bootstrap
 opencolab gpu job logs --run-id <run_id> --stream poller
 opencolab gpu job logs --run-id <run_id> --stream stdout
 opencolab gpu job logs --run-id <run_id> --stream stderr
@@ -230,6 +234,7 @@ When the user later asks how a running job is doing, inspect the existing run by
 
 ```bash
 opencolab gpu job status --run-id <run_id>
+opencolab gpu job logs --run-id <run_id> --stream bootstrap
 opencolab gpu job logs --run-id <run_id> --stream poller
 opencolab gpu job logs --run-id <run_id> --stream stdout
 opencolab gpu job logs --run-id <run_id> --stream stderr
@@ -237,7 +242,9 @@ opencolab gpu job logs --run-id <run_id> --stream stderr
 
 Inspection guidance:
 
-- Prefer `stdout` and `stderr` for the most relevant new findings; use `poller` when state transitions need clarification.
+- Always run `opencolab gpu job status --run-id <run_id>` before reading log streams so the local snapshots are refreshed first.
+- Review `bootstrap`, `stdout`, `stderr`, and `poller` before concluding the run has no useful log evidence.
+- Prefer `stdout` and `stderr` for the most relevant new findings, use `bootstrap` when environment setup is suspect, and use `poller` when state transitions need clarification.
 - Use `gpu job exec` for one-off remote inspection when the user needs current Pod state that is not already visible in the stored logs.
 - Do not dump a huge full log unless the user explicitly asks for raw logs. Summarize the important new lines.
 - Treat `running_unreachable` as degraded but still active; mention it clearly instead of calling the run failed.
@@ -277,6 +284,7 @@ The final user-facing reply should include:
 - run id
 - command or task summary
 - current or final state
+- whether the latest local log snapshots were refreshed successfully
 - important log findings or failure reason
 - fetched artifacts and missing artifacts
 - next step if the run is still active, degraded, or failed
@@ -287,5 +295,5 @@ When you use this skill well, the user should come away with:
 
 - a valid project-scoped Runpod server target, or a clear reason why setup failed
 - a concrete GPU `run_id` when launch succeeded
-- fetched artifacts and log visibility when available
+- refreshed local copies of the available log streams plus fetched artifacts when available
 - a concise explanation of the run outcome and the next useful action, especially when the run failed or degraded
