@@ -407,12 +407,7 @@ Telegram slash-menu aliases:
 ```text
 /projects
 /agents
-/project_list
 /project_create <project_id>
-/project_use <project_id>
-/agent_list
-/agent_create <agent_id>
-/agent_use <agent_id>
 /session_reset
 ```
 

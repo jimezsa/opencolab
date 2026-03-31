@@ -366,12 +366,7 @@ Menu alias compatibility (for Telegram slash command popup):
 
 - `/projects` -> interactive project picker
 - `/agents` -> interactive agent picker
-- `/project_list` -> `/project list`
 - `/project_create <project_id>` -> `/project create <project_id>`
-- `/project_use <project_id>` -> `/project use <project_id>`
-- `/agent_list` -> `/agent list`
-- `/agent_create <agent_id>` -> `/agent create <agent_id>`
-- `/agent_use <agent_id>` -> `/agent use <agent_id>`
 - `/session_reset` -> `/session reset`
 
 ## 9. Provider Constraints

@@ -1269,12 +1269,7 @@ function normalizeManagementInput(raw: string): string {
   const rest = tokens.slice(1).join(" ").trim();
 
   const aliases: Record<string, string> = {
-    "/project_list": "/project list",
     "/project_create": "/project create",
-    "/project_use": "/project use",
-    "/agent_list": "/agent list",
-    "/agent_create": "/agent create",
-    "/agent_use": "/agent use",
     "/session_reset": "/session reset",
   };
 

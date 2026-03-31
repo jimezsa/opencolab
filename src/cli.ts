@@ -77,15 +77,10 @@ type TelegramCommandScope =
 const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
   { command: "projects", description: "Pick active project" },
   { command: "agents", description: "Pick active agent" },
-  { command: "project_list", description: "List projects" },
   {
     command: "project_create",
     description: "Create project: /project_create <id>",
   },
-  { command: "project_use", description: "Use project: /project_use <id>" },
-  { command: "agent_list", description: "List agents" },
-  { command: "agent_create", description: "Create agent: /agent_create <id>" },
-  { command: "agent_use", description: "Use agent: /agent_use <id>" },
   { command: "session_reset", description: "Reset active session" },
   { command: "project", description: "Project command help" },
   { command: "agent", description: "Agent command help" },

@@ -2114,7 +2114,7 @@ test("paired webhook can create and switch projects and agents", async () => {
   }
 });
 
-test("paired webhook supports telegram menu alias commands", async () => {
+test("paired webhook supports remaining telegram menu alias commands", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-menu-aliases-"));
 
   const runtime = createRuntime(tempDir, {
@@ -2143,18 +2143,6 @@ test("paired webhook supports telegram menu alias commands", async () => {
     assert.equal(createProject.action, "management_command");
     assert.equal(runtime.getState().activeProjectId, "alpha");
 
-    const createAgent = await runtime.handleTelegramWebhook({
-      message: {
-        text: "/agent_create scout",
-        chat: { id: "10001" },
-        from: { username: "alice" }
-      }
-    });
-
-    assert.equal(createAgent.ok, true);
-    assert.equal(createAgent.action, "management_command");
-    assert.equal(runtime.getActiveProject().activeAgentId, "scout");
-
     const resetSession = await runtime.handleTelegramWebhook({
       message: {
         text: "/session_reset",
@@ -2166,6 +2154,57 @@ test("paired webhook supports telegram menu alias commands", async () => {
     assert.equal(resetSession.ok, true);
     assert.equal(resetSession.action, "management_command");
     assert.equal(resetSession.response.startsWith("Session reset. New session:"), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("removed telegram menu aliases no longer trigger management actions", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-removed-menu-aliases-"));
+  const sentTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }) => `research:${text}`
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const removedAliases = [
+      "/project_list",
+      "/project_use alpha",
+      "/agent_list",
+      "/agent_create scout",
+      "/agent_use scout"
+    ];
+
+    for (const command of removedAliases) {
+      const result = await runtime.handleTelegramWebhook({
+        message: {
+          text: command,
+          chat: { id: "10001" },
+          from: { username: "alice" }
+        }
+      });
+
+      assert.equal(result.ok, true);
+      assert.equal(result.action, "management_command");
+      assert.equal(
+        result.response,
+        "Supported commands: /projects | /project list | /project create <project_id> | /project use <project_id> | /agents | /agent list | /agent create <agent_id> | /agent use <agent_id> | /session reset"
+      );
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
