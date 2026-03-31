@@ -35,7 +35,7 @@ Do not use this skill for direct Runpod API work unless the user is explicitly f
 1. Use the installed `opencolab` CLI command available in the current environment.
 2. Reuse an existing GPU server when possible; create one only when needed.
 3. Check live availability and validate the target before launching expensive work when current stock matters.
-4. Start a bounded remote GPU job with minimal include paths, explicit artifact paths, and explicit env forwarding.
+4. Start a bounded remote GPU job in detached mode with minimal include paths, explicit artifact paths, and explicit env forwarding.
 5. Poll status, inspect logs, fetch outputs, or cancel the run as needed.
 6. Return a concise summary with the server id, run id, state, important logs, and fetched artifacts.
 
@@ -52,7 +52,8 @@ Do not use this skill for direct Runpod API work unless the user is explicitly f
 - Declare expected artifacts up front with `--artifact` whenever the user expects outputs back.
 - Treat remote jobs as detached batch jobs, not interactive shells.
 - When creating a new general-purpose Runpod target without a user override, prefer `--bootstrap-profile pytorch-cu12`.
-- For longer jobs, prefer `opencolab gpu job start --wait false`, return the `run_id` promptly, and do not sit in a polling loop by default.
+- Launch jobs with `opencolab gpu job start --wait false` only; never use `--wait true` in this skill.
+- Return the `run_id` promptly after launch and do not sit in a polling loop by default.
 - When direct Pod inspection is needed after launch, prefer `opencolab gpu job exec --run-id <id> --command "<remote command>"` over exposing raw SSH details.
 - Inspect status or logs after launch only when the user explicitly asks about the run, asks to monitor it, or asks for fetched outputs.
 - If `OPENCOLAB_PROGRESS_FILE` is available and the run is long enough to justify updates, emit bounded progress events for target setup, validation, launch, polling, degraded runs, and final delivery.
@@ -171,21 +172,9 @@ Guidance:
 - Artifact paths are relative to the remote working directory on the Pod.
 - Do not rely on implicit secret forwarding or a full-repo copy.
 
-### 6. Start the remote GPU job
+### 6. Start the remote GPU job in detached mode
 
-For very short jobs where blocking is acceptable:
-
-```bash
-opencolab gpu job start \
-  --server-id <server_id> \
-  --command "<remote_command>" \
-  --include <path1,path2> \
-  --artifact <artifact1,artifact2> \
-  --env <ENV1,ENV2> \
-  --wait true
-```
-
-For longer jobs, launch detached and capture the run id. This should be the default choice whenever the job is expected to take more than a brief setup window:
+Launch detached and capture the run id. This is the only supported launch style for this skill, even for short jobs:
 
 ```bash
 start_output="$(
@@ -204,6 +193,8 @@ run_id="$(printf '%s\n' "$start_output" | awk -F': ' '/^Run ID:/ {print $2}')"
 If `run_id` is empty, stop and report the launch output instead of pretending the job started correctly.
 
 After detached launch, return the `run_id` to the user instead of staying in a monitoring loop. The user can come back later and ask about the run, and then you can inspect it with the commands below.
+
+If the user wants live follow-up, still launch detached first and then inspect status or logs explicitly instead of switching to `--wait true`.
 
 When bounded direct Pod access is needed after launch, use:
 
