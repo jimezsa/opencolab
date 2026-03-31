@@ -132,6 +132,7 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("multimodal candidate verification"), true);
     assert.equal(prompt.includes("bounded remote GPU jobs"), true);
     assert.equal(prompt.includes("Always launch with `--wait false`"), true);
+    assert.equal(prompt.includes("review `bootstrap`, `stdout`, `stderr`, and `poller`"), true);
     assert.equal(prompt.includes("companion literature-map diagram"), true);
     assert.equal(prompt.includes("PNG-first"), true);
     assert.equal(prompt.includes("Local helper: `./bin/local-research`"), true);
