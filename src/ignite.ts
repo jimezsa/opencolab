@@ -474,7 +474,7 @@ async function configureRunpod(
     workspaceRoot: "/workspace",
     bootstrapProfile: "pytorch-cu12",
     maxRuntimeMinutes: 360,
-    autoStopPolicy: "stop_on_completion"
+    autoStopPolicy: "keep_warm"
   });
   io.write(`Configured Runpod GPU server '${serverId}' with the curated A100 preset.`);
 
