@@ -49,9 +49,10 @@ test("project state defaults to a default project and agent", () => {
   }
 });
 
-test("default Runpod execution targets use the pytorch-cu12 bootstrap profile", () => {
+test("default Runpod execution targets use the pytorch-cu12 bootstrap profile and keep_warm policy", () => {
   const target = createDefaultExecutionTargetConfig("runpod-a100");
   assert.equal(target.bootstrapProfile, "pytorch-cu12");
+  assert.equal(target.autoStopPolicy, "keep_warm");
 });
 
 test("project state normalizes project-scoped execution targets", () => {
