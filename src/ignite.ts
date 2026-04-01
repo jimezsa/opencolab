@@ -50,19 +50,19 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
   openai: ["gpt-5.3-codex", "gpt-5-codex", "gpt-5"],
   anthropic: ["claude-opus-4-6", "claude-sonnet-4-5"],
   gemini: [
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
     "gemini-3.1-pro-preview",
     "gemini-3-flash-preview",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
   ],
-  minimax: ["MiniMax-M2.5", "MiniMax-M2.7"],
+  minimax: ["MiniMax-M2.7", "MiniMax-M2.5"],
   xai: [
     "grok-4.20-beta-0309-reasoning",
-    "grok-4-fast-non-reasoning",
-    "grok-4-fast-reasoning",
-    "grok-4-1-fast-reasoning",
     "grok-4",
+    "grok-4-1-fast-reasoning",
+    "grok-4-fast-reasoning",
     "grok-code-fast-1",
+    "grok-4-fast-non-reasoning",
   ],
 };
 const BUILT_IN_TOOLS_PROVIDER: ProviderName = "gemini";

@@ -326,7 +326,7 @@ test("ignite exposes MiniMax-M2.7 in interactive chooser mode", async () => {
       }
     );
 
-    assert.deepEqual(modelOptions, ["MiniMax-M2.5", "MiniMax-M2.7"]);
+    assert.deepEqual(modelOptions, ["MiniMax-M2.7", "MiniMax-M2.5"]);
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "minimax");
@@ -525,10 +525,10 @@ test("ignite exposes Gemini preview models in interactive chooser mode", async (
     );
 
     assert.deepEqual(modelOptions, [
+      "gemini-3.1-pro-preview",
+      "gemini-3-flash-preview",
       "gemini-2.5-pro",
       "gemini-2.5-flash",
-      "gemini-3.1-pro-preview",
-      "gemini-3-flash-preview"
     ]);
 
     const agent = runtime.getActiveAgent();
