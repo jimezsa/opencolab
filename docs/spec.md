@@ -129,7 +129,7 @@ Shared project skills requirements:
 - the shared `fast-search`, `pro-search`, and `deep-search` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
 - the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
 - the shared `pdf-figure-extract` skill is the canonical path for extracting and returning figures from already-downloaded local PDFs, optionally reusing PageIndex artifacts to narrow page selection before multimodal verification and delivery
-- the shared `runpod-job` skill is the canonical AI-facing path for creating, validating, and reusing Runpod-backed GPU servers and bounded GPU jobs through the `opencolab gpu server` and `opencolab gpu job` CLI commands rather than raw Runpod APIs, and it must launch jobs in detached mode with `--wait false`, return the `run_id` promptly, refresh the run with `opencolab gpu job status --run-id <run_id>` before reporting on it so the latest remote logs are downloaded locally, review the `bootstrap`, `stdout`, `stderr`, and `poller` log streams when summarizing a run, use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when remote SSH-backed access is needed, and when a run fails or degrades it should notify the user clearly and propose the next useful action
+- the shared `runpod-job` skill is the canonical AI-facing path for creating, validating, and reusing Runpod-backed GPU servers and bounded GPU jobs through the `opencolab gpu server` and `opencolab gpu job` CLI commands rather than raw Runpod APIs, and it must launch jobs in detached mode with `--wait false`, return the `run_id` promptly, refresh the run with `opencolab gpu job status --run-id <run_id>` before reporting on it so the latest remote logs are downloaded locally, review the `bootstrap`, `stdout`, `stderr`, and `poller` log streams when summarizing a run, use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when remote SSH-backed access is needed, prefer a single `NVIDIA A100 80GB PCIe` GPU candidate with `keep_warm` for default or curated target creation, ask the user whether to keep a finished warm Pod running or cancel it, and when a run fails or degrades it should notify the user clearly and propose the next useful action
 
 Agent-local skills requirements:
 
@@ -476,7 +476,7 @@ Minimum shape:
           "preferredDatacenterIds": ["US-KS-2", "CA-MTL-1"],
           "cloudType": "secure",
           "gpuType": "NVIDIA A100 80GB PCIe",
-          "preferredGpuTypes": ["NVIDIA A100 80GB PCIe", "NVIDIA RTX 4090"],
+          "preferredGpuTypes": ["NVIDIA A100 80GB PCIe"],
           "gpuCount": 1,
           "volume": {
             "mode": "network_volume",
@@ -489,7 +489,7 @@ Minimum shape:
           "workspaceRoot": "/workspace",
           "bootstrapProfile": "pytorch-cu12",
           "maxRuntimeMinutes": 360,
-          "autoStopPolicy": "stop_on_completion"
+          "autoStopPolicy": "keep_warm"
         }
       }
     }
