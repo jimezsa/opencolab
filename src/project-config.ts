@@ -148,7 +148,7 @@ export function createDefaultExecutionTargetConfig(targetId: string): ExecutionT
     bootstrapProfile: "pytorch-cu12",
     maxRuntimeMinutes: 360,
     idleStopMinutes: 15,
-    autoStopPolicy: "stop_on_completion",
+    autoStopPolicy: "keep_warm",
     maxEstimatedCostUsd: null
   };
 }
