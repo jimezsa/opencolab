@@ -1,6 +1,6 @@
 ---
 name: runpod-job
-description: Launch and manage bounded Runpod GPU jobs through the OpenColab CLI. Create or reuse a project-scoped GPU server, check live target availability, validate it, start a remote job with bounded sync and artifact paths, inspect the launched Pod with bounded SSH-backed commands when needed, monitor status and logs, fetch outputs, and cancel runs when needed.
+description: Launch bounded Runpod GPU jobs through the OpenColab CLI. Reuse or create a project-scoped GPU server, validate live availability, start detached jobs with bounded sync and artifacts, inspect status and logs, and fetch or cancel runs when needed.
 metadata:
   {
     "opencolab":
@@ -13,38 +13,21 @@ metadata:
 
 # Runpod Job Skill
 
-Use this skill when the user wants to run code, training, evaluation, or another bounded experiment on Runpod through OpenColab's CLI.
+Use this skill for bounded Runpod work through OpenColab's CLI: setup, launch, inspect, fetch, and cancel.
 
-Typical use cases:
-
-- create the first Runpod GPU server for the current project
-- reuse an existing OpenColab Runpod server target
-- check which configured datacenter and GPU candidates are live right now
-- launch a bounded remote GPU job
-- inspect a launched Pod with one bounded SSH-backed command
-- inspect status, logs, and fetched artifacts
-- cancel a stuck or unnecessary GPU run
-
-Do not use this skill for direct Runpod API work unless the user is explicitly fixing OpenColab itself. Prefer the OpenColab control plane:
+Do not use raw Runpod APIs unless the user is explicitly fixing OpenColab itself. Prefer:
 
 - `opencolab gpu server ...`
 - `opencolab gpu job ...`
 
-## Mission
-
-1. Use the installed `opencolab` CLI command available in the current environment.
-2. Reuse an existing GPU server when possible; create one only when needed.
-3. Check live availability and validate the target before launching expensive work when current stock matters.
-4. Start a bounded remote GPU job in detached mode with minimal include paths, explicit artifact paths, and explicit env forwarding.
-5. Refresh local log snapshots, poll status, inspect logs, fetch outputs, or cancel the run as needed.
-6. Return a concise summary with the server id, run id, state, important logs, and fetched artifacts.
-
-## Hard Requirements
+## Core Rules
 
 - Use the OpenColab CLI, not the raw Runpod REST API.
+- Use the installed `opencolab` command from `PATH`; if it is missing, stop and report that prerequisite.
 - Prefer an existing server target before creating a new one.
 - When creating a new default or curated target without a user override, prefer ordered fallback locations with a single GPU choice: `NVIDIA A100 80GB PCIe`.
 - Only broaden the GPU list beyond that single A100 when the user explicitly asks for broader availability, lower cost, or different hardware.
+- For default or curated targets, prefer `--bootstrap-profile pytorch-cu12` and `--auto-stop-policy keep_warm`.
 - When current stock, datacenter choice, or GPU choice matters, run `opencolab gpu server availability --server-id <id>` before launch.
 - Treat availability as a live snapshot, not a reservation. A later launch can still fail if capacity changes.
 - Pay attention to availability warnings such as `pod-api incompatible` or `storage failed`; do not present those candidates as healthy launch options without explanation.
@@ -52,7 +35,6 @@ Do not use this skill for direct Runpod API work unless the user is explicitly f
 - Never blindly forward all environment variables. Use `--env` only for the specific names the remote job requires.
 - Declare expected artifacts up front with `--artifact` whenever the user expects outputs back.
 - Treat remote jobs as detached batch jobs, not interactive shells.
-- When creating a new default or curated Runpod target without a user override, prefer `--bootstrap-profile pytorch-cu12` and `--auto-stop-policy keep_warm`.
 - Launch jobs with `opencolab gpu job start --wait false` only; never use `--wait true` in this skill.
 - Return the `run_id` promptly after launch and do not sit in a polling loop by default.
 - Before reporting on a run, always refresh it with `opencolab gpu job status --run-id <run_id>` so the latest remote log snapshots are downloaded locally.
@@ -61,10 +43,9 @@ Do not use this skill for direct Runpod API work unless the user is explicitly f
 - Inspect status or logs after launch only when the user explicitly asks about the run, asks to monitor it, or asks for fetched outputs.
 - When a `keep_warm` run reaches a terminal state and the Pod is still available, ask the user whether they want to keep the Pod running for reuse or cancel it now.
 - If `OPENCOLAB_PROGRESS_FILE` is available and the run is long enough to justify updates, emit bounded progress events for target setup, validation, launch, polling, degraded runs, and final delivery.
-- Final answers must include the run id, target id, current or final state, whether log snapshots were refreshed successfully, and whether artifacts were fetched successfully.
 - When a run fails, times out, or degrades, notify the user clearly and propose the next useful action instead of stopping at the raw failure state.
 
-## OpenColab Progress Helper
+## Progress Helper
 
 ```bash
 emit_progress() {
@@ -81,44 +62,33 @@ Example:
 emit_progress '{"kind":"milestone","stage":"gpu_launch","slot":"runpod","message":"Launching Runpod GPU job on target runpod-a100."}'
 ```
 
-Useful update categories for this skill:
+Useful updates:
 
 - existing target selected
 - new target created
-- target validation started or degraded
-- detached launch with a run id
+- target validation started, passed, or degraded
+- detached launch returned a run id
 - local log snapshots refreshed
-- later status, log, or artifact inspection when the user asks
 - warning states such as `running_unreachable`, `cleanup_failed`, or missing artifacts
 
 ## Workflow
 
-### 1. Resolve the OpenColab CLI
-
-This skill assumes `opencolab` is already installed and available in `PATH`.
-
-If `opencolab` is missing, stop and report that prerequisite instead of trying to build the CLI from source inside this skill.
-
-### 2. Inspect the active project and existing GPU servers
-
-Start with:
+### 1. Inspect the project and existing targets
 
 ```bash
 opencolab project show
 opencolab gpu server list
 ```
 
-If the user named a specific server id, inspect that target:
+If the user named a specific server id, inspect it too:
 
 ```bash
 opencolab gpu server show --server-id <server_id>
 ```
 
-### 3. Create a server only when needed
+### 2. Create a target only when needed
 
-If no suitable target exists, create one.
-
-For the default curated server, prefer a short ordered location list and the single curated A100 GPU. Example:
+For the default curated target, use a short ordered location list and the single curated A100 GPU:
 
 ```bash
 opencolab gpu server add \
@@ -135,51 +105,51 @@ opencolab gpu server add \
   --auto-stop-policy keep_warm
 ```
 
-Creation guidance:
+Creation notes:
 
 - Reuse the user's requested server id when provided.
 - Reuse the user's requested location or GPU constraints when provided.
 - If the user wants "any available GPU", prefer an ordered list from fastest to cheaper acceptable GPUs instead of one exact GPU.
 - Keep the target bounded and practical. Do not create many nearly-identical targets unless the user asked for that.
 
-### 4. Validate the target before launch
+### 3. Validate before launch
 
 ```bash
 opencolab gpu server test --server-id <server_id>
 opencolab gpu server availability --server-id <server_id>
 ```
 
-Read the result carefully:
+Interpret the result carefully:
 
 - `gpu server test` checks local prerequisites and visible Runpod resources
 - `gpu server availability` checks the current matching datacenter and GPU stock in launch order
-- proceed when the target is ready and availability shows at least one healthy candidate
-- stop and explain missing prerequisites such as `RUNPOD_API_KEY`
-- if the warning is only about a missing network volume, that is normally acceptable because OpenColab can create it on first job start
-- if availability shows `pod-api incompatible`, treat that candidate as not launchable even if stock appears live
-- if availability shows `storage failed`, prefer another datacenter because this workspace has already seen network-volume provisioning fail there
-- if no healthy candidate is currently available, explain that clearly and either adjust the target or wait instead of launching blindly
-- remind the user that availability can change between the snapshot and actual launch
+- Proceed only when the target is ready and availability shows at least one healthy candidate.
+- Stop and explain missing prerequisites such as `RUNPOD_API_KEY`.
+- A missing network volume warning is usually acceptable because OpenColab can create it on first job start.
+- If availability shows `pod-api incompatible`, treat that candidate as not launchable even if stock appears live.
+- If availability shows `storage failed`, prefer another datacenter.
+- If no healthy candidate is available, explain that clearly and either adjust the target or wait instead of launching blindly.
+- Remind the user that availability can change between the snapshot and actual launch.
 
-### 5. Plan bounded sync, env, and artifacts
+### 4. Plan sync, env, and artifacts
 
-Before launching, define:
+Before launching, define the minimal:
 
 - `--include`: only the minimal repo-relative paths needed by the remote command
 - `--exclude`: additional heavy or irrelevant paths if needed
 - `--env`: only the exact env vars needed remotely
 - `--artifact`: outputs the user expects fetched back
 
-Guidance:
+Notes:
 
 - For project-local code, usually include the active project path and any shared code the command imports.
 - If the command writes `outputs/train.log`, declare `--artifact outputs/train.log`.
 - Artifact paths are relative to the remote working directory on the Pod.
 - Do not rely on implicit secret forwarding or a full-repo copy.
 
-### 6. Start the remote GPU job in detached mode
+### 5. Launch in detached mode
 
-Launch detached and capture the run id. This is the only supported launch style for this skill, even for short jobs:
+Launch detached and capture the run id:
 
 ```bash
 start_output="$(
@@ -197,19 +167,17 @@ run_id="$(printf '%s\n' "$start_output" | awk -F': ' '/^Run ID:/ {print $2}')"
 
 If `run_id` is empty, stop and report the launch output instead of pretending the job started correctly.
 
-After detached launch, return the `run_id` to the user instead of staying in a monitoring loop. The user can come back later and ask about the run, and then you can inspect it with the commands below.
+After launch, return the `run_id` instead of staying in a monitoring loop. If the user wants follow-up, launch detached first and inspect later with explicit commands.
 
-If the user wants live follow-up, still launch detached first and then inspect status or logs explicitly instead of switching to `--wait true`.
-
-When bounded direct Pod access is needed after launch, use:
+For bounded direct Pod inspection after launch:
 
 ```bash
 opencolab gpu job exec --run-id <run_id> --command "<remote_command>"
 ```
 
-This command is the minimal SSH-backed Pod inspection path. Treat it as a bounded remote command runner, not as an interactive shell.
+Treat this as a bounded remote command runner, not an interactive shell.
 
-### 7. Inspect, fetch, or cancel later
+### 6. Inspect, fetch, or cancel later
 
 Status:
 
@@ -217,7 +185,7 @@ Status:
 opencolab gpu job status --run-id <run_id>
 ```
 
-Bounded direct Pod command:
+Direct Pod command:
 
 ```bash
 opencolab gpu job exec --run-id <run_id> --command "nvidia-smi"
@@ -226,16 +194,6 @@ opencolab gpu job exec --run-id <run_id> --command "nvidia-smi"
 Logs:
 
 ```bash
-opencolab gpu job logs --run-id <run_id> --stream bootstrap
-opencolab gpu job logs --run-id <run_id> --stream poller
-opencolab gpu job logs --run-id <run_id> --stream stdout
-opencolab gpu job logs --run-id <run_id> --stream stderr
-```
-
-When the user later asks how a running job is doing, inspect the existing run by `run_id`. A typical follow-up sequence is:
-
-```bash
-opencolab gpu job status --run-id <run_id>
 opencolab gpu job logs --run-id <run_id> --stream bootstrap
 opencolab gpu job logs --run-id <run_id> --stream poller
 opencolab gpu job logs --run-id <run_id> --stream stdout
@@ -251,7 +209,7 @@ Inspection guidance:
 - Do not dump a huge full log unless the user explicitly asks for raw logs. Summarize the important new lines.
 - Treat `running_unreachable` as degraded but still active; mention it clearly instead of calling the run failed.
 - If `gpu job exec` reports that the run is not yet SSH-usable, explain the current run state rather than pretending direct Pod access exists already.
-- If the user asks to keep watching, then it is reasonable to poll again. Otherwise inspect once, answer, and stop.
+- If the user asks to keep watching, it is reasonable to poll again. Otherwise inspect once, answer, and stop.
 - When the run reaches a terminal state, fetch outputs if needed and summarize the final state plus the most relevant log findings.
 - If the target uses `keep_warm` and a terminal run leaves the Pod available, ask whether the user wants to keep it running for reuse or cancel it.
 - If the run failed, timed out, or degraded, propose the next useful action such as inspecting `stderr`, fetching artifacts, adjusting includes or env vars, rerunning on another target, or cancelling the run.
@@ -270,18 +228,18 @@ Cancel:
 opencolab gpu job cancel --run-id <run_id>
 ```
 
-Interpretation guidance:
+State hints:
 
 - `running` means the detached remote process is alive
 - `running_unreachable` means the Pod still exists but SSH is temporarily unavailable
 - `completed` means the command exited successfully and artifact handling did not cause failure
-- on `keep_warm` targets, `completed` can still leave a reusable Pod running until it is cancelled
+- On `keep_warm` targets, `completed` can still leave a reusable Pod running until it is cancelled.
 - `failed` means the remote command failed or strict artifact expectations failed
 - `cleanup_failed` means the command completed but Pod cleanup did not finish cleanly
 
-### 8. Return a concise final summary
+## Final Reply
 
-The final user-facing reply should include:
+Include:
 
 - whether an existing server was reused or a new one was created
 - target id
@@ -293,13 +251,3 @@ The final user-facing reply should include:
 - fetched artifacts and missing artifacts
 - whether the Pod is still running because of `keep_warm`, plus a direct question about keeping it running or cancelling it when applicable
 - next step if the run is still active, degraded, or failed
-
-## Output Contract
-
-When you use this skill well, the user should come away with:
-
-- a valid project-scoped Runpod server target, or a clear reason why setup failed
-- a concrete GPU `run_id` when launch succeeded
-- refreshed local copies of the available log streams plus fetched artifacts when available
-- a clear keep-or-cancel question when a finished `keep_warm` run still has a Pod available
-- a concise explanation of the run outcome and the next useful action, especially when the run failed or degraded
