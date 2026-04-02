@@ -29,6 +29,10 @@ test("installer scripts expose the hacky clone flag and clone overrides", () => 
 
   assert.match(installSh, /--hacky/);
   assert.match(installSh, /OPENCOLAB_CLONE_DIR/);
+  assert.match(installSh, /\.opencolab/);
+  assert.match(installSh, /install\.json/);
   assert.match(installPs1, /--hacky/);
   assert.match(installPs1, /OPENCOLAB_CLONE_DIR/);
+  assert.match(installPs1, /\.opencolab/);
+  assert.match(installPs1, /install\.json/);
 });
