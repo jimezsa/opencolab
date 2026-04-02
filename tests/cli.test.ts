@@ -250,7 +250,7 @@ test("upgrade help describes git and packaged install flows", () => {
     const result = runCli(tempDir, ["upgrade", "--help"]);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(
-      result.stdout.includes("Upgrade a git/source install or show packaged-install upgrade guidance"),
+      result.stdout.includes("Upgrade an installer-managed OpenColab or a git/source checkout"),
       true,
     );
     assert.equal(
@@ -258,7 +258,11 @@ test("upgrade help describes git and packaged install flows", () => {
       true,
     );
     assert.equal(
-      result.stdout.includes("Package installs do not run git operations; they print package-manager upgrade guidance instead."),
+      result.stdout.includes("One-link installer installs upgrade the managed package or managed clone behind the shim."),
+      true,
+    );
+    assert.equal(
+      result.stdout.includes("Generic package installs without installer metadata print package-manager upgrade guidance instead."),
       true,
     );
   } finally {
