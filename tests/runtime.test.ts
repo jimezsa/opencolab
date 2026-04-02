@@ -1976,7 +1976,7 @@ test("agent response can send telegram files via @telegram-file directives", asy
   }
 });
 
-test("paired webhook can reset the session and create a new session folder", async () => {
+test("paired webhook can reset the session with /session_reset and create a new session folder", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-session-reset-"));
 
   const runtime = createRuntime(tempDir, {
@@ -2012,7 +2012,7 @@ test("paired webhook can reset the session and create a new session folder", asy
 
     const resetResult = await runtime.handleTelegramWebhook({
       message: {
-        text: "/session reset",
+        text: "/session_reset",
         chat: { id: "10001" },
         from: { username: "alice" }
       }
@@ -2052,8 +2052,8 @@ test("paired webhook can reset the session and create a new session folder", asy
   }
 });
 
-test("paired webhook can create and switch projects and agents", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-manage-"));
+test("removed Telegram command families fall back to the supported picker commands", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-removed-commands-"));
 
   const runtime = createRuntime(tempDir, {
     telegramSender: async () => true,
@@ -2069,127 +2069,27 @@ test("paired webhook can create and switch projects and agents", async () => {
     const pairing = await runtime.startPairing();
     runtime.completePairing(pairing.code);
 
-    const createProject = await runtime.handleTelegramWebhook({
-      message: {
-        text: "/project create alpha",
-        chat: { id: "10001" },
-        from: { username: "alice" }
-      }
-    });
-
-    assert.equal(createProject.ok, true);
-    assert.equal(createProject.action, "management_command");
-    assert.equal(runtime.getState().activeProjectId, "alpha");
-    assert.equal(runtime.getActiveProject().activeAgentId, "professor");
-
-    assert.equal(
-      fs.existsSync(path.join(buildProjectDir(tempDir, "alpha"), "PROJECT-AND-TEAM.md")),
-      true
-    );
-    const professorDir = buildAgentDir(tempDir, "alpha");
-    assert.equal(fs.existsSync(path.join(professorDir, "AGENTS.md")), true);
-    assert.equal(fs.existsSync(path.join(professorDir, "BOOTSTRAP.md")), true);
-    assert.equal(fs.existsSync(path.join(professorDir, "TODO.md")), true);
-    assert.equal(fs.existsSync(path.join(professorDir, "SKILLS")), true);
-
-    const createAgent = await runtime.handleTelegramWebhook({
-      message: {
-        text: "/agent create scout",
-        chat: { id: "10001" },
-        from: { username: "alice" }
-      }
-    });
-
-    assert.equal(createAgent.ok, true);
-    assert.equal(createAgent.action, "management_command");
-    assert.equal(runtime.getActiveProject().activeAgentId, "scout");
-
-    const createdAgentDir = buildAgentDir(tempDir, "alpha", "scout");
-    assert.equal(fs.existsSync(path.join(createdAgentDir, "AGENTS.md")), true);
-    assert.equal(fs.existsSync(path.join(createdAgentDir, "BOOTSTRAP.md")), true);
-    assert.equal(fs.existsSync(path.join(createdAgentDir, "TODO.md")), true);
-    assert.equal(fs.existsSync(path.join(createdAgentDir, "SKILLS")), true);
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("paired webhook supports remaining telegram menu alias commands", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-menu-aliases-"));
-
-  const runtime = createRuntime(tempDir, {
-    telegramSender: async () => true,
-    agentResponder: async ({ text }) => `research:${text}`
-  });
-
-  try {
-    runtime.init();
-    runtime.setupTelegram({
-      chatId: "10001"
-    });
-
-    const pairing = await runtime.startPairing();
-    runtime.completePairing(pairing.code);
-
-    const createProject = await runtime.handleTelegramWebhook({
-      message: {
-        text: "/project_create alpha",
-        chat: { id: "10001" },
-        from: { username: "alice" }
-      }
-    });
-
-    assert.equal(createProject.ok, true);
-    assert.equal(createProject.action, "management_command");
-    assert.equal(runtime.getState().activeProjectId, "alpha");
-
-    const resetSession = await runtime.handleTelegramWebhook({
-      message: {
-        text: "/session_reset",
-        chat: { id: "10001" },
-        from: { username: "alice" }
-      }
-    });
-
-    assert.equal(resetSession.ok, true);
-    assert.equal(resetSession.action, "management_command");
-    assert.equal(resetSession.response.startsWith("Session reset. New session:"), true);
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("removed telegram menu aliases no longer trigger management actions", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-removed-menu-aliases-"));
-  const sentTexts: string[] = [];
-
-  const runtime = createRuntime(tempDir, {
-    telegramSender: async (_chatId, text) => {
-      sentTexts.push(text);
-      return true;
-    },
-    agentResponder: async ({ text }) => `research:${text}`
-  });
-
-  try {
-    runtime.init();
-    runtime.setupTelegram({
-      chatId: "10001"
-    });
-
-    const pairing = await runtime.startPairing();
-    runtime.completePairing(pairing.code);
-    sentTexts.length = 0;
-
-    const removedAliases = [
+    const initialState = JSON.stringify(runtime.getState());
+    const removedCommands = [
+      "/project",
+      "/project create alpha",
+      "/project use alpha",
+      "/project list",
+      "/project_create alpha",
       "/project_list",
       "/project_use alpha",
-      "/agent_list",
+      "/agent",
+      "/agent create scout",
+      "/agent use scout",
+      "/agent list",
       "/agent_create scout",
-      "/agent_use scout"
+      "/agent_list",
+      "/agent_use scout",
+      "/session",
+      "/session reset"
     ];
 
-    for (const command of removedAliases) {
+    for (const command of removedCommands) {
       const result = await runtime.handleTelegramWebhook({
         message: {
           text: command,
@@ -2200,10 +2100,8 @@ test("removed telegram menu aliases no longer trigger management actions", async
 
       assert.equal(result.ok, true);
       assert.equal(result.action, "management_command");
-      assert.equal(
-        result.response,
-        "Supported commands: /projects | /project list | /project create <project_id> | /project use <project_id> | /agents | /agent list | /agent create <agent_id> | /agent use <agent_id> | /session reset"
-      );
+      assert.equal(result.response, "Supported commands: /projects | /agents | /session_reset");
+      assert.equal(JSON.stringify(runtime.getState()), initialState);
     }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
