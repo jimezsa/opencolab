@@ -4,12 +4,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  buildManagedInstallManifestPath,
   buildPackageUpgradeMessage,
   detectOpenColabInstallMode,
   isGitInstallRoot,
+  readManagedInstallManifest,
   resolveCurrentOpenColabInstall,
   resolveDefaultRuntimeRootDir,
+  resolveManagedInstallCliScriptPath,
   resolveRuntimeRootDir,
+  writeManagedInstallManifest,
 } from "../src/install.js";
 
 function createPackageRoot(prefix: string, packageName = "opencolab"): string {
@@ -145,9 +149,10 @@ test("resolveRuntimeRootDir keeps the current directory for git/source checkouts
   }
 });
 
-test("resolveRuntimeRootDir keeps an existing local runtime root for packaged installs", () => {
+test("resolveRuntimeRootDir ignores cwd-local runtime state for packaged installs", () => {
   const installRoot = createPackageRoot("opencolab-runtime-root-existing-", "@acme/opencolab");
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-runtime-root-existing-cwd-"));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-runtime-root-existing-home-"));
   fs.writeFileSync(path.join(cwd, "opencolab.json"), "{\"version\":1}\n", "utf8");
 
   try {
@@ -155,13 +160,55 @@ test("resolveRuntimeRootDir keeps an existing local runtime root for packaged in
       cwd,
       entryScriptPath: path.join(installRoot, "dist", "src", "cli.js"),
       env: {},
-      homeDir: os.tmpdir(),
+      homeDir,
       platform: "linux"
     });
 
-    assert.equal(resolved, cwd);
+    assert.equal(resolved, path.join(homeDir, ".opencolab"));
   } finally {
     fs.rmSync(installRoot, { recursive: true, force: true });
     fs.rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+});
+
+test("managed install manifests persist and resolve package cli paths", () => {
+  const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-managed-install-"));
+  const packagePrefix = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-managed-prefix-"));
+  const packageRoot = path.join(packagePrefix, "lib", "node_modules", "opencolab");
+  fs.mkdirSync(path.join(packageRoot, "dist", "src"), { recursive: true });
+  fs.writeFileSync(
+    path.join(packageRoot, "package.json"),
+    JSON.stringify({ name: "opencolab" }),
+    "utf8",
+  );
+  fs.writeFileSync(path.join(packageRoot, "dist", "src", "cli.js"), "export {};\n", "utf8");
+
+  try {
+    writeManagedInstallManifest(runtimeRoot, {
+      installMode: "package",
+      packageSpec: "opencolab@latest",
+      packagePrefix,
+      sourceDir: null,
+      repoUrl: null,
+      branch: null,
+      shimPath: path.join(runtimeRoot, "bin", "opencolab"),
+    });
+
+    const manifest = readManagedInstallManifest(runtimeRoot);
+    assert.equal(
+      buildManagedInstallManifestPath(runtimeRoot),
+      path.join(runtimeRoot, ".opencolab", "install.json"),
+    );
+    assert.equal(fs.existsSync(buildManagedInstallManifestPath(runtimeRoot)), true);
+    assert.equal(manifest?.installMode, "package");
+    assert.equal(manifest?.packagePrefix, packagePrefix);
+    assert.equal(
+      manifest ? resolveManagedInstallCliScriptPath(manifest) : null,
+      path.join(packageRoot, "dist", "src", "cli.js"),
+    );
+  } finally {
+    fs.rmSync(runtimeRoot, { recursive: true, force: true });
+    fs.rmSync(packagePrefix, { recursive: true, force: true });
   }
 });
