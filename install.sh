@@ -323,6 +323,53 @@ EOF
   chmod +x "${BIN_DIR}/opencolab"
 }
 
+write_managed_install_manifest() {
+  local manifest_path="${INSTALL_DIR}/.opencolab/install.json"
+  mkdir -p "$(dirname "$manifest_path")"
+
+  if [ "$INSTALL_MODE" = "clone" ]; then
+    cat > "$manifest_path" <<EOF
+{
+  "version": 1,
+  "manager": "one_link",
+  "installMode": "clone",
+  "runtimeRoot": "${INSTALL_DIR}",
+  "packageSpec": null,
+  "packagePrefix": null,
+  "sourceDir": "${SOURCE_DIR}",
+  "repoUrl": "${REPO_URL}",
+  "branch": "${BRANCH}",
+  "shimPath": "${BIN_DIR}/opencolab"
+}
+EOF
+    return
+  fi
+
+  cat > "$manifest_path" <<EOF
+{
+  "version": 1,
+  "manager": "one_link",
+  "installMode": "package",
+  "runtimeRoot": "${INSTALL_DIR}",
+  "packageSpec": "${PACKAGE_SPEC}",
+  "packagePrefix": "${PACKAGE_PREFIX}",
+  "sourceDir": null,
+  "repoUrl": null,
+  "branch": null,
+  "shimPath": "${BIN_DIR}/opencolab"
+}
+EOF
+}
+
+warn_if_shim_shadowed() {
+  local resolved
+  resolved="$(command -v opencolab 2>/dev/null || true)"
+  if [ -n "$resolved" ] && [ "$resolved" != "${BIN_DIR}/opencolab" ]; then
+    warn "Another 'opencolab' command appears earlier on PATH: ${resolved}"
+    warn "The installer-managed shim is ${BIN_DIR}/opencolab"
+  fi
+}
+
 ensure_bin_on_path() {
   local os="$1"
   if path_has_dir "$BIN_DIR"; then
@@ -397,7 +444,9 @@ main() {
 
   initialize_runtime
   install_cli_shim "$os"
+  write_managed_install_manifest
   ensure_bin_on_path "$os"
+  warn_if_shim_shadowed
 
   if [ "$INSTALL_MODE" = "clone" ]; then
     warn "Clone mode is a hacky fallback. The shim runs a locally built checkout from ${SOURCE_DIR}."
