@@ -116,8 +116,9 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("[BUILTIN_TOOLS]"), true);
     assert.equal(prompt.includes("Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime)."), true);
     assert.equal(prompt.includes("Use the install-appropriate upgrade path for OpenColab itself."), true);
+    assert.equal(prompt.includes("one-link installer-managed installs: `opencolab upgrade` upgrades the managed package or managed clone behind the shim"), true);
     assert.equal(prompt.includes("git/source installs: `opencolab upgrade` targets the latest `origin/main`"), true);
-    assert.equal(prompt.includes("package installs should be upgraded with the package manager"), true);
+    assert.equal(prompt.includes("generic package installs without installer metadata should be upgraded with the package manager"), true);
     assert.equal(prompt.includes("OpenColab agent creation is the canonical path for adding a new specialist to the active project."), true);
     assert.equal(prompt.includes("`opencolab agent create --agent-id <id>`"), true);
     assert.equal(prompt.includes("`opencolab setup model --agent-id <id> --provider <provider> --model <model> ...`"), true);
