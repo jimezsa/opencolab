@@ -49,8 +49,8 @@ Required:
 
 - Create/list/select projects from CLI.
 - Create/list/select agents from CLI (scoped to selected project).
-- Create/list/select projects from Telegram chat commands.
-- Create/list/select agents from Telegram chat commands.
+- List/select projects from Telegram picker commands.
+- List/select agents from Telegram picker commands.
 - Route Telegram messages to the selected project/agent runtime.
 - Route Telegram text and file messages (documents, photos, audio, video, voice, stickers, and related media) to the selected project/agent runtime.
 - For inbound Telegram files, resolve the Telegram `file_id` to a local file inside the active project when possible, using collision-safe local filenames, and pass the local path to the agent runtime alongside metadata and caption text.
@@ -212,7 +212,7 @@ Requirements for session storage:
 
 - session folders are created automatically on first message
 - `YYYY-MM-DD.jsonl` uses current UTC date
-- `/session reset` starts a new session folder for the active agent
+- `/session_reset` must start a new session folder for the active agent
 - conversation logs must not be stored in `.opencolab`
 - raw session logs are archival and must not be fed wholesale into provider prompts
 - routed agent executions must append the inbound user turn before provider execution begins so timeout or failure does not erase the request from session history
@@ -343,39 +343,31 @@ Responsibilities:
 - the published npm package must include the built CLI entrypoint, built-in agent templates, and built-in shared skills required for runtime fallback behavior
 - the npm package build artifacts may be generated at pack/publish time rather than committed to the repository
 
-## 8. Telegram Management Commands
+## 8. Telegram Commands
 
-Gateway must support project/agent management commands from authorized, paired chat.
+Gateway must support project/agent picker commands plus a direct session reset command from authorized, paired chat.
 
 Minimum supported commands:
 
 - `/projects`
 - `/agents`
-- `/project create <project_id>`
-- `/project use <project_id>`
-- `/project list`
-- `/agent create <agent_id>`
-- `/agent use <agent_id>`
-- `/agent list`
-- `/session reset`
+- `/session_reset`
 
 Messages that are not management commands are routed to the active agent.
 
 Interactive selection requirements:
 
 - `/projects` must return a project picker with inline Telegram buttons for every known project plus a cancel button
-- tapping a project button must switch the active project through the same selection logic used by `/project use <project_id>`
+- tapping a project button must switch the active project and persist the selection
 - `/agents` must return an agent picker with inline Telegram buttons for every agent in the active project plus a cancel button
-- tapping an agent button must switch the active agent through the same selection logic used by `/agent use <agent_id>`
+- tapping an agent button must switch the active agent and persist the selection
 - gateway must accept Telegram `callback_query` updates for these button taps, answer the callback query, and send a clear selection confirmation
-- the text-based `/project ...` and `/agent ...` commands must remain supported as a fallback
 
-Menu alias compatibility (for Telegram slash command popup):
+Slash-menu registration:
 
 - `/projects` -> interactive project picker
 - `/agents` -> interactive agent picker
-- `/project_create <project_id>` -> `/project create <project_id>`
-- `/session_reset` -> `/session reset`
+- `/session_reset` -> reset the active session and start a new session folder
 
 ## 9. Provider Constraints
 
@@ -655,7 +647,6 @@ Requirements:
 
 - if chat is unpaired, gateway replies with pairing-required guidance
 - if paired, gateway processes management commands first
-- `/session reset` creates a new active session folder for the active agent
 - non-management text and file messages are sent to the active project/agent runtime
 - inbound Telegram file messages should preserve caption text and include attachment metadata in the user message passed to the agent
 - when Telegram file download succeeds, attachments should be materialized under the active project (for example under `memory/TelegramInbox/`) with collision-safe local filenames and the agent input should include the local file path
@@ -670,7 +661,7 @@ Requirements:
   - example: `@telegram-file {"kind":"document","file":"<file_id_or_url>","caption":"optional"}`
   - local file paths may be relative to the active agent working directory or absolute
   - directive lines may be wrapped in a single pair of backticks and should still be accepted
-- `setup telegram` should register Telegram bot commands via `setMyCommands` so slash-menu suggestions are available
+- `setup telegram` should register the supported Telegram commands via `setMyCommands` so `/projects`, `/agents`, and `/session_reset` appear in slash-menu suggestions
 
 ## 13. Incremental Task Updates
 
