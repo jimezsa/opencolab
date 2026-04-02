@@ -265,16 +265,21 @@ Responsibilities:
 - initialize state and default project/agent files when `ignite` runs
 - when `OPENCOLAB_ROOT` is set, CLI and runtime config resolution must use it as the runtime root
 - when `OPENCOLAB_ROOT` is unset and the current execution is a packaged install, CLI and runtime config resolution must default to the platform runtime root (`~/.opencolab` on macOS/Linux, `%LOCALAPPDATA%\OpenColab\root` on Windows) instead of the caller's current working directory
+- packaged installs must not let stray `opencolab.json` or `.env.local` files in the caller's current working directory silently override the platform runtime root unless the operator explicitly sets `OPENCOLAB_ROOT`
 - when `OPENCOLAB_ROOT` is unset and the current execution is a git/source checkout, CLI and runtime config resolution may default to the caller's current working directory
 - `opencolab upgrade` must operate on the current OpenColab install root, not on arbitrary unrelated git repositories or on the active workspace directory by mistake
+- one-link installer-managed installs must persist a managed install manifest under the runtime root that records the install mode plus the managed paths needed for future upgrade and repair
+- when the runtime root contains a managed install manifest, `opencolab upgrade` must upgrade that managed install even if the currently executing `opencolab` binary came from another package install earlier on `PATH`
 - when the current OpenColab install is a git/source checkout, `opencolab upgrade` must update that install to the latest `origin/main`
 - when the current OpenColab install is a git/source checkout, `opencolab upgrade` must fail when the install git worktree has tracked local changes instead of attempting a merge
 - when the current OpenColab install is a git/source checkout, `opencolab upgrade` must fetch `origin main`, switch to local branch `main`, fast-forward to `origin/main`, install dependencies, and rebuild
 - when the current OpenColab install is a git/source checkout, `opencolab upgrade` must run a lightweight post-build smoke check before reporting success
+- when the runtime root contains an installer-managed package manifest, `opencolab upgrade` must rerun the managed package install into the installer-owned prefix, verify the managed CLI entrypoint, and run a lightweight smoke check against the managed runtime root before reporting success
+- when the runtime root contains an installer-managed clone manifest, `opencolab upgrade` must update that managed checkout to the latest `origin/main`, install dependencies, rebuild, and run a lightweight smoke check against the managed runtime root before reporting success
 - when the current OpenColab install is a packaged install without the repo git metadata, `opencolab upgrade` must not attempt git operations and should print package-manager upgrade guidance, including an npm global-install example
-- when a managed background gateway service is running, git/source `opencolab upgrade` must restart it after a successful rebuild
-- gateway restart after git/source upgrade must preserve the configured service port and Telegram polling mode instead of silently reverting to defaults
-- when no managed background gateway service is running, git/source `opencolab upgrade` should print that no automatic restart was performed
+- when a managed background gateway service is running, installer-managed package, installer-managed clone, and git/source `opencolab upgrade` must restart it after a successful upgrade
+- gateway restart after upgrade must preserve the configured service port and Telegram polling mode instead of silently reverting to defaults
+- when no managed background gateway service is running, successful `opencolab upgrade` should print that no automatic restart was performed
 - configure one provider API key without changing the active agent runtime
 - configure provider for the active agent
 - provider configuration must ask for provider and model, and must support provider auth mode selection when available
@@ -330,7 +335,10 @@ Responsibilities:
 - installer scripts should default to installing the published `opencolab` npm package into a user-owned prefix, make `opencolab` available as a terminal command by installing a user-level shim, and ensure the user bin directory is on `PATH`
 - the repository should provide `install.sh` for macOS/Linux shells and `install.ps1` for Windows PowerShell
 - `install.sh` should fail fast on Windows and direct the user to `install.ps1`
+- installer scripts must write a managed install manifest under the runtime root so future `opencolab upgrade` runs can upgrade the installer-managed package or clone without guessing from the active `PATH`
+- installer-managed shims must continue to pin `OPENCOLAB_ROOT` to the installer-managed runtime root in both package and clone modes
 - installer scripts should also support an explicit opt-in `--hacky` git-clone mode for one-link installs, intended as a hacky fallback when the desired npm package version is unavailable; clone mode should clone or update a repository checkout, build it locally, and expose the same `opencolab` command shim
+- one-link installer-managed package installs and one-link installer-managed clone installs must both be upgradeable through `opencolab upgrade`
 - npm package installs should also be supported for the `opencolab` CLI without requiring `dist/` to be tracked in git
 - the published npm package must include the built CLI entrypoint, built-in agent templates, and built-in shared skills required for runtime fallback behavior
 - the npm package build artifacts may be generated at pack/publish time rather than committed to the repository
