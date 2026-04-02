@@ -313,6 +313,39 @@ call "$script:PackageCliPath" %*
   [System.IO.File]::WriteAllText($shimPath, $shimContents, [System.Text.Encoding]::ASCII)
 }
 
+function Write-ManagedInstallManifest {
+  $manifestDir = Join-Path $InstallDir ".opencolab"
+  $manifestPath = Join-Path $manifestDir "install.json"
+  New-Item -ItemType Directory -Force -Path $manifestDir | Out-Null
+
+  $manifest = [ordered]@{
+    version = 1
+    manager = "one_link"
+    installMode = $script:InstallMode
+    runtimeRoot = $InstallDir
+    packageSpec = if ($script:InstallMode -eq "clone") { $null } else { $PackageSpec }
+    packagePrefix = if ($script:InstallMode -eq "clone") { $null } else { $PackagePrefix }
+    sourceDir = if ($script:InstallMode -eq "clone") { $SourceDir } else { $null }
+    repoUrl = if ($script:InstallMode -eq "clone") { $RepoUrl } else { $null }
+    branch = if ($script:InstallMode -eq "clone") { $Branch } else { $null }
+    shimPath = Join-Path $BinDir "opencolab.cmd"
+  }
+  [System.IO.File]::WriteAllText(
+    $manifestPath,
+    (($manifest | ConvertTo-Json -Depth 4) + [Environment]::NewLine),
+    [System.Text.Encoding]::ASCII
+  )
+}
+
+function Warn-IfShimShadowed {
+  $command = Get-Command -Name "opencolab" -ErrorAction SilentlyContinue | Select-Object -First 1
+  $shimPath = Join-Path $BinDir "opencolab.cmd"
+  if ($null -ne $command -and $command.Source -and $command.Source -ine $shimPath) {
+    Write-WarnMessage "Another 'opencolab' command appears earlier on PATH: $($command.Source)"
+    Write-WarnMessage "The installer-managed shim is $shimPath"
+  }
+}
+
 function Ensure-BinOnPath {
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
   $entries = @()
@@ -373,7 +406,9 @@ function Main {
 
   Initialize-Runtime
   Install-CliShim
+  Write-ManagedInstallManifest
   Ensure-BinOnPath
+  Warn-IfShimShadowed
 
   Write-Host ""
   Write-Host "[opencolab] Installation complete."
