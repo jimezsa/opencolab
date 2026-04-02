@@ -4,15 +4,13 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { ensureAgentFiles, ensureProjectAndTeamFile } from "./agent.js";
+import { ensureAgentFiles } from "./agent.js";
 import type { OpenColabConfig } from "./config.js";
 import type {
   ProviderAgentInput,
   ProviderRespondOptions,
 } from "./provider-agent.js";
 import {
-  createDefaultAgentConfig,
-  createDefaultProjectState,
   ensureProjectAndAgent,
   getActiveAgent as getProjectActiveAgent,
   getActiveProject,
@@ -77,6 +75,8 @@ const TELEGRAM_FILE_FETCH_TIMEOUT_MS = 10_000;
 const MAX_TELEGRAM_ERROR_CHARS = 1_500;
 const MAX_TELEGRAM_CALLBACK_TEXT_CHARS = 180;
 const PROGRESS_MESSAGE_THROTTLE_MS = 3_000;
+const SUPPORTED_TELEGRAM_COMMANDS_TEXT =
+  "Supported commands: /projects | /agents | /session_reset";
 
 interface ManagementCommandResult {
   nextState?: OpenColabState;
@@ -416,8 +416,6 @@ export class TelegramGateway {
 
     const tokens = text.split(/\s+/);
     const scope = normalizeCommandToken(tokens[0]).toLowerCase();
-    const action = normalizeCommandToken(tokens[1]).toLowerCase();
-    const value = tokens[2];
 
     if (scope === "/projects") {
       return this.renderProjectPicker(state);
@@ -427,153 +425,15 @@ export class TelegramGateway {
       return this.renderAgentPicker(getActiveProject(state));
     }
 
-    if (scope === "/project") {
-      if (action === "list") {
-        return {
-          response: this.renderProjectList(state),
-        };
-      }
-
-      if (action === "create") {
-        if (!value) {
-          return {
-            response: "Usage: /project create <project_id>",
-          };
-        }
-
-        const projectId = normalizeEntityId(value);
-        if (state.projects[projectId]) {
-          return {
-            response: `Project already exists: ${projectId}`,
-          };
-        }
-
-        const project = createDefaultProjectState(projectId);
-        const currentAgent = getProjectActiveAgent(getActiveProject(state));
-        project.agents[project.activeAgentId] = createDefaultAgentConfig(
-          projectId,
-          project.activeAgentId,
-          currentAgent.provider,
-        );
-
-        const nextState = ensureProjectAndAgent({
-          ...state,
-          activeProjectId: project.id,
-          projects: {
-            ...state.projects,
-            [project.id]: project,
-          },
-        });
-
-        const activeAgent = project.agents[project.activeAgentId];
-        ensureProjectAndTeamFile(this.config.rootDir, project.path);
-        ensureAgentFiles(this.config.rootDir, activeAgent);
-
-        return {
-          nextState,
-          response: `Project created and selected: ${project.id}`,
-        };
-      }
-
-      if (action === "use") {
-        if (!value) {
-          return {
-            response: "Usage: /project use <project_id>",
-          };
-        }
-
-        return this.selectProject(state, value, "Project selected.");
-      }
-
+    if (scope === "/session_reset") {
+      const sessionId = this.deps.resetConversationSession();
       return {
-        response:
-          "Project commands: /projects | /project list | /project create <project_id> | /project use <project_id>",
-      };
-    }
-
-    if (scope === "/agent") {
-      const project = getActiveProject(state);
-
-      if (action === "list") {
-        return {
-          response: this.renderAgentList(project),
-        };
-      }
-
-      if (action === "create") {
-        if (!value) {
-          return {
-            response: "Usage: /agent create <agent_id>",
-          };
-        }
-
-        const agentId = normalizeEntityId(value);
-        if (project.agents[agentId]) {
-          return {
-            response: `Agent already exists in project '${project.id}': ${agentId}`,
-          };
-        }
-
-        const agent = createDefaultAgentConfig(
-          project.id,
-          agentId,
-          getProjectActiveAgent(project).provider,
-        );
-        const nextState = ensureProjectAndAgent({
-          ...state,
-          projects: {
-            ...state.projects,
-            [project.id]: {
-              ...project,
-              activeAgentId: agent.id,
-              agents: {
-                ...project.agents,
-                [agent.id]: agent,
-              },
-            },
-          },
-        });
-
-        ensureAgentFiles(this.config.rootDir, agent);
-
-        return {
-          nextState,
-          response: `Agent created and selected: ${agent.id} (project ${project.id})`,
-        };
-      }
-
-      if (action === "use") {
-        if (!value) {
-          return {
-            response: "Usage: /agent use <agent_id>",
-          };
-        }
-
-        return this.selectAgent(state, value, "Agent selected.");
-      }
-
-      return {
-        response:
-          "Agent commands: /agents | /agent list | /agent create <agent_id> | /agent use <agent_id>",
-      };
-    }
-
-    if (scope === "/session") {
-      if (action === "reset") {
-        const sessionId = this.deps.resetConversationSession();
-        return {
-          response: `Session reset. New session: ${sessionId}`,
-        };
-      }
-
-      return {
-        response: "Session commands: /session reset",
+        response: `Session reset. New session: ${sessionId}`,
       };
     }
 
     return {
-      response:
-        "Supported commands: /projects | /project list | /project create <project_id> | /project use <project_id> | /agents | /agent list | /agent create <agent_id> | /agent use <agent_id> | /session reset",
+      response: SUPPORTED_TELEGRAM_COMMANDS_TEXT,
     };
   }
 
@@ -670,30 +530,6 @@ export class TelegramGateway {
       response: `Active agent: ${agentId} (project ${project.id})`,
       callbackAnswerText,
     };
-  }
-
-  private renderProjectList(state: OpenColabState): string {
-    const entries = Object.values(state.projects).sort((a, b) =>
-      a.id.localeCompare(b.id),
-    );
-    const lines = entries.map((project) => {
-      const marker = project.id === state.activeProjectId ? "*" : "-";
-      return `${marker} ${project.id} (active agent: ${project.activeAgentId})`;
-    });
-
-    return [`Projects (${entries.length})`, ...lines].join("\n");
-  }
-
-  private renderAgentList(project: OpenColabState["projects"][string]): string {
-    const entries = Object.values(project.agents).sort((a, b) =>
-      a.id.localeCompare(b.id),
-    );
-    const lines = entries.map((agent) => {
-      const marker = agent.id === project.activeAgentId ? "*" : "-";
-      return `${marker} ${agent.id} (${agent.path}) [${agent.provider.name}:${agent.provider.model}]`;
-    });
-
-    return [`Agents in ${project.id} (${entries.length})`, ...lines].join("\n");
   }
 
   private renderProjectPicker(state: OpenColabState): ManagementCommandResult {
@@ -1267,18 +1103,7 @@ function normalizeManagementInput(raw: string): string {
   const tokens = text.split(/\s+/);
   const scope = normalizeCommandToken(tokens[0]).toLowerCase();
   const rest = tokens.slice(1).join(" ").trim();
-
-  const aliases: Record<string, string> = {
-    "/project_create": "/project create",
-    "/session_reset": "/session reset",
-  };
-
-  const expanded = aliases[scope];
-  if (!expanded) {
-    return [scope, rest].filter(Boolean).join(" ").trim();
-  }
-
-  return [expanded, rest].filter(Boolean).join(" ").trim();
+  return [scope, rest].filter(Boolean).join(" ").trim();
 }
 
 function normalizeCommandToken(token: string | undefined): string {
