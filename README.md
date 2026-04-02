@@ -127,7 +127,7 @@ powershell -c "irm https://opencolab.ai/install.ps1 | iex"
 
 The macOS/Linux installer keeps runtime state under `~/.opencolab` by default and installs the package into a user-owned npm prefix.
 The Windows installer uses `%LOCALAPPDATA%\OpenColab\root` for runtime state, `%LOCALAPPDATA%\OpenColab\package` for the npm prefix, and `%LOCALAPPDATA%\OpenColab\bin\opencolab.cmd` as the user shim.
-For packaged installs, OpenColab defaults to that runtime root even when you invoke `opencolab` outside the directory. `opencolab.json` and `.env.local` live directly under the runtime root, while internal state lives under `<runtime_root>/.opencolab/`.
+One-link installs persist managed-install metadata under the runtime root, pin `OPENCOLAB_ROOT` through the installed shim, and keep `opencolab.json` plus `.env.local` directly under that runtime root while internal runtime/service state lives under `<runtime_root>/.opencolab/`.
 `install.sh` now fails fast on Windows and points users to `install.ps1`.
 Run `opencolab --version` to print the installed CLI version, or just run `opencolab` to see the version in the top help banner immediately.
 
@@ -184,8 +184,9 @@ opencolab gpu server list
 
 Upgrade notes:
 
-- Git/source installs: `opencolab upgrade`
-- npm/global installs: `npm install -g opencolab@latest`
+- One-link installer-managed installs: `opencolab upgrade`
+- Manual git/source installs: `opencolab upgrade`
+- Generic npm/global installs without installer metadata: `npm install -g opencolab@latest`
 
 ## Manual Run (git clone + Node)
 
@@ -363,8 +364,9 @@ opencolab gateway restart --port 4646
 
 - `gateway start` runs as a background service by default on macOS and Linux
 - Use `opencolab gateway start --foreground true --port 4646` to keep it in the current terminal
-- `opencolab upgrade` updates git/source installs to the latest `main`, rebuilds OpenColab, and restarts a managed background gateway with its saved settings
-- npm/global installs should be upgraded with the package manager, for example `npm install -g opencolab@latest`
+- `opencolab upgrade` upgrades one-link installer-managed package installs, one-link installer-managed hacky clone installs, and manual git/source installs
+- managed package and clone upgrades keep the installer-managed runtime root and restart a managed background gateway with its saved settings when one is running
+- generic npm/global installs without installer metadata should still be upgraded with the package manager, for example `npm install -g opencolab@latest`
 - Telegram webhook endpoint: `POST http://127.0.0.1:4646/api/telegram/webhook`
 - Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible
 - Agents can return files with raw `@telegram-file <json>` lines using relative or absolute local paths
