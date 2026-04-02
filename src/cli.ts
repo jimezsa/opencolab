@@ -17,8 +17,9 @@ import {
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
 import {
-  buildPackageUpgradeMessage,
   resolveCurrentOpenColabInstall,
+  readManagedInstallManifest,
+  resolveManagedInstallCliScriptPath,
   resolveRuntimeRootDir,
 } from "./install.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
@@ -471,15 +472,16 @@ function usageUpgrade(): string {
     "Usage:",
     helpCommand(
       "opencolab upgrade",
-      "Upgrade a git/source install or show packaged-install upgrade guidance",
+      "Upgrade an installer-managed OpenColab or a git/source checkout",
     ),
     "",
     "Notes:",
+    "  - One-link installer installs upgrade the managed package or managed clone behind the shim.",
     "  - Git/source installs require a clean tracked git worktree in the current OpenColab install.",
     "  - Git/source installs switch to branch main and fast-forward to origin/main.",
-    "  - Git/source installs rebuild OpenColab after pulling changes.",
-    "  - Package installs do not run git operations; they print package-manager upgrade guidance instead.",
-    "  - Git/source upgrades restart the managed background gateway with saved settings when it is running.",
+    "  - Git/source and managed clone installs rebuild OpenColab after pulling changes.",
+    "  - Generic package installs without installer metadata print package-manager upgrade guidance instead.",
+    "  - Successful managed upgrades restart the background gateway with saved settings when it is running.",
   ]);
 }
 
@@ -880,14 +882,15 @@ function parseCsvFlag(value: string | undefined): string[] | undefined {
 }
 
 function resolveCliScriptPath(runtimeRootDir: string): string {
+  const manifest = readManagedInstallManifest(runtimeRootDir);
+  const managedCliScriptPath = manifest ? resolveManagedInstallCliScriptPath(manifest) : null;
+  if (managedCliScriptPath) {
+    return path.resolve(managedCliScriptPath);
+  }
   const candidate = process.argv[1]?.trim();
   if (candidate) {
     return path.resolve(candidate);
   }
-  return path.join(runtimeRootDir, "dist", "src", "cli.js");
-}
-
-function resolveBuiltCliScriptPath(runtimeRootDir: string): string {
   return path.join(runtimeRootDir, "dist", "src", "cli.js");
 }
 
@@ -1064,7 +1067,7 @@ function formatUpgradeDependencyInstallMode(value: "frozen_lockfile" | "fallback
     : "pnpm install (fallback after frozen lockfile failure)";
 }
 
-function printUpgradeGatewayRestartSummary(runtimeRootDir: string): void {
+function printUpgradeGatewayRestartSummary(runtimeRootDir: string, cliScriptPath: string): void {
   try {
     const { files, status } = getGatewayBackgroundServiceStatus(runtimeRootDir);
     if (!status.running) {
@@ -1085,7 +1088,7 @@ function printUpgradeGatewayRestartSummary(runtimeRootDir: string): void {
 
     restartGatewayBackgroundService({
       rootDir: runtimeRootDir,
-      cliScriptPath: resolveBuiltCliScriptPath(runtimeRootDir),
+      cliScriptPath,
       nodePath: process.execPath,
       port: config.port,
       telegramPolling: config.telegramPolling,
@@ -1201,29 +1204,33 @@ async function main(): Promise<void> {
   }
 
   if (command === "upgrade") {
-    const install = resolveCurrentOpenColabInstall({
+    const runtimeRootDir = resolveRuntimeRootDir();
+    const result = upgradeOpenColab(runtimeRootDir, {
+      nodePath: process.execPath,
       entryScriptPath: process.argv[1],
-      cwd: resolveRuntimeRootDir(),
     });
-    if (install.mode !== "git") {
-      for (const line of buildPackageUpgradeMessage(install.packageName)) {
+    if (result.kind === "package_guidance") {
+      for (const line of result.messageLines) {
         console.log(line);
       }
       return;
     }
 
-    const result = upgradeOpenColab(install.rootDir, {
-      nodePath: process.execPath,
-    });
     console.log("OpenColab upgrade completed.");
-    console.log(`Target branch: main`);
-    console.log(`Previous branch: ${result.previousBranch || "(detached HEAD)"}`);
-    console.log(`Previous revision: ${result.previousRevision}`);
-    console.log(`Current revision: ${result.currentRevision}`);
-    console.log(
-      `Dependency install: ${formatUpgradeDependencyInstallMode(result.dependencyInstallMode)}`,
-    );
-    printUpgradeGatewayRestartSummary(install.rootDir);
+    console.log(`Upgrade mode: ${result.kind}`);
+    console.log(`Runtime root: ${result.runtimeRootDir}`);
+    if (result.kind === "managed_package") {
+      console.log(`Managed package spec: ${result.packageSpec}`);
+    } else {
+      console.log("Target branch: main");
+      console.log(`Previous branch: ${result.previousBranch || "(detached HEAD)"}`);
+      console.log(`Previous revision: ${result.previousRevision}`);
+      console.log(`Current revision: ${result.currentRevision}`);
+      console.log(
+        `Dependency install: ${formatUpgradeDependencyInstallMode(result.dependencyInstallMode)}`,
+      );
+    }
+    printUpgradeGatewayRestartSummary(result.runtimeRootDir, result.cliScriptPath);
     return;
   }
 
