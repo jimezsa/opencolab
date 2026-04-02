@@ -396,25 +396,18 @@ Telegram:
 ```text
 /projects
 /agents
-/project create <project_id>
-/project use <project_id>
-/project list
-/agent create <agent_id>
-/agent use <agent_id>
-/agent list
-/session reset
+/session_reset
 ```
 
-Telegram slash-menu aliases:
+Telegram slash-menu commands:
 
 ```text
 /projects
 /agents
-/project_create <project_id>
 /session_reset
 ```
 
-`/projects` and `/agents` open inline-button pickers in Telegram so users can switch the active project or agent with one tap. The older `/project ...` and `/agent ...` text commands remain available as fallback.
+`/projects` and `/agents` open inline-button pickers in Telegram so users can switch the active project or agent with one tap. `/session_reset` starts a new active session. Project and agent creation remain CLI-driven.
 
 ## Agent Layout and Memory
 
