@@ -8,7 +8,12 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
-- The shared `runpod-job` guidance now allows a clearly labeled manual-SSH fallback for user-managed Runpod Pods when the user explicitly wants that workaround or managed provisioning is blocked, while making clear that raw `pod_id` use is outside the normal OpenColab `run_id` lifecycle.
+- The shared `runpod-job` guidance now defaults to a user-managed Runpod Pod workflow where the human creates the Pod, provides the `pod_id`, and the agent uses direct SSH, while keeping the OpenColab-managed `gpu server` and `gpu job` lifecycle as an explicit opt-in for `run_id`-tracked work.
+- Telegram management from paired chats now centers on `/projects`, `/agents`, and `/session_reset`, with picker-based project and agent selection and session reset remaining available while project and agent creation stay CLI-driven.
+
+### Removed
+
+- Telegram support for the older `/project ...`, `/agent ...`, and `/session reset` text command families, along with the older slash-menu aliases such as `/project_create`.
 
 ## [0.1.6] - 2026-04-02
 
