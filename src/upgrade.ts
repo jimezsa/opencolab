@@ -1,18 +1,19 @@
 /**
  * OpenColab self-upgrade helpers.
- * Updates a git/source install to the latest origin/main, rebuilds, and verifies the build.
+ * Upgrades installer-managed package or clone installs, or a git/source checkout.
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { isGitInstallRoot } from "./install.js";
-
-export interface UpgradeResult {
-  previousBranch: string;
-  previousRevision: string;
-  currentRevision: string;
-  dependencyInstallMode: "frozen_lockfile" | "fallback";
-}
+import {
+  buildPackageUpgradeMessage,
+  isGitInstallRoot,
+  readManagedInstallManifest,
+  readOpenColabPackageNameAtRoot,
+  resolveCurrentOpenColabInstall,
+  resolveManagedInstallCliScriptPath,
+  type ManagedOpenColabInstallManifest,
+} from "./install.js";
 
 export interface UpgradeCommandResult {
   status: number | null;
@@ -32,17 +33,136 @@ export type UpgradeCommandRunner = (
   options?: UpgradeCommandOptions,
 ) => UpgradeCommandResult;
 
+export interface GitUpgradeResult {
+  kind: "git" | "managed_clone";
+  runtimeRootDir: string;
+  installRootDir: string;
+  cliScriptPath: string;
+  previousBranch: string;
+  previousRevision: string;
+  currentRevision: string;
+  dependencyInstallMode: "frozen_lockfile" | "fallback";
+}
+
+export interface ManagedPackageUpgradeResult {
+  kind: "managed_package";
+  runtimeRootDir: string;
+  installRootDir: string;
+  cliScriptPath: string;
+  packageSpec: string;
+}
+
+export interface PackageUpgradeGuidanceResult {
+  kind: "package_guidance";
+  packageName: string;
+  messageLines: string[];
+}
+
+export type UpgradeResult =
+  | GitUpgradeResult
+  | ManagedPackageUpgradeResult
+  | PackageUpgradeGuidanceResult;
+
 export function upgradeOpenColab(
   rootDir: string,
   options: {
     nodePath?: string;
     runCommand?: UpgradeCommandRunner;
+    entryScriptPath?: string | null;
+    moduleDir?: string;
   } = {},
 ): UpgradeResult {
-  assertGitInstallRoot(rootDir);
-
   const nodePath = options.nodePath ?? process.execPath;
   const runCommand = options.runCommand ?? defaultRunCommand;
+  const manifest = readManagedInstallManifest(rootDir);
+  if (manifest) {
+    if (manifest.installMode === "package") {
+      return upgradeManagedPackageInstall(manifest, nodePath, runCommand);
+    }
+    return upgradeGitLikeInstall(
+      manifest.sourceDir ?? rootDir,
+      manifest.runtimeRoot,
+      "managed_clone",
+      nodePath,
+      runCommand,
+    );
+  }
+
+  if (isGitInstallRoot(rootDir)) {
+    return upgradeGitLikeInstall(rootDir, rootDir, "git", nodePath, runCommand);
+  }
+
+  const packageNameAtRoot = readOpenColabPackageNameAtRoot(rootDir);
+  if (packageNameAtRoot) {
+    return {
+      kind: "package_guidance",
+      packageName: packageNameAtRoot,
+      messageLines: buildPackageUpgradeMessage(packageNameAtRoot),
+    };
+  }
+
+  const install = resolveCurrentOpenColabInstall({
+    entryScriptPath: options.entryScriptPath ?? process.argv[1],
+    moduleDir: options.moduleDir,
+    cwd: rootDir,
+  });
+  if (install.mode !== "git") {
+    return {
+      kind: "package_guidance",
+      packageName: install.packageName,
+      messageLines: buildPackageUpgradeMessage(install.packageName),
+    };
+  }
+
+  return upgradeGitLikeInstall(install.rootDir, rootDir, "git", nodePath, runCommand);
+}
+
+function upgradeManagedPackageInstall(
+  manifest: ManagedOpenColabInstallManifest,
+  nodePath: string,
+  runCommand: UpgradeCommandRunner,
+): ManagedPackageUpgradeResult {
+  const packagePrefix = manifest.packagePrefix?.trim();
+  if (!packagePrefix) {
+    throw new Error("Managed package install manifest is missing packagePrefix.");
+  }
+
+  runCheckedCommand(runCommand, "npm", ["--version"], {}, "verify npm");
+  const packageSpec = manifest.packageSpec?.trim() || "opencolab@latest";
+  runCheckedCommand(
+    runCommand,
+    "npm",
+    ["install", "-g", "--prefix", packagePrefix, packageSpec],
+    {},
+    "upgrade managed package install",
+  );
+
+  const cliScriptPath = resolveManagedInstallCliScriptPath(manifest);
+  if (!cliScriptPath || !fs.existsSync(cliScriptPath)) {
+    throw new Error(
+      "Managed package upgrade completed without producing a runnable dist/src/cli.js entrypoint.",
+    );
+  }
+
+  runPostBuildSmokeCheck(runCommand, nodePath, cliScriptPath, manifest.runtimeRoot);
+
+  return {
+    kind: "managed_package",
+    runtimeRootDir: manifest.runtimeRoot,
+    installRootDir: path.dirname(path.dirname(path.dirname(cliScriptPath))),
+    cliScriptPath,
+    packageSpec,
+  };
+}
+
+function upgradeGitLikeInstall(
+  installRootDir: string,
+  runtimeRootDir: string,
+  kind: GitUpgradeResult["kind"],
+  nodePath: string,
+  runCommand: UpgradeCommandRunner,
+): GitUpgradeResult {
+  assertGitInstallRoot(installRootDir);
 
   runCheckedCommand(runCommand, "git", ["--version"], {}, "verify git");
   runCheckedCommand(runCommand, "pnpm", ["--version"], {}, "verify pnpm");
@@ -50,21 +170,21 @@ export function upgradeOpenColab(
   const previousBranch = runCheckedCommand(
     runCommand,
     "git",
-    ["-C", rootDir, "branch", "--show-current"],
+    ["-C", installRootDir, "branch", "--show-current"],
     {},
     "read current branch",
   ).stdout.trim();
   const previousRevision = runCheckedCommand(
     runCommand,
     "git",
-    ["-C", rootDir, "rev-parse", "HEAD"],
+    ["-C", installRootDir, "rev-parse", "HEAD"],
     {},
     "read current revision",
   ).stdout.trim();
   const worktreeStatus = runCheckedCommand(
     runCommand,
     "git",
-    ["-C", rootDir, "status", "--porcelain", "--untracked-files=no"],
+    ["-C", installRootDir, "status", "--porcelain", "--untracked-files=no"],
     {},
     "check git worktree",
   ).stdout.trim();
@@ -78,14 +198,14 @@ export function upgradeOpenColab(
   runCheckedCommand(
     runCommand,
     "git",
-    ["-C", rootDir, "fetch", "origin", "main"],
+    ["-C", installRootDir, "fetch", "origin", "main"],
     {},
     "fetch origin/main",
   );
 
   const localMainExists = runCommand(
     "git",
-    ["-C", rootDir, "show-ref", "--verify", "--quiet", "refs/heads/main"],
+    ["-C", installRootDir, "show-ref", "--verify", "--quiet", "refs/heads/main"],
     {},
   ).status === 0;
 
@@ -93,7 +213,7 @@ export function upgradeOpenColab(
     runCheckedCommand(
       runCommand,
       "git",
-      ["-C", rootDir, "checkout", "main"],
+      ["-C", installRootDir, "checkout", "main"],
       {},
       "switch to main",
     );
@@ -101,7 +221,7 @@ export function upgradeOpenColab(
     runCheckedCommand(
       runCommand,
       "git",
-      ["-C", rootDir, "checkout", "-b", "main", "--track", "origin/main"],
+      ["-C", installRootDir, "checkout", "-b", "main", "--track", "origin/main"],
       {},
       "create local main",
     );
@@ -110,17 +230,16 @@ export function upgradeOpenColab(
   runCheckedCommand(
     runCommand,
     "git",
-    ["-C", rootDir, "pull", "--ff-only", "origin", "main"],
+    ["-C", installRootDir, "pull", "--ff-only", "origin", "main"],
     {},
     "fast-forward local main",
   );
 
-  let dependencyInstallMode: UpgradeResult["dependencyInstallMode"] =
-    "frozen_lockfile";
+  let dependencyInstallMode: GitUpgradeResult["dependencyInstallMode"] = "frozen_lockfile";
   const frozenInstall = runCommand(
     "pnpm",
     ["install", "--frozen-lockfile"],
-    { cwd: rootDir },
+    { cwd: installRootDir },
   );
   if (frozenInstall.status !== 0) {
     dependencyInstallMode = "fallback";
@@ -128,7 +247,7 @@ export function upgradeOpenColab(
       runCommand,
       "pnpm",
       ["install"],
-      { cwd: rootDir },
+      { cwd: installRootDir },
       "install dependencies",
     );
   }
@@ -137,46 +256,60 @@ export function upgradeOpenColab(
     runCommand,
     "pnpm",
     ["run", "build"],
-    { cwd: rootDir },
+    { cwd: installRootDir },
     "build project",
   );
 
-  const builtCliPath = path.join(rootDir, "dist", "src", "cli.js");
-  if (!fs.existsSync(builtCliPath)) {
+  const cliScriptPath = path.join(installRootDir, "dist", "src", "cli.js");
+  if (!fs.existsSync(cliScriptPath)) {
     throw new Error(
       "Upgrade build completed without producing dist/src/cli.js.",
     );
   }
 
-  runCheckedCommand(
-    runCommand,
-    nodePath,
-    [builtCliPath, "--help"],
-    {
-      cwd: rootDir,
-      env: {
-        ...process.env,
-        NODE_NO_WARNINGS: "1",
-        OPENCOLAB_ROOT: rootDir,
-      },
-    },
-    "run post-build smoke check",
-  );
+  runPostBuildSmokeCheck(runCommand, nodePath, cliScriptPath, runtimeRootDir, installRootDir);
 
   const currentRevision = runCheckedCommand(
     runCommand,
     "git",
-    ["-C", rootDir, "rev-parse", "HEAD"],
+    ["-C", installRootDir, "rev-parse", "HEAD"],
     {},
     "read upgraded revision",
   ).stdout.trim();
 
   return {
+    kind,
+    runtimeRootDir,
+    installRootDir,
+    cliScriptPath,
     previousBranch,
     previousRevision,
     currentRevision,
     dependencyInstallMode,
   };
+}
+
+function runPostBuildSmokeCheck(
+  runCommand: UpgradeCommandRunner,
+  nodePath: string,
+  cliScriptPath: string,
+  runtimeRootDir: string,
+  cwd = runtimeRootDir,
+): void {
+  runCheckedCommand(
+    runCommand,
+    nodePath,
+    [cliScriptPath, "--help"],
+    {
+      cwd,
+      env: {
+        ...process.env,
+        NODE_NO_WARNINGS: "1",
+        OPENCOLAB_ROOT: runtimeRootDir,
+      },
+    },
+    "run post-build smoke check",
+  );
 }
 
 function assertGitInstallRoot(rootDir: string): void {
