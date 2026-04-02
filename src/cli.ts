@@ -78,14 +78,7 @@ type TelegramCommandScope =
 const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
   { command: "projects", description: "Pick active project" },
   { command: "agents", description: "Pick active agent" },
-  {
-    command: "project_create",
-    description: "Create project: /project_create <id>",
-  },
   { command: "session_reset", description: "Reset active session" },
-  { command: "project", description: "Project command help" },
-  { command: "agent", description: "Agent command help" },
-  { command: "session", description: "Session command help" },
 ];
 
 function supportsColor(): boolean {
