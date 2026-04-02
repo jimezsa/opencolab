@@ -25,6 +25,7 @@ Do not use raw Runpod APIs unless the user is explicitly fixing OpenColab itself
 - Use the OpenColab CLI, not the raw Runpod REST API.
 - Use the installed `opencolab` command from `PATH`; if it is missing, stop and report that prerequisite.
 - Prefer an existing server target before creating a new one.
+- The normal path is still `server_id -> gpu job start -> run_id -> status/logs/exec/fetch/cancel`.
 - When creating a new default or curated target without a user override, prefer ordered fallback locations with a single GPU choice: `NVIDIA A100 80GB PCIe`.
 - Only broaden the GPU list beyond that single A100 when the user explicitly asks for broader availability, lower cost, or different hardware.
 - For default or curated targets, prefer `--bootstrap-profile pytorch-cu12` and `--auto-stop-policy keep_warm`.
@@ -35,11 +36,15 @@ Do not use raw Runpod APIs unless the user is explicitly fixing OpenColab itself
 - Never blindly forward all environment variables. Use `--env` only for the specific names the remote job requires.
 - Declare expected artifacts up front with `--artifact` whenever the user expects outputs back.
 - Treat remote jobs as detached batch jobs, not interactive shells.
+- If the user already has a manually created Runpod Pod and explicitly wants to use it, treat that as a manual SSH fallback rather than a normal OpenColab-managed job.
 - Launch jobs with `opencolab gpu job start --wait false` only; never use `--wait true` in this skill.
 - Return the `run_id` promptly after launch and do not sit in a polling loop by default.
 - Before reporting on a run, always refresh it with `opencolab gpu job status --run-id <run_id>` so the latest remote log snapshots are downloaded locally.
 - When summarizing a run, always review all four local log streams: `bootstrap`, `stdout`, `stderr`, and `poller`.
 - When direct Pod inspection is needed after launch, prefer `opencolab gpu job exec --run-id <id> --command "<remote command>"` over exposing raw SSH details.
+- Do not claim that `opencolab gpu job exec` works with a user-supplied `pod_id`; today it only works for an existing OpenColab `run_id`.
+- For a manual existing-Pod fallback, ask the user for the Pod id plus the SSH details OpenColab cannot derive from a `run_id` path, and explain that this bypasses OpenColab run tracking, local run logs, artifact fetch semantics, and normal Pod cleanup ownership.
+- Only use the manual existing-Pod fallback when the user explicitly wants it or when managed provisioning is blocked and the user approves the workaround.
 - Inspect status or logs after launch only when the user explicitly asks about the run, asks to monitor it, or asks for fetched outputs.
 - When a `keep_warm` run reaches a terminal state and the Pod is still available, ask the user whether they want to keep the Pod running for reuse or cancel it now.
 - If `OPENCOLAB_PROGRESS_FILE` is available and the run is long enough to justify updates, emit bounded progress events for target setup, validation, launch, polling, degraded runs, and final delivery.
@@ -70,6 +75,28 @@ Useful updates:
 - detached launch returned a run id
 - local log snapshots refreshed
 - warning states such as `running_unreachable`, `cleanup_failed`, or missing artifacts
+
+## Manual Existing-Pod Fallback
+
+Use this only when the user explicitly wants to work against a manually created Runpod Pod, or when managed OpenColab provisioning is blocked and the user approves a manual SSH workaround.
+
+Requirements:
+
+- Ask for the Runpod Pod id.
+- Ask for the SSH connection details needed to reach that Pod if they are not already available locally.
+- State clearly that this path is outside the normal OpenColab `gpu job` lifecycle.
+- Do not present the Pod as an OpenColab `run_id` unless the CLI/runtime actually created one.
+- Do not say that `opencolab gpu job exec` is being used against the manual Pod unless there is a real OpenColab `run_id`.
+- Keep commands bounded and task-focused even when using direct SSH.
+- Prefer `scp` or a small heredoc upload only for the exact files or scripts the user asked to run.
+- Remind the user that OpenColab may not automatically track logs, artifacts, status, or cleanup for this manual path.
+
+Reply guidance for this fallback:
+
+- Say that you are using direct SSH to a user-managed Pod, not an OpenColab-managed `gpu job`.
+- Include the Pod id in the summary.
+- Do not invent a `run_id`.
+- Call out any missing tracking, artifact, or cleanup limitations.
 
 ## Workflow
 
