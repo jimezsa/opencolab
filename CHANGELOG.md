@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Changed
+
+- The shared `runpod-job` guidance now allows a clearly labeled manual-SSH fallback for user-managed Runpod Pods when the user explicitly wants that workaround or managed provisioning is blocked, while making clear that raw `pod_id` use is outside the normal OpenColab `run_id` lifecycle.
+
 ## [0.1.6] - 2026-04-02
 
 ### Changed
