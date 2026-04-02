@@ -10,8 +10,8 @@ Top-level sources of truth:
 - `docs/VISION.md`: product direction and long-term intent.
 - `README.md`: quickstart, high-level overview, and condensed runtime/reference guide.
 - `package.json`: npm package metadata, published CLI surface, and pack/publish lifecycle hooks.
-- `install.sh`: package-first macOS/Linux installer and command shim setup, with optional `--hacky` git-clone fallback.
-- `install.ps1`: package-first Windows PowerShell installer and command shim setup, with optional `--hacky` git-clone fallback.
+- `install.sh`: package-first macOS/Linux installer, managed-install manifest writer, and command shim setup, with optional `--hacky` git-clone fallback.
+- `install.ps1`: package-first Windows PowerShell installer, managed-install manifest writer, and command shim setup, with optional `--hacky` git-clone fallback.
 - `projects/SKILLS/`: shared built-in skill library copied into agent prompts, not per-project duplicates, including search, summarization, grounded paper QA, image, and architecture-diagram workflows. Packaged installs must ship this directory too.
 - `src/`: TypeScript implementation.
 - `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context, with shared files in `shared/` and role-specific folders such as `professor/`, `beginner/`, and `specialist/`. Packaged installs must ship the runtime-accessible equivalents.
@@ -28,13 +28,13 @@ Core implementation areas:
 - `src/gateway.ts`: Telegram authorization, pairing, command routing, typing updates, and message/file handling.
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd` and Linux `systemd`.
 - `src/telegram-poller.ts`: Telegram long-polling loop and update ingestion.
-- `src/upgrade.ts`: install-aware OpenColab upgrade flow for git/source checkouts plus operator-facing guidance for packaged installs.
+- `src/upgrade.ts`: install-aware OpenColab upgrade flow for one-link installer-managed package or clone installs plus manual git/source checkouts, with guidance only for generic package installs.
 - `src/provider.ts`: provider defaults, runtime selection, auth-mode support, CLI args, and env wiring.
 - `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling, and provider-to-gateway progress-event forwarding.
 - `src/agent.ts`: agent file seeding, shared/agent-local skill discovery, and prompt assembly.
 - `src/agent-templates.ts`: built-in agent template loading and default-doc resolution.
 - `src/conversation.ts`: per-agent session logs, previous-day summaries, and prompt-memory loading.
-- `src/install.ts`: install-root detection, package-vs-git install mode behavior, and runtime-root resolution across `OPENCOLAB_ROOT`, packaged-install defaults, and cwd fallback for source checkouts.
+- `src/install.ts`: install-root detection, installer-managed install manifest handling, and runtime-root resolution across `OPENCOLAB_ROOT`, packaged-install defaults, and cwd fallback for source checkouts.
 - `src/project-config.ts`: `opencolab.json` defaults, normalization, migration, and project/agent path helpers.
 - `src/config.ts`: root config, runtime-root-aware path resolution, and local env loading.
 - `src/secrets.ts`: `.env.local` secret read/write helpers.
