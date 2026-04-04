@@ -1321,6 +1321,118 @@ test("paired webhook routes message to the active agent and stores conversation"
   }
 });
 
+test("paired webhook keeps typing without creating a generic live status before real progress exists", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-typing-only-"));
+  const sentTexts: string[] = [];
+  const statusCreates: string[] = [];
+  const statusEdits: string[] = [];
+  let typingCalls = 0;
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text) => {
+      statusCreates.push(text);
+      return "status-1";
+    },
+    telegramMessageEditor: async (_chatId, _messageId, text) => {
+      statusEdits.push(text);
+      return true;
+    },
+    telegramTypingSender: async () => {
+      typingCalls += 1;
+      return true;
+    },
+    agentResponder: async ({ text }) => {
+      await new Promise((resolve) => setTimeout(resolve, 1_300));
+      return `research:${text}`;
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "Look into sparse autoencoders",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.deepEqual(sentTexts, ["research:Look into sparse autoencoders"]);
+    assert.deepEqual(statusCreates, []);
+    assert.deepEqual(statusEdits, []);
+    assert.equal(typingCalls > 0, true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("paired webhook keeps typing after live status appears", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-typing-with-status-"));
+  let typingCalls = 0;
+  const originalSetInterval = global.setInterval;
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    telegramStatusMessageCreator: async () => "status-1",
+    telegramMessageEditor: async () => true,
+    telegramTypingSender: async () => {
+      typingCalls += 1;
+      return true;
+    },
+    agentResponder: async ({ text }, options) => {
+      await options?.onProgress?.({
+        kind: "milestone",
+        stage: "inspect",
+        slot: "inspect",
+        message: "Reviewing the current implementation."
+      });
+      await new Promise((resolve) => setTimeout(resolve, 45));
+      return `research:${text}`;
+    }
+  });
+
+  try {
+    global.setInterval = ((handler: TimerHandler, _timeout?: number, ...args: unknown[]) =>
+      originalSetInterval(handler, 10, ...args)) as typeof setInterval;
+
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "Check the repo",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(typingCalls > 1, true);
+  } finally {
+    global.setInterval = originalSetInterval;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("paired webhook renders one live status surface before the final answer without polluting conversation memory", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-progress-"));
   const sentTexts: string[] = [];
@@ -1477,9 +1589,8 @@ test("provider CLI native stream events are normalized into Telegram live status
     assert.equal(result.action, "agent_response");
     assert.deepEqual(sentTexts, ["paper search complete"]);
     assert.equal(statusCreates.length, 1);
-    assert.equal(statusCreates[0].includes("Inspecting the project."), true);
+    assert.equal(statusCreates[0].includes("Reviewing the current implementation."), true);
     assert.deepEqual(statusEdits.length, 1);
-    assert.equal(statusEdits[0].includes("Reviewing the current implementation."), true);
     assert.equal(statusEdits[0].includes("Running checks."), true);
     assert.equal(statusEdits[0].includes("Preparing the final answer."), true);
   } finally {

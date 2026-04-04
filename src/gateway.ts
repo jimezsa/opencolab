@@ -102,7 +102,6 @@ const MAX_TELEGRAM_ERROR_CHARS = 1_500;
 const MAX_TELEGRAM_CALLBACK_TEXT_CHARS = 180;
 const EDITABLE_STATUS_THROTTLE_MS = 3_000;
 const DRAFT_STATUS_THROTTLE_MS = 1_200;
-const LIVE_STATUS_ACK_DELAY_MS = 1_200;
 const MAX_LIVE_STATUS_LINES = 4;
 const SUPPORTED_TELEGRAM_COMMANDS_TEXT =
   "Supported commands: /projects | /agents | /session_reset";
@@ -131,7 +130,6 @@ class TelegramLiveStatusSession {
   private readonly preferredTransport: LiveStatusTransport;
   private readonly draftId: number;
   private readonly lines = new Map<string, LiveStatusLine>();
-  private readonly ackTimer: NodeJS.Timeout;
   private transport: LiveStatusTransport | null = null;
   private editableMessageId: string | null = null;
   private activated = false;
@@ -147,13 +145,9 @@ class TelegramLiveStatusSession {
     private readonly draftSender: TelegramDraftSender,
     private readonly statusMessageCreator: TelegramStatusMessageCreator,
     private readonly messageEditor: TelegramMessageEditor,
-    private readonly onActivated: () => void,
   ) {
     this.preferredTransport = inbound.chatType === "private" ? "draft" : "editable";
     this.draftId = Math.max(1, Date.now() % 2_000_000_000);
-    this.ackTimer = setTimeout(() => {
-      this.enqueue(() => this.flush(true));
-    }, LIVE_STATUS_ACK_DELAY_MS);
   }
 
   push(event: TaskProgressEvent): Promise<void> {
@@ -167,7 +161,6 @@ class TelegramLiveStatusSession {
 
   close(): Promise<void> {
     this.closed = true;
-    clearTimeout(this.ackTimer);
     return this.queue.catch(() => undefined);
   }
 
@@ -235,17 +228,14 @@ class TelegramLiveStatusSession {
     this.activated = true;
     this.lastRenderedText = rendered;
     this.lastSentAt = now;
-    this.onActivated();
   }
 
-  private render(): string {
+  private render(): string | null {
     const lines = [...this.lines.values()].sort((left, right) => left.updatedAt - right.updatedAt);
-    const visibleLines = lines.length > 0 ? lines : [{
-      slot: "starting",
-      message: "Starting the run.",
-      kind: "started" as const,
-      updatedAt: Date.now(),
-    }];
+    if (lines.length === 0) {
+      return null;
+    }
+    const visibleLines = lines;
     const latestKind = visibleLines[visibleLines.length - 1]?.kind ?? "started";
     const heading =
       latestKind === "warning"
@@ -527,10 +517,6 @@ export class TelegramGateway {
       this.draftSender,
       this.statusMessageCreator,
       this.messageEditor,
-      () => {
-        stopTyping?.();
-        stopTyping = null;
-      },
     );
     let progressQueue = Promise.resolve();
     let inboundText = "";

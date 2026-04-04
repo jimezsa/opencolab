@@ -460,12 +460,6 @@ async function consumeClaudeStreamEvent(
   const subtype = asProgressString(parsed.subtype);
 
   if (type === "system" && subtype === "init") {
-    await emitProviderProgress(state, {
-      kind: "started",
-      stage: "inspect",
-      slot: "inspect",
-      message: "Inspecting the project."
-    });
     return;
   }
 
@@ -510,12 +504,6 @@ async function consumeGeminiStreamEvent(
   }
 
   if (type === "init") {
-    await emitProviderProgress(state, {
-      kind: "started",
-      stage: "inspect",
-      slot: "inspect",
-      message: "Inspecting the project."
-    });
     return;
   }
 
@@ -591,14 +579,6 @@ async function consumePiStreamEvent(
   }
 
   if (type === "agent_start" || type === "turn_start") {
-    if (!state.started) {
-      await emitProviderProgress(state, {
-        kind: "started",
-        stage: "inspect",
-        slot: "inspect",
-        message: "Inspecting the project."
-      });
-    }
     return;
   }
 
@@ -663,14 +643,6 @@ async function consumeCodexStreamEvent(
   }
 
   if (type === "thread.started" || type === "turn.started") {
-    if (!state.started) {
-      await emitProviderProgress(state, {
-        kind: "started",
-        stage: "inspect",
-        slot: "inspect",
-        message: "Inspecting the project."
-      });
-    }
     return;
   }
 
