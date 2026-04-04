@@ -885,6 +885,40 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
   }
 });
 
+test("setupModel stores Anthropic oauth auth mode on the agent", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-anthropic-oauth-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "anthropic",
+      model: "claude-opus-4-6",
+      authMode: "oauth"
+    });
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.runtime, "claude");
+    assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.cliCommand, "claude");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "-p",
+      "{prompt}",
+      "--model",
+      "{model}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--add-dir",
+      "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}"
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("setupModel stores Gemini oauth auth mode and workspace defaults on the agent", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-gemini-oauth-"));
   const runtime = createRuntime(tempDir);

@@ -20,7 +20,7 @@ Top-level sources of truth:
 Core implementation areas:
 
 - `src/cli.ts`: CLI entrypoint, top-level help/version output, interactive prompts, setup flows including standalone provider-key writes, and gateway lifecycle commands.
-- `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth setup, direct API-key setup links, BotFather token guidance, built-in shared-tool key setup including `GEMINI_API_KEY` prerequisites for Gemini shared tools and `pageindex-grounded`, Telegram setup, and pairing.
+- `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth setup including OAuth-capable provider flows, direct API-key setup links, BotFather token guidance, built-in shared-tool key setup including `GEMINI_API_KEY` prerequisites for Gemini shared tools and `pageindex-grounded`, Telegram setup, and pairing.
 - `src/runtime.ts`: stateful orchestration across config, project state, gateway routing, memory, and provider execution.
 - `src/experiments.ts`: local experiment bookkeeping helpers for target snapshots, run manifests, status files, logs, artifacts, and sync metadata.
 - `src/gpu-providers/runpod/index.ts`: Runpod-backed execution-target validation, availability-aware location/GPU selection, Pod lifecycle, SSH sync/bootstrap/launch, and run reconciliation.
@@ -29,8 +29,8 @@ Core implementation areas:
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd` and Linux `systemd`.
 - `src/telegram-poller.ts`: Telegram long-polling loop and update ingestion.
 - `src/upgrade.ts`: install-aware OpenColab upgrade flow for one-link installer-managed package or clone installs plus manual git/source checkouts, with guidance only for generic package installs.
-- `src/provider.ts`: provider defaults, runtime selection, auth-mode support, CLI args, and env wiring.
-- `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling, and provider-to-gateway progress-event forwarding.
+- `src/provider.ts`: provider defaults, runtime selection, auth-mode support, OAuth setup/remediation hints, CLI args, and env wiring.
+- `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling including OAuth session checks for supported runtimes, and provider-to-gateway progress-event forwarding.
 - `src/agent.ts`: agent file seeding, shared/agent-local skill discovery, and prompt assembly.
 - `src/agent-templates.ts`: built-in agent template loading and default-doc resolution.
 - `src/conversation.ts`: per-agent session logs, previous-day summaries, and prompt-memory loading.

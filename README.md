@@ -206,7 +206,7 @@ node dist/src/cli.js gateway start --foreground true --port 4646
 OpenColab configures provider CLIs for non-interactive runs inside the active project workspace. Each agent stores its own provider configuration, and long-running runs can stream bounded progress updates back through Telegram by default.
 
 - `openai`: `api_key` with `OPENAI_API_KEY` or `oauth` with `codex login`
-- `anthropic`: `api_key` with `ANTHROPIC_API_KEY`
+- `anthropic`: `api_key` with `ANTHROPIC_API_KEY` or `oauth` with `claude auth login`
 - `gemini`: `api_key` with `GEMINI_API_KEY` or `oauth` with the `gemini` CLI login
 - `minimax`: `api_key` with `MINIMAX_API_KEY`
 - `xai`: `api_key` with `XAI_API_KEY` through the `pi` runtime
@@ -223,6 +223,10 @@ opencolab setup api-key --provider gemini --api-key <your_gemini_key>
 # OpenAI OAuth
 codex login
 opencolab setup model --provider openai --auth oauth --model gpt-5.3-codex
+
+# Anthropic OAuth
+claude auth login
+opencolab setup model --provider anthropic --auth oauth --model claude-opus-4-6
 
 # Gemini OAuth
 gemini

@@ -19,7 +19,12 @@ import {
   getProviderOauthSetupHint,
   resolveProviderAuthMode
 } from "./provider.js";
-import { getProviderApiKeyEnvVar, resolveOpenAiOauthStatus, resolveProviderApiKey } from "./secrets.js";
+import {
+  getProviderApiKeyEnvVar,
+  resolveAnthropicOauthStatus,
+  resolveOpenAiOauthStatus,
+  resolveProviderApiKey
+} from "./secrets.js";
 import type {
   AgentMemoryContext,
   OpenColabState,
@@ -110,6 +115,15 @@ export class ProviderAgent {
 
     if (provider.name === "openai" && authMode === "oauth") {
       const oauthStatus = resolveOpenAiOauthStatus(provider.cliCommand);
+      if (!oauthStatus.authenticated) {
+        throw new Error(
+          getProviderOauthMissingSessionMessage(provider.name, provider.cliCommand, oauthStatus.detail)
+        );
+      }
+    }
+
+    if (provider.name === "anthropic" && authMode === "oauth") {
+      const oauthStatus = resolveAnthropicOauthStatus(provider.cliCommand);
       if (!oauthStatus.authenticated) {
         throw new Error(
           getProviderOauthMissingSessionMessage(provider.name, provider.cliCommand, oauthStatus.detail)
@@ -488,11 +502,27 @@ function normalizeProviderCliError(
   authMode: ProviderAuthMode,
   message: string
 ): string {
-  if (provider.name !== "gemini" || authMode !== "oauth") {
+  if (authMode !== "oauth") {
     return message;
   }
 
   const normalized = message.toLowerCase();
+  if (provider.name === "anthropic") {
+    if (
+      normalized.includes("not logged in") ||
+      normalized.includes("/login") ||
+      normalized.includes("authentication") ||
+      normalized.includes("anthropic_api_key")
+    ) {
+      return getProviderOauthMissingSessionMessage(provider.name, provider.cliCommand, message);
+    }
+    return message;
+  }
+
+  if (provider.name !== "gemini") {
+    return message;
+  }
+
   if (
     normalized.includes("login with google") ||
     normalized.includes("not authenticated") ||
@@ -509,6 +539,9 @@ function normalizeProviderCliError(
 
 function normalizeProviderCliTimeout(provider: ProviderConfig, authMode: ProviderAuthMode): string {
   const providerLabel = provider.name.replaceAll("_", " ");
+  if (provider.name === "anthropic" && authMode === "oauth") {
+    return `${providerLabel} CLI timed out. ${getProviderOauthSetupHint(provider.name, provider.cliCommand)}`;
+  }
   if (provider.name === "gemini" && authMode === "oauth") {
     return `${providerLabel} CLI timed out. ${getProviderOauthSetupHint(provider.name, provider.cliCommand)}`;
   }

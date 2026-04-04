@@ -386,6 +386,57 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
   }
 });
 
+test("ignite supports Anthropic oauth mode without asking for API key", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-anthropic-oauth-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "",
+    "anthropic",
+    "oauth",
+    "claude-opus-4-6",
+    "n",
+    "n",
+    "n"
+  ];
+  const prompts: string[] = [];
+  const outputs: string[] = [];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async (prompt) => {
+          prompts.push(prompt);
+          return answers.shift() ?? "";
+        },
+        write: (line) => {
+          outputs.push(line);
+        }
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.runtime, "claude");
+    assert.equal(agent.provider.model, "claude-opus-4-6");
+    assert.equal(prompts.some((prompt) => prompt.includes("ANTHROPIC_API_KEY value")), false);
+    assert.equal(outputs.some((line) => line.includes("claude auth login")), true);
+    assert.equal(process.env.ANTHROPIC_API_KEY, undefined);
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("ignite supports configuring the Gemini provider with a concrete model name", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-gemini-"));
   const previousEnv = clearSecretEnvVars();

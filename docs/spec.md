@@ -284,15 +284,17 @@ Responsibilities:
 - configure provider for the active agent
 - provider configuration must ask for provider and model, and must support provider auth mode selection when available
 - `ignite` should offer curated concrete model options per provider ordered from smarter to less smart; Gemini options must include `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`; MiniMax options must include `MiniMax-M2.5` and `MiniMax-M2.7`
-- OpenAI and Gemini provider auth modes must support `api_key` and `oauth`
+- OpenAI, Anthropic, and Gemini provider auth modes must support `api_key` and `oauth`
 - in `api_key` mode, provider API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, or `XAI_API_KEY`)
 - when `ignite` asks for a provider or Runpod API key value, it should print a direct setup URL for that key first
 - when `ignite` asks for `TELEGRAM_BOT_TOKEN`, it should print a BotFather instruction first
 - in OpenAI `oauth` mode, setup must not require `OPENAI_API_KEY`
+- in Anthropic `oauth` mode, setup must not require `ANTHROPIC_API_KEY`
 - in Gemini `oauth` mode, setup must not require `GEMINI_API_KEY`
 - Gemini-based built-in shared tools must use `GEMINI_API_KEY` even when the active agent runtime uses a different provider or Gemini `oauth`
 - the shared `pageindex-grounded` skill must be able to use `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini `oauth`
 - in OpenAI `oauth` mode, runtime preflight must verify Codex login state and return remediation guidance if login is missing
+- in Anthropic `oauth` mode, runtime preflight must verify Claude Code login state and return remediation guidance if login is missing or only `ANTHROPIC_API_KEY` auth is active
 - in Gemini `oauth` mode, runtime must return remediation guidance when the CLI reports missing Google login or missing Gemini credentials
 - provider CLI command/args must be auto-derived from internal defaults
 - provider CLI defaults must support non-interactive execution with write access to the active project workspace
@@ -383,8 +385,8 @@ Provider/runtime notes:
 - provider configuration is stored on each agent, not on the project
 - execution-target configuration is stored on each project, not on the agent provider config
 - provider config includes auth mode (`api_key` or `oauth` where supported)
-- OpenAI and Gemini support `api_key` and `oauth` auth modes
-- Anthropic and MiniMax are `api_key` only in v1
+- OpenAI, Anthropic, and Gemini support `api_key` and `oauth` auth modes
+- MiniMax is `api_key` only in v1
 - some providers may reuse an existing CLI runtime instead of shipping a dedicated CLI
 - `gemini` uses the `gemini` CLI runtime
 - Gemini v1 scope is limited to Google login (`oauth`) or `GEMINI_API_KEY`; Vertex AI auth is out of scope
@@ -506,6 +508,7 @@ Notes:
 
 - secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, `TELEGRAM_BOT_TOKEN`)
 - when OpenAI auth mode is `oauth`, `OPENAI_API_KEY` is optional
+- when Anthropic auth mode is `oauth`, `ANTHROPIC_API_KEY` is optional
 - when Gemini auth mode is `oauth`, `GEMINI_API_KEY` is optional
 - execution targets belong at project scope, not inside per-agent provider configuration
 - SSH private keys must not be embedded in `opencolab.json`

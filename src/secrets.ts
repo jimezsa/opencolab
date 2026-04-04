@@ -10,7 +10,7 @@ import type { ProviderName } from "./types.js";
 
 export const TELEGRAM_BOT_TOKEN_ENV_VAR = "TELEGRAM_BOT_TOKEN";
 export const RUNPOD_API_KEY_ENV_VAR = "RUNPOD_API_KEY";
-const OPENAI_OAUTH_STATUS_TIMEOUT_MS = 5_000;
+const OAUTH_STATUS_TIMEOUT_MS = 5_000;
 
 interface CommandResult {
   status: number | null;
@@ -21,7 +21,9 @@ interface CommandResult {
 
 type LoginStatusExecutor = (cliCommand: string) => CommandResult;
 
-export interface OpenAiOauthStatus {
+type AuthStatusExecutor = (cliCommand: string) => CommandResult;
+
+export interface ProviderOauthStatus {
   authenticated: boolean;
   detail?: string;
 }
@@ -61,7 +63,7 @@ export function hasRunpodApiKey(): boolean {
 export function resolveOpenAiOauthStatus(
   cliCommand = "codex",
   executeLoginStatus: LoginStatusExecutor = runOpenAiLoginStatusCommand
-): OpenAiOauthStatus {
+): ProviderOauthStatus {
   const result = executeLoginStatus(cliCommand);
   const output = `${result.stdout}\n${result.stderr}`.trim();
   const normalized = output.toLowerCase();
@@ -91,6 +93,53 @@ export function resolveOpenAiOauthStatus(
   return {
     authenticated: false,
     detail: fallbackDetail
+  };
+}
+
+export function resolveAnthropicOauthStatus(
+  cliCommand = "claude",
+  executeAuthStatus: AuthStatusExecutor = runAnthropicAuthStatusCommand
+): ProviderOauthStatus {
+  const result = executeAuthStatus(cliCommand);
+  const output = `${result.stdout}\n${result.stderr}`.trim();
+
+  if (result.error) {
+    return {
+      authenticated: false,
+      detail: result.error.message
+    };
+  }
+
+  const parsed = parseJsonObject(output);
+  if (!parsed) {
+    return {
+      authenticated: false,
+      detail: output || `${cliCommand} auth status returned ${String(result.status)}.`
+    };
+  }
+
+  const loggedIn = parsed.loggedIn === true;
+  const authMethod = normalizeAnthropicAuthMethod(parsed.authMethod);
+  if (loggedIn && authMethod !== "api_key") {
+    return {
+      authenticated: true,
+      detail: output
+    };
+  }
+
+  if (loggedIn && authMethod === "api_key") {
+    const apiKeySource = asNonEmptyString(parsed.apiKeySource);
+    return {
+      authenticated: false,
+      detail: apiKeySource
+        ? `${cliCommand} auth status is using ${apiKeySource}; OAuth mode requires a stored Claude Code login.`
+        : `${cliCommand} auth status is using API key auth; OAuth mode requires a stored Claude Code login.`
+    };
+  }
+
+  return {
+    authenticated: false,
+    detail: output || `${cliCommand} auth status reported no active session.`
   };
 }
 
@@ -153,7 +202,8 @@ function readEnvValue(key: string): string | null {
 function runOpenAiLoginStatusCommand(cliCommand: string): CommandResult {
   const result = spawnSync(cliCommand, ["login", "status"], {
     encoding: "utf8",
-    timeout: OPENAI_OAUTH_STATUS_TIMEOUT_MS,
+    env: buildCommandEnv(process.env, ["OPENAI_API_KEY"]),
+    timeout: OAUTH_STATUS_TIMEOUT_MS,
     stdio: ["ignore", "pipe", "pipe"]
   });
 
@@ -163,6 +213,70 @@ function runOpenAiLoginStatusCommand(cliCommand: string): CommandResult {
     stderr: result.stderr ?? "",
     error: result.error ?? null
   };
+}
+
+function runAnthropicAuthStatusCommand(cliCommand: string): CommandResult {
+  const result = spawnSync(cliCommand, ["auth", "status", "--json"], {
+    encoding: "utf8",
+    env: buildCommandEnv(process.env, [
+      "ANTHROPIC_API_KEY",
+      "ANTHROPIC_AUTH_TOKEN",
+      "ANTHROPIC_BASE_URL",
+      "ANTHROPIC_MODEL",
+      "ANTHROPIC_SMALL_FAST_MODEL",
+      "ANTHROPIC_DEFAULT_SONNET_MODEL",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL",
+      "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+      "API_TIMEOUT_MS",
+      "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"
+    ]),
+    timeout: OAUTH_STATUS_TIMEOUT_MS,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  return {
+    status: result.status,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? "",
+    error: result.error ?? null
+  };
+}
+
+function buildCommandEnv(
+  baseEnv: NodeJS.ProcessEnv,
+  keysToClear: string[]
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...baseEnv };
+  for (const key of keysToClear) {
+    delete env[key];
+  }
+  return env;
+}
+
+function parseJsonObject(raw: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function normalizeAnthropicAuthMethod(value: unknown): string | null {
+  const normalized = asNonEmptyString(value)?.toLowerCase();
+  return normalized ?? null;
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 function parseEnvLine(rawLine: string): { key: string; value: string } | null {

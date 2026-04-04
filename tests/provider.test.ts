@@ -60,6 +60,31 @@ test("OpenAI setup defaults support OAuth and API key auth modes", () => {
   assert.equal(normalizeProviderAuthMode("oauth"), "oauth");
 });
 
+test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
+  const defaults = getProviderSetupDefaults("anthropic");
+  assert.equal(defaults.model, "claude-opus-4-6");
+  assert.equal(defaults.runtime, "claude");
+  assert.equal(defaults.cliCommand, "claude");
+  assert.equal(defaults.authMode, "api_key");
+  assert.deepEqual(defaults.cliArgs, [
+    "-p",
+    "{prompt}",
+    "--model",
+    "{model}",
+    "--permission-mode",
+    "bypassPermissions",
+    "--add-dir",
+    "{project_dir}",
+    "--add-dir",
+    "{shared_skills_dir}"
+  ]);
+  assert.deepEqual(getProviderSupportedAuthModes("anthropic"), ["api_key", "oauth"]);
+  assert.equal(
+    getProviderOauthSetupHint("anthropic", "claude"),
+    "Run 'claude auth login' if needed."
+  );
+});
+
 test("Gemini setup defaults use concrete model names and support OAuth", () => {
   const defaults = getProviderSetupDefaults("gemini");
   assert.equal(defaults.model, "gemini-2.5-pro");
@@ -153,6 +178,29 @@ test("Anthropic runtime env clears MiniMax-specific Claude gateway overrides", (
   assert.equal(env.ANTHROPIC_AUTH_TOKEN, undefined);
   assert.equal(env.ANTHROPIC_BASE_URL, undefined);
   assert.equal(env.ANTHROPIC_MODEL, undefined);
+  assert.equal(env.API_TIMEOUT_MS, undefined);
+  assert.equal(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, undefined);
+});
+
+test("Anthropic OAuth runtime env clears Claude API key and gateway overrides", () => {
+  const env = buildProviderRuntimeEnv(
+    {
+      ANTHROPIC_API_KEY: "stale-key",
+      ANTHROPIC_AUTH_TOKEN: "stale-token",
+      ANTHROPIC_BASE_URL: "https://api.minimax.io/anthropic",
+      API_TIMEOUT_MS: "3000000",
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+      PATH: process.env.PATH
+    },
+    "anthropic",
+    "oauth",
+    null,
+    "claude-opus-4-6"
+  );
+
+  assert.equal(env.ANTHROPIC_API_KEY, undefined);
+  assert.equal(env.ANTHROPIC_AUTH_TOKEN, undefined);
+  assert.equal(env.ANTHROPIC_BASE_URL, undefined);
   assert.equal(env.API_TIMEOUT_MS, undefined);
   assert.equal(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, undefined);
 });

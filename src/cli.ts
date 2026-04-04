@@ -543,7 +543,7 @@ function usageSetupModel(): string {
     helpFlag("--agent-id <id>", "Target agent id (default: active agent)"),
     helpFlag(`--provider ${providerChoices}`, "Provider identifier"),
     helpFlag("--model <model>", "Provider model name"),
-    helpFlag("--auth api-key|oauth", "Provider auth mode (OpenAI and Gemini support oauth)"),
+    helpFlag("--auth api-key|oauth", "Provider auth mode (OpenAI, Anthropic, and Gemini support oauth)"),
     helpFlag("--api-key <value>", "Provider API key value (saved to .env.local)"),
     "",
     "Notes:",

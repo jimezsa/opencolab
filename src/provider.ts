@@ -109,7 +109,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     cliArgs: [...CLAUDE_WORKSPACE_ARGS],
     authMode: "api_key",
     apiKeyEnvVar: "ANTHROPIC_API_KEY",
-    supportedAuthModes: ["api_key"],
+    supportedAuthModes: ["api_key", "oauth"],
     aliases: ["claude_code"],
     resetEnvVars: [...CLAUDE_RUNTIME_RESET_ENV_VARS],
     legacyCliDefaults: {
@@ -117,9 +117,13 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
       cliCommand: "claude",
       cliArgs: ["-p", "{prompt}", "--model", "{model}"]
     },
-    buildRuntimeEnv: (apiKey) => ({
-      ANTHROPIC_API_KEY: requireApiKey(apiKey, "ANTHROPIC_API_KEY")
-    })
+    buildRuntimeEnv: (apiKey, _model, authMode) => {
+      const env: Record<string, string> = {};
+      if (authMode !== "oauth") {
+        env.ANTHROPIC_API_KEY = requireApiKey(apiKey, "ANTHROPIC_API_KEY");
+      }
+      return env;
+    }
   },
   gemini: {
     runtime: "gemini",
@@ -298,6 +302,9 @@ export function getProviderOauthSetupHint(providerName: ProviderName, cliCommand
   if (providerName === "openai") {
     return `Run '${cliCommand} login' if needed.`;
   }
+  if (providerName === "anthropic") {
+    return `Run '${cliCommand} auth login' if needed.`;
+  }
   if (providerName === "gemini") {
     return `Run '${cliCommand}' and choose Login with Google if needed.`;
   }
@@ -312,7 +319,9 @@ export function getProviderOauthMissingSessionMessage(
   const base =
     providerName === "openai"
       ? `OpenAI OAuth login required. Run '${cliCommand} login' and retry.`
-      : `Gemini OAuth login required. Run '${cliCommand}' and choose Login with Google, then retry.`;
+      : providerName === "anthropic"
+        ? `Anthropic OAuth login required. Run '${cliCommand} auth login' and retry.`
+        : `Gemini OAuth login required. Run '${cliCommand}' and choose Login with Google, then retry.`;
   return detail ? `${base} (${detail})` : base;
 }
 
