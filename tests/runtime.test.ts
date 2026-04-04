@@ -1523,6 +1523,102 @@ test("paired webhook renders one live status surface before the final answer wit
   }
 });
 
+test("group chats stream recent tool activity through one editable live status message", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-group-live-status-"));
+  const sentTexts: string[] = [];
+  const statusCreates: string[] = [];
+  const statusEdits: string[] = [];
+  let draftCalls = 0;
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramDraftSender: async () => {
+      draftCalls += 1;
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text) => {
+      statusCreates.push(text);
+      return "status-1";
+    },
+    telegramMessageEditor: async (_chatId, _messageId, text) => {
+      statusEdits.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }, options) => {
+      await options?.onProgress?.({
+        kind: "progress",
+        stage: "inspect",
+        slot: "inspect:read:README.md",
+        message: "Read README.md."
+      });
+      await options?.onProgress?.({
+        kind: "progress",
+        stage: "search",
+        slot: "search:sendMessageDraft",
+        message: "Search the workspace for \"sendMessageDraft\"."
+      });
+      await options?.onProgress?.({
+        kind: "progress",
+        stage: "edit",
+        slot: "edit:src/gateway.ts",
+        message: "Edit src/gateway.ts."
+      });
+      await options?.onProgress?.({
+        kind: "progress",
+        stage: "run",
+        slot: "run:pnpm test",
+        message: "Run pnpm test."
+      });
+      await options?.onProgress?.({
+        kind: "completed",
+        stage: "finalize",
+        slot: "finalize",
+        message: "Preparing the final answer."
+      });
+      return `research:${text}`;
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "show me the live activity",
+        chat: { id: "10001", type: "group" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.deepEqual(sentTexts, ["research:show me the live activity"]);
+    assert.equal(draftCalls, 0);
+    assert.equal(statusCreates.length, 1);
+    assert.equal(statusCreates[0].startsWith("Agent activity"), true);
+    assert.equal(statusCreates[0].includes("Read README.md."), true);
+    assert.deepEqual(statusEdits.length, 1);
+    assert.equal(statusEdits[0].startsWith("Finalizing"), true);
+    assert.equal(statusEdits[0].includes("Read README.md."), true);
+    assert.equal(statusEdits[0].includes("Search the workspace for \"sendMessageDraft\"."), true);
+    assert.equal(statusEdits[0].includes("Edit src/gateway.ts."), true);
+    assert.equal(statusEdits[0].includes("Run pnpm test."), true);
+    assert.equal(statusEdits[0].includes("Preparing the final answer."), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("provider CLI native stream events are normalized into Telegram live status before the final response", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-stream-json-"));
   const sentTexts: string[] = [];
@@ -1589,9 +1685,9 @@ test("provider CLI native stream events are normalized into Telegram live status
     assert.equal(result.action, "agent_response");
     assert.deepEqual(sentTexts, ["paper search complete"]);
     assert.equal(statusCreates.length, 1);
-    assert.equal(statusCreates[0].includes("Reviewing the current implementation."), true);
+    assert.equal(statusCreates[0].includes("Read README.md."), true);
     assert.deepEqual(statusEdits.length, 1);
-    assert.equal(statusEdits[0].includes("Running checks."), true);
+    assert.equal(statusEdits[0].includes("Run pnpm test."), true);
     assert.equal(statusEdits[0].includes("Preparing the final answer."), true);
   } finally {
     if (originalAnthropicKey === undefined) {

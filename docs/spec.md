@@ -725,16 +725,19 @@ Notes:
 
 For routed tasks with meaningful duration, the gateway should expose status in this order:
 
-1. immediate acknowledgment
-2. one bounded live status surface during execution
+1. startup feedback while work begins
+2. one bounded live status surface during execution after real progress exists
 3. final consolidated answer
 
 Requirements:
 
-- if a task is expected to take more than a few seconds, the user should receive an acknowledgment quickly instead of waiting only on `typing`
+- the gateway must not send a generic placeholder status message before meaningful runtime progress exists
 - the gateway must keep the final completion message distinct from the live status surface
 - paired private chats should prefer Telegram `sendMessageDraft`
+- group chats, supergroups, and channels must use one editable status message via `sendMessage` plus `editMessageText`
 - when draft mode is unavailable, ineligible, or fails, the gateway should fall back to one editable status message using `sendMessage` plus `editMessageText`
+- private chats should compress low-level tool events into a small number of current work phases
+- group chats should render a bounded recent tool-activity list derived from runtime events so users can see what the agent is actively doing
 - the gateway should throttle repetitive status updates so users see stage changes, not a token-by-token transcript
 - group chats must use a stricter throttle than one-to-one chats
 - `warning` and `needs_input` events may bypass normal throttling when they materially affect the run
@@ -743,10 +746,12 @@ Requirements:
 
 Recommended UX policy:
 
-- send first acknowledgment within 1-2 seconds for long tasks
+- create the live status surface only after the first meaningful runtime event
 - render one short heading plus a few current lines instead of a transcript
+- in paired private chats, prefer phase-level summaries such as inspection, editing, checks, or finalizing
+- in group chats, prefer recent user-facing tool actions such as read, search, edit, run, or fetch
 - send updates only on meaningful stage changes, count deltas, blockers, or transitions that help the user
-- avoid raw tool names, raw JSON, token-by-token prose, and command-by-command chatter
+- avoid raw tool names, raw JSON, token-by-token prose, internal reasoning, and exhaustive command transcripts
 - avoid more than a small handful of status rewrites per run in group chats
 
 ### 13.3 Skill and Agent Authoring Rules

@@ -103,6 +103,7 @@ const MAX_TELEGRAM_CALLBACK_TEXT_CHARS = 180;
 const EDITABLE_STATUS_THROTTLE_MS = 3_000;
 const DRAFT_STATUS_THROTTLE_MS = 1_200;
 const MAX_LIVE_STATUS_LINES = 4;
+const MAX_GROUP_LIVE_STATUS_LINES = 5;
 const SUPPORTED_TELEGRAM_COMMANDS_TEXT =
   "Supported commands: /projects | /agents | /session_reset";
 
@@ -175,7 +176,7 @@ class TelegramLiveStatusSession {
       return;
     }
 
-    const slot = resolveProgressSlot(event);
+    const slot = this.resolveSlot(event);
     this.lines.set(slot, {
       slot,
       message,
@@ -184,7 +185,7 @@ class TelegramLiveStatusSession {
     });
 
     const ordered = [...this.lines.values()].sort((left, right) => left.updatedAt - right.updatedAt);
-    while (ordered.length > MAX_LIVE_STATUS_LINES) {
+    while (ordered.length > this.maxLineCount()) {
       const first = ordered.shift();
       if (!first) {
         break;
@@ -244,7 +245,9 @@ class TelegramLiveStatusSession {
           ? "Need input"
           : latestKind === "completed"
             ? "Finalizing"
-            : "Working on it";
+            : this.showsActivityFeed()
+              ? "Agent activity"
+              : "Working on it";
 
     return [
       heading,
@@ -313,6 +316,31 @@ class TelegramLiveStatusSession {
 
     this.transport = "disabled";
     return false;
+  }
+
+  private showsActivityFeed(): boolean {
+    return (
+      this.inbound.chatType === "group" ||
+      this.inbound.chatType === "supergroup" ||
+      this.inbound.chatType === "channel"
+    );
+  }
+
+  private maxLineCount(): number {
+    return this.showsActivityFeed()
+      ? MAX_GROUP_LIVE_STATUS_LINES
+      : MAX_LIVE_STATUS_LINES;
+  }
+
+  private resolveSlot(event: TaskProgressEvent): string {
+    if (!this.showsActivityFeed()) {
+      return (
+        normalizeProgressMessage(event.stage ?? "") ||
+        normalizeProgressMessage(event.kind === "completed" ? "finalize" : event.kind) ||
+        resolveProgressSlot(event)
+      );
+    }
+    return resolveProgressSlot(event);
   }
 }
 

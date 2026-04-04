@@ -388,8 +388,10 @@ opencolab gateway restart --port 4646
 - Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible
 - Agents can return files with raw `@telegram-file <json>` lines using relative or absolute local paths
 - Long-running work uses one bounded live status surface before the final answer instead of sending a stream of progress messages
-- In paired private chats, OpenColab prefers Telegram `sendMessageDraft`; otherwise it falls back to one editable status message
-- `sendChatAction` remains a short startup fallback while the live status surface is being created
+- OpenColab waits for real runtime progress before creating the live status surface; it does not send a generic placeholder status card
+- In paired private chats, OpenColab prefers Telegram `sendMessageDraft` and keeps the live status compact
+- In groups and other non-private chats, OpenColab uses one editable status message and streams a bounded recent tool-activity list
+- `sendChatAction` remains active as startup feedback and as fallback when no live status event is available
 - If provider execution fails because of auth, timeout, or CLI setup problems, OpenColab sends a Telegram error reply instead of silently retrying
 
 ## Project and Agent Commands

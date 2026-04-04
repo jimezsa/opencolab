@@ -684,12 +684,13 @@ function describeCodexEventProgress(
     return describeToolProgress("exec_command", parsed);
   }
   if (normalized.includes("apply_patch") || normalized.includes("patch")) {
-    return {
-      kind: "progress",
-      stage: "edit",
-      slot: "edit",
-      message: "Editing the implementation."
-    };
+    return describeToolProgress("apply_patch", parsed);
+  }
+  if (normalized.includes("write") || normalized.includes("edit")) {
+    return describeToolProgress("write", parsed);
+  }
+  if (normalized.includes("search") || normalized.includes("read")) {
+    return describeToolProgress(type, parsed);
   }
   if (normalized.includes("message")) {
     const text = extractUnknownText(parsed);
@@ -697,8 +698,8 @@ function describeCodexEventProgress(
       return {
         kind: "progress",
         stage: "inspect",
-        slot: "inspect",
-        message: "Reviewing the current implementation."
+        slot: "inspect:plan",
+        message: "Planning the next step."
       };
     }
   }
@@ -782,19 +783,23 @@ function describeToolProgress(
 
   if (
     toolName.includes("read") ||
+    toolName.includes("view") ||
+    toolName.includes("cat") ||
+    toolName.includes("open")
+  ) {
+    return describeReadToolProgress(payload);
+  }
+
+  if (
     toolName.includes("grep") ||
     toolName.includes("find") ||
     toolName.includes("glob") ||
     toolName.includes("search") ||
+    toolName.includes("rg") ||
     toolName.includes("ls") ||
-    toolName.includes("view")
+    toolName.includes("tree")
   ) {
-    return {
-      kind: "progress",
-      stage: "inspect",
-      slot: "inspect",
-      message: "Reviewing the current implementation."
-    };
+    return describeSearchToolProgress(payload);
   }
 
   if (
@@ -804,12 +809,7 @@ function describeToolProgress(
     toolName.includes("replace") ||
     toolName.includes("apply")
   ) {
-    return {
-      kind: "progress",
-      stage: "edit",
-      slot: "edit",
-      message: "Editing the implementation."
-    };
+    return describeEditToolProgress(payload);
   }
 
   if (
@@ -819,45 +819,123 @@ function describeToolProgress(
     toolName.includes("command") ||
     toolName.includes("terminal")
   ) {
-    const command = extractCommandText(payload);
-    if (command && /\b(test|lint|build|check|pytest|vitest|jest|pnpm test|npm test|cargo test|go test|make test)\b/i.test(command)) {
-      return {
-        kind: "progress",
-        stage: "run",
-        slot: "run",
-        message: "Running checks."
-      };
-    }
-    if (command && /\b(curl|wget|http|fetch)\b/i.test(command)) {
-      return {
-        kind: "progress",
-        stage: "search",
-        slot: "search",
-        message: "Checking relevant docs."
-      };
-    }
-    return {
-      kind: "progress",
-      stage: "run",
-      slot: "run",
-      message: "Running project commands."
-    };
+    return describeCommandToolProgress(payload);
   }
 
   if (toolName.includes("web") || toolName.includes("browser") || toolName.includes("http")) {
-    return {
-      kind: "progress",
-      stage: "search",
-      slot: "search",
-      message: "Checking relevant docs."
-    };
+    return describeWebToolProgress(payload);
   }
 
+  return buildToolProgressEvent(
+    "inspect",
+    `inspect:${slotToken(toolName)}`,
+    `Use ${formatInlinePreview(toolName.replaceAll("_", " "), 48)}.`
+  );
+}
+
+function describeReadToolProgress(payload?: Record<string, unknown> | null): TaskProgressEvent {
+  const filePath = formatPathPreview(extractPathText(payload));
+  if (filePath) {
+    return buildToolProgressEvent("inspect", `inspect:${slotToken(filePath)}`, `Read ${filePath}.`);
+  }
+
+  return buildToolProgressEvent("inspect", "inspect:workspace", "Read the relevant files.");
+}
+
+function describeSearchToolProgress(payload?: Record<string, unknown> | null): TaskProgressEvent {
+  const filePath = formatPathPreview(extractPathText(payload));
+  const directory = formatPathPreview(extractDirectoryText(payload));
+  const query = formatQuotedPreview(extractSearchQueryText(payload));
+
+  if (query && filePath) {
+    return buildToolProgressEvent(
+      "search",
+      `search:${slotToken(`${filePath}:${query}`)}`,
+      `Search ${filePath} for ${query}.`
+    );
+  }
+
+  if (query) {
+    return buildToolProgressEvent(
+      "search",
+      `search:${slotToken(query)}`,
+      `Search the workspace for ${query}.`
+    );
+  }
+
+  if (directory) {
+    return buildToolProgressEvent(
+      "inspect",
+      `inspect:${slotToken(directory)}`,
+      `Inspect files in ${directory}.`
+    );
+  }
+
+  if (filePath) {
+    return buildToolProgressEvent(
+      "inspect",
+      `inspect:${slotToken(filePath)}`,
+      `Inspect files in ${filePath}.`
+    );
+  }
+
+  return buildToolProgressEvent("search", "search:workspace", "Search the relevant files.");
+}
+
+function describeEditToolProgress(payload?: Record<string, unknown> | null): TaskProgressEvent {
+  const filePath = formatPathPreview(extractPathText(payload));
+  if (filePath) {
+    return buildToolProgressEvent("edit", `edit:${slotToken(filePath)}`, `Edit ${filePath}.`);
+  }
+
+  return buildToolProgressEvent("edit", "edit:workspace", "Apply code changes.");
+}
+
+function describeCommandToolProgress(payload?: Record<string, unknown> | null): TaskProgressEvent {
+  const command = formatCommandPreview(extractCommandText(payload));
+  if (!command) {
+    return buildToolProgressEvent("run", "run:command", "Run a project command.");
+  }
+
+  if (/\b(test|lint|build|check|pytest|vitest|jest|pnpm test|npm test|cargo test|go test|make test)\b/i.test(command)) {
+    return buildToolProgressEvent("run", `run:${slotToken(command)}`, `Run ${command}.`);
+  }
+
+  if (/\b(curl|wget|fetch)\b/i.test(command) || /^https?:\/\//i.test(command)) {
+    const url = formatUrlPreview(extractUrlText(payload) ?? extractUrlFromText(command));
+    if (url) {
+      return buildToolProgressEvent("search", `search:${slotToken(url)}`, `Fetch docs from ${url}.`);
+    }
+    return buildToolProgressEvent("search", `search:${slotToken(command)}`, `Fetch external docs.`);
+  }
+
+  if (/\b(rg|grep|find|fd|ls|tree|sed|awk|cat|head|tail)\b/i.test(command)) {
+    return buildToolProgressEvent("inspect", `inspect:${slotToken(command)}`, `Run ${command}.`);
+  }
+
+  return buildToolProgressEvent("run", `run:${slotToken(command)}`, `Run ${command}.`);
+}
+
+function describeWebToolProgress(payload?: Record<string, unknown> | null): TaskProgressEvent {
+  const query = formatQuotedPreview(extractSearchQueryText(payload));
+  if (query) {
+    return buildToolProgressEvent("search", `search:${slotToken(query)}`, `Check docs for ${query}.`);
+  }
+
+  const url = formatUrlPreview(extractUrlText(payload));
+  if (url) {
+    return buildToolProgressEvent("search", `search:${slotToken(url)}`, `Open docs at ${url}.`);
+  }
+
+  return buildToolProgressEvent("search", "search:web", "Check relevant docs.");
+}
+
+function buildToolProgressEvent(stage: string, slot: string, message: string): TaskProgressEvent {
   return {
     kind: "progress",
-    stage: "inspect",
-    slot: "inspect",
-    message: "Working through the task."
+    stage,
+    slot,
+    message
   };
 }
 
@@ -867,15 +945,164 @@ function extractCommandText(payload?: Record<string, unknown> | null): string | 
   }
 
   const direct =
-    asProgressString(payload.command) ??
-    asProgressString(payload.cmd) ??
-    asProgressString(payload.commandLine) ??
-    asProgressString(payload.input);
+    extractToolField(payload, ["command", "cmd", "commandLine", "shell_command", "input"]);
   if (direct) {
     return direct;
   }
 
   return extractUnknownText(payload);
+}
+
+function extractPathText(payload?: Record<string, unknown> | null): string | null {
+  return extractToolField(payload, [
+    "path",
+    "file_path",
+    "filePath",
+    "filepath",
+    "file",
+    "target",
+    "target_path",
+    "targetPath",
+    "relative_path",
+    "relativePath"
+  ]);
+}
+
+function extractDirectoryText(payload?: Record<string, unknown> | null): string | null {
+  return extractToolField(payload, ["directory", "dir", "cwd", "root", "workspace"]);
+}
+
+function extractSearchQueryText(payload?: Record<string, unknown> | null): string | null {
+  return extractToolField(payload, [
+    "query",
+    "q",
+    "pattern",
+    "glob",
+    "regex",
+    "term",
+    "needle",
+    "search"
+  ]);
+}
+
+function extractUrlText(payload?: Record<string, unknown> | null): string | null {
+  return extractToolField(payload, ["url", "uri", "href"]);
+}
+
+function extractToolField(
+  payload: Record<string, unknown> | null | undefined,
+  keys: string[],
+  depth = 0
+): string | null {
+  if (!payload || depth > 2) {
+    return null;
+  }
+
+  for (const key of keys) {
+    if (!(key in payload)) {
+      continue;
+    }
+    const direct = extractUnknownText(payload[key]);
+    if (direct) {
+      return direct;
+    }
+  }
+
+  for (const nestedKey of ["input", "parameters", "args"]) {
+    const nested = asRecord(payload[nestedKey]);
+    const nestedValue = extractToolField(nested, keys, depth + 1);
+    if (nestedValue) {
+      return nestedValue;
+    }
+  }
+
+  return null;
+}
+
+function formatPathPreview(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value
+    .replace(/\s+/g, " ")
+    .replace(/^["'`]+/, "")
+    .replace(/["'`]+$/, "")
+    .trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length <= 72) {
+    return normalized;
+  }
+
+  const parts = normalized.split(/[\\/]/).filter(Boolean);
+  if (parts.length >= 3) {
+    const tail = parts.slice(-3).join("/");
+    if (tail.length <= 68) {
+      return `.../${tail}`;
+    }
+  }
+
+  return `${normalized.slice(0, 69)}...`;
+}
+
+function formatQuotedPreview(value: string | null): string | null {
+  const preview = formatInlinePreview(value, 60);
+  if (!preview) {
+    return null;
+  }
+  return `"${preview}"`;
+}
+
+function formatCommandPreview(value: string | null): string | null {
+  return formatInlinePreview(value, 80);
+}
+
+function formatUrlPreview(value: string | null): string | null {
+  const normalized = formatInlinePreview(value, 80);
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    return parsed.hostname || normalized;
+  } catch {
+    return normalized;
+  }
+}
+
+function extractUrlFromText(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  const match = value.match(/https?:\/\/\S+/i);
+  return match?.[0] ?? null;
+}
+
+function formatInlinePreview(value: string | null, limit: number): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value
+    .replace(/\s+/g, " ")
+    .replace(/^["'`]+/, "")
+    .replace(/["'`]+$/, "")
+    .trim();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.length <= limit) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(limit - 3, 0))}...`;
+}
+
+function slotToken(value: string): string {
+  return formatInlinePreview(value, 96)?.toLowerCase() ?? "item";
 }
 
 function extractPiAssistantText(message: Record<string, unknown> | null): string {
