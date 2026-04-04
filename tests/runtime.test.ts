@@ -1058,6 +1058,82 @@ test("setupModel stores xAI on the pi runtime with non-interactive defaults", ()
   }
 });
 
+test("setupModel stores OpenRouter on the pi runtime with non-interactive defaults", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-openrouter-pi-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "openrouter",
+      model: "openai/gpt-5-codex"
+    });
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "openrouter");
+    assert.equal(agent.provider.runtime, "pi");
+    assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.cliCommand, "pi");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "--print",
+      "--provider",
+      "{runtime_provider}",
+      "--model",
+      "{model}",
+      "--append-system-prompt",
+      "{system_prompt}",
+      "--no-session",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--tools",
+      "read,bash,edit,write,grep,find,ls",
+      "{user_message}"
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("setupModel stores Kimi on the pi runtime with non-interactive defaults", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-kimi-pi-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "kimi",
+      model: "k2p5"
+    });
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "kimi");
+    assert.equal(agent.provider.runtime, "pi");
+    assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.cliCommand, "pi");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "--print",
+      "--provider",
+      "{runtime_provider}",
+      "--model",
+      "{model}",
+      "--append-system-prompt",
+      "{system_prompt}",
+      "--no-session",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--tools",
+      "read,bash,edit,write,grep,find,ls",
+      "{user_message}"
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("pairing start sends code and complete validates it for active project", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-pairing-"));
   const sentTexts: string[] = [];

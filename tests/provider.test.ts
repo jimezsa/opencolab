@@ -4,6 +4,7 @@ import {
   buildProviderRuntimeEnv,
   getCanonicalProviderKeyEnvVar,
   getProviderOauthSetupHint,
+  getProviderRuntimeProviderName,
   getProviderSupportedAuthModes,
   getProviderSetupDefaults,
   normalizeProviderAuthMode,
@@ -18,6 +19,9 @@ test("normalizeProviderName supports built-in providers and aliases", () => {
   assert.equal(normalizeProviderName("gemini"), "gemini");
   assert.equal(normalizeProviderName("minimax"), "minimax");
   assert.equal(normalizeProviderName("xai"), "xai");
+  assert.equal(normalizeProviderName("openrouter"), "openrouter");
+  assert.equal(normalizeProviderName("kimi"), "kimi");
+  assert.equal(normalizeProviderName("kimi-coding"), "kimi");
   assert.equal(normalizeProviderName("unknown"), null);
 });
 
@@ -131,6 +135,62 @@ test("xAI setup defaults use the pi runtime", () => {
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("xai"), ["api_key"]);
   assert.equal(getCanonicalProviderKeyEnvVar("xai"), "XAI_API_KEY");
+});
+
+test("OpenRouter setup defaults use the pi runtime", () => {
+  const defaults = getProviderSetupDefaults("openrouter");
+  assert.equal(defaults.model, "openai/gpt-5-codex");
+  assert.equal(defaults.runtime, "pi");
+  assert.equal(defaults.cliCommand, "pi");
+  assert.equal(defaults.authMode, "api_key");
+  assert.deepEqual(defaults.cliArgs, [
+    "--print",
+    "--provider",
+    "{runtime_provider}",
+    "--model",
+    "{model}",
+    "--append-system-prompt",
+    "{system_prompt}",
+    "--no-session",
+    "--no-extensions",
+    "--no-skills",
+    "--no-prompt-templates",
+    "--no-themes",
+    "--tools",
+    "read,bash,edit,write,grep,find,ls",
+    "{user_message}"
+  ]);
+  assert.deepEqual(getProviderSupportedAuthModes("openrouter"), ["api_key"]);
+  assert.equal(getCanonicalProviderKeyEnvVar("openrouter"), "OPENROUTER_API_KEY");
+  assert.equal(getProviderRuntimeProviderName("openrouter"), "openrouter");
+});
+
+test("Kimi setup defaults use the pi runtime and kimi-coding provider id", () => {
+  const defaults = getProviderSetupDefaults("kimi");
+  assert.equal(defaults.model, "k2p5");
+  assert.equal(defaults.runtime, "pi");
+  assert.equal(defaults.cliCommand, "pi");
+  assert.equal(defaults.authMode, "api_key");
+  assert.deepEqual(defaults.cliArgs, [
+    "--print",
+    "--provider",
+    "{runtime_provider}",
+    "--model",
+    "{model}",
+    "--append-system-prompt",
+    "{system_prompt}",
+    "--no-session",
+    "--no-extensions",
+    "--no-skills",
+    "--no-prompt-templates",
+    "--no-themes",
+    "--tools",
+    "read,bash,edit,write,grep,find,ls",
+    "{user_message}"
+  ]);
+  assert.deepEqual(getProviderSupportedAuthModes("kimi"), ["api_key"]);
+  assert.equal(getCanonicalProviderKeyEnvVar("kimi"), "KIMI_API_KEY");
+  assert.equal(getProviderRuntimeProviderName("kimi"), "kimi-coding");
 });
 
 test("MiniMax runtime env uses the Anthropic-compatible gateway without leaking parent Anthropic settings", () => {
@@ -258,4 +318,34 @@ test("xAI runtime env clears stale XAI_API_KEY values before injecting the selec
   );
 
   assert.equal(env.XAI_API_KEY, "xai_test_key");
+});
+
+test("OpenRouter runtime env clears stale OPENROUTER_API_KEY values before injecting the selected credential", () => {
+  const env = buildProviderRuntimeEnv(
+    {
+      OPENROUTER_API_KEY: "stale-key",
+      PATH: process.env.PATH
+    },
+    "openrouter",
+    "api_key",
+    "openrouter_test_key",
+    "openai/gpt-5-codex"
+  );
+
+  assert.equal(env.OPENROUTER_API_KEY, "openrouter_test_key");
+});
+
+test("Kimi runtime env clears stale KIMI_API_KEY values before injecting the selected credential", () => {
+  const env = buildProviderRuntimeEnv(
+    {
+      KIMI_API_KEY: "stale-key",
+      PATH: process.env.PATH
+    },
+    "kimi",
+    "api_key",
+    "kimi_test_key",
+    "k2p5"
+  );
+
+  assert.equal(env.KIMI_API_KEY, "kimi_test_key");
 });

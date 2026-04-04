@@ -118,7 +118,7 @@ Useful repository checks:
 ## Commit & Pull Request Guidelines
 Use Conventional Commits:
 
-- `feat: add xai provider onboarding`
+- `feat: add pi-backed provider onboarding`
 - `fix: preserve active agent during state normalization`
 - `docs: sync spec readme and agents guidance`
 - `test: cover telegram file routing fallback`

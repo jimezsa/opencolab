@@ -17,6 +17,7 @@ import {
   buildProviderRuntimeEnv,
   getProviderOauthMissingSessionMessage,
   getProviderOauthSetupHint,
+  getProviderRuntimeProviderName,
   resolveProviderAuthMode
 } from "./provider.js";
 import {
@@ -137,7 +138,7 @@ export class ProviderAgent {
     const resolvedArgs = provider.cliArgs.map((arg: string) =>
       replaceCliArgTokens(arg, {
         "{provider}": provider.name,
-        "{runtime_provider}": provider.name,
+        "{runtime_provider}": getProviderRuntimeProviderName(provider.name),
         "{model}": provider.model,
         "{project_dir}": projectDir,
         "{shared_skills_dir}": sharedSkillsDir,

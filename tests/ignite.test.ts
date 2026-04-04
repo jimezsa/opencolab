@@ -657,6 +657,132 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
   }
 });
 
+test("ignite supports configuring OpenRouter on the pi runtime", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-openrouter-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "",
+    "openrouter",
+    "openai/gpt-5-codex",
+    "openrouter_test_key_123",
+    "n",
+    "n",
+    "n"
+  ];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        write: () => undefined
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "openrouter");
+    assert.equal(agent.provider.model, "openai/gpt-5-codex");
+    assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.runtime, "pi");
+    assert.equal(agent.provider.cliCommand, "pi");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "--print",
+      "--provider",
+      "{runtime_provider}",
+      "--model",
+      "{model}",
+      "--append-system-prompt",
+      "{system_prompt}",
+      "--no-session",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--tools",
+      "read,bash,edit,write,grep,find,ls",
+      "{user_message}"
+    ]);
+
+    assert.equal(process.env.OPENROUTER_API_KEY, "openrouter_test_key_123");
+    const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envLocal.includes("OPENROUTER_API_KEY=openrouter_test_key_123"), true);
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite supports configuring Kimi on the pi runtime", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-kimi-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "",
+    "kimi",
+    "k2p5",
+    "kimi_test_key_123",
+    "n",
+    "n",
+    "n"
+  ];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        write: () => undefined
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "kimi");
+    assert.equal(agent.provider.model, "k2p5");
+    assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.runtime, "pi");
+    assert.equal(agent.provider.cliCommand, "pi");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "--print",
+      "--provider",
+      "{runtime_provider}",
+      "--model",
+      "{model}",
+      "--append-system-prompt",
+      "{system_prompt}",
+      "--no-session",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--tools",
+      "read,bash,edit,write,grep,find,ls",
+      "{user_message}"
+    ]);
+
+    assert.equal(process.env.KIMI_API_KEY, "kimi_test_key_123");
+    const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envLocal.includes("KIMI_API_KEY=kimi_test_key_123"), true);
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("ignite can save the Gemini built-in tools key without changing the active provider", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-built-in-tools-"));
   const previousEnv = clearSecretEnvVars();

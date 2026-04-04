@@ -64,6 +64,14 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
     "grok-code-fast-1",
     "grok-4-fast-non-reasoning",
   ],
+  openrouter: [
+    "openai/gpt-5-codex",
+    "anthropic/claude-sonnet-4.6",
+    "google/gemini-2.5-pro",
+    "moonshotai/kimi-k2.5",
+    "x-ai/grok-code-fast-1",
+  ],
+  kimi: ["k2p5", "kimi-k2-thinking"],
 };
 const BUILT_IN_TOOLS_PROVIDER: ProviderName = "gemini";
 const PAGEINDEX_GROUNDED_PROVIDER: ProviderName = "gemini";
@@ -72,7 +80,9 @@ const PROVIDER_API_KEY_SETUP_URLS: Record<ProviderName, string> = {
   anthropic: "https://platform.claude.com/settings/keys",
   gemini: "https://aistudio.google.com/app/apikey",
   minimax: "https://platform.minimax.io/user-center/basic-information",
-  xai: "https://console.x.ai/"
+  xai: "https://console.x.ai/",
+  openrouter: "https://openrouter.ai/docs/api-reference/authentication",
+  kimi: "https://platform.moonshot.ai/console/api-keys"
 };
 const RUNPOD_API_KEY_SETUP_URL = "https://www.runpod.io/console/user/settings";
 const TELEGRAM_BOT_TOKEN_SETUP_URL = "https://t.me/BotFather";

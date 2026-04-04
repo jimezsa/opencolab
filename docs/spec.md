@@ -12,7 +12,7 @@ v1 supports:
 - multiple agents per project
 - one active project at a time
 - one active agent inside the active project
-- one provider runtime per agent: `openai`, `anthropic`, `gemini`, or `minimax`
+- one provider runtime per agent: `openai`, `anthropic`, `gemini`, `minimax`, `xai`, `openrouter`, or `kimi`
 - optional project-scoped execution targets for bounded remote GPU experiments
 - one remote experiment backend in scope first: Runpod Pods on Secure Cloud with attached network volumes and SSH access
 - one user channel: Telegram
@@ -379,6 +379,9 @@ Supported provider identifiers:
 - `anthropic`
 - `gemini`
 - `minimax`
+- `xai`
+- `openrouter`
+- `kimi`
 
 Provider/runtime notes:
 
@@ -386,21 +389,15 @@ Provider/runtime notes:
 - execution-target configuration is stored on each project, not on the agent provider config
 - provider config includes auth mode (`api_key` or `oauth` where supported)
 - OpenAI, Anthropic, and Gemini support `api_key` and `oauth` auth modes
-- MiniMax is `api_key` only in v1
+- MiniMax, xAI, OpenRouter, and Kimi are `api_key` only in v1
 - some providers may reuse an existing CLI runtime instead of shipping a dedicated CLI
 - `gemini` uses the `gemini` CLI runtime
 - Gemini v1 scope is limited to Google login (`oauth`) or `GEMINI_API_KEY`; Vertex AI auth is out of scope
 - `minimax` uses the `claude` runtime with MiniMax's Anthropic-compatible gateway
+- `xai`, `openrouter`, and `kimi` use the shared `pi` runtime from `pi-mono`
+- `kimi` is stored as an explicit OpenColab provider name while mapping to the upstream `pi` provider id `kimi-coding`
 
-Planned provider-runtime expansion:
-
-- the next provider expansion should separate provider identity from runtime identity so OpenColab can support providers that do not ship their own dedicated CLI
-- the first shared fallback runtime should be `pi` from `pi-mono`
-- `pi` integration should be modeled as a runtime layer, not as a replacement for explicit provider names
-- the first new provider added through `pi` should be `xai`
-- future pi-backed providers may include any provider/model combination supported directly by `pi` or by a user-managed pi custom model configuration
-
-Planned runtime architecture:
+Runtime architecture:
 
 - provider config should continue to store `name`, `model`, and `authMode`
 - provider config should additionally store a runtime selector so OpenColab can distinguish native runtimes from shared runtimes such as `pi`
@@ -409,10 +406,14 @@ Planned runtime architecture:
   - `anthropic` -> `claude`
   - `gemini` -> `gemini`
   - `minimax` -> `claude` with Anthropic-compatible gateway env wiring
+- pi-backed defaults should be:
+  - `xai` -> `pi`
+  - `openrouter` -> `pi`
+  - `kimi` -> `pi` using the upstream `kimi-coding` runtime provider id
 - providers without a native CLI should default to the `pi` runtime
 - OpenColab must keep explicit provider names even when multiple providers share the same runtime so project state, setup UX, and auth handling remain clear
 
-Planned `pi` integration requirements:
+`pi` integration requirements:
 
 - `pi` must run in non-interactive mode for routed Telegram and CLI-triggered agent execution
 - `pi` must be invoked from the active agent directory while still allowing access to the active project workspace
@@ -422,15 +423,11 @@ Planned `pi` integration requirements:
 - runtime preflight must verify provider credentials required by the selected pi-backed provider before attempting execution
 - model configuration for pi-backed providers should prefer runtime discovery when available and fall back to explicit manual model entry when discovery is unavailable or fails
 - `xai` setup should use `XAI_API_KEY` as the canonical API key environment variable unless a later pi upstream change requires a different canonical variable
+- `openrouter` setup should use `OPENROUTER_API_KEY` as the canonical API key environment variable
+- `kimi` setup should use `KIMI_API_KEY` as the canonical API key environment variable while invoking `pi` with provider id `kimi-coding`
 - OpenColab should treat pi sessions, extensions, themes, and other pi-local UX state as out of scope for initial integration unless they are required for non-interactive execution
 
-Planned rollout order:
-
-1. add config and runtime abstraction support for shared runtimes
-2. add `xai` as the first pi-backed provider
-3. add setup and onboarding support for pi-backed provider selection and model entry/discovery
-4. add runtime preflight and operator-facing remediation messages for missing `pi` installation or missing provider credentials
-5. evaluate broader support for additional pi-backed providers after `xai` is stable
+Future provider expansion may continue through `pi` for any provider or model family that `pi` supports directly or through user-managed custom model configuration.
 
 ## 10. Configuration Persistence (`opencolab.json`)
 

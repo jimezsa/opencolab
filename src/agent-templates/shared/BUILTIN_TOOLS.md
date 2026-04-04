@@ -1,6 +1,6 @@
 [BUILTIN_TOOLS]
 
-Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime).
+Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, openrouter, kimi, or compatible runtime).
 
 Shared project skills live under `projects/SKILLS/`. Agent-local skills live under `SKILLS/` inside the agent folder. Before using a specialized workflow, read the relevant shared and local `SKILL.md` files and follow them closely.
 

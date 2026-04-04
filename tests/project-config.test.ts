@@ -779,3 +779,53 @@ test("project state preserves xAI provider runtime and model", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("project state preserves Kimi provider runtime and model", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-kimi-pi-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: DEFAULT_AGENT_ID,
+            agents: {
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
+                provider: {
+                  name: "kimi",
+                  model: "k2p5"
+                },
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name, "kimi");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "pi");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.model, "k2p5");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliCommand, "pi");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

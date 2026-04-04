@@ -114,7 +114,7 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("User prefers concise plans."), true);
     assert.ok(prompt.indexOf("[PROJECT_AND_TEAM]") < prompt.indexOf("[LONG_TERM_MEMORY]"));
     assert.equal(prompt.includes("[BUILTIN_TOOLS]"), true);
-    assert.equal(prompt.includes("Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, or compatible runtime)."), true);
+    assert.equal(prompt.includes("Primary runtime: provider CLI/runtime (openai, anthropic, gemini, minimax, xai, openrouter, kimi, or compatible runtime)."), true);
     assert.equal(prompt.includes("Use the install-appropriate upgrade path for OpenColab itself."), true);
     assert.equal(prompt.includes("one-link installer-managed installs: `opencolab upgrade` upgrades the managed package or managed clone behind the shim"), true);
     assert.equal(prompt.includes("git/source installs: `opencolab upgrade` targets the latest `origin/main`"), true);

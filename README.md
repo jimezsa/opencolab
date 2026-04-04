@@ -15,7 +15,7 @@ _Accelerating Scientific Discovery_ — Turn one researcher into an always-on au
 ## Features planned for first release
 
 - ✅ Deep Research swarm skills for paper search, grounded QA (Reasoning-based RAG), figure extraction, parallel summaries, and D2 block diagrams.
-- ✅ Provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, and xAI.
+- ✅ Provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, xAI, OpenRouter, and Kimi.
 - ✅ Multi-project, multi-agent local workspace with CLI and Telegram control.
 - ✅ Run Experiment on external GPU servers(Runpod)
 - ⏳ Coming: LaTeX-format paper generation.
@@ -100,8 +100,10 @@ Install the upstream runtime CLI that matches the provider you want OpenColab to
 | `anthropic` | Claude Code | [Claude Code setup](https://code.claude.com/docs/en/getting-started)            | `claude` |
 | `gemini`    | Gemini CLI  | [Gemini CLI installation](https://geminicli.com/docs/get-started/installation/) | `gemini` |
 | `xai`       | PI          | [PI install](https://pi.dev/)                                                   | `pi`     |
+| `openrouter` | PI         | [PI install](https://pi.dev/)                                                   | `pi`     |
+| `kimi`      | PI          | [PI install](https://pi.dev/)                                                   | `pi`     |
 
-`minimax` runs through the `claude` runtime, and `xai` runs through `pi`.
+`minimax` runs through the `claude` runtime, and `xai`, `openrouter`, and `kimi` run through `pi`.
 
 ## Install
 
@@ -210,6 +212,8 @@ OpenColab configures provider CLIs for non-interactive runs inside the active pr
 - `gemini`: `api_key` with `GEMINI_API_KEY` or `oauth` with the `gemini` CLI login
 - `minimax`: `api_key` with `MINIMAX_API_KEY`
 - `xai`: `api_key` with `XAI_API_KEY` through the `pi` runtime
+- `openrouter`: `api_key` with `OPENROUTER_API_KEY` through the `pi` runtime
+- `kimi`: `api_key` with `KIMI_API_KEY` through the `pi` runtime, mapped to the upstream `kimi-coding` provider id
 - Gemini-based shared tools still require `GEMINI_API_KEY` even when the active agent runtime uses another provider or Gemini OAuth
 - `pageindex-grounded` uses `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini OAuth
 - `opencolab ignite` prints direct setup links before asking for provider and Runpod API key values, and a BotFather instruction before asking for `TELEGRAM_BOT_TOKEN`
@@ -234,6 +238,12 @@ opencolab setup model --provider gemini --auth oauth --model gemini-2.5-pro
 
 # xAI
 opencolab setup model --provider xai --model grok-code-fast-1 --api-key <your_xai_key>
+
+# OpenRouter
+opencolab setup model --provider openrouter --model openai/gpt-5-codex --api-key <your_openrouter_key>
+
+# Kimi
+opencolab setup model --provider kimi --model k2p5 --api-key <your_kimi_key>
 ```
 
 `pageindex-grounded` also expects `python3` and a local `tools/PageIndex` checkout when you actually run the skill.

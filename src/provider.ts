@@ -20,6 +20,7 @@ interface ProviderDefinition extends ProviderSetupDefaults {
   supportedAuthModes: ProviderAuthMode[];
   aliases?: string[];
   legacyCliDefaults?: ProviderCliDefaults;
+  runtimeProvider?: string;
   resetEnvVars?: string[];
   buildRuntimeEnv: (
     apiKey: string | null,
@@ -100,6 +101,8 @@ const GEMINI_RUNTIME_RESET_ENV_VARS = [
   "GOOGLE_APPLICATION_CREDENTIALS"
 ] as const;
 const XAI_RUNTIME_RESET_ENV_VARS = ["XAI_API_KEY"] as const;
+const OPENROUTER_RUNTIME_RESET_ENV_VARS = ["OPENROUTER_API_KEY"] as const;
+const KIMI_RUNTIME_RESET_ENV_VARS = ["KIMI_API_KEY"] as const;
 
 const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   anthropic: {
@@ -198,6 +201,34 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     buildRuntimeEnv: (apiKey) => ({
       XAI_API_KEY: requireApiKey(apiKey, "XAI_API_KEY")
     })
+  },
+  openrouter: {
+    runtime: "pi",
+    model: "openai/gpt-5-codex",
+    cliCommand: "pi",
+    cliArgs: [...PI_WORKSPACE_ARGS],
+    authMode: "api_key",
+    apiKeyEnvVar: "OPENROUTER_API_KEY",
+    supportedAuthModes: ["api_key"],
+    resetEnvVars: [...OPENROUTER_RUNTIME_RESET_ENV_VARS],
+    buildRuntimeEnv: (apiKey) => ({
+      OPENROUTER_API_KEY: requireApiKey(apiKey, "OPENROUTER_API_KEY")
+    })
+  },
+  kimi: {
+    runtime: "pi",
+    model: "k2p5",
+    cliCommand: "pi",
+    cliArgs: [...PI_WORKSPACE_ARGS],
+    authMode: "api_key",
+    apiKeyEnvVar: "KIMI_API_KEY",
+    supportedAuthModes: ["api_key"],
+    aliases: ["kimi-coding"],
+    runtimeProvider: "kimi-coding",
+    resetEnvVars: [...KIMI_RUNTIME_RESET_ENV_VARS],
+    buildRuntimeEnv: (apiKey) => ({
+      KIMI_API_KEY: requireApiKey(apiKey, "KIMI_API_KEY")
+    })
   }
 };
 
@@ -238,6 +269,10 @@ export function getProviderSupportedAuthModes(providerName: ProviderName): Provi
 
 export function getProviderRuntime(providerName: ProviderName): ProviderRuntime {
   return PROVIDER_DEFINITIONS[providerName].runtime;
+}
+
+export function getProviderRuntimeProviderName(providerName: ProviderName): string {
+  return PROVIDER_DEFINITIONS[providerName].runtimeProvider ?? providerName;
 }
 
 export function providerSupportsAuthMode(providerName: ProviderName, authMode: ProviderAuthMode): boolean {

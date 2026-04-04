@@ -63,7 +63,14 @@ export interface ExecutionTargetConfig {
   maxEstimatedCostUsd: number | null;
 }
 
-export type ProviderName = "openai" | "anthropic" | "gemini" | "minimax" | "xai";
+export type ProviderName =
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "minimax"
+  | "xai"
+  | "openrouter"
+  | "kimi";
 export type ProviderAuthMode = "api_key" | "oauth";
 export type ProviderRuntime = "codex" | "claude" | "gemini" | "pi";
 
