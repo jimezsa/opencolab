@@ -26,6 +26,7 @@ interface ProviderDefinition extends ProviderSetupDefaults {
   supportedAuthModes: ProviderAuthMode[];
   aliases?: string[];
   legacyCliDefaults?: ProviderCliDefaults;
+  migratableCliDefaults?: ProviderCliDefaults[];
   runtimeProvider?: string;
   resetEnvVars?: string[];
   buildRuntimeEnv: (
@@ -55,6 +56,34 @@ const CLAUDE_WORKSPACE_ARGS = [
   "{shared_skills_dir}",
   "--",
   "{prompt}"
+] as const;
+
+const CLAUDE_LEGACY_SIMPLE_ARGS = ["-p", "{prompt}", "--model", "{model}"] as const;
+const CLAUDE_LEGACY_WORKSPACE_ARGS = [
+  "-p",
+  "{prompt}",
+  "--model",
+  "{model}",
+  "--permission-mode",
+  "bypassPermissions",
+  "--add-dir",
+  "{project_dir}",
+  "--add-dir",
+  "{shared_skills_dir}"
+] as const;
+const CLAUDE_LEGACY_STREAM_JSON_ARGS = [
+  "-p",
+  "{prompt}",
+  "--output-format",
+  "stream-json",
+  "--model",
+  "{model}",
+  "--permission-mode",
+  "bypassPermissions",
+  "--add-dir",
+  "{project_dir}",
+  "--add-dir",
+  "{shared_skills_dir}"
 ] as const;
 
 const CODEX_WORKSPACE_ARGS = [
@@ -126,6 +155,18 @@ const XAI_RUNTIME_RESET_ENV_VARS = ["XAI_API_KEY"] as const;
 const OPENROUTER_RUNTIME_RESET_ENV_VARS = ["OPENROUTER_API_KEY"] as const;
 const KIMI_RUNTIME_RESET_ENV_VARS = ["KIMI_API_KEY"] as const;
 
+function buildMigratableCliDefaults(
+  model: string,
+  cliCommand: string,
+  argSets: ReadonlyArray<ReadonlyArray<string>>
+): ProviderCliDefaults[] {
+  return argSets.map((cliArgs) => ({
+    model,
+    cliCommand,
+    cliArgs: [...cliArgs]
+  }));
+}
+
 const PROVIDER_REASONING_CAPABILITIES: Partial<
   Record<ProviderName, Record<string, ProviderReasoningCapability>>
 > = {
@@ -161,8 +202,13 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     legacyCliDefaults: {
       model: "claude-opus-4-6",
       cliCommand: "claude",
-      cliArgs: ["-p", "{prompt}", "--model", "{model}"]
+      cliArgs: [...CLAUDE_LEGACY_SIMPLE_ARGS]
     },
+    migratableCliDefaults: buildMigratableCliDefaults("claude-opus-4-6", "claude", [
+      CLAUDE_LEGACY_SIMPLE_ARGS,
+      CLAUDE_LEGACY_WORKSPACE_ARGS,
+      CLAUDE_LEGACY_STREAM_JSON_ARGS
+    ]),
     buildRuntimeEnv: (apiKey, _model, authMode) => {
       const env: Record<string, string> = {};
       if (authMode !== "oauth") {
@@ -197,6 +243,11 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     apiKeyEnvVar: "MINIMAX_API_KEY",
     supportedAuthModes: ["api_key"],
     resetEnvVars: [...CLAUDE_RUNTIME_RESET_ENV_VARS],
+    migratableCliDefaults: buildMigratableCliDefaults("MiniMax-M2.5", "claude", [
+      CLAUDE_LEGACY_SIMPLE_ARGS,
+      CLAUDE_LEGACY_WORKSPACE_ARGS,
+      CLAUDE_LEGACY_STREAM_JSON_ARGS
+    ]),
     buildRuntimeEnv: (apiKey, model) => ({
       ANTHROPIC_AUTH_TOKEN: requireApiKey(apiKey, "MINIMAX_API_KEY"),
       ANTHROPIC_BASE_URL: "https://api.minimax.io/anthropic",
@@ -424,11 +475,14 @@ export function usesLegacyProviderCliDefaults(
   cliCommand: string,
   cliArgs: string[]
 ): boolean {
-  const legacy = PROVIDER_DEFINITIONS[providerName].legacyCliDefaults;
-  if (!legacy) {
-    return false;
-  }
-  return cliCommand === legacy.cliCommand && hasExactArgs(cliArgs, legacy.cliArgs);
+  const definition = PROVIDER_DEFINITIONS[providerName];
+  const candidates = [
+    ...(definition.legacyCliDefaults ? [definition.legacyCliDefaults] : []),
+    ...(definition.migratableCliDefaults ?? [])
+  ];
+  return candidates.some(
+    (candidate) => cliCommand === candidate.cliCommand && hasExactArgs(cliArgs, candidate.cliArgs)
+  );
 }
 
 function hasExactArgs(left: string[], right: string[]): boolean {
@@ -510,6 +564,15 @@ export function buildProviderInvocationArgs(provider: ProviderConfig): string[] 
     provider.name === "anthropic" &&
     normalizeProviderReasoningEffort(provider.name, provider.model, provider.reasoningEffort)
   ) {
+    const separatorIndex = args.indexOf("--");
+    if (separatorIndex >= 0) {
+      return [
+        ...args.slice(0, separatorIndex),
+        "--effort",
+        provider.reasoningEffort,
+        ...args.slice(separatorIndex)
+      ];
+    }
     return [...args, "--effort", provider.reasoningEffort];
   }
 

@@ -221,6 +221,7 @@ OpenColab configures provider CLIs for non-interactive runs inside the active pr
 - `pageindex-grounded` uses `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini OAuth
 - `opencolab ignite` prints direct setup links before asking for provider and Runpod API key values, and a BotFather instruction before asking for `TELEGRAM_BOT_TOKEN`
 - Routed Claude Code runs use `claude -p --verbose --output-format stream-json` so Telegram live status can consume the current native event stream
+- Existing saved Claude-runtime configs on recognized older default arg sets are auto-migrated to the current streaming contract when OpenColab loads state
 
 Common setup flows:
 

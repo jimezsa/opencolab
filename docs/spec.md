@@ -302,6 +302,7 @@ Responsibilities:
 - provider CLI command/args must be auto-derived from internal defaults
 - provider CLI defaults must support non-interactive execution with write access to the active project workspace
 - when the active agent lives under `projects/<project_id>/AGENTS/<agent_id>/`, provider CLI defaults must still allow access to the parent project workspace
+- recognized previously-shipped Claude-runtime CLI arg sets stored in `opencolab.json` must auto-migrate to the current Claude Code streaming defaults on load so existing installs keep Telegram live status after runtime contract changes
 - provider defaults must use concrete model names, not floating aliases
 - provider CLI execution timeout must default to 30 minutes and remain configurable via `OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS`
 - configure one shared Telegram setup for all projects

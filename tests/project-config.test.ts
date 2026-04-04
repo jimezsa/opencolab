@@ -316,6 +316,172 @@ test("project state prefers explicit agent provider over legacy project provider
   }
 });
 
+test("project state migrates previously shipped Claude workspace args to the current streaming defaults", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-claude-stream-migrate-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: DEFAULT_AGENT_ID,
+            agents: {
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  memory: "MEMORY.md"
+                },
+                provider: {
+                  name: "anthropic",
+                  model: "claude-opus-4-6",
+                  runtime: "claude",
+                  cliCommand: "claude",
+                  cliArgs: [
+                    "-p",
+                    "{prompt}",
+                    "--output-format",
+                    "stream-json",
+                    "--model",
+                    "{model}",
+                    "--permission-mode",
+                    "bypassPermissions",
+                    "--add-dir",
+                    "{project_dir}",
+                    "--add-dir",
+                    "{shared_skills_dir}"
+                  ],
+                  authMode: "oauth"
+                }
+              }
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    const project = loaded.projects[loaded.activeProjectId];
+    const agent = project.agents[project.activeAgentId];
+    assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.runtime, "claude");
+    assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.cliCommand, "claude");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "-p",
+      "--verbose",
+      "--output-format",
+      "stream-json",
+      "--model",
+      "{model}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--add-dir",
+      "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}",
+      "--",
+      "{prompt}"
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state migrates older Claude workspace args without stream-json to the current defaults", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-claude-workspace-migrate-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: DEFAULT_AGENT_ID,
+            agents: {
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  memory: "MEMORY.md"
+                },
+                provider: {
+                  name: "anthropic",
+                  model: "claude-opus-4-6",
+                  runtime: "claude",
+                  cliCommand: "claude",
+                  cliArgs: [
+                    "-p",
+                    "{prompt}",
+                    "--model",
+                    "{model}",
+                    "--permission-mode",
+                    "bypassPermissions",
+                    "--add-dir",
+                    "{project_dir}",
+                    "--add-dir",
+                    "{shared_skills_dir}"
+                  ],
+                  authMode: "api_key"
+                }
+              }
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    const project = loaded.projects[loaded.activeProjectId];
+    const agent = project.agents[project.activeAgentId];
+    assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.runtime, "claude");
+    assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.cliCommand, "claude");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "-p",
+      "--verbose",
+      "--output-format",
+      "stream-json",
+      "--model",
+      "{model}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--add-dir",
+      "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}",
+      "--",
+      "{prompt}"
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("project state migrates legacy provider CLI defaults to workspace defaults on the agent", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-cli-migrate-"));
 

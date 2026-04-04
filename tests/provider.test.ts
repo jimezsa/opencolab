@@ -270,11 +270,43 @@ test("provider invocation args add native reasoning flags when configured", () =
       model: "claude-opus-4-6",
       runtime: "claude",
       cliCommand: "claude",
-      cliArgs: ["-p", "{prompt}", "--model", "{model}"],
+      cliArgs: [
+        "-p",
+        "--verbose",
+        "--output-format",
+        "stream-json",
+        "--model",
+        "{model}",
+        "--permission-mode",
+        "bypassPermissions",
+        "--add-dir",
+        "{project_dir}",
+        "--add-dir",
+        "{shared_skills_dir}",
+        "--",
+        "{prompt}"
+      ],
       authMode: "api_key",
       reasoningEffort: "max"
     }),
-    ["-p", "{prompt}", "--model", "{model}", "--effort", "max"]
+    [
+      "-p",
+      "--verbose",
+      "--output-format",
+      "stream-json",
+      "--model",
+      "{model}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--add-dir",
+      "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}",
+      "--effort",
+      "max",
+      "--",
+      "{prompt}"
+    ]
   );
 
   assert.deepEqual(

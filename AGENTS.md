@@ -29,13 +29,13 @@ Core implementation areas:
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd` and Linux `systemd`.
 - `src/telegram-poller.ts`: Telegram long-polling loop and update ingestion.
 - `src/upgrade.ts`: install-aware OpenColab upgrade flow for one-link installer-managed package or clone installs plus manual git/source checkouts, with guidance only for generic package installs.
-- `src/provider.ts`: provider defaults, runtime selection, auth-mode support, OAuth setup/remediation hints, CLI args including current Claude Code `stream-json` requirements, and env wiring.
+- `src/provider.ts`: provider defaults, runtime selection, auth-mode support, OAuth setup/remediation hints, CLI args including current Claude Code `stream-json` requirements, migration signatures for previously-shipped Claude defaults, and env wiring.
 - `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling including OAuth session checks for supported runtimes, and provider-to-gateway progress-event forwarding.
 - `src/agent.ts`: agent file seeding, shared/agent-local skill discovery, and prompt assembly.
 - `src/agent-templates.ts`: built-in agent template loading and default-doc resolution.
 - `src/conversation.ts`: per-agent session logs, previous-day summaries, and prompt-memory loading.
 - `src/install.ts`: install-root detection, installer-managed install manifest handling, and runtime-root resolution across `OPENCOLAB_ROOT`, packaged-install defaults, and cwd fallback for source checkouts.
-- `src/project-config.ts`: `opencolab.json` defaults, normalization, migration, and project/agent path helpers.
+- `src/project-config.ts`: `opencolab.json` defaults, normalization, migration including recognized stale Claude CLI arg upgrades, and project/agent path helpers.
 - `src/config.ts`: root config, runtime-root-aware path resolution, and local env loading.
 - `src/secrets.ts`: `.env.local` secret read/write helpers.
 - `src/types.ts`: shared persisted-state and runtime interfaces.
