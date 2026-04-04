@@ -14,6 +14,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Removed
 
 - Telegram support for the older `/project ...`, `/agent ...`, and `/session reset` text command families, along with the older slash-menu aliases such as `/project_create`.
+- The shared `fast-search`, `pro-search`, and `deep-search` skill docs no longer call out optional `PAPERCLI_SEMANTIC_API_KEY` and `PAPERCLI_SERPAPI_KEY` prerequisites.
 
 ## [0.1.6] - 2026-04-02
 
