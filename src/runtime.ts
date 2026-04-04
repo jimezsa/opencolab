@@ -43,6 +43,9 @@ import {
 } from "./gpu-providers/runpod/index.js";
 import {
   type TelegramCallbackAnswerer,
+  type TelegramDraftSender,
+  type TelegramMessageEditor,
+  type TelegramStatusMessageCreator,
   TelegramGateway,
   type TelegramFileSender,
   type TelegramSender,
@@ -73,6 +76,9 @@ export interface RuntimeOptions {
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;
   telegramCallbackAnswerer?: TelegramCallbackAnswerer;
+  telegramDraftSender?: TelegramDraftSender;
+  telegramStatusMessageCreator?: TelegramStatusMessageCreator;
+  telegramMessageEditor?: TelegramMessageEditor;
   runpodExecutionService?: RunpodExecutionService;
   agentResponder?: (
     input: ProviderAgentInput,
@@ -173,7 +179,10 @@ export class OpenColabRuntime {
       telegramSender: this.options.telegramSender,
       telegramTypingSender: this.options.telegramTypingSender,
       telegramFileSender: this.options.telegramFileSender,
-      telegramCallbackAnswerer: this.options.telegramCallbackAnswerer
+      telegramCallbackAnswerer: this.options.telegramCallbackAnswerer,
+      telegramDraftSender: this.options.telegramDraftSender,
+      telegramStatusMessageCreator: this.options.telegramStatusMessageCreator,
+      telegramMessageEditor: this.options.telegramMessageEditor
     });
   }
 

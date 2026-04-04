@@ -102,6 +102,9 @@ test("ignite configures project, provider, and telegram", async () => {
     assert.equal(agent.provider.cliCommand, "codex");
     assert.deepEqual(agent.provider.cliArgs, [
       "exec",
+      "--json",
+      "--output-last-message",
+      "{output_file}",
       "--full-auto",
       "--add-dir",
       "{project_dir}",
@@ -285,6 +288,8 @@ test("ignite supports configuring the minimax provider", async () => {
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
       "{prompt}",
+      "--output-format",
+      "stream-json",
       "--model",
       "{model}",
       "--permission-mode",
@@ -535,6 +540,8 @@ test("ignite supports configuring the Gemini provider with a concrete model name
     assert.deepEqual(agent.provider.cliArgs, [
       "--prompt",
       "{prompt}",
+      "--output-format",
+      "stream-json",
       "--model",
       "{model}",
       "--yolo"
@@ -690,6 +697,8 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
     assert.equal(agent.provider.runtime, "pi");
     assert.equal(agent.provider.cliCommand, "pi");
     assert.deepEqual(agent.provider.cliArgs, [
+      "--mode",
+      "json",
       "--print",
       "--provider",
       "{runtime_provider}",
@@ -753,6 +762,8 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
     assert.equal(agent.provider.runtime, "pi");
     assert.equal(agent.provider.cliCommand, "pi");
     assert.deepEqual(agent.provider.cliArgs, [
+      "--mode",
+      "json",
       "--print",
       "--provider",
       "{runtime_provider}",
@@ -816,6 +827,8 @@ test("ignite supports configuring Kimi on the pi runtime", async () => {
     assert.equal(agent.provider.runtime, "pi");
     assert.equal(agent.provider.cliCommand, "pi");
     assert.deepEqual(agent.provider.cliArgs, [
+      "--mode",
+      "json",
       "--print",
       "--provider",
       "{runtime_provider}",

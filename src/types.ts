@@ -183,15 +183,25 @@ export type TelegramInlineKeyboard = TelegramInlineButton[][];
 
 export interface TelegramMessageOptions {
   inlineKeyboard?: TelegramInlineKeyboard;
+  messageThreadId?: string;
 }
+
+export type TelegramChatType =
+  | "private"
+  | "group"
+  | "supergroup"
+  | "channel"
+  | "unknown";
 
 export interface TelegramInbound {
   kind: "message" | "callback_query";
   chatId: string;
+  chatType: TelegramChatType;
   sender: string;
   commandText: string;
   text: string;
   files: TelegramFilePayload[];
+  messageThreadId?: string;
   callbackQueryId?: string;
   callbackData?: string;
   callbackMessageId?: string;

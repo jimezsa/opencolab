@@ -43,6 +43,8 @@ interface ProviderReasoningCapability {
 const CLAUDE_WORKSPACE_ARGS = [
   "-p",
   "{prompt}",
+  "--output-format",
+  "stream-json",
   "--model",
   "{model}",
   "--permission-mode",
@@ -55,6 +57,9 @@ const CLAUDE_WORKSPACE_ARGS = [
 
 const CODEX_WORKSPACE_ARGS = [
   "exec",
+  "--json",
+  "--output-last-message",
+  "{output_file}",
   "--full-auto",
   "--add-dir",
   "{project_dir}",
@@ -66,12 +71,16 @@ const CODEX_WORKSPACE_ARGS = [
 const GEMINI_WORKSPACE_ARGS = [
   "--prompt",
   "{prompt}",
+  "--output-format",
+  "stream-json",
   "--model",
   "{model}",
   "--yolo"
 ] as const;
 
 const PI_WORKSPACE_ARGS = [
+  "--mode",
+  "json",
   "--print",
   "--provider",
   "{runtime_provider}",

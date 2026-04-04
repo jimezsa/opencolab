@@ -39,6 +39,8 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
   assert.deepEqual(defaults.cliArgs, [
     "-p",
     "{prompt}",
+    "--output-format",
+    "stream-json",
     "--model",
     "{model}",
     "--permission-mode",
@@ -58,6 +60,9 @@ test("OpenAI setup defaults support OAuth and API key auth modes", () => {
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
     "exec",
+    "--json",
+    "--output-last-message",
+    "{output_file}",
     "--full-auto",
     "--add-dir",
     "{project_dir}",
@@ -86,6 +91,8 @@ test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
   assert.deepEqual(defaults.cliArgs, [
     "-p",
     "{prompt}",
+    "--output-format",
+    "stream-json",
     "--model",
     "{model}",
     "--permission-mode",
@@ -118,6 +125,8 @@ test("Gemini setup defaults use concrete model names and support OAuth", () => {
   assert.deepEqual(defaults.cliArgs, [
     "--prompt",
     "{prompt}",
+    "--output-format",
+    "stream-json",
     "--model",
     "{model}",
     "--yolo"
@@ -137,6 +146,8 @@ test("xAI setup defaults use the pi runtime", () => {
   assert.equal(defaults.cliCommand, "pi");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
+    "--mode",
+    "json",
     "--print",
     "--provider",
     "{runtime_provider}",
@@ -164,6 +175,8 @@ test("OpenRouter setup defaults use the pi runtime", () => {
   assert.equal(defaults.cliCommand, "pi");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
+    "--mode",
+    "json",
     "--print",
     "--provider",
     "{runtime_provider}",
@@ -192,6 +205,8 @@ test("Kimi setup defaults use the pi runtime and kimi-coding provider id", () =>
   assert.equal(defaults.cliCommand, "pi");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
+    "--mode",
+    "json",
     "--print",
     "--provider",
     "{runtime_provider}",

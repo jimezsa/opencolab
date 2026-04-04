@@ -123,7 +123,7 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("`opencolab agent create --agent-id <id>`"), true);
     assert.equal(prompt.includes("`opencolab setup model --agent-id <id> --provider <provider> --model <model> [--reasoning-effort <native_value>] ...`"), true);
     assert.equal(prompt.includes("creating an OpenColab agent is separate from creating a Telegram bot identity"), true);
-    assert.equal(prompt.includes("OpenColab enables progress updates by default during provider runs."), true);
+    assert.equal(prompt.includes("OpenColab owns Telegram live status for routed runs"), true);
     assert.equal(prompt.includes("`fast-search`"), true);
     assert.equal(prompt.includes("`pageindex-grounded`"), true);
     assert.equal(prompt.includes("`pdf-figure-extract`"), true);
@@ -171,7 +171,7 @@ test("pi system prompt includes default progress guidance", () => {
       }
     );
 
-    assert.equal(prompt.includes("OpenColab enables progress updates by default during provider runs."), true);
+    assert.equal(prompt.includes("OpenColab owns Telegram live status for routed runs"), true);
     assert.equal(prompt.includes("`opencolab agent create --agent-id <id>`"), true);
     assert.equal(prompt.includes("[PROJECT_AND_TEAM]"), true);
     assert.equal(prompt.includes("Shared goal: coordinate the lab."), true);

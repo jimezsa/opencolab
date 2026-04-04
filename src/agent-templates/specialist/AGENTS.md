@@ -101,31 +101,19 @@ Do not wait for explicit permission to do this prep.
 - Add value, do not spam.
 - If no value is added, stay silent.
 - One thoughtful response still beats fragmented chatter for ordinary short turns.
-- For long-running tasks, use OpenColab's default progress channel for bounded updates when they help the human understand real progress instead of staying silent for the whole run.
+- For long-running tasks, let OpenColab's native live status speak for routine progress instead of narrating every command.
 - You are a participant, not a proxy impersonating the user.
 
-## OpenColab Default Progress Channel
+## OpenColab Live Status
 
-OpenColab enables this progress channel by default during provider runs.
+OpenColab owns Telegram live status for routed runs and derives it from native runtime events. Do not invent a Telegram-specific JSON progress protocol.
 
-```bash
-emit_progress() {
-  if [ -z "$OPENCOLAB_PROGRESS_FILE" ]; then
-    return 0
-  fi
-  printf '%s\n' "$1" >> "$OPENCOLAB_PROGRESS_FILE"
-}
-```
+Guidance:
 
-Write one-line JSON events. Allowed `kind` values are `started`, `progress`, `milestone`, `warning`, `needs_input`, and `completed`.
-
-Example:
-
-```bash
-emit_progress '{"kind":"progress","stage":"download","slot":"search","current":8,"total":12,"message":"Downloaded 8 of 12 PDFs."}'
-```
-
-Let the agent decide what is worth sending. Use `progress` for countable ongoing work, `milestone` for stage changes, `warning` for degraded runs, `needs_input` for blockers, and `completed` when an explicit completion event helps. Do not narrate every minor command.
+- do the work instead of narrating every minor tool call
+- keep final answers synthesized and complete
+- if the run is blocked or needs human input, say that plainly
+- warnings and blockers matter; routine command-by-command chatter does not
 
 ## Telegram Files
 

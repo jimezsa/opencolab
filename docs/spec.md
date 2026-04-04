@@ -167,7 +167,7 @@ Initialization requirements:
 - default `professor` guidance must mention follow-up per-agent model setup through `opencolab setup model --agent-id <id> ...` when needed
 - default `professor` guidance must require updating `PROJECT-AND-TEAM.md` after a new specialist is created or approved in principle
 - default `specialist` and `beginner` guidance must state that they do not create more specialists by default and should route staffing recommendations back through `professor`
-- default `AGENTS.md` must present `OPENCOLAB_PROGRESS_FILE` as the default OpenColab progress channel, include a valid JSON example, and explain that agents choose bounded useful progress events rather than milestone-only output
+- default `AGENTS.md` must explain that OpenColab owns Telegram live status for routed runs, derives it from native runtime events instead of an agent-written progress file, and expects agents to avoid low-signal step-by-step chatter
 - default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences
 - the default templates must keep only essential, role-appropriate instructions
 - `TODO.md` must be used for active planning and task tracking based on interactions with the human and other agents
@@ -679,11 +679,11 @@ Goals:
 - keep updates useful and bounded, especially in group chats
 - preserve a high-quality final answer instead of replacing it with fragmented chatter
 
-Progress updates are a first-class runtime capability, not a prompt-only convention.
+Live status is a first-class runtime capability, not a prompt-only convention.
 
-### 13.1 Progress Event Contract
+### 13.1 Native Runtime Status Contract
 
-Provider runtimes and agent-facing wrappers must be able to emit structured progress events while the task is still running.
+Provider adapters and OpenColab-owned long-running workflows must be able to emit structured status events while the task is still running.
 
 Minimum event shape:
 
@@ -701,70 +701,76 @@ Minimum event shape:
 
 Requirements:
 
-- provider runtimes must create and inject `OPENCOLAB_PROGRESS_FILE` by default for routed agent executions, even when no extra progress configuration is requested by the operator
+- provider adapters must prefer native machine-readable runtime streams over prompt-level progress protocols
+- the default provider integrations must use native event modes for routed Telegram runs:
+  - Codex: `codex exec --json`
+  - Claude Code: `claude -p --output-format stream-json`
+  - Gemini CLI: `gemini --output-format stream-json`
+  - Pi: `pi --mode json`
 - `kind` is required
 - `message` is required and must be concise, concrete, and user-facing
 - `stage` is recommended for routing and de-duplication
 - `current` and `total` are optional and should be used for countable work
 - `slot` is optional and allows the gateway to update or replace an earlier progress message for the same workstream
 - `ephemeral` defaults to `true`; operational progress updates must not be treated as normal assistant conversation turns
+- raw provider events must be normalized into this internal event model before Telegram rendering
 
 Notes:
 
-- progress events are transport-level metadata and must be stripped from the final assistant prose shown as the completed answer
-- progress events must not be appended to the agent's normal session conversation log as if they were substantive assistant replies
+- status events are transport-level metadata and must be stripped from the final assistant prose shown as the completed answer
+- status events must not be appended to the agent's normal session conversation log as if they were substantive assistant replies
 - if run telemetry is persisted later, it should live in a separate operational log, not in the conversational memory stream
 
 ### 13.2 Gateway Behavior
 
-For routed tasks with meaningful duration, the gateway should expose progress in this order:
+For routed tasks with meaningful duration, the gateway should expose status in this order:
 
 1. immediate acknowledgment
-2. bounded progress updates during execution
+2. one bounded live status surface during execution
 3. final consolidated answer
 
 Requirements:
 
 - if a task is expected to take more than a few seconds, the user should receive an acknowledgment quickly instead of waiting only on `typing`
-- the gateway may send a new Telegram message or edit a previous progress message when successive events share the same `slot`
-- the gateway should throttle repetitive progress so users see stage changes, not a token-by-token transcript
+- the gateway must keep the final completion message distinct from the live status surface
+- paired private chats should prefer Telegram `sendMessageDraft`
+- when draft mode is unavailable, ineligible, or fails, the gateway should fall back to one editable status message using `sendMessage` plus `editMessageText`
+- the gateway should throttle repetitive status updates so users see stage changes, not a token-by-token transcript
 - group chats must use a stricter throttle than one-to-one chats
 - `warning` and `needs_input` events may bypass normal throttling when they materially affect the run
-- the final completion message must remain a distinct final response
-- if no progress events are emitted, current `typing` behavior remains the fallback
+- `sendChatAction` should only be used as short startup fallback feedback before the live status surface exists
+- if no status events are emitted, current `typing` behavior remains the fallback
 
 Recommended UX policy:
 
 - send first acknowledgment within 1-2 seconds for long tasks
-- let the agent choose whether an event should be `started`, `progress`, `milestone`, `warning`, `needs_input`, or `completed`
+- render one short heading plus a few current lines instead of a transcript
 - send updates only on meaningful stage changes, count deltas, blockers, or transitions that help the user
-- prefer editing one progress message for dense counters
-- prefer new messages for major phase changes, warnings, and completion
-- avoid more than a small handful of progress messages per run in group chats
+- avoid raw tool names, raw JSON, token-by-token prose, and command-by-command chatter
+- avoid more than a small handful of status rewrites per run in group chats
 
 ### 13.3 Skill and Agent Authoring Rules
 
-Built-in skills and default agent guidance must explicitly support bounded intermediate updates for long tasks.
+Built-in skills and default agent guidance must explicitly support OpenColab-owned live status for long tasks.
 
 Requirements:
 
-- agents should not stay silent for the full duration of a long multi-step task when useful progress can be reported
+- agents should not stay silent about real blockers or required user input during a long multi-step task
 - agents should avoid low-signal "thinking aloud" updates
-- updates must report real work completed, real blockers, meaningful counters, or the transition into a new major phase
 - final answers should remain synthesized and complete, not a loose concatenation of earlier progress notes
 - default agent guidance must stop treating "one thoughtful response" as a blanket rule for long-running operational tasks
-- default agent guidance must describe progress updates as a normal OpenColab feature, not an optional add-on the agent has to rediscover
-- default agent guidance must make the JSON progress-event contract explicit enough for weaker agents to copy correctly
+- default agent guidance must describe Telegram live status as an OpenColab runtime feature, not an agent-authored JSON protocol
+- default agent guidance must explicitly tell agents not to narrate every minor command because OpenColab derives bounded status from runtime events
 
 Recommended rule of thumb:
 
-- let the agent decide which events matter, then use `started` for acknowledgment, `progress` for dense counters, `milestone` for stage transitions, `warning` for degraded runs, `needs_input` for blockers, and `completed` for explicit completion when helpful
-- send progress for stage changes, corpus-size changes, downloads, summarization waves, synthesis start, long test phases, bulk edits, or blocking failures
-- do not send progress for every minor shell command or every internal reasoning step
+- let the runtime surface stage changes, dense counters, warnings, and blockers
+- let the agent focus on doing the work and producing a good final answer
+- do not ask the agent to print a Telegram-specific progress protocol during normal routed runs
 
 ### 13.4 Search Skill UX Requirements
 
-The shared `fast-search`, `pro-search`, and `deep-search` skills must support agent-chosen bounded progress updates tied to their actual workflow stages.
+The shared `fast-search`, `pro-search`, and `deep-search` skills must support bounded runtime status updates tied to their actual workflow stages.
 
 For paper-search workflows, expected update categories include:
 

@@ -205,7 +205,7 @@ node dist/src/cli.js gateway start --foreground true --port 4646
 
 ## Provider Setup and Auth
 
-OpenColab configures provider CLIs for non-interactive runs inside the active project workspace. Each agent stores its own provider configuration, and long-running runs can stream bounded progress updates back through Telegram by default.
+OpenColab configures provider CLIs for non-interactive runs inside the active project workspace. Each agent stores its own provider configuration, and long-running routed runs use an OpenColab-owned Telegram live status surface driven by native runtime events.
 
 - `openai`: `api_key` with `OPENAI_API_KEY` or `oauth` with `codex login`
 - `anthropic`: `api_key` with `ANTHROPIC_API_KEY` or `oauth` with `claude auth login`
@@ -387,7 +387,9 @@ opencolab gateway restart --port 4646
 - Telegram webhook endpoint: `POST http://127.0.0.1:4646/api/telegram/webhook`
 - Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible
 - Agents can return files with raw `@telegram-file <json>` lines using relative or absolute local paths
-- Long-running work can emit bounded `started`, `progress`, `milestone`, `warning`, `needs_input`, or `completed` updates before the final answer
+- Long-running work uses one bounded live status surface before the final answer instead of sending a stream of progress messages
+- In paired private chats, OpenColab prefers Telegram `sendMessageDraft`; otherwise it falls back to one editable status message
+- `sendChatAction` remains a short startup fallback while the live status surface is being created
 - If provider execution fails because of auth, timeout, or CLI setup problems, OpenColab sends a Telegram error reply instead of silently retrying
 
 ## Project and Agent Commands

@@ -598,18 +598,17 @@ test("init and agent create seed professor, beginner, and specialist AGENTS.md t
       professorDoc.includes("Create persistent specialists only for durable workstreams, not for trivial one-off tasks."),
       true
     );
-    assert.equal(professorDoc.includes("## OpenColab Default Progress Channel"), true);
+    assert.equal(professorDoc.includes("## OpenColab Live Status"), true);
     assert.equal(
-      professorDoc.includes("OpenColab enables this progress channel by default during provider runs."),
-      true
-    );
-    assert.equal(professorDoc.includes("emit_progress() {"), true);
-    assert.equal(
-      professorDoc.includes("Write one-line JSON events. Allowed `kind` values are `started`, `progress`, `milestone`, `warning`, `needs_input`, and `completed`."),
+      professorDoc.includes("OpenColab owns Telegram live status for routed runs"),
       true
     );
     assert.equal(
-      professorDoc.includes("Let the agent decide what is worth sending."),
+      professorDoc.includes("Do not invent a Telegram-specific JSON progress protocol."),
+      true
+    );
+    assert.equal(
+      professorDoc.includes("do the work instead of narrating every minor tool call"),
       true
     );
     assert.equal(professorDoc.includes("## Telegram Files"), true);
@@ -841,6 +840,8 @@ test("setupModel auto-sets provider CLI defaults for the active agent", () => {
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
       "{prompt}",
+      "--output-format",
+      "stream-json",
       "--model",
       "{model}",
       "--permission-mode",
@@ -875,6 +876,9 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
     assert.equal(agent.provider.cliCommand, "codex");
     assert.deepEqual(agent.provider.cliArgs, [
       "exec",
+      "--json",
+      "--output-last-message",
+      "{output_file}",
       "--full-auto",
       "--add-dir",
       "{project_dir}",
@@ -908,6 +912,8 @@ test("setupModel stores Anthropic oauth auth mode on the agent", () => {
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
       "{prompt}",
+      "--output-format",
+      "stream-json",
       "--model",
       "{model}",
       "--permission-mode",
@@ -982,6 +988,8 @@ test("setupModel stores Gemini oauth auth mode and workspace defaults on the age
     assert.deepEqual(agent.provider.cliArgs, [
       "--prompt",
       "{prompt}",
+      "--output-format",
+      "stream-json",
       "--model",
       "{model}",
       "--yolo"
@@ -1051,6 +1059,8 @@ test("agents in one project can use different providers", () => {
     assert.deepEqual(project.agents.scout.provider.cliArgs, [
       "-p",
       "{prompt}",
+      "--output-format",
+      "stream-json",
       "--model",
       "{model}",
       "--permission-mode",
@@ -1083,6 +1093,8 @@ test("setupModel stores xAI on the pi runtime with non-interactive defaults", ()
     assert.equal(agent.provider.reasoningEffort, undefined);
     assert.equal(agent.provider.cliCommand, "pi");
     assert.deepEqual(agent.provider.cliArgs, [
+      "--mode",
+      "json",
       "--print",
       "--provider",
       "{runtime_provider}",
@@ -1122,6 +1134,8 @@ test("setupModel stores OpenRouter on the pi runtime with non-interactive defaul
     assert.equal(agent.provider.reasoningEffort, undefined);
     assert.equal(agent.provider.cliCommand, "pi");
     assert.deepEqual(agent.provider.cliArgs, [
+      "--mode",
+      "json",
       "--print",
       "--provider",
       "{runtime_provider}",
@@ -1161,6 +1175,8 @@ test("setupModel stores Kimi on the pi runtime with non-interactive defaults", (
     assert.equal(agent.provider.reasoningEffort, undefined);
     assert.equal(agent.provider.cliCommand, "pi");
     assert.deepEqual(agent.provider.cliArgs, [
+      "--mode",
+      "json",
       "--print",
       "--provider",
       "{runtime_provider}",
@@ -1305,13 +1321,23 @@ test("paired webhook routes message to the active agent and stores conversation"
   }
 });
 
-test("paired webhook sends progress updates before the final answer without polluting conversation memory", async () => {
+test("paired webhook renders one live status surface before the final answer without polluting conversation memory", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-progress-"));
   const sentTexts: string[] = [];
+  const statusCreates: string[] = [];
+  const statusEdits: string[] = [];
 
   const runtime = createRuntime(tempDir, {
     telegramSender: async (_chatId, text) => {
       sentTexts.push(text);
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text) => {
+      statusCreates.push(text);
+      return "status-1";
+    },
+    telegramMessageEditor: async (_chatId, _messageId, text) => {
+      statusEdits.push(text);
       return true;
     },
     agentResponder: async ({ text }, options) => {
@@ -1357,12 +1383,16 @@ test("paired webhook sends progress updates before the final answer without poll
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.deepEqual(sentTexts, [
-      "Searching for candidate papers across 2 query waves.",
-      "Found 20 candidate papers. Selecting 6 for deep read.",
-      "Summaries complete. Writing the final findings now.",
-      "research:Find recent breakthroughs in SAE methods"
-    ]);
+    assert.deepEqual(sentTexts, ["research:Find recent breakthroughs in SAE methods"]);
+    assert.equal(statusCreates.length, 1);
+    assert.equal(
+      statusCreates[0].includes("Searching for candidate papers across 2 query waves."),
+      true
+    );
+    assert.deepEqual(statusEdits.length, 1);
+    assert.equal(statusEdits[0].includes("Found 20 candidate papers. Selecting 6 for deep read."), true);
+    assert.equal(statusEdits[0].includes("Summaries complete. Writing the final findings now."), true);
+    assert.equal(statusEdits[0].startsWith("Finalizing"), true);
 
     const sessionsDir = path.join(buildAgentDir(tempDir, "default"), "memory", "Session");
     const sessionDirs = fs
@@ -1381,9 +1411,11 @@ test("paired webhook sends progress updates before the final answer without poll
   }
 });
 
-test("provider CLI progress file events are forwarded to Telegram before the final response", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-progress-file-"));
+test("provider CLI native stream events are normalized into Telegram live status before the final response", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-stream-json-"));
   const sentTexts: string[] = [];
+  const statusCreates: string[] = [];
+  const statusEdits: string[] = [];
   const originalAnthropicKey = process.env.ANTHROPIC_API_KEY;
 
   process.env.ANTHROPIC_API_KEY = "test-anthropic-key";
@@ -1391,6 +1423,14 @@ test("provider CLI progress file events are forwarded to Telegram before the fin
   const runtime = createRuntime(tempDir, {
     telegramSender: async (_chatId, text) => {
       sentTexts.push(text);
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text) => {
+      statusCreates.push(text);
+      return "status-1";
+    },
+    telegramMessageEditor: async (_chatId, _messageId, text) => {
+      statusEdits.push(text);
       return true;
     }
   });
@@ -1404,15 +1444,16 @@ test("provider CLI progress file events are forwarded to Telegram before the fin
       cliArgs: [
         "-e",
         [
-          "const fs = require('fs');",
-          "const file = process.env.OPENCOLAB_PROGRESS_FILE;",
-          "fs.appendFileSync(file, JSON.stringify({ kind: 'started', stage: 'retrieval', slot: 'search', message: 'Searching for candidate papers across 2 query waves.' }) + '\\n');",
+          "console.log(JSON.stringify({ type: 'system', subtype: 'init' }));",
           "setTimeout(() => {",
-          "  fs.appendFileSync(file, JSON.stringify({ kind: 'milestone', stage: 'selection', slot: 'search_selection', message: 'Selected 4 papers for deep read.' }) + '\\n');",
+          "  console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { path: 'README.md' } }] } }));",
+          "}, 100);",
+          "setTimeout(() => {",
+          "  console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'pnpm test' } }] } }));",
           "}, 200);",
           "setTimeout(() => {",
-          "  console.log('paper search complete');",
-          "}, 700);"
+          "  console.log(JSON.stringify({ type: 'result', result: 'paper search complete' }));",
+          "}, 300);"
         ].join(" ")
       ]
     });
@@ -1434,11 +1475,13 @@ test("provider CLI progress file events are forwarded to Telegram before the fin
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.deepEqual(sentTexts, [
-      "Searching for candidate papers across 2 query waves.",
-      "Selected 4 papers for deep read.",
-      "paper search complete"
-    ]);
+    assert.deepEqual(sentTexts, ["paper search complete"]);
+    assert.equal(statusCreates.length, 1);
+    assert.equal(statusCreates[0].includes("Inspecting the project."), true);
+    assert.deepEqual(statusEdits.length, 1);
+    assert.equal(statusEdits[0].includes("Reviewing the current implementation."), true);
+    assert.equal(statusEdits[0].includes("Running checks."), true);
+    assert.equal(statusEdits[0].includes("Preparing the final answer."), true);
   } finally {
     if (originalAnthropicKey === undefined) {
       delete process.env.ANTHROPIC_API_KEY;

@@ -39,6 +39,29 @@ export type TelegramSender = (
   options?: TelegramMessageOptions,
 ) => Promise<boolean>;
 
+export type TelegramDraftSender = (
+  chatId: string,
+  draftId: number,
+  text: string,
+  state: OpenColabState,
+  options?: TelegramMessageOptions,
+) => Promise<boolean>;
+
+export type TelegramStatusMessageCreator = (
+  chatId: string,
+  text: string,
+  state: OpenColabState,
+  options?: TelegramMessageOptions,
+) => Promise<string | null>;
+
+export type TelegramMessageEditor = (
+  chatId: string,
+  messageId: string,
+  text: string,
+  state: OpenColabState,
+  options?: TelegramMessageOptions,
+) => Promise<boolean>;
+
 export type TelegramTypingSender = (
   chatId: string,
   state: OpenColabState,
@@ -69,12 +92,18 @@ interface GatewayDependencies {
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;
   telegramCallbackAnswerer?: TelegramCallbackAnswerer;
+  telegramDraftSender?: TelegramDraftSender;
+  telegramStatusMessageCreator?: TelegramStatusMessageCreator;
+  telegramMessageEditor?: TelegramMessageEditor;
 }
 
 const TELEGRAM_FILE_FETCH_TIMEOUT_MS = 10_000;
 const MAX_TELEGRAM_ERROR_CHARS = 1_500;
 const MAX_TELEGRAM_CALLBACK_TEXT_CHARS = 180;
-const PROGRESS_MESSAGE_THROTTLE_MS = 3_000;
+const EDITABLE_STATUS_THROTTLE_MS = 3_000;
+const DRAFT_STATUS_THROTTLE_MS = 1_200;
+const LIVE_STATUS_ACK_DELAY_MS = 1_200;
+const MAX_LIVE_STATUS_LINES = 4;
 const SUPPORTED_TELEGRAM_COMMANDS_TEXT =
   "Supported commands: /projects | /agents | /session_reset";
 
@@ -85,18 +114,223 @@ interface ManagementCommandResult {
   callbackAnswerText?: string;
 }
 
-interface ProgressSlotState {
-  lastMessage: string;
-  lastSentAt: number;
+interface RequestProgressState {
+  lastMeaningfulMessage: string | null;
 }
 
-interface RequestProgressState {
-  slots: Map<string, ProgressSlotState>;
-  lastMeaningfulMessage: string | null;
+interface LiveStatusLine {
+  slot: string;
+  message: string;
+  kind: TaskProgressEvent["kind"];
+  updatedAt: number;
+}
+
+type LiveStatusTransport = "draft" | "editable" | "disabled";
+
+class TelegramLiveStatusSession {
+  private readonly preferredTransport: LiveStatusTransport;
+  private readonly draftId: number;
+  private readonly lines = new Map<string, LiveStatusLine>();
+  private readonly ackTimer: NodeJS.Timeout;
+  private transport: LiveStatusTransport | null = null;
+  private editableMessageId: string | null = null;
+  private activated = false;
+  private lastRenderedText = "";
+  private lastSentAt = 0;
+  private closed = false;
+  private queue = Promise.resolve();
+
+  constructor(
+    private readonly chatId: string,
+    private readonly state: OpenColabState,
+    private readonly inbound: TelegramInbound,
+    private readonly draftSender: TelegramDraftSender,
+    private readonly statusMessageCreator: TelegramStatusMessageCreator,
+    private readonly messageEditor: TelegramMessageEditor,
+    private readonly onActivated: () => void,
+  ) {
+    this.preferredTransport = inbound.chatType === "private" ? "draft" : "editable";
+    this.draftId = Math.max(1, Date.now() % 2_000_000_000);
+    this.ackTimer = setTimeout(() => {
+      this.enqueue(() => this.flush(true));
+    }, LIVE_STATUS_ACK_DELAY_MS);
+  }
+
+  push(event: TaskProgressEvent): Promise<void> {
+    if (this.closed) {
+      return this.queue;
+    }
+
+    this.applyEvent(event);
+    return this.enqueue(() => this.flush(this.shouldBypassThrottle(event)));
+  }
+
+  close(): Promise<void> {
+    this.closed = true;
+    clearTimeout(this.ackTimer);
+    return this.queue.catch(() => undefined);
+  }
+
+  private enqueue(task: () => Promise<void>): Promise<void> {
+    this.queue = this.queue.then(task).catch(() => undefined);
+    return this.queue;
+  }
+
+  private applyEvent(event: TaskProgressEvent): void {
+    const message = normalizeProgressMessage(event.message);
+    if (!message) {
+      return;
+    }
+
+    const slot = resolveProgressSlot(event);
+    this.lines.set(slot, {
+      slot,
+      message,
+      kind: event.kind,
+      updatedAt: Date.now(),
+    });
+
+    const ordered = [...this.lines.values()].sort((left, right) => left.updatedAt - right.updatedAt);
+    while (ordered.length > MAX_LIVE_STATUS_LINES) {
+      const first = ordered.shift();
+      if (!first) {
+        break;
+      }
+      this.lines.delete(first.slot);
+    }
+  }
+
+  private shouldBypassThrottle(event: TaskProgressEvent): boolean {
+    return (
+      event.kind === "warning" ||
+      event.kind === "needs_input" ||
+      event.kind === "completed"
+    );
+  }
+
+  private async flush(force = false): Promise<void> {
+    if (this.closed) {
+      return;
+    }
+
+    const rendered = this.render();
+    if (!rendered) {
+      return;
+    }
+
+    const now = Date.now();
+    const throttleMs = this.transport === "draft" ? DRAFT_STATUS_THROTTLE_MS : EDITABLE_STATUS_THROTTLE_MS;
+    if (!force && rendered === this.lastRenderedText) {
+      return;
+    }
+    if (!force && this.activated && now - this.lastSentAt < throttleMs) {
+      return;
+    }
+
+    const sent = await this.send(rendered);
+    if (!sent) {
+      return;
+    }
+
+    this.activated = true;
+    this.lastRenderedText = rendered;
+    this.lastSentAt = now;
+    this.onActivated();
+  }
+
+  private render(): string {
+    const lines = [...this.lines.values()].sort((left, right) => left.updatedAt - right.updatedAt);
+    const visibleLines = lines.length > 0 ? lines : [{
+      slot: "starting",
+      message: "Starting the run.",
+      kind: "started" as const,
+      updatedAt: Date.now(),
+    }];
+    const latestKind = visibleLines[visibleLines.length - 1]?.kind ?? "started";
+    const heading =
+      latestKind === "warning"
+        ? "Attention needed"
+        : latestKind === "needs_input"
+          ? "Need input"
+          : latestKind === "completed"
+            ? "Finalizing"
+            : "Working on it";
+
+    return [
+      heading,
+      "",
+      ...visibleLines.map((line) => `- ${line.message}`),
+    ].join("\n");
+  }
+
+  private async send(text: string): Promise<boolean> {
+    const options = this.inbound.messageThreadId
+      ? { messageThreadId: this.inbound.messageThreadId }
+      : undefined;
+
+    if (this.transport === "draft") {
+      return safeSendTelegramDraft(
+        this.draftSender,
+        this.chatId,
+        this.draftId,
+        text,
+        this.state,
+        options,
+      );
+    }
+
+    if (this.transport === "editable") {
+      if (!this.editableMessageId) {
+        return false;
+      }
+      return safeEditTelegramMessage(
+        this.messageEditor,
+        this.chatId,
+        this.editableMessageId,
+        text,
+        this.state,
+        options,
+      );
+    }
+
+    if (this.preferredTransport === "draft") {
+      const sentDraft = await safeSendTelegramDraft(
+        this.draftSender,
+        this.chatId,
+        this.draftId,
+        text,
+        this.state,
+        options,
+      );
+      if (sentDraft) {
+        this.transport = "draft";
+        return true;
+      }
+    }
+
+    const messageId = await safeCreateTelegramStatusMessage(
+      this.statusMessageCreator,
+      this.chatId,
+      text,
+      this.state,
+      options,
+    );
+    if (messageId) {
+      this.transport = "editable";
+      this.editableMessageId = messageId;
+      return true;
+    }
+
+    this.transport = "disabled";
+    return false;
+  }
 }
 
 export class TelegramGateway {
   private readonly sender: TelegramSender;
+  private readonly draftSender: TelegramDraftSender;
+  private readonly statusMessageCreator: TelegramStatusMessageCreator;
+  private readonly messageEditor: TelegramMessageEditor;
   private readonly typingSender: TelegramTypingSender;
   private readonly fileSender: TelegramFileSender;
   private readonly callbackAnswerer: TelegramCallbackAnswerer;
@@ -106,6 +340,10 @@ export class TelegramGateway {
     private readonly deps: GatewayDependencies,
   ) {
     this.sender = deps.telegramSender ?? defaultTelegramSender;
+    this.draftSender = deps.telegramDraftSender ?? defaultTelegramDraftSender;
+    this.statusMessageCreator =
+      deps.telegramStatusMessageCreator ?? defaultTelegramStatusMessageCreator;
+    this.messageEditor = deps.telegramMessageEditor ?? defaultTelegramMessageEditor;
     this.typingSender =
       deps.telegramTypingSender ?? defaultTelegramTypingSender;
     this.fileSender = deps.telegramFileSender ?? defaultTelegramFileSender;
@@ -263,7 +501,10 @@ export class TelegramGateway {
         inbound.chatId,
         commandResult.response,
         responseState,
-        commandResult.options,
+        {
+          ...commandResult.options,
+          ...(inbound.messageThreadId ? { messageThreadId: inbound.messageThreadId } : {}),
+        },
       );
       return {
         ok: true,
@@ -276,6 +517,21 @@ export class TelegramGateway {
     const memory = this.deps.readConversationMemory(inbound.chatId, 8);
     let stopTyping: (() => void) | null = null;
     const progressState = createRequestProgressState();
+    const replyOptions = inbound.messageThreadId
+      ? { messageThreadId: inbound.messageThreadId }
+      : undefined;
+    const liveStatus = new TelegramLiveStatusSession(
+      inbound.chatId,
+      state,
+      inbound,
+      this.draftSender,
+      this.statusMessageCreator,
+      this.messageEditor,
+      () => {
+        stopTyping?.();
+        stopTyping = null;
+      },
+    );
     let progressQueue = Promise.resolve();
     let inboundText = "";
     let appendedUserTurn = false;
@@ -307,10 +563,9 @@ export class TelegramGateway {
             progressQueue = progressQueue
               .then(async () =>
                 this.sendProgressUpdate(
-                  inbound.chatId,
-                  state,
                   event,
                   progressState,
+                  liveStatus,
                 ),
               )
               .catch(() => undefined);
@@ -319,6 +574,7 @@ export class TelegramGateway {
         },
       );
       await progressQueue;
+      await liveStatus.close();
 
       const outbound = parseOutboundAgentResponse(
         response,
@@ -339,7 +595,7 @@ export class TelegramGateway {
       let sentAny = false;
 
       if (outbound.text) {
-        const textSent = await this.sender(inbound.chatId, outbound.text, state);
+        const textSent = await this.sender(inbound.chatId, outbound.text, state, replyOptions);
         sent = sent && textSent;
         sentAny = sentAny || textSent;
       }
@@ -367,6 +623,7 @@ export class TelegramGateway {
       };
     } catch (error) {
       await progressQueue.catch(() => undefined);
+      await liveStatus.close();
       const response = buildAgentFailureMessage(
         error,
         progressState.lastMeaningfulMessage,
@@ -389,6 +646,7 @@ export class TelegramGateway {
         inbound.chatId,
         response,
         state,
+        replyOptions,
       );
       return {
         ok: false,
@@ -632,45 +890,22 @@ export class TelegramGateway {
   }
 
   private async sendProgressUpdate(
-    chatId: string,
-    state: OpenColabState,
     event: TaskProgressEvent,
     requestState: RequestProgressState,
+    liveStatus: TelegramLiveStatusSession,
   ): Promise<void> {
     const message = normalizeProgressMessage(event.message);
     if (!message) {
       return;
     }
 
-    const slot = resolveProgressSlot(event);
-    const slotState = requestState.slots.get(slot);
-    const now = Date.now();
-    const bypassThrottle =
-      event.kind === "warning" ||
-      event.kind === "needs_input" ||
-      event.kind === "completed";
-    const unchanged = slotState?.lastMessage === message;
-    const tooSoon =
-      !bypassThrottle &&
-      slotState !== undefined &&
-      now - slotState.lastSentAt < PROGRESS_MESSAGE_THROTTLE_MS;
-
-    if (unchanged || tooSoon) {
-      return;
-    }
-
-    const sent = await safeSendTelegramMessage(this.sender, chatId, message, state);
-    if (!sent) {
-      return;
-    }
-
-    requestState.slots.set(slot, {
-      lastMessage: message,
-      lastSentAt: now,
-    });
     if (event.kind !== "progress") {
       requestState.lastMeaningfulMessage = message;
     }
+    await liveStatus.push({
+      ...event,
+      message,
+    });
   }
 }
 
@@ -683,6 +918,50 @@ async function safeSendTelegramMessage(
 ): Promise<boolean> {
   try {
     return await sender(chatId, text, state, options);
+  } catch {
+    return false;
+  }
+}
+
+async function safeSendTelegramDraft(
+  sender: TelegramDraftSender,
+  chatId: string,
+  draftId: number,
+  text: string,
+  state: OpenColabState,
+  options?: TelegramMessageOptions,
+): Promise<boolean> {
+  try {
+    return await sender(chatId, draftId, text, state, options);
+  } catch {
+    return false;
+  }
+}
+
+async function safeCreateTelegramStatusMessage(
+  creator: TelegramStatusMessageCreator,
+  chatId: string,
+  text: string,
+  state: OpenColabState,
+  options?: TelegramMessageOptions,
+): Promise<string | null> {
+  try {
+    return await creator(chatId, text, state, options);
+  } catch {
+    return null;
+  }
+}
+
+async function safeEditTelegramMessage(
+  editor: TelegramMessageEditor,
+  chatId: string,
+  messageId: string,
+  text: string,
+  state: OpenColabState,
+  options?: TelegramMessageOptions,
+): Promise<boolean> {
+  try {
+    return await editor(chatId, messageId, text, state, options);
   } catch {
     return false;
   }
@@ -763,7 +1042,6 @@ function buildAssistantRecoveryLog(
 
 function createRequestProgressState(): RequestProgressState {
   return {
-    slots: new Map<string, ProgressSlotState>(),
     lastMeaningfulMessage: null,
   };
 }
@@ -825,49 +1103,118 @@ function logAgentFailure(
   );
 }
 
+async function postTelegramJson(
+  method: string,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  const token = resolveTelegramBotToken();
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const parsed = await response.json().catch(() => null);
+    return asRecord(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function extractTelegramMessageId(response: Record<string, unknown> | null): string | null {
+  const result = asRecord(response?.result);
+  if (!result) {
+    return null;
+  }
+
+  const messageId = result.message_id;
+  if (typeof messageId === "number" && Number.isFinite(messageId)) {
+    return String(messageId);
+  }
+  if (typeof messageId === "string" && messageId.trim()) {
+    return messageId.trim();
+  }
+  return null;
+}
+
 export async function defaultTelegramSender(
   chatId: string,
   text: string,
   state: OpenColabState,
   options?: TelegramMessageOptions,
 ): Promise<boolean> {
+  const messageId = await defaultTelegramStatusMessageCreator(chatId, text, state, options);
+  return Boolean(messageId);
+}
+
+export async function defaultTelegramDraftSender(
+  chatId: string,
+  draftId: number,
+  text: string,
+  state: OpenColabState,
+  options?: TelegramMessageOptions,
+): Promise<boolean> {
   void state;
-  const token = resolveTelegramBotToken();
-  if (!token) {
-    return false;
-  }
+  const response = await postTelegramJson("sendMessageDraft", {
+    chat_id: chatId,
+    draft_id: draftId,
+    text,
+    ...(options?.messageThreadId ? { message_thread_id: Number(options.messageThreadId) } : {}),
+  });
+  return response !== null;
+}
 
-  try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-          ...(options?.inlineKeyboard
-            ? {
-                reply_markup: {
-                  inline_keyboard: options.inlineKeyboard.map((row) =>
-                    row.map((button) => ({
-                      text: button.text,
-                      callback_data: button.callbackData,
-                    })),
-                  ),
-                },
-              }
-            : {}),
-        }),
-      },
-    );
+export async function defaultTelegramStatusMessageCreator(
+  chatId: string,
+  text: string,
+  state: OpenColabState,
+  options?: TelegramMessageOptions,
+): Promise<string | null> {
+  void state;
+  const response = await postTelegramJson("sendMessage", {
+    chat_id: chatId,
+    text,
+    ...(options?.messageThreadId ? { message_thread_id: Number(options.messageThreadId) } : {}),
+    ...(options?.inlineKeyboard
+      ? {
+          reply_markup: {
+            inline_keyboard: options.inlineKeyboard.map((row) =>
+              row.map((button) => ({
+                text: button.text,
+                callback_data: button.callbackData,
+              })),
+            ),
+          },
+        }
+      : {}),
+  });
+  return extractTelegramMessageId(response);
+}
 
-    return response.ok;
-  } catch {
-    return false;
-  }
+export async function defaultTelegramMessageEditor(
+  chatId: string,
+  messageId: string,
+  text: string,
+  state: OpenColabState,
+  options?: TelegramMessageOptions,
+): Promise<boolean> {
+  void state;
+  void options;
+  const response = await postTelegramJson("editMessageText", {
+    chat_id: chatId,
+    message_id: Number(messageId),
+    text,
+  });
+  return response !== null;
 }
 
 export async function defaultTelegramCallbackAnswerer(
@@ -907,30 +1254,10 @@ export async function defaultTelegramTypingSender(
   state: OpenColabState,
 ): Promise<boolean> {
   void state;
-  const token = resolveTelegramBotToken();
-  if (!token) {
-    return false;
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${token}/sendChatAction`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          chat_id: chatId,
-          action: "typing",
-        }),
-      },
-    );
-
-    return response.ok;
-  } catch {
-    return false;
-  }
+  return (await postTelegramJson("sendChatAction", {
+    chat_id: chatId,
+    action: "typing",
+  })) !== null;
 }
 
 export async function defaultTelegramFileSender(
@@ -1010,10 +1337,12 @@ function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {
     return {
       kind: "callback_query",
       chatId: String(callbackChat.id),
+      chatType: parseChatType(callbackChat),
       sender: parseSender(asRecord(callbackQuery.from)),
       commandText: "",
       text: "",
       files: [],
+      messageThreadId: asOptionalString(callbackMessage.message_thread_id),
       callbackQueryId: String(callbackQuery.id ?? "").trim() || undefined,
       callbackData,
       callbackMessageId:
@@ -1043,11 +1372,26 @@ function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {
   return {
     kind: "message",
     chatId: String(chat.id),
+    chatType: parseChatType(chat),
     sender: parseSender(asRecord(message.from)),
     commandText: text,
     text,
     files,
+    messageThreadId: asOptionalString(message.message_thread_id),
   };
+}
+
+function parseChatType(chat: Record<string, unknown>): TelegramInbound["chatType"] {
+  const type = String(chat.type ?? "").trim().toLowerCase();
+  if (
+    type === "private" ||
+    type === "group" ||
+    type === "supergroup" ||
+    type === "channel"
+  ) {
+    return type;
+  }
+  return "unknown";
 }
 
 function parseSender(from: Record<string, unknown> | null): string {
@@ -1077,6 +1421,17 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   }
 
   return value as Record<string, unknown>;
+}
+
+function asOptionalString(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
+  }
+  return undefined;
 }
 
 function normalizeEntityId(value: string): string {

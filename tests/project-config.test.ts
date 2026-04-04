@@ -244,6 +244,8 @@ test("project state migrates legacy project provider into agent config", () => {
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
       "{prompt}",
+      "--output-format",
+      "stream-json",
       "--model",
       "{model}",
       "--permission-mode",
@@ -358,6 +360,9 @@ test("project state migrates legacy provider CLI defaults to workspace defaults 
     assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "codex");
     assert.deepEqual(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliArgs, [
       "exec",
+      "--json",
+      "--output-last-message",
+      "{output_file}",
       "--full-auto",
       "--add-dir",
       "{project_dir}",

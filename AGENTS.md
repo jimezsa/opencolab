@@ -58,7 +58,7 @@ Agent contract details that matter for implementation:
 - The seeded `AGENTS.md` contract must explain that `PROJECT-AND-TEAM.md` is the project-scoped shared context file, is read after `TODO.md` and before `MEMORY.md`, and must be consulted before agents edit it.
 - The seeded `professor` contract must teach professor-led specialist creation through the OpenColab CLI, require human approval before creation, and require roster updates in `PROJECT-AND-TEAM.md`.
 - The seeded `specialist` and `beginner` contracts must state that they do not create more specialists by default and should route staffing recommendations back through `professor`.
-- The seeded `AGENTS.md` contract must describe `OPENCOLAB_PROGRESS_FILE` as the default OpenColab progress channel, include a valid JSON example, and guide agents to choose bounded useful progress events instead of milestone-only updates.
+- The seeded `AGENTS.md` contract must explain that OpenColab owns Telegram live status for routed runs, derives it from runtime events instead of an agent-written progress file, and expects agents to avoid low-signal step-by-step chatter.
 - The seeded agent docs must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines rather than markdown-wrapped snippets.
 
 For behavior changes, update `docs/spec.md` first, then sync `README.md`, `AGENTS.md`, and code in the same change.
