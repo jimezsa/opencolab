@@ -60,10 +60,6 @@ Deliver an institutional-grade `findings.md` by:
 ## Prerequisites
 
 - `papercli` is installed and available in `PATH`.
-- Optional provider keys:
-  - `PAPERCLI_SEMANTIC_API_KEY`
-  - `PAPERCLI_SERPAPI_KEY`
-- If keys are absent, continue with available providers and record this limitation in the report.
 
 ## Non-Negotiable Rules
 
