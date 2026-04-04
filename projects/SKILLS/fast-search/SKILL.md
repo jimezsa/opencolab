@@ -60,10 +60,6 @@ Given a research question, use `papercli` to:
 ## Prerequisites
 
 - `papercli` is installed and available in `PATH`.
-- Optional provider keys:
-  - `PAPERCLI_SEMANTIC_API_KEY`
-  - `PAPERCLI_SERPAPI_KEY`
-- If keys are missing, continue with `arxiv` coverage and document the reduced coverage.
 
 ## Required Inputs
 
