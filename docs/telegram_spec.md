@@ -1,428 +1,401 @@
-# Telegram Progress Streaming Plan
+# Telegram Live Status Plan
 
 ## Goal
 
-Implement Telegram progress streaming for long-running agent work.
+Replace the current prompt-driven Telegram progress path with an OpenColab-native live status system.
 
-The desired Telegram UX is:
+The target UX is:
 
-1. User sends a request.
-2. OpenColab sends one short progress message quickly.
-3. OpenColab edits that same progress message as the run advances through meaningful work stages.
-4. OpenColab sends a second message with the full final answer when the run completes.
+1. User sends a request in Telegram.
+2. OpenColab acknowledges quickly.
+3. OpenColab shows one bounded live status surface while the run is active.
+4. OpenColab sends one separate final answer when the run completes.
 
-This is not token-by-token final-answer streaming.
-For research workflows, progress updates are more useful than a half-written answer.
+This is not token-by-token answer streaming.
+The user should see useful status, not every internal action.
+
+## Product Decision
+
+OpenColab should own Telegram live status.
+Agents should not be responsible for remembering a Telegram-specific progress protocol.
+
+The primary transport should be `sendMessageDraft`.
+The fallback transport should be one editable message using `sendMessage` plus `editMessageText`.
+
+Final answer delivery remains separate from live status:
+
+- live status answers: "what is happening now?"
+- final answer answers: "what did the agent conclude?"
+
+## Telegram Capability Notes
+
+Relevant Telegram Bot API changes:
+
+- Bot API 9.3 on December 31, 2025 added `sendMessageDraft`, allowing partial messages to be streamed while generation is in progress
+- Bot API 9.5 on March 1, 2026 allowed all bots to use `sendMessageDraft`
+- `editMessageText` remains the universal fallback for bot-authored messages
+- `sendChecklist` and `editMessageChecklist` are not the default path because they require a connected business account
+- `sendChatAction` remains only a short-lived hint and is not a real live status surface
+
+## Current Problems In This Repository
+
+### 1. Progress is still prompt-driven
+
+Today, routed provider runs inject `OPENCOLAB_PROGRESS_FILE` and depend on the agent to append JSON lines.
+
+That causes the exact failure mode seen in practice:
+
+- weaker agents forget the contract
+- progress quality varies by provider
+- the runtime cannot guarantee bounded UX
+
+### 2. Telegram transport is still message-spam oriented
+
+Today, progress events are sent as fresh Telegram messages instead of being rendered as one owned status surface.
+
+That creates unnecessary chat noise.
+
+### 3. Provider integrations are not using native event streams
+
+Current provider execution still centers on "spawn CLI, buffer stdout, return one final string".
+
+That is the wrong abstraction for live status.
 
 ## Desired User Experience
 
-The progress message should feel like following a live plan, not watching raw model text.
+The live surface should feel like a compact status card, not a transcript.
 
-Example progression:
+Example:
 
 ```text
 Working on it
 
-1. Planning approach
-2. Searching papers
-3. Downloading 5 papers
-   - Paper 1
-   - Paper 2
-   - Paper 3
-   - Paper 4
-   - Paper 5
-4. Summarizing papers
-5. Drafting final answer
+- Inspecting the project
+- Reviewing the current Telegram flow
+- Comparing Telegram API options
+- Writing the integration plan
 ```
 
-Then, in a second Telegram message:
+Then, after completion, a second normal message:
 
 ```text
 Here is the full answer...
 ```
 
-Key UX rules:
+UX rules:
 
-- Keep one progress message per run.
-- Edit it in place instead of sending many small updates.
-- Keep progress text short, concrete, and task-shaped.
-- Always send the full final answer as a separate second message.
-- Do not mix partial progress lines into the final answer text.
+- keep one live surface per run
+- do not show every shell command or every tool call
+- do not stream half-written final prose
+- keep final answer separate
+- keep conversation memory limited to the user turn and final assistant answer
 
-## Non-Goals For V1
+## Transport Strategy
 
-- No token-by-token preview of the final prose answer.
-- No Markdown/HTML-heavy formatting in progress updates.
-- No attempt to mirror every internal tool event.
-- No change to Telegram polling ownership; the poller stays inbound-only.
+### Primary: `sendMessageDraft`
 
-## Current State In This Repository
+Use `sendMessageDraft` by default for paired one-to-one Telegram chats.
 
-### `src/telegram-poller.ts`
+Why:
 
-Current role:
+- it is the newest Telegram-native primitive for partial live text
+- it maps directly to the "single live status surface" idea
+- it avoids sending many separate chat messages
 
-- clears webhook
-- reads updates with `getUpdates`
-- forwards each update to `runtime.handleTelegramWebhook(update)`
-- advances offset even when one update fails
+### Secondary: editable status message
 
-This file should remain focused on ingest.
-It is not the right place to own streaming UI state.
+Use `sendMessage` plus `editMessageText` when:
 
-### `src/gateway.ts`
+- the chat is not eligible for draft mode
+- draft behavior is unavailable or unreliable in the current client context
+- draft sending fails for the current run
 
-Current reply flow:
+### Last resort fallback
 
-1. parse inbound Telegram message
-2. check auth and pairing
-3. start typing feedback
-4. call `deps.respond(...)`
-5. wait for one final string
-6. send final text and files
-7. stop typing
+If both live-status transports fail:
 
-Current limitation:
+- keep `sendChatAction` as short-lived fallback feedback
+- still deliver the final answer normally
 
-- the gateway only knows about one final string
-- there is no Telegram `editMessageText` path
-- there is no progress-message lifecycle
+## Scope Rules
 
-### `src/provider-agent.ts`
+This live status design applies to routed Telegram runs for:
 
-Current provider flow:
+- Codex
+- Claude Code
+- Gemini CLI
+- Pi
 
-- build prompt
-- spawn provider CLI
-- buffer stdout
-- return only after process exit
+It should also work for OpenColab-owned long-running workflows such as search, Runpod, downloads, and other built-in operations.
 
-This is the main blocker.
-Telegram progress needs incremental provider output or another live event channel.
+## Core Architecture
 
-## Product Decision
+### 1. Provider-native event adapters
 
-Telegram should stream structured progress, not partial final answer text.
+OpenColab should consume machine-readable runtime events from each provider instead of asking the agent to print Telegram progress.
 
-That means the implementation needs two separate outbound channels during a run:
+Initial adapter targets:
 
-- a progress channel: one Telegram message edited in place
-- a final answer channel: one normal Telegram message sent after completion
+- Codex: `codex exec --json`
+- Claude Code: `claude -p --output-format stream-json`
+- Gemini CLI: `gemini --output-format stream-json`
+- Pi: `--mode json`
 
-This matches the kind of work OpenColab does better than raw text preview.
-Users care more about seeing "Searching papers", "Downloading 5 papers", and "Summarizing papers" than seeing half a paragraph appear and change.
+Possible later upgrades:
 
-## Proposed Architecture
+- Gemini ACP mode
+- Pi RPC mode
 
-### 1. Add a progress event contract
+These richer modes may be useful later, but they are not required for the first native rollout.
 
-Introduce a structured progress event type that can move from provider execution to Telegram delivery.
+### 2. One OpenColab status model
 
-Suggested shape:
+Provider-specific events should be normalized into a provider-agnostic internal model.
 
-```ts
-export interface AgentProgressEvent {
-  phase:
-    | "planning"
-    | "searching"
-    | "downloading"
-    | "reading"
-    | "summarizing"
-    | "drafting"
-    | "done"
-    | "info";
-  message: string;
-  items?: string[];
-  done?: boolean;
-}
-```
+Suggested event categories:
 
-Provider execution should be able to emit:
+- `ack`
+- `phase_change`
+- `counter_update`
+- `warning`
+- `needs_input`
+- `finalizing`
+- `done`
 
-- progress events
-- final answer text
-- optional outbound files
+Suggested user-facing phases:
 
-### 2. Add a stream-capable provider interface
+- inspecting workspace
+- reading context
+- searching or retrieving
+- editing files
+- running checks
+- waiting for input
+- preparing final answer
 
-The gateway should no longer depend only on `Promise<string>`.
+This model should not expose raw provider events directly to Telegram.
 
-Add a streaming provider contract alongside the current compatibility path.
+### 3. Status compression layer
 
-Suggested direction:
+OpenColab should compress low-level runtime activity into bounded user-facing updates.
 
-```ts
-export interface ProviderAgentStreamCallbacks {
-  onProgress?: (event: AgentProgressEvent) => void | Promise<void>;
-  onFinalTextChunk?: (chunk: string) => void | Promise<void>;
-}
+Compression rules:
 
-respondStreaming(input, callbacks): Promise<string>
-```
+- merge repeated low-signal tool activity into the current phase
+- emit updates on meaningful phase changes
+- emit counter updates only when the delta is meaningful
+- let warnings and blockers bypass normal throttling
+- keep one stable message body instead of narrating everything
 
-Important note:
+OpenColab should decide what is worth showing.
+The agent should not decide Telegram rendering.
 
-- the final answer still needs to be accumulated and returned as one final string
-- progress updates and final answer text are different concerns
-- callers that do not care about streaming should still be able to call `respond(...)`
+### 4. Telegram live status session
 
-### 3. Define a provider-to-gateway progress protocol
+Add a dedicated Telegram live-status session abstraction with ownership of:
 
-OpenColab needs a machine-readable way to detect progress updates inside streamed provider output.
+- transport selection for the run
+- first acknowledgment
+- current live text
+- throttling
+- no-op suppression
+- failure downgrade
+- finalization
 
-The cleanest V1 option is reserved control lines written to stdout:
+Suggested transport order:
 
-```text
-@telegram-progress {"phase":"planning","message":"Planning approach"}
-@telegram-progress {"phase":"searching","message":"Searching papers"}
-@telegram-progress {"phase":"downloading","message":"Downloading 5 papers","items":["Paper A","Paper B","Paper C","Paper D","Paper E"]}
-@telegram-progress {"phase":"summarizing","message":"Summarizing papers"}
-@telegram-progress {"phase":"drafting","message":"Drafting final answer"}
-```
+1. `sendMessageDraft`
+2. `sendMessage` plus `editMessageText`
+3. `sendChatAction` only
 
-Rules:
+## Rendering Rules
 
-- each control line must be on its own line
-- control lines are stripped from the final assistant answer
-- non-control text remains part of the final answer buffer
-- malformed control lines are ignored, not fatal
-
-This requires prompt-level guidance so agents know how to emit progress updates when the channel is Telegram.
-
-### 4. Add a Telegram progress message session
-
-Create a helper that owns one in-place edited Telegram progress message.
-
-Suggested responsibilities:
-
-- create the first progress message
-- remember the Telegram `message_id`
-- render progress state into short readable text
-- throttle edits
-- ignore no-op edits
-- stop updating cleanly on failure
-- finalize with a short completed state if desired
-
-For V1, the transport is simple:
-
-- first write: `sendMessage`
-- later writes: `editMessageText`
-
-No draft transport is needed.
-
-### 5. Keep final answer delivery separate
-
-When the provider run completes:
-
-1. finalize the progress message
-2. send the full assistant answer as a second Telegram message
-3. send files after the final text if needed
-
-This separation is intentional.
-The progress message answers "what is happening now?"
-The final message answers "what did the agent conclude?"
-
-## Gateway Rendering Rules
-
-The progress message should show a compact live checklist.
+The live surface should remain short and stable.
 
 Rendering rules:
 
-- show ordered steps in the sequence they were first observed
-- show only the latest message per phase
-- for `items`, show a short list and truncate aggressively
-- keep the full progress message well below Telegram's message limit
-- edit at a throttled cadence such as every 750ms to 1500ms
+- plain text only in v1
+- one short heading plus a few current lines
+- do not include raw JSON, tool names, or stack traces
+- do not list every file touched
+- truncate aggressively when lists grow
+- prefer replacing the current body instead of appending indefinitely
 
-Suggested render shape:
+Good examples:
 
-```text
-Working on it
+- `Reviewing the current Telegram gateway flow`
+- `Comparing Telegram draft mode with editable-message fallback`
+- `Running validation checks`
+- `Waiting for your confirmation before continuing`
 
-1. Planning approach
-2. Searching papers
-3. Downloading 5 papers
-   - Attention Is All You Need
-   - DINOv2
-   - Segment Anything
-   - RT-DETR
-   - DETR
-4. Summarizing papers
-```
+Bad examples:
 
-When the run finishes, either:
+- `Running rg, then sed, then cat, then another rg`
+- `Thinking...`
+- partial final prose
+- internal chain-of-thought
 
-- leave the progress message as-is, or
-- edit the header to `Completed`
+## Gateway Lifecycle
 
-Do not replace it with the full answer.
+For a routed Telegram run:
 
-## Fallback Behavior
+1. accept and validate the inbound message
+2. start short-lived typing feedback immediately
+3. create a live-status session
+4. consume provider-native runtime events
+5. normalize and compress them into OpenColab status events
+6. render those events through the live-status session
+7. accumulate the final answer separately
+8. stop live status when the run finishes or fails
+9. send the final answer as a normal Telegram message
+10. send files after the final answer when needed
 
-The system must degrade cleanly when streaming is imperfect.
+Important rules:
 
-Fallback rules:
+- final answer must remain a distinct message
+- operational status must not be appended to conversation memory
+- timeout recovery may mention the last meaningful status, but not replay the whole stream
 
-- if no progress events arrive, keep typing feedback and send the final answer normally
-- if provider stdout is buffered and useless until exit, the feature degrades to current behavior
-- if the first progress message fails to send, continue the run and still send the final answer
-- if a later edit fails, stop progress edits and keep generating
-- if progress parsing fails for one line, ignore that line and continue
-- conversation memory should store only the final assistant answer, never partial progress lines
+## Removal Plan For The Current Streaming Implementation
 
-## Prompting Contract
+The current implementation should be removed for normal routed Telegram agent runs once the native path is ready.
 
-Agent prompts should explicitly define how Telegram progress works.
+Remove or stop relying on:
 
-When the channel is Telegram and the task is long-running, the prompt should instruct the agent to emit concise progress control lines before major work stages.
+- prompt instructions that tell agents to append JSON progress to `OPENCOLAB_PROGRESS_FILE`
+- default injection of `OPENCOLAB_PROGRESS_FILE` for generic Telegram provider streaming
+- polling a JSONL file as the primary provider-to-gateway progress transport
+- tests that expect one fresh Telegram message per progress event
+- any Telegram-specific prompt contract such as reserved progress control lines
 
-Examples:
+What should remain:
 
-- planning
-- searching papers
-- downloading papers
-- reading or inspecting sources
-- summarizing
-- drafting the final answer
+- the general OpenColab concept of bounded operational progress
+- OpenColab-owned progress for internal workflows
+- a separate timeout-recovery summary path
 
-Good progress messages are:
+In other words:
 
-- short
-- concrete
-- user-meaningful
-- free of fluff
+- keep the product behavior
+- replace the transport and ownership model
 
-Bad progress messages are:
+## Phased Implementation Plan
 
-- generic filler like "still working"
-- raw chain-of-thought
-- verbose tool logs
-- repeated low-signal micro-updates
+### Phase 1: spec and architecture lock
 
-## Concrete Implementation Plan
+1. Update the Telegram plan and the main spec so OpenColab-native status becomes the official design.
+2. Explicitly mark prompt/file-driven Telegram progress as legacy.
+3. Define the internal normalized event model and Telegram transport-selection rules.
 
-### Phase 1: Provider streaming foundation
+### Phase 2: provider-native streaming foundation
 
-1. Add progress event and stream callback types in `src/types.ts` or `src/provider-agent.ts`.
-2. Refactor `ProviderAgent` to expose `respondStreaming(...)`.
-3. Surface `stdout` chunks incrementally instead of waiting only for process exit.
-4. Keep `respond(...)` as a compatibility wrapper over the new streaming path.
+1. Add a stream-capable provider interface alongside the current `respond(...)` shape.
+2. Implement native event adapters for Codex, Claude Code, Gemini CLI, and Pi.
+3. Keep a compatibility wrapper during migration so non-Telegram callers do not break immediately.
 
-### Phase 2: Progress protocol parsing
+### Phase 3: status normalization and compression
 
-1. Add a parser for reserved `@telegram-progress {...}` lines.
-2. Strip parsed control lines from the final answer buffer.
-3. Ignore malformed control lines without aborting the run.
-4. Add tests for mixed stdout containing both control lines and final answer text.
+1. Add the provider-agnostic OpenColab status model.
+2. Map provider-native events into bounded phases and counters.
+3. Add throttling and no-op suppression before anything reaches Telegram.
 
-### Phase 3: Telegram progress transport
+### Phase 4: Telegram transport layer
 
-1. Add Telegram `editMessageText` support.
-2. Add a `TelegramProgressSession` helper.
-3. Implement:
-   - initial send
-   - throttled edits
-   - truncation rules for long paper lists
-   - no-op edit suppression
-   - best-effort finalize
+1. Add `sendMessageDraft` support.
+2. Add editable-message fallback support with `editMessageText`.
+3. Add one `TelegramLiveStatusSession` abstraction that chooses the transport and manages the run.
+4. Keep `sendChatAction` only as a startup or failure fallback.
 
-### Phase 4: Gateway integration
+### Phase 5: gateway integration
 
-1. Update `TelegramGateway.handleWebhook()` to use `respondStreaming(...)`.
-2. Start typing feedback as today.
-3. Create a progress session when the first progress event arrives.
-4. Feed progress events into the progress session.
-5. Keep accumulating final assistant text separately.
-6. On completion, append only the final answer to conversation history.
-7. Send the final answer as a second Telegram message.
-8. Send outbound files after the final text.
+1. Update the gateway to drive live status from normalized runtime events.
+2. Keep final answer accumulation separate from the live surface.
+3. Make sure files are still delivered after the final message.
+4. Ensure the normal conversation log stores only the final answer.
 
-### Phase 5: Prompt integration
+### Phase 6: legacy path removal
 
-1. Update agent prompt assembly in `src/agent.ts` so Telegram runs can emit progress control lines.
-2. Keep the contract narrow and explicit.
-3. Avoid provider-specific prompt logic unless a provider forces it.
+1. Remove progress-file injection from normal Telegram provider runs.
+2. Remove prompt guidance that asks agents to emit Telegram progress.
+3. Remove the JSONL file relay as the default Telegram progress path.
+4. Rewrite tests to validate the new OpenColab-owned transport behavior.
 
-### Phase 6: Concurrency and safety
+### Phase 7: rollout and guardrails
 
-1. Decide whether one chat may have multiple active runs.
-2. For V1, prefer one active run per chat.
-3. If a second message arrives while one run is active, either queue it or reject it clearly.
-4. Make sure progress edits from two runs cannot target the same Telegram message.
+1. Prefer one active run per chat in the initial rollout.
+2. If a second run arrives, queue it or reject it clearly.
+3. Add fallback downgrades when draft mode or message editing fails.
+4. Keep telemetry for transport failures so rollout quality can be judged quickly.
 
 ## Recommended File Changes
 
-- `src/types.ts`
-  - add progress event and streaming callback types
+- `docs/spec.md`
+  - make OpenColab-native live status the authoritative design
+- `docs/telegram_spec.md`
+  - keep this implementation-focused plan aligned with the main spec
 - `src/provider-agent.ts`
-  - add incremental stdout handling and progress parsing hooks
-- `src/agent.ts`
-  - add Telegram progress protocol instructions to prompt assembly
+  - move from progress-file relay to native stream adapters
+- `src/provider.ts`
+  - declare which runtime mode each provider adapter should use
 - `src/gateway.ts`
-  - add Telegram progress-session lifecycle and final-answer split delivery
-- `src/runtime.ts`
-  - thread the new streaming-capable gateway dependency surface
-- `src/telegram-poller.ts`
-  - likely no core logic change; keep it focused on inbound update handling
+  - add Telegram live-status session lifecycle and final-answer split delivery
+- `src/types.ts`
+  - add normalized runtime event and live-status types
+- `src/agent.ts`
+  - remove Telegram progress-writing guidance once migration completes
 - `tests/runtime.test.ts`
-  - cover progress session plus final second message behavior
-- `tests/telegram-poller.test.ts`
-  - confirm polling still advances offsets during streaming-related failures
-- new focused tests if needed
-  - progress parser
-  - Telegram progress session rendering
+  - replace message-per-progress expectations with live-session expectations
+- focused Telegram transport tests
+  - draft mode
+  - editable fallback
+  - failure downgrade
 
 ## Test Plan
 
-Add deterministic tests for:
+Add deterministic coverage for:
 
-- provider streaming emits progress events and final answer text
-- progress control lines are excluded from the stored final answer
-- gateway creates one progress message and edits it multiple times
-- gateway sends the final answer as a second message
+- Codex native event streaming drives OpenColab status correctly
+- Claude Code native event streaming drives OpenColab status correctly
+- Gemini CLI native event streaming drives OpenColab status correctly
+- Pi native event streaming drives OpenColab status correctly
+- draft mode is used when eligible
+- editable-message fallback is used when draft mode is unavailable or fails
+- live status never pollutes conversation memory
+- final answer still sends if live status breaks mid-run
 - file delivery still happens after the final answer
-- progress edit failure does not abort the provider run
-- no-progress providers fall back to typing plus final answer
-- overlapping requests in the same chat do not corrupt progress state
+- overlapping runs in one chat do not corrupt each other
 
-## Risks And Edge Cases
-
-### Provider-side
-
-- some CLIs may buffer all stdout until exit
-- chunk boundaries may split lines mid-JSON
-- providers may print noise or logs to stdout
+## Risks And Open Questions
 
 ### Telegram-side
 
-- `editMessageText` can fail for unchanged text
-- long paper lists can exceed practical message size quickly
-- high-frequency edits can hit rate limits
+- `sendMessageDraft` is new and needs client-behavior validation in real chats
+- draft mode is private-chat oriented and should not be assumed universal
+- finalization semantics must be validated so the final `sendMessage` does not leave a stale draft surface behind
 
-### Runtime-side
+### Provider-side
 
-- progress events must not leak into conversation memory
-- progress state must be isolated per run
-- final answer must still send even if streaming breaks halfway through
+- native event schemas differ across runtimes
+- some runtimes may expose more tool detail than should reach the user
+- some runtimes may still require a thin compatibility layer during migration
 
-## Implementation Notes
+### Product-side
 
-- Start with plain text only.
-- Prefer one active progress message per chat.
-- Prefer stable, research-shaped phases over clever formatting.
-- Before code implementation, sync the final behavior into `docs/spec.md` so the spec matches the intended Telegram UX.
+- too much status detail will still feel noisy even with a better transport
+- too little status detail will feel dead
+- status compression rules need to be strict enough that Telegram feels intentional
 
 ## Bottom Line
 
-The right feature is not "stream the answer into Telegram."
+The right Telegram feature is not "teach every agent to stream progress correctly."
 
 The right feature is:
 
-1. stream meaningful progress into one edited Telegram status message
-2. show concrete task steps such as searching, downloading, and summarizing
-3. send the full assistant answer as a second normal Telegram message at the end
-
-That gives users a clearer and more trustworthy research workflow UX.
+1. OpenColab reads native runtime events from Codex, Claude Code, Gemini CLI, and Pi
+2. OpenColab compresses them into a small user-facing status model
+3. Telegram renders that model through `sendMessageDraft` by default
+4. `editMessageText` remains the fallback
+5. the final answer remains a separate normal message
+6. the current prompt/file-based streaming implementation is removed for normal Telegram runs
 
 ## Interactive Command Interface Plan
 
