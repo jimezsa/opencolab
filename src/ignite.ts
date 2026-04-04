@@ -3,12 +3,16 @@
  * Configures project/provider/Telegram state and persists secrets to .env.local.
  */
 import {
+  getProviderDefaultReasoningEffort,
   getProviderSetupDefaults,
+  getProviderReasoningEffortOptions,
   getProviderSupportedAuthModes,
   getProviderOauthSetupHint,
   getSupportedProviderNames,
+  normalizeProviderReasoningEffort,
   normalizeProviderAuthMode,
   resolveProviderAuthMode,
+  resolveProviderReasoningEffort,
   normalizeProviderName,
 } from "./provider.js";
 import type { OpenColabRuntime } from "./runtime.js";
@@ -21,7 +25,11 @@ import {
   TELEGRAM_BOT_TOKEN_ENV_VAR,
   writeSecretToLocalEnv,
 } from "./secrets.js";
-import type { ProviderAuthMode, ProviderName } from "./types.js";
+import type {
+  ProviderAuthMode,
+  ProviderName,
+  ProviderReasoningEffort
+} from "./types.js";
 
 const ESC_INPUT = "\u001b";
 
@@ -133,9 +141,7 @@ export async function runIgnite(
   io.write("Onboarding complete.");
   io.write(`Active project: ${project.id} (${project.path})`);
   io.write(`Active agent: ${agent.id} (${agent.path})`);
-  io.write(
-    `Provider: ${agent.provider.name} (${agent.provider.model}, ${formatProviderAuthMode(agent.provider.authMode)})`,
-  );
+  io.write(`Provider: ${formatProviderSummary(agent.provider)}`);
   io.write(`Telegram chat: ${state.telegram.chatId ?? "not configured"}`);
   io.write(`Telegram paired: ${state.telegram.paired ? "yes" : "no"}`);
   io.write(`GPU servers: ${Object.keys(project.executionTargets).length}`);
@@ -222,12 +228,18 @@ async function configureProvider(
   if (hasCurrentProviderAuth) {
     const keepCurrent = await askYesNo(
       io,
-      `Provider already configured (${currentProvider.name}/${currentProvider.model}, ${formatProviderAuthMode(currentAuthMode)}). Keep current setup?`,
+      `Provider already configured (${formatProviderSummary({
+        ...currentProvider,
+        authMode: currentAuthMode
+      })}). Keep current setup?`,
       true,
     );
     if (keepCurrent) {
       io.write(
-        `Provider unchanged for agent '${agent.id}' in project '${project.id}': ${currentProvider.name} (${currentProvider.model}, ${formatProviderAuthMode(currentAuthMode)}).`,
+        `Provider unchanged for agent '${agent.id}' in project '${project.id}': ${formatProviderSummary({
+          ...currentProvider,
+          authMode: currentAuthMode
+        })}.`,
       );
       return;
     }
@@ -257,6 +269,21 @@ async function configureProvider(
   const authMode = await askProviderAuthMode(io, providerName, defaultAuthMode);
 
   const model = await askFromOptions(io, "Model", modelOptions, defaultModel);
+  const defaultReasoningEffort =
+    useCurrentProviderDefaults && model === currentProvider.model
+      ? resolveProviderReasoningEffort(
+          providerName,
+          model,
+          currentProvider.reasoningEffort,
+          currentProvider.reasoningEffort,
+        )
+      : getProviderDefaultReasoningEffort(providerName, model);
+  const reasoningEffort = await askProviderReasoningEffort(
+    io,
+    providerName,
+    model,
+    defaultReasoningEffort,
+  );
   if (authMode === "api_key") {
     const existingProviderKey = resolveProviderApiKey(providerName);
     let shouldWriteProviderKey = true;
@@ -293,10 +320,11 @@ async function configureProvider(
     providerName,
     model,
     authMode,
+    reasoningEffort,
   });
 
   io.write(
-    `Provider configured for agent '${agent.id}' in project '${project.id}': ${providerName} (${model}, ${formatProviderAuthMode(authMode)}, runtime ${runtime.getActiveAgent().provider.runtime}).`,
+    `Provider configured for agent '${agent.id}' in project '${project.id}': ${formatProviderSummary(runtime.getActiveAgent().provider)}, runtime ${runtime.getActiveAgent().provider.runtime}.`,
   );
 }
 
@@ -677,6 +705,41 @@ async function askProviderAuthMode(
   }
 }
 
+async function askProviderReasoningEffort(
+  io: IgniteIo,
+  providerName: ProviderName,
+  model: string,
+  fallback?: ProviderReasoningEffort | null,
+): Promise<ProviderReasoningEffort | undefined> {
+  const options = getProviderReasoningEffortOptions(providerName, model);
+  if (options.length === 0) {
+    return undefined;
+  }
+
+  const defaultOption =
+    resolveProviderReasoningEffort(providerName, model, fallback, fallback) ??
+    options[0];
+
+  while (true) {
+    const answer = await askFromOptions(
+      io,
+      "Reasoning effort",
+      options,
+      defaultOption,
+    );
+    const normalized = normalizeProviderReasoningEffort(
+      providerName,
+      model,
+      answer,
+    );
+    if (normalized) {
+      return normalized;
+    }
+
+    io.write(`Invalid reasoning effort. Use ${options.join(", ")}.`);
+  }
+}
+
 async function askFromOptions(
   io: IgniteIo,
   label: string,
@@ -773,6 +836,19 @@ function withFallbackOption(options: string[], value: string): string[] {
 
 function formatProviderAuthMode(value: ProviderAuthMode): string {
   return value.replaceAll("_", "-");
+}
+
+function formatProviderSummary(provider: {
+  name: ProviderName;
+  model: string;
+  authMode: ProviderAuthMode;
+  reasoningEffort?: ProviderReasoningEffort;
+}): string {
+  const details = [provider.model, formatProviderAuthMode(provider.authMode)];
+  if (provider.reasoningEffort) {
+    details.push(`reasoning ${provider.reasoningEffort}`);
+  }
+  return `${provider.name} (${details.join(", ")})`;
 }
 
 function writeApiKeySetupLink(

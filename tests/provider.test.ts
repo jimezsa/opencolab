@@ -1,14 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildProviderInvocationArgs,
   buildProviderRuntimeEnv,
   getCanonicalProviderKeyEnvVar,
+  getProviderDefaultReasoningEffort,
   getProviderOauthSetupHint,
+  getProviderReasoningEffortOptions,
   getProviderRuntimeProviderName,
   getProviderSupportedAuthModes,
   getProviderSetupDefaults,
   normalizeProviderAuthMode,
-  normalizeProviderName
+  normalizeProviderName,
+  normalizeProviderReasoningEffort,
+  resolveProviderReasoningEffort
 } from "../src/provider.js";
 
 test("normalizeProviderName supports built-in providers and aliases", () => {
@@ -61,6 +66,13 @@ test("OpenAI setup defaults support OAuth and API key auth modes", () => {
     "-"
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("openai"), ["api_key", "oauth"]);
+  assert.deepEqual(getProviderReasoningEffortOptions("openai", "gpt-5.4"), [
+    "low",
+    "medium",
+    "high",
+    "xhigh"
+  ]);
+  assert.equal(getProviderDefaultReasoningEffort("openai", "gpt-5.4"), "medium");
   assert.equal(normalizeProviderAuthMode("api-key"), "api_key");
   assert.equal(normalizeProviderAuthMode("oauth"), "oauth");
 });
@@ -84,6 +96,13 @@ test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
     "{shared_skills_dir}"
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("anthropic"), ["api_key", "oauth"]);
+  assert.deepEqual(getProviderReasoningEffortOptions("anthropic", "claude-opus-4-6"), [
+    "low",
+    "medium",
+    "high",
+    "max"
+  ]);
+  assert.equal(getProviderDefaultReasoningEffort("anthropic", "claude-opus-4-6"), "medium");
   assert.equal(
     getProviderOauthSetupHint("anthropic", "claude"),
     "Run 'claude auth login' if needed."
@@ -192,6 +211,65 @@ test("Kimi setup defaults use the pi runtime and kimi-coding provider id", () =>
   assert.deepEqual(getProviderSupportedAuthModes("kimi"), ["api_key"]);
   assert.equal(getCanonicalProviderKeyEnvVar("kimi"), "KIMI_API_KEY");
   assert.equal(getProviderRuntimeProviderName("kimi"), "kimi-coding");
+});
+
+test("provider reasoning helpers validate only supported native values", () => {
+  assert.equal(normalizeProviderReasoningEffort("openai", "gpt-5.4", "high"), "high");
+  assert.equal(normalizeProviderReasoningEffort("openai", "gpt-5.4", "max"), null);
+  assert.equal(normalizeProviderReasoningEffort("anthropic", "claude-opus-4-6", "max"), "max");
+  assert.equal(normalizeProviderReasoningEffort("gemini", "gemini-2.5-pro", "high"), null);
+  assert.equal(resolveProviderReasoningEffort("openai", "gpt-5.4", undefined, undefined), "medium");
+  assert.equal(resolveProviderReasoningEffort("anthropic", "claude-opus-4-6", "high"), "high");
+  assert.equal(resolveProviderReasoningEffort("gemini", "gemini-2.5-pro", "high"), undefined);
+});
+
+test("provider invocation args add native reasoning flags when configured", () => {
+  assert.deepEqual(
+    buildProviderInvocationArgs({
+      name: "openai",
+      model: "gpt-5.4",
+      runtime: "codex",
+      cliCommand: "codex",
+      cliArgs: ["exec", "--full-auto", "--add-dir", "{project_dir}", "-"],
+      authMode: "api_key",
+      reasoningEffort: "xhigh"
+    }),
+    [
+      "exec",
+      "-c",
+      'model_reasoning_effort="xhigh"',
+      "--full-auto",
+      "--add-dir",
+      "{project_dir}",
+      "-"
+    ]
+  );
+
+  assert.deepEqual(
+    buildProviderInvocationArgs({
+      name: "anthropic",
+      model: "claude-opus-4-6",
+      runtime: "claude",
+      cliCommand: "claude",
+      cliArgs: ["-p", "{prompt}", "--model", "{model}"],
+      authMode: "api_key",
+      reasoningEffort: "max"
+    }),
+    ["-p", "{prompt}", "--model", "{model}", "--effort", "max"]
+  );
+
+  assert.deepEqual(
+    buildProviderInvocationArgs({
+      name: "gemini",
+      model: "gemini-2.5-pro",
+      runtime: "gemini",
+      cliCommand: "gemini",
+      cliArgs: ["--prompt", "{prompt}"],
+      authMode: "api_key",
+      reasoningEffort: "high"
+    }),
+    ["--prompt", "{prompt}"]
+  );
 });
 
 test("MiniMax runtime env uses the Anthropic-compatible gateway without leaking parent Anthropic settings", () => {

@@ -30,7 +30,12 @@ import {
   readProjectState,
   writeProjectState
 } from "./project-config.js";
-import { getProviderSetupDefaults, resolveProviderAuthMode } from "./provider.js";
+import {
+  getProviderDefaultReasoningEffort,
+  getProviderSetupDefaults,
+  resolveProviderAuthMode,
+  resolveProviderReasoningEffort
+} from "./provider.js";
 import {
   RunpodExecutionServiceImpl,
   type RunpodExecutionService,
@@ -58,7 +63,8 @@ import type {
   OpenColabState,
   ProjectState,
   ProviderAuthMode,
-  ProviderName
+  ProviderName,
+  ProviderReasoningEffort
 } from "./types.js";
 import { ensureDir } from "./utils.js";
 
@@ -81,6 +87,7 @@ export interface ModelSetupInput {
   cliCommand?: string;
   cliArgs?: string[];
   authMode?: ProviderAuthMode;
+  reasoningEffort?: ProviderReasoningEffort;
 }
 
 export interface TelegramSetupInput {
@@ -279,6 +286,16 @@ export class OpenColabRuntime {
       input.authMode,
       defaultAuthMode
     );
+    const fallbackReasoningEffort =
+      input.providerName === targetAgent.provider.name && input.model === targetAgent.provider.model
+        ? targetAgent.provider.reasoningEffort
+        : getProviderDefaultReasoningEffort(input.providerName, input.model);
+    const reasoningEffort = resolveProviderReasoningEffort(
+      input.providerName,
+      input.model,
+      input.reasoningEffort,
+      fallbackReasoningEffort
+    );
     const cliCommand = input.cliCommand?.trim() || providerDefaults.cliCommand;
     const cliArgs =
       input.cliArgs && input.cliArgs.length > 0 ? input.cliArgs : providerDefaults.cliArgs;
@@ -299,7 +316,8 @@ export class OpenColabRuntime {
                 runtime: providerDefaults.runtime,
                 cliCommand,
                 cliArgs,
-                authMode
+                authMode,
+                reasoningEffort
               }
             }
           }

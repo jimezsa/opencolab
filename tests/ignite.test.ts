@@ -15,6 +15,8 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
     XAI_API_KEY: process.env.XAI_API_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    KIMI_API_KEY: process.env.KIMI_API_KEY,
     RUNPOD_API_KEY: process.env.RUNPOD_API_KEY,
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN
   };
@@ -23,6 +25,8 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
   delete process.env.GEMINI_API_KEY;
   delete process.env.MINIMAX_API_KEY;
   delete process.env.XAI_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
+  delete process.env.KIMI_API_KEY;
   delete process.env.RUNPOD_API_KEY;
   delete process.env.TELEGRAM_BOT_TOKEN;
   return previous;
@@ -49,6 +53,7 @@ test("ignite configures project, provider, and telegram", async () => {
     "openai",
     "api-key",
     "gpt-5.4",
+    "high",
     "openai_test_key_123",
     "y",
     "gemini_tools_key_123",
@@ -92,6 +97,7 @@ test("ignite configures project, provider, and telegram", async () => {
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.model, "gpt-5.4");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.reasoningEffort, "high");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(agent.provider.cliCommand, "codex");
     assert.deepEqual(agent.provider.cliArgs, [
@@ -150,6 +156,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     "openai",
     "api-key",
     "gpt-5.4",
+    "",
     "openai_test_key_esc",
     "n",
     "n",
@@ -183,6 +190,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.model, "gpt-5.4");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.reasoningEffort, "medium");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(state.telegram.chatId, null);
     assert.equal(agent.id, "professor");
@@ -229,6 +237,7 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.model, "gpt-5.4");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.reasoningEffort, "medium");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
   } finally {
@@ -351,6 +360,7 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
     "openai",
     "oauth",
     "gpt-5.4",
+    "",
     "n",
     "n",
     "n"
@@ -377,9 +387,56 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.reasoningEffort, "medium");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
     assert.equal(process.env.OPENAI_API_KEY, undefined);
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite exposes native OpenAI reasoning effort options in chooser mode", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-openai-choose-"));
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = ["", "n", "n", "n"];
+  let reasoningOptions: string[] | null = null;
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        choose: async (prompt, options) => {
+          if (prompt === "| Provider:") {
+            return "openai";
+          }
+          if (prompt === "| Auth mode:") {
+            return "oauth";
+          }
+          if (prompt === "| Model:") {
+            return "gpt-5.4";
+          }
+          if (prompt === "| Reasoning effort:") {
+            reasoningOptions = [...options];
+            return "xhigh";
+          }
+          return options[0] ?? "";
+        },
+        write: () => undefined
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true })
+      }
+    );
+
+    assert.deepEqual(reasoningOptions, ["low", "medium", "high", "xhigh"]);
+    assert.equal(runtime.getActiveAgent().provider.reasoningEffort, "xhigh");
+    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -397,6 +454,7 @@ test("ignite supports Anthropic oauth mode without asking for API key", async ()
     "anthropic",
     "oauth",
     "claude-opus-4-6",
+    "max",
     "n",
     "n",
     "n"
@@ -428,6 +486,7 @@ test("ignite supports Anthropic oauth mode without asking for API key", async ()
     assert.equal(agent.provider.authMode, "oauth");
     assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.model, "claude-opus-4-6");
+    assert.equal(agent.provider.reasoningEffort, "max");
     assert.equal(prompts.some((prompt) => prompt.includes("ANTHROPIC_API_KEY value")), false);
     assert.equal(outputs.some((line) => line.includes("claude auth login")), true);
     assert.equal(process.env.ANTHROPIC_API_KEY, undefined);
@@ -794,6 +853,7 @@ test("ignite can save the Gemini built-in tools key without changing the active 
     "openai",
     "oauth",
     "gpt-5.4",
+    "high",
     "y",
     "gemini_built_in_key_123",
     "n",
@@ -820,6 +880,7 @@ test("ignite can save the Gemini built-in tools key without changing the active 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.reasoningEffort, "high");
     assert.equal(process.env.OPENAI_API_KEY, undefined);
     assert.equal(process.env.GEMINI_API_KEY, "gemini_built_in_key_123");
 
@@ -910,6 +971,7 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     "openai",
     "api-key",
     "gpt-5.4",
+    "",
     "openai_test_key_for_runpod",
     "n",
     "n",

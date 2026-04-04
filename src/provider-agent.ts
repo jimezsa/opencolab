@@ -14,6 +14,7 @@ import {
 } from "./agent.js";
 import { getActiveAgent, getActiveProject } from "./project-config.js";
 import {
+  buildProviderInvocationArgs,
   buildProviderRuntimeEnv,
   getProviderOauthMissingSessionMessage,
   getProviderOauthSetupHint,
@@ -135,7 +136,8 @@ export class ProviderAgent {
     const cwd = resolveAgentDirectory(this.config.rootDir, agentPath);
     const projectDir = resolveAgentDirectory(this.config.rootDir, projectPath);
     const sharedSkillsDir = resolveSharedSkillsDirectory(this.config.rootDir);
-    const resolvedArgs = provider.cliArgs.map((arg: string) =>
+    const invocationArgs = buildProviderInvocationArgs(provider);
+    const resolvedArgs = invocationArgs.map((arg: string) =>
       replaceCliArgTokens(arg, {
         "{provider}": provider.name,
         "{runtime_provider}": getProviderRuntimeProviderName(provider.name),
@@ -148,7 +150,7 @@ export class ProviderAgent {
         "{user_message}": input.userMessage
       })
     );
-    const promptProvidedInArgs = provider.cliArgs.some(
+    const promptProvidedInArgs = invocationArgs.some(
       (arg: string) =>
         arg.includes("{prompt}") || arg.includes("{system_prompt}") || arg.includes("{user_message}")
     );

@@ -73,6 +73,12 @@ export type ProviderName =
   | "kimi";
 export type ProviderAuthMode = "api_key" | "oauth";
 export type ProviderRuntime = "codex" | "claude" | "gemini" | "pi";
+export type ProviderReasoningEffort =
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
 
 export interface ProviderConfig {
   name: ProviderName;
@@ -81,6 +87,7 @@ export interface ProviderConfig {
   cliCommand: string;
   cliArgs: string[];
   authMode: ProviderAuthMode;
+  reasoningEffort?: ProviderReasoningEffort;
 }
 
 export interface TelegramConfig {

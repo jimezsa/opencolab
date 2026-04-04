@@ -5,6 +5,7 @@
 import fs from "node:fs";
 import type { OpenColabConfig } from "./config.js";
 import {
+  normalizeProviderReasoningEffort,
   getProviderSetupDefaults,
   normalizeProviderName,
   resolveProviderAuthMode,
@@ -57,7 +58,8 @@ function cloneProviderConfig(source: ProviderConfig): ProviderConfig {
     runtime: source.runtime,
     cliCommand: source.cliCommand,
     cliArgs: [...source.cliArgs],
-    authMode: source.authMode
+    authMode: source.authMode,
+    reasoningEffort: source.reasoningEffort
   };
 }
 
@@ -590,14 +592,21 @@ function normalizeProvider(
     asNullableString(sourceProvider?.authMode),
     defaults.authMode
   );
+  const model = asString(sourceProvider?.model, providerDefaults.model);
+  const reasoningEffort = normalizeProviderReasoningEffort(
+    providerName,
+    model,
+    asNullableString(sourceProvider?.reasoningEffort)
+  );
 
   return {
     name: providerName,
-    model: asString(sourceProvider?.model, providerDefaults.model),
+    model,
     runtime: providerDefaults.runtime,
     cliCommand: shouldMigrateLegacyDefaults ? providerDefaults.cliCommand : cliCommand,
     cliArgs: shouldMigrateLegacyDefaults ? providerDefaults.cliArgs : cliArgs,
-    authMode
+    authMode,
+    reasoningEffort: reasoningEffort ?? undefined
   };
 }
 

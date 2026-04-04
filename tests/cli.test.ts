@@ -82,6 +82,43 @@ test("setup api-key saves one provider key without changing the active agent run
   }
 });
 
+test("setup model stores native reasoning effort for supported models", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-setup-model-effort-"));
+
+  try {
+    const runtime = createRuntime(tempDir);
+    runtime.init();
+
+    const result = runCli(tempDir, [
+      "setup",
+      "model",
+      "--provider",
+      "openai",
+      "--auth",
+      "oauth",
+      "--model",
+      "gpt-5.4",
+      "--reasoning-effort",
+      "xhigh"
+    ]);
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stdout.includes("Provider configured: openai"), true);
+    assert.equal(result.stdout.includes("Model: gpt-5.4"), true);
+    assert.equal(result.stdout.includes("Auth mode: oauth"), true);
+    assert.equal(result.stdout.includes("Reasoning effort: xhigh"), true);
+
+    const reloadedRuntime = createRuntime(tempDir);
+    reloadedRuntime.init();
+    const reloadedAgent = reloadedRuntime.getActiveAgent();
+    assert.equal(reloadedAgent.provider.name, "openai");
+    assert.equal(reloadedAgent.provider.authMode, "oauth");
+    assert.equal(reloadedAgent.provider.reasoningEffort, "xhigh");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("bare CLI help shows the installed version immediately", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-version-help-"));
 

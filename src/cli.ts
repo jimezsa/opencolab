@@ -24,12 +24,16 @@ import {
 } from "./install.js";
 import { DEFAULT_AGENT_ID } from "./project-config.js";
 import {
+  getProviderDefaultReasoningEffort,
+  getProviderReasoningEffortOptions,
   getProviderSetupDefaults,
   getProviderSupportedAuthModes,
   getProviderOauthSetupHint,
   getSupportedProviderNames,
+  normalizeProviderReasoningEffort,
   normalizeProviderAuthMode,
   normalizeProviderName,
+  resolveProviderReasoningEffort,
   resolveProviderAuthMode
 } from "./provider.js";
 import { createRuntime } from "./runtime.js";
@@ -40,7 +44,12 @@ import {
   TELEGRAM_BOT_TOKEN_ENV_VAR,
   writeSecretToLocalEnv
 } from "./secrets.js";
-import type { OpenColabState, ProviderAuthMode, ProviderName } from "./types.js";
+import type {
+  OpenColabState,
+  ProviderAuthMode,
+  ProviderName,
+  ProviderReasoningEffort
+} from "./types.js";
 import { upgradeOpenColab } from "./upgrade.js";
 
 const PROJECT_PET = "🐙";
@@ -535,7 +544,7 @@ function usageSetupModel(): string {
   return formatHelp([
     "Usage:",
     helpCommand(
-      `opencolab setup model [--agent-id <id>] [--provider ${providerChoices}] [--model <model>] [--auth api-key|oauth] [--api-key <value>]`,
+      `opencolab setup model [--agent-id <id>] [--provider ${providerChoices}] [--model <model>] [--auth api-key|oauth] [--reasoning-effort <value>] [--api-key <value>]`,
       "Configure an agent runtime",
     ),
     "",
@@ -544,10 +553,13 @@ function usageSetupModel(): string {
     helpFlag(`--provider ${providerChoices}`, "Provider identifier"),
     helpFlag("--model <model>", "Provider model name"),
     helpFlag("--auth api-key|oauth", "Provider auth mode (OpenAI, Anthropic, and Gemini support oauth)"),
+    helpFlag("--reasoning-effort <value>", "Native provider reasoning effort when the model supports it"),
     helpFlag("--api-key <value>", "Provider API key value (saved to .env.local)"),
     "",
     "Notes:",
     `  - Use ${accent("opencolab setup api-key")} to save a provider key without changing model/auth.`,
+    "  - OpenAI gpt-5.4 supports low, medium, high, xhigh.",
+    "  - Anthropic Claude models on the Claude runtime support low, medium, high, max.",
   ]);
 }
 
@@ -820,6 +832,33 @@ function parseProviderAuthMode(
   }
 
   return parsed;
+}
+
+function parseProviderReasoningEffort(
+  value: string | undefined,
+  providerName: ProviderName,
+  model: string,
+  fallback?: ProviderReasoningEffort
+): ProviderReasoningEffort | undefined {
+  if (value === undefined) {
+    return resolveProviderReasoningEffort(providerName, model, fallback, fallback);
+  }
+
+  const parsed = normalizeProviderReasoningEffort(providerName, model, value);
+  if (parsed) {
+    return parsed;
+  }
+
+  const supported = getProviderReasoningEffortOptions(providerName, model);
+  if (supported.length === 0) {
+    throw new Error(
+      `Reasoning effort is not supported for provider '${providerName}' with model '${model}'.`
+    );
+  }
+
+  throw new Error(
+    `Unsupported reasoning effort '${value}' for provider '${providerName}' with model '${model}'. Use ${supported.join(", ")}.`
+  );
 }
 
 function parseBooleanFlag(
@@ -1276,11 +1315,22 @@ async function main(): Promise<void> {
 
     const providerName = parseProviderName(values.provider, targetAgent.provider.name);
     const providerDefaults = getProviderSetupDefaults(providerName);
+    const model = values.model ?? providerDefaults.model;
     const defaultAuthMode =
       providerName === targetAgent.provider.name
         ? resolveProviderAuthMode(providerName, targetAgent.provider.authMode, providerDefaults.authMode)
         : providerDefaults.authMode;
     const authMode = parseProviderAuthMode(values.auth, providerName, defaultAuthMode);
+    const defaultReasoningEffort =
+      providerName === targetAgent.provider.name && model === targetAgent.provider.model
+        ? targetAgent.provider.reasoningEffort
+        : getProviderDefaultReasoningEffort(providerName, model) ?? undefined;
+    const reasoningEffort = parseProviderReasoningEffort(
+      values["reasoning-effort"],
+      providerName,
+      model,
+      defaultReasoningEffort
+    );
     const keyEnvVar = getProviderApiKeyEnvVar(providerName);
     const apiKey = values["api-key"]?.trim() ?? "";
     if (authMode === "api_key") {
@@ -1298,8 +1348,9 @@ async function main(): Promise<void> {
     runtime.setupModel({
       agentId: targetAgentId,
       providerName,
-      model: values.model ?? providerDefaults.model,
-      authMode
+      model,
+      authMode,
+      reasoningEffort
     });
 
     const configuredProject = runtime.getActiveProject();
@@ -1309,6 +1360,9 @@ async function main(): Promise<void> {
     console.log(`Provider configured: ${configuredAgent.provider.name}`);
     console.log(`Model: ${configuredAgent.provider.model}`);
     console.log(`Auth mode: ${displayProviderAuthMode(configuredAgent.provider.authMode)}`);
+    if (configuredAgent.provider.reasoningEffort) {
+      console.log(`Reasoning effort: ${configuredAgent.provider.reasoningEffort}`);
+    }
     console.log(`Runtime: ${displayProviderRuntime(configuredAgent.provider.runtime)}`);
     if (configuredAgent.provider.authMode === "api_key") {
       console.log(`API key env var: ${keyEnvVar}`);

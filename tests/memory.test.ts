@@ -121,7 +121,7 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("generic package installs without installer metadata should be upgraded with the package manager"), true);
     assert.equal(prompt.includes("OpenColab agent creation is the canonical path for adding a new specialist to the active project."), true);
     assert.equal(prompt.includes("`opencolab agent create --agent-id <id>`"), true);
-    assert.equal(prompt.includes("`opencolab setup model --agent-id <id> --provider <provider> --model <model> ...`"), true);
+    assert.equal(prompt.includes("`opencolab setup model --agent-id <id> --provider <provider> --model <model> [--reasoning-effort <native_value>] ...`"), true);
     assert.equal(prompt.includes("creating an OpenColab agent is separate from creating a Telegram bot identity"), true);
     assert.equal(prompt.includes("OpenColab enables progress updates by default during provider runs."), true);
     assert.equal(prompt.includes("`fast-search`"), true);

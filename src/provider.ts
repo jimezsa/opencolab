@@ -2,7 +2,13 @@
  * Provider configuration primitives.
  * Maps provider identifiers to canonical defaults, secrets, and runtime env wiring.
  */
-import type { ProviderAuthMode, ProviderName, ProviderRuntime } from "./types.js";
+import type {
+  ProviderAuthMode,
+  ProviderConfig,
+  ProviderName,
+  ProviderReasoningEffort,
+  ProviderRuntime
+} from "./types.js";
 
 interface ProviderCliDefaults {
   model: string;
@@ -27,6 +33,11 @@ interface ProviderDefinition extends ProviderSetupDefaults {
     model: string,
     authMode: ProviderAuthMode
   ) => Record<string, string>;
+}
+
+interface ProviderReasoningCapability {
+  options: ProviderReasoningEffort[];
+  defaultEffort: ProviderReasoningEffort;
 }
 
 const CLAUDE_WORKSPACE_ARGS = [
@@ -103,6 +114,27 @@ const GEMINI_RUNTIME_RESET_ENV_VARS = [
 const XAI_RUNTIME_RESET_ENV_VARS = ["XAI_API_KEY"] as const;
 const OPENROUTER_RUNTIME_RESET_ENV_VARS = ["OPENROUTER_API_KEY"] as const;
 const KIMI_RUNTIME_RESET_ENV_VARS = ["KIMI_API_KEY"] as const;
+
+const PROVIDER_REASONING_CAPABILITIES: Partial<
+  Record<ProviderName, Record<string, ProviderReasoningCapability>>
+> = {
+  openai: {
+    "gpt-5.4": {
+      options: ["low", "medium", "high", "xhigh"],
+      defaultEffort: "medium"
+    }
+  },
+  anthropic: {
+    "claude-opus-4-6": {
+      options: ["low", "medium", "high", "max"],
+      defaultEffort: "medium"
+    },
+    "claude-sonnet-4-5": {
+      options: ["low", "medium", "high", "max"],
+      defaultEffort: "medium"
+    }
+  }
+};
 
 const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   anthropic: {
@@ -275,6 +307,69 @@ export function getProviderRuntimeProviderName(providerName: ProviderName): stri
   return PROVIDER_DEFINITIONS[providerName].runtimeProvider ?? providerName;
 }
 
+function getProviderReasoningCapability(
+  providerName: ProviderName,
+  model: string
+): ProviderReasoningCapability | null {
+  const providerCapabilities = PROVIDER_REASONING_CAPABILITIES[providerName];
+  if (!providerCapabilities) {
+    return null;
+  }
+  return providerCapabilities[model] ?? null;
+}
+
+export function getProviderReasoningEffortOptions(
+  providerName: ProviderName,
+  model: string
+): ProviderReasoningEffort[] {
+  return [...(getProviderReasoningCapability(providerName, model)?.options ?? [])];
+}
+
+export function getProviderDefaultReasoningEffort(
+  providerName: ProviderName,
+  model: string
+): ProviderReasoningEffort | null {
+  return getProviderReasoningCapability(providerName, model)?.defaultEffort ?? null;
+}
+
+export function normalizeProviderReasoningEffort(
+  providerName: ProviderName,
+  model: string,
+  value: string | null | undefined
+): ProviderReasoningEffort | null {
+  const capability = getProviderReasoningCapability(providerName, model);
+  if (!capability || typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase() as ProviderReasoningEffort;
+  return capability.options.includes(normalized) ? normalized : null;
+}
+
+export function resolveProviderReasoningEffort(
+  providerName: ProviderName,
+  model: string,
+  candidate: string | null | undefined,
+  fallback?: ProviderReasoningEffort | null
+): ProviderReasoningEffort | undefined {
+  const capability = getProviderReasoningCapability(providerName, model);
+  if (!capability) {
+    return undefined;
+  }
+
+  const normalizedCandidate = normalizeProviderReasoningEffort(providerName, model, candidate);
+  if (normalizedCandidate) {
+    return normalizedCandidate;
+  }
+
+  const normalizedFallback = normalizeProviderReasoningEffort(providerName, model, fallback);
+  if (normalizedFallback) {
+    return normalizedFallback;
+  }
+
+  return capability.defaultEffort;
+}
+
 export function providerSupportsAuthMode(providerName: ProviderName, authMode: ProviderAuthMode): boolean {
   return PROVIDER_DEFINITIONS[providerName].supportedAuthModes.includes(authMode);
 }
@@ -377,6 +472,37 @@ export function buildProviderRuntimeEnv(
 
   Object.assign(env, definition.buildRuntimeEnv(apiKey, model, resolvedAuthMode));
   return env;
+}
+
+export function buildProviderInvocationArgs(provider: ProviderConfig): string[] {
+  const args = [...provider.cliArgs];
+  if (!provider.reasoningEffort) {
+    return args;
+  }
+  if (provider.cliCommand !== PROVIDER_DEFINITIONS[provider.name].cliCommand) {
+    return args;
+  }
+
+  if (
+    provider.name === "openai" &&
+    normalizeProviderReasoningEffort(provider.name, provider.model, provider.reasoningEffort)
+  ) {
+    return [
+      args[0] ?? "exec",
+      "-c",
+      `model_reasoning_effort="${provider.reasoningEffort}"`,
+      ...args.slice(1)
+    ];
+  }
+
+  if (
+    provider.name === "anthropic" &&
+    normalizeProviderReasoningEffort(provider.name, provider.model, provider.reasoningEffort)
+  ) {
+    return [...args, "--effort", provider.reasoningEffort];
+  }
+
+  return args;
 }
 
 function requireApiKey(value: string | null, keyName: string): string {

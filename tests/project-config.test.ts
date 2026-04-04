@@ -601,7 +601,8 @@ test("project state preserves OpenAI oauth auth mode", () => {
                 provider: {
                   name: "openai",
                   model: "gpt-5.4",
-                  authMode: "oauth"
+                  authMode: "oauth",
+                  reasoningEffort: "xhigh"
                 },
                 files: {
                   agents: "AGENTS.md",
@@ -624,6 +625,7 @@ test("project state preserves OpenAI oauth auth mode", () => {
     const loaded = readProjectState(config);
     assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "codex");
     assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "oauth");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.reasoningEffort, "xhigh");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -650,7 +652,8 @@ test("project state preserves Anthropic oauth auth mode", () => {
                 provider: {
                   name: "anthropic",
                   model: "claude-opus-4-6",
-                  authMode: "oauth"
+                  authMode: "oauth",
+                  reasoningEffort: "max"
                 },
                 files: {
                   agents: "AGENTS.md",
@@ -674,6 +677,55 @@ test("project state preserves Anthropic oauth auth mode", () => {
     assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name, "anthropic");
     assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "claude");
     assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "oauth");
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.reasoningEffort, "max");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state leaves reasoning effort unset when it is absent", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-openai-no-effort-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: DEFAULT_AGENT_ID,
+            agents: {
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
+                provider: {
+                  name: "openai",
+                  model: "gpt-5.4",
+                  authMode: "oauth"
+                },
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.reasoningEffort, undefined);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

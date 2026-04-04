@@ -21,7 +21,7 @@ OpenColab agent creation is the canonical path for adding a new specialist to th
 
 - create a new project agent: `opencolab agent create --agent-id <id>`
 - switch to a project agent: `opencolab agent use --agent-id <id>`
-- configure a new agent's provider or model when needed: `opencolab setup model --agent-id <id> --provider <provider> --model <model> ...`
+- configure a new agent's provider or model when needed: `opencolab setup model --agent-id <id> --provider <provider> --model <model> [--reasoning-effort <native_value>] ...`
 - treat specialist creation as a human-approved action rather than a silent background change
 - creating an OpenColab agent is separate from creating a Telegram bot identity through BotFather or binding a bot token
 

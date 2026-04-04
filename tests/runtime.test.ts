@@ -836,6 +836,7 @@ test("setupModel auto-sets provider CLI defaults for the active agent", () => {
     assert.equal(agent.provider.name, "anthropic");
     assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.reasoningEffort, "medium");
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
@@ -870,6 +871,7 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.reasoningEffort, "medium");
     assert.equal(agent.provider.cliCommand, "codex");
     assert.deepEqual(agent.provider.cliArgs, [
       "exec",
@@ -901,6 +903,7 @@ test("setupModel stores Anthropic oauth auth mode on the agent", () => {
     assert.equal(agent.provider.name, "anthropic");
     assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(agent.provider.reasoningEffort, "medium");
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
@@ -914,6 +917,46 @@ test("setupModel stores Anthropic oauth auth mode on the agent", () => {
       "--add-dir",
       "{shared_skills_dir}"
     ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("setupModel stores an explicit OpenAI reasoning effort", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-openai-effort-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "openai",
+      model: "gpt-5.4",
+      reasoningEffort: "xhigh"
+    });
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "openai");
+    assert.equal(agent.provider.reasoningEffort, "xhigh");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("setupModel stores an explicit Anthropic reasoning effort", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-anthropic-effort-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "anthropic",
+      model: "claude-opus-4-6",
+      reasoningEffort: "max"
+    });
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.reasoningEffort, "max");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -972,6 +1015,7 @@ test("runtime persistence excludes secret references from opencolab.json", () =>
     assert.equal(Object.hasOwn(provider, "apiKeyEnvVar"), false);
     assert.equal(provider.authMode, "api_key");
     assert.equal(provider.runtime, "codex");
+    assert.equal(provider.reasoningEffort, "medium");
     assert.equal(Object.hasOwn(raw.telegram, "botTokenEnvVar"), false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -999,6 +1043,7 @@ test("agents in one project can use different providers", () => {
     assert.equal(project.agents.professor.provider.name, "anthropic");
     assert.equal(project.agents.professor.provider.runtime, "claude");
     assert.equal(project.agents.professor.provider.authMode, "api_key");
+    assert.equal(project.agents.professor.provider.reasoningEffort, "medium");
     assert.equal(project.agents.scout.provider.name, "minimax");
     assert.equal(project.agents.scout.provider.runtime, "claude");
     assert.equal(project.agents.scout.provider.authMode, "api_key");
@@ -1035,6 +1080,7 @@ test("setupModel stores xAI on the pi runtime with non-interactive defaults", ()
     assert.equal(agent.provider.name, "xai");
     assert.equal(agent.provider.runtime, "pi");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.reasoningEffort, undefined);
     assert.equal(agent.provider.cliCommand, "pi");
     assert.deepEqual(agent.provider.cliArgs, [
       "--print",
@@ -1073,6 +1119,7 @@ test("setupModel stores OpenRouter on the pi runtime with non-interactive defaul
     assert.equal(agent.provider.name, "openrouter");
     assert.equal(agent.provider.runtime, "pi");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.reasoningEffort, undefined);
     assert.equal(agent.provider.cliCommand, "pi");
     assert.deepEqual(agent.provider.cliArgs, [
       "--print",
@@ -1111,6 +1158,7 @@ test("setupModel stores Kimi on the pi runtime with non-interactive defaults", (
     assert.equal(agent.provider.name, "kimi");
     assert.equal(agent.provider.runtime, "pi");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(agent.provider.reasoningEffort, undefined);
     assert.equal(agent.provider.cliCommand, "pi");
     assert.deepEqual(agent.provider.cliArgs, [
       "--print",
