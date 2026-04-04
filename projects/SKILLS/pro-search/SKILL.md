@@ -60,10 +60,6 @@ Answer a scientific question by building a medium-depth evidence base from paper
 ## Prerequisites
 
 - `papercli` is installed and available in `PATH`.
-- Optional provider keys:
-  - `PAPERCLI_SEMANTIC_API_KEY`
-  - `PAPERCLI_SERPAPI_KEY`
-- If provider keys are missing, proceed with available providers and document any coverage gaps.
 
 ## Hard Requirements
 
