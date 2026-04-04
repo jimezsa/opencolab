@@ -18,6 +18,8 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - Telegram management from paired chats now centers on `/projects`, `/agents`, and `/session_reset`, with picker-based project and agent selection and session reset remaining available while project and agent creation stay CLI-driven.
 - Telegram live status now waits for real runtime progress before creating a status surface, keeps private chats compact, and streams a bounded recent tool-activity list through one editable message in groups.
 - Routed Claude Code runs now use the current `claude -p --verbose --output-format stream-json` contract so Telegram live status continues to work with newer Claude Code releases.
+- Existing saved Claude-runtime provider configs on recognized older default arg sets now auto-migrate to the current streaming contract when OpenColab loads state, so upgraded installs recover Telegram live status without requiring manual model reconfiguration.
+- Anthropic native reasoning flags are now inserted before the Claude CLI `-- <prompt>` separator so reasoning-effort settings do not break current Claude runtime invocation.
 - Telegram final text replies are now split into ordered chunks before hitting the Bot API text limit, preserve active group topic routing, and log Telegram API status and descriptions when delivery fails instead of dropping oversized replies silently.
 
 ### Removed
