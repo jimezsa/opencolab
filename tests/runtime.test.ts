@@ -839,7 +839,7 @@ test("setupModel auto-sets provider CLI defaults for the active agent", () => {
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
-      "{prompt}",
+      "--verbose",
       "--output-format",
       "stream-json",
       "--model",
@@ -849,7 +849,9 @@ test("setupModel auto-sets provider CLI defaults for the active agent", () => {
       "--add-dir",
       "{project_dir}",
       "--add-dir",
-      "{shared_skills_dir}"
+      "{shared_skills_dir}",
+      "--",
+      "{prompt}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -911,7 +913,7 @@ test("setupModel stores Anthropic oauth auth mode on the agent", () => {
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
-      "{prompt}",
+      "--verbose",
       "--output-format",
       "stream-json",
       "--model",
@@ -921,7 +923,9 @@ test("setupModel stores Anthropic oauth auth mode on the agent", () => {
       "--add-dir",
       "{project_dir}",
       "--add-dir",
-      "{shared_skills_dir}"
+      "{shared_skills_dir}",
+      "--",
+      "{prompt}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -1058,7 +1062,7 @@ test("agents in one project can use different providers", () => {
     assert.equal(project.agents.scout.provider.cliCommand, "claude");
     assert.deepEqual(project.agents.scout.provider.cliArgs, [
       "-p",
-      "{prompt}",
+      "--verbose",
       "--output-format",
       "stream-json",
       "--model",
@@ -1068,7 +1072,9 @@ test("agents in one project can use different providers", () => {
       "--add-dir",
       "{project_dir}",
       "--add-dir",
-      "{shared_skills_dir}"
+      "{shared_skills_dir}",
+      "--",
+      "{prompt}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -1444,6 +1450,7 @@ test("paired webhook renders one live status surface before the final answer wit
       sentTexts.push(text);
       return true;
     },
+    telegramTypingSender: async () => true,
     telegramStatusMessageCreator: async (_chatId, text) => {
       statusCreates.push(text);
       return "status-1";
@@ -1660,6 +1667,9 @@ test("provider CLI native stream events are normalized into Telegram live status
           "  console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'pnpm test' } }] } }));",
           "}, 200);",
           "setTimeout(() => {",
+          "  console.log(JSON.stringify({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed' } }));",
+          "}, 250);",
+          "setTimeout(() => {",
           "  console.log(JSON.stringify({ type: 'result', result: 'paper search complete' }));",
           "}, 300);"
         ].join(" ")
@@ -1695,6 +1705,54 @@ test("provider CLI native stream events are normalized into Telegram live status
     } else {
       process.env.ANTHROPIC_API_KEY = originalAnthropicKey;
     }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("paired webhook splits oversized Telegram final replies and preserves message threads", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-long-final-reply-"));
+  const sentMessages: Array<{ text: string; messageThreadId?: string }> = [];
+  const longReply = Array.from({ length: 140 }, (_, index) =>
+    `Section ${String(index + 1).padStart(3, "0")}: ${"x".repeat(40)}`
+  ).join("\n\n");
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text, _state, options) => {
+      sentMessages.push({
+        text,
+        messageThreadId: options?.messageThreadId,
+      });
+      return true;
+    },
+    agentResponder: async () => longReply,
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001",
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentMessages.length = 0;
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "send the long answer",
+        chat: { id: "10001", type: "group" },
+        from: { username: "alice" },
+        message_thread_id: 77,
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.equal(sentMessages.length > 1, true);
+    assert.equal(sentMessages.every((message) => message.text.length <= 4_000), true);
+    assert.equal(sentMessages.every((message) => message.messageThreadId === "77"), true);
+    assert.equal(sentMessages.map((message) => message.text).join(""), longReply);
+  } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });

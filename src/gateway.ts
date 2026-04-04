@@ -100,6 +100,7 @@ interface GatewayDependencies {
 const TELEGRAM_FILE_FETCH_TIMEOUT_MS = 10_000;
 const MAX_TELEGRAM_ERROR_CHARS = 1_500;
 const MAX_TELEGRAM_CALLBACK_TEXT_CHARS = 180;
+const MAX_TELEGRAM_TEXT_CHARS = 4_000;
 const EDITABLE_STATUS_THROTTLE_MS = 3_000;
 const DRAFT_STATUS_THROTTLE_MS = 1_200;
 const MAX_LIVE_STATUS_LINES = 4;
@@ -609,7 +610,13 @@ export class TelegramGateway {
       let sentAny = false;
 
       if (outbound.text) {
-        const textSent = await this.sender(inbound.chatId, outbound.text, state, replyOptions);
+        const textSent = await safeSendTelegramMessage(
+          this.sender,
+          inbound.chatId,
+          outbound.text,
+          state,
+          replyOptions,
+        );
         sent = sent && textSent;
         sentAny = sentAny || textSent;
       }
@@ -931,10 +938,32 @@ async function safeSendTelegramMessage(
   options?: TelegramMessageOptions,
 ): Promise<boolean> {
   try {
-    return await sender(chatId, text, state, options);
+    return await sendTelegramTextChunks(sender, chatId, text, state, options);
   } catch {
     return false;
   }
+}
+
+async function sendTelegramTextChunks(
+  sender: TelegramSender,
+  chatId: string,
+  text: string,
+  state: OpenColabState,
+  options?: TelegramMessageOptions,
+): Promise<boolean> {
+  const chunks = splitTelegramText(text);
+  if (chunks.length === 0) {
+    return false;
+  }
+
+  for (const chunk of chunks) {
+    const sent = await sender(chatId, chunk, state, options);
+    if (!sent) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 async function safeSendTelegramDraft(
@@ -1095,6 +1124,44 @@ function truncateTelegramCallbackText(value: string): string {
   return `${normalized.slice(0, MAX_TELEGRAM_CALLBACK_TEXT_CHARS - 3)}...`;
 }
 
+function splitTelegramText(value: string): string[] {
+  const text = String(value ?? "");
+  if (!text) {
+    return [];
+  }
+
+  const chunks: string[] = [];
+  let start = 0;
+
+  while (start < text.length) {
+    const remaining = text.length - start;
+    if (remaining <= MAX_TELEGRAM_TEXT_CHARS) {
+      chunks.push(text.slice(start));
+      break;
+    }
+
+    const splitAt = findTelegramSplitIndex(text, start, MAX_TELEGRAM_TEXT_CHARS);
+    chunks.push(text.slice(start, splitAt));
+    start = splitAt;
+  }
+
+  return chunks.filter((chunk) => chunk.length > 0);
+}
+
+function findTelegramSplitIndex(text: string, start: number, limit: number): number {
+  const end = Math.min(start + limit, text.length);
+  const min = Math.max(start + Math.floor(limit * 0.6), start + 1);
+
+  for (const separator of ["\n\n", "\n", " "]) {
+    const index = text.lastIndexOf(separator, end);
+    if (index >= min) {
+      return index + separator.length;
+    }
+  }
+
+  return end;
+}
+
 function resolveProgressSlot(event: TaskProgressEvent): string {
   return (
     normalizeProgressMessage(event.slot ?? "") ||
@@ -1134,12 +1201,19 @@ async function postTelegramJson(
       },
       body: JSON.stringify(payload),
     });
-    if (!response.ok) {
+    const parsed = await response.json().catch(() => null);
+    const body = asRecord(parsed);
+    if (!response.ok || body?.ok !== true) {
+      const detail =
+        asStringValue(body?.description) ??
+        (response.ok ? "telegram returned ok=false" : `telegram api status ${String(response.status)}`);
+      console.error(`[opencolab:telegram:api] method=${method} status=${String(response.status)} ${detail}`);
       return null;
     }
-    const parsed = await response.json().catch(() => null);
-    return asRecord(parsed);
-  } catch {
+    return body;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error ?? "");
+    console.error(`[opencolab:telegram:api] method=${method} transport_error ${detail}`);
     return null;
   }
 }

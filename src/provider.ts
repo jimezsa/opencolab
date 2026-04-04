@@ -42,7 +42,7 @@ interface ProviderReasoningCapability {
 
 const CLAUDE_WORKSPACE_ARGS = [
   "-p",
-  "{prompt}",
+  "--verbose",
   "--output-format",
   "stream-json",
   "--model",
@@ -52,7 +52,9 @@ const CLAUDE_WORKSPACE_ARGS = [
   "--add-dir",
   "{project_dir}",
   "--add-dir",
-  "{shared_skills_dir}"
+  "{shared_skills_dir}",
+  "--",
+  "{prompt}"
 ] as const;
 
 const CODEX_WORKSPACE_ARGS = [

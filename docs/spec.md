@@ -704,7 +704,7 @@ Requirements:
 - provider adapters must prefer native machine-readable runtime streams over prompt-level progress protocols
 - the default provider integrations must use native event modes for routed Telegram runs:
   - Codex: `codex exec --json`
-  - Claude Code: `claude -p --output-format stream-json`
+  - Claude Code: `claude -p --verbose --output-format stream-json`
   - Gemini CLI: `gemini --output-format stream-json`
   - Pi: `pi --mode json`
 - `kind` is required
@@ -733,6 +733,7 @@ Requirements:
 
 - the gateway must not send a generic placeholder status message before meaningful runtime progress exists
 - the gateway must keep the final completion message distinct from the live status surface
+- when platform text limits would reject the final completion message, the gateway must split the final answer into multiple ordered messages instead of dropping it
 - paired private chats should prefer Telegram `sendMessageDraft`
 - group chats, supergroups, and channels must use one editable status message via `sendMessage` plus `editMessageText`
 - when draft mode is unavailable, ineligible, or fails, the gateway should fall back to one editable status message using `sendMessage` plus `editMessageText`
@@ -743,6 +744,7 @@ Requirements:
 - `warning` and `needs_input` events may bypass normal throttling when they materially affect the run
 - `sendChatAction` should only be used as short startup fallback feedback before the live status surface exists
 - if no status events are emitted, current `typing` behavior remains the fallback
+- Telegram API failures must retain the API status and description in gateway logs so delivery errors such as oversized messages are diagnosable
 
 Recommended UX policy:
 
@@ -753,6 +755,7 @@ Recommended UX policy:
 - send updates only on meaningful stage changes, count deltas, blockers, or transitions that help the user
 - avoid raw tool names, raw JSON, token-by-token prose, internal reasoning, and exhaustive command transcripts
 - avoid more than a small handful of status rewrites per run in group chats
+- keep split final-answer chunks in original order and preserve the active Telegram topic or thread when one is present
 
 ### 13.3 Skill and Agent Authoring Rules
 

@@ -220,6 +220,7 @@ OpenColab configures provider CLIs for non-interactive runs inside the active pr
 - Gemini-based shared tools still require `GEMINI_API_KEY` even when the active agent runtime uses another provider or Gemini OAuth
 - `pageindex-grounded` uses `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini OAuth
 - `opencolab ignite` prints direct setup links before asking for provider and Runpod API key values, and a BotFather instruction before asking for `TELEGRAM_BOT_TOKEN`
+- Routed Claude Code runs use `claude -p --verbose --output-format stream-json` so Telegram live status can consume the current native event stream
 
 Common setup flows:
 
@@ -391,8 +392,9 @@ opencolab gateway restart --port 4646
 - OpenColab waits for real runtime progress before creating the live status surface; it does not send a generic placeholder status card
 - In paired private chats, OpenColab prefers Telegram `sendMessageDraft` and keeps the live status compact
 - In groups and other non-private chats, OpenColab uses one editable status message and streams a bounded recent tool-activity list
+- Final text replies are split into ordered chunks when needed so Telegram's text limit does not drop the answer
 - `sendChatAction` remains active as startup feedback and as fallback when no live status event is available
-- If provider execution fails because of auth, timeout, or CLI setup problems, OpenColab sends a Telegram error reply instead of silently retrying
+- If provider execution fails because of auth, timeout, CLI setup problems, or Telegram API delivery issues, the gateway logs the Telegram status and description instead of failing silently
 
 ## Project and Agent Commands
 

@@ -243,7 +243,7 @@ test("project state migrates legacy project provider into agent config", () => {
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
-      "{prompt}",
+      "--verbose",
       "--output-format",
       "stream-json",
       "--model",
@@ -253,7 +253,9 @@ test("project state migrates legacy project provider into agent config", () => {
       "--add-dir",
       "{project_dir}",
       "--add-dir",
-      "{shared_skills_dir}"
+      "{shared_skills_dir}",
+      "--",
+      "{prompt}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

@@ -287,7 +287,7 @@ test("ignite supports configuring the minimax provider", async () => {
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
-      "{prompt}",
+      "--verbose",
       "--output-format",
       "stream-json",
       "--model",
@@ -297,7 +297,9 @@ test("ignite supports configuring the minimax provider", async () => {
       "--add-dir",
       "{project_dir}",
       "--add-dir",
-      "{shared_skills_dir}"
+      "{shared_skills_dir}",
+      "--",
+      "{prompt}"
     ]);
 
     assert.equal(process.env.MINIMAX_API_KEY, "minimax_test_key_123");

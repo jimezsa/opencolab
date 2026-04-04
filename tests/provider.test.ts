@@ -38,7 +38,7 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
     "-p",
-    "{prompt}",
+    "--verbose",
     "--output-format",
     "stream-json",
     "--model",
@@ -48,7 +48,9 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
     "--add-dir",
     "{project_dir}",
     "--add-dir",
-    "{shared_skills_dir}"
+    "{shared_skills_dir}",
+    "--",
+    "{prompt}"
   ]);
   assert.equal(getCanonicalProviderKeyEnvVar("minimax"), "MINIMAX_API_KEY");
 });
@@ -90,7 +92,7 @@ test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
     "-p",
-    "{prompt}",
+    "--verbose",
     "--output-format",
     "stream-json",
     "--model",
@@ -100,7 +102,9 @@ test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
     "--add-dir",
     "{project_dir}",
     "--add-dir",
-    "{shared_skills_dir}"
+    "{shared_skills_dir}",
+    "--",
+    "{prompt}"
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("anthropic"), ["api_key", "oauth"]);
   assert.deepEqual(getProviderReasoningEffortOptions("anthropic", "claude-opus-4-6"), [
