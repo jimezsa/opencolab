@@ -48,6 +48,7 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
 
 test("OpenAI setup defaults support OAuth and API key auth modes", () => {
   const defaults = getProviderSetupDefaults("openai");
+  assert.equal(defaults.model, "gpt-5.4");
   assert.equal(defaults.runtime, "codex");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
@@ -139,7 +140,7 @@ test("xAI setup defaults use the pi runtime", () => {
 
 test("OpenRouter setup defaults use the pi runtime", () => {
   const defaults = getProviderSetupDefaults("openrouter");
-  assert.equal(defaults.model, "openai/gpt-5-codex");
+  assert.equal(defaults.model, "openai/gpt-5.4");
   assert.equal(defaults.runtime, "pi");
   assert.equal(defaults.cliCommand, "pi");
   assert.equal(defaults.authMode, "api_key");
@@ -299,7 +300,7 @@ test("OpenAI OAuth runtime env clears OPENAI_API_KEY and injects no API key", ()
     "openai",
     "oauth",
     null,
-    "gpt-5.3-codex"
+    "gpt-5.4"
   );
 
   assert.equal(env.OPENAI_API_KEY, undefined);
@@ -329,7 +330,7 @@ test("OpenRouter runtime env clears stale OPENROUTER_API_KEY values before injec
     "openrouter",
     "api_key",
     "openrouter_test_key",
-    "openai/gpt-5-codex"
+    "openai/gpt-5.4"
   );
 
   assert.equal(env.OPENROUTER_API_KEY, "openrouter_test_key");

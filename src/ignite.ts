@@ -47,7 +47,7 @@ export interface IgniteIo {
 }
 
 const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
-  openai: ["gpt-5.3-codex", "gpt-5-codex", "gpt-5"],
+  openai: ["gpt-5.4"],
   anthropic: ["claude-opus-4-6", "claude-sonnet-4-5"],
   gemini: [
     "gemini-3.1-pro-preview",
@@ -65,7 +65,7 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
     "grok-4-fast-non-reasoning",
   ],
   openrouter: [
-    "openai/gpt-5-codex",
+    "openai/gpt-5.4",
     "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-pro",
     "moonshotai/kimi-k2.5",

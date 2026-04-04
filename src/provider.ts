@@ -168,7 +168,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   },
   openai: {
     runtime: "codex",
-    model: "gpt-5.3-codex",
+    model: "gpt-5.4",
     cliCommand: "codex",
     cliArgs: [...CODEX_WORKSPACE_ARGS],
     authMode: "api_key",
@@ -177,7 +177,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     aliases: ["codex"],
     resetEnvVars: [...OPENAI_RUNTIME_RESET_ENV_VARS],
     legacyCliDefaults: {
-      model: "gpt-5.3-codex",
+      model: "gpt-5.4",
       cliCommand: "codex",
       cliArgs: ["exec", "-"]
     },
@@ -204,7 +204,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   },
   openrouter: {
     runtime: "pi",
-    model: "openai/gpt-5-codex",
+    model: "openai/gpt-5.4",
     cliCommand: "pi",
     cliArgs: [...PI_WORKSPACE_ARGS],
     authMode: "api_key",

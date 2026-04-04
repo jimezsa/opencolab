@@ -48,7 +48,7 @@ test("ignite configures project, provider, and telegram", async () => {
     "science",
     "openai",
     "api-key",
-    "gpt-5.3-codex",
+    "gpt-5.4",
     "openai_test_key_123",
     "y",
     "gemini_tools_key_123",
@@ -90,7 +90,7 @@ test("ignite configures project, provider, and telegram", async () => {
 
     assert.equal(state.activeProjectId, "science");
     assert.equal(agent.provider.name, "openai");
-    assert.equal(agent.provider.model, "gpt-5.3-codex");
+    assert.equal(agent.provider.model, "gpt-5.4");
     assert.equal(agent.provider.authMode, "api_key");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(agent.provider.cliCommand, "codex");
@@ -149,7 +149,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     ESC_INPUT,
     "openai",
     "api-key",
-    "gpt-5.3-codex",
+    "gpt-5.4",
     "openai_test_key_esc",
     "n",
     "n",
@@ -181,7 +181,7 @@ test("ignite lets Esc skip a step and continue", async () => {
 
     assert.equal(state.activeProjectId, "default");
     assert.equal(agent.provider.name, "openai");
-    assert.equal(agent.provider.model, "gpt-5.3-codex");
+    assert.equal(agent.provider.model, "gpt-5.4");
     assert.equal(agent.provider.authMode, "api_key");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(state.telegram.chatId, null);
@@ -204,7 +204,7 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
   runtime.init();
   runtime.setupModel({
     providerName: "openai",
-    model: "gpt-5.3-codex"
+    model: "gpt-5.4"
   });
 
   const answers = ["", "y", "n", "n", "n"];
@@ -227,7 +227,7 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openai");
-    assert.equal(agent.provider.model, "gpt-5.3-codex");
+    assert.equal(agent.provider.model, "gpt-5.4");
     assert.equal(agent.provider.authMode, "api_key");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
@@ -350,7 +350,7 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
     "",
     "openai",
     "oauth",
-    "gpt-5.3-codex",
+    "gpt-5.4",
     "n",
     "n",
     "n"
@@ -666,7 +666,7 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
   const answers = [
     "",
     "openrouter",
-    "openai/gpt-5-codex",
+    "openai/gpt-5.4",
     "openrouter_test_key_123",
     "n",
     "n",
@@ -689,7 +689,7 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openrouter");
-    assert.equal(agent.provider.model, "openai/gpt-5-codex");
+    assert.equal(agent.provider.model, "openai/gpt-5.4");
     assert.equal(agent.provider.authMode, "api_key");
     assert.equal(agent.provider.runtime, "pi");
     assert.equal(agent.provider.cliCommand, "pi");
@@ -793,7 +793,7 @@ test("ignite can save the Gemini built-in tools key without changing the active 
     "",
     "openai",
     "oauth",
-    "gpt-5.3-codex",
+    "gpt-5.4",
     "y",
     "gemini_built_in_key_123",
     "n",
@@ -909,7 +909,7 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     "",
     "openai",
     "api-key",
-    "gpt-5.3-codex",
+    "gpt-5.4",
     "openai_test_key_for_runpod",
     "n",
     "n",

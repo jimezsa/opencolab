@@ -226,7 +226,7 @@ opencolab setup api-key --provider gemini --api-key <your_gemini_key>
 
 # OpenAI OAuth
 codex login
-opencolab setup model --provider openai --auth oauth --model gpt-5.3-codex
+opencolab setup model --provider openai --auth oauth --model gpt-5.4
 
 # Anthropic OAuth
 claude auth login
@@ -240,7 +240,7 @@ opencolab setup model --provider gemini --auth oauth --model gemini-2.5-pro
 opencolab setup model --provider xai --model grok-code-fast-1 --api-key <your_xai_key>
 
 # OpenRouter
-opencolab setup model --provider openrouter --model openai/gpt-5-codex --api-key <your_openrouter_key>
+opencolab setup model --provider openrouter --model openai/gpt-5.4 --api-key <your_openrouter_key>
 
 # Kimi
 opencolab setup model --provider kimi --model k2p5 --api-key <your_kimi_key>

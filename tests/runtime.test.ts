@@ -862,7 +862,7 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
     runtime.init();
     runtime.setupModel({
       providerName: "openai",
-      model: "gpt-5.3-codex",
+      model: "gpt-5.4",
       authMode: "oauth"
     });
 
@@ -956,7 +956,7 @@ test("runtime persistence excludes secret references from opencolab.json", () =>
     runtime.init();
     runtime.setupModel({
       providerName: "openai",
-      model: "gpt-5.3-codex"
+      model: "gpt-5.4"
     });
     runtime.setupTelegram({
       chatId: "10001"
@@ -1066,7 +1066,7 @@ test("setupModel stores OpenRouter on the pi runtime with non-interactive defaul
     runtime.init();
     runtime.setupModel({
       providerName: "openrouter",
-      model: "openai/gpt-5-codex"
+      model: "openai/gpt-5.4"
     });
 
     const agent = runtime.getActiveAgent();

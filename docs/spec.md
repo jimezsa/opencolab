@@ -406,6 +406,8 @@ Runtime architecture:
   - `anthropic` -> `claude`
   - `gemini` -> `gemini`
   - `minimax` -> `claude` with Anthropic-compatible gateway env wiring
+- repo-managed OpenAI defaults and onboarding examples should use `gpt-5.4`
+- repo-managed OpenRouter examples that point at an OpenAI model should use `openai/gpt-5.4`
 - pi-backed defaults should be:
   - `xai` -> `pi`
   - `openrouter` -> `pi`
