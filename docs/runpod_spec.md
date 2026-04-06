@@ -61,8 +61,13 @@ Explicitly out of scope for MVP:
 - distributed orchestration
 - always-on background autonomous job scheduling
 - marketplace optimization across multiple providers
-- arbitrary interactive SSH terminals exposed directly to agents
+- unrestricted or implicit interactive SSH terminals exposed directly to agents
 - direct support for community-cloud-only features
+
+Follow-on after the first batch-run MVP:
+
+- saved manual Pod SSH profiles for user-managed Runpod Pods
+- explicit opt-in interactive SSH sessions for agents working on a saved manual Pod
 
 ## 5. Why Runpod First
 
@@ -185,6 +190,55 @@ It should include:
 
 The manifest is the canonical record for reproducibility and debugging.
 
+### 8.4 Manual Pod SSH Profile
+
+A `ManualPodSshProfile` is a project-scoped saved connection profile for a user-managed Runpod Pod.
+
+It should describe:
+
+- profile id
+- backend identity
+- access mode such as `manual_pod`
+- Runpod `pod_id`
+- SSH host
+- SSH port
+- SSH user
+- non-secret authentication reference such as a private key path or SSH config host alias
+- workspace root
+- whether interactive agent access is allowed
+- when the profile was last validated
+
+Design rules:
+
+- this profile is for the manual Pod workflow, not for OpenColab-managed `run_id` jobs
+- the source of truth should be structured fields, not a raw pasted SSH command string
+- the runtime may accept a human-provided SSH command as input, but it should normalize and persist structured fields
+- SSH private key contents must never be stored in OpenColab state
+- profiles belong at project scope because the Pod is project infrastructure, not agent-local memory
+
+### 8.5 Interactive SSH Session
+
+An `InteractiveSshSession` is a runtime-managed live SSH shell attached to one saved manual Pod profile.
+
+It should describe:
+
+- session id
+- profile id
+- owning agent id
+- current state
+- start time
+- last activity time
+- local transcript path
+- local PTY or process handle metadata when needed by the implementation
+
+Design rules:
+
+- interactive sessions are an explicit opt-in capability, not the default agent permission model
+- the session should be PTY-backed so the agent can observe remote output in real time and send follow-up input
+- the session is for remote inspection and intervention on a user-managed Pod, not a replacement for detached job orchestration
+- long-running training or evaluation jobs should still prefer detached remote processes so work does not depend on the SSH session staying open
+- the runtime should keep session transcripts outside normal conversation memory and summarize only important outcomes back into memory
+
 ## 9. State Ownership
 
 The current `AgentConfig.provider` shape should remain focused on reasoning runtime.
@@ -207,6 +261,26 @@ Suggested additions to `opencolab.json`:
       "path": "projects/default",
       "activeAgentId": "professor",
       "agents": {},
+      "manualSshProfiles": {
+        "runpod-manual-a100": {
+          "id": "runpod-manual-a100",
+          "backend": "runpod",
+          "mode": "manual_pod",
+          "podId": "abc123xyz",
+          "host": "203.0.113.10",
+          "port": 21438,
+          "user": "root",
+          "privateKeyPath": "~/.ssh/id_ed25519",
+          "workspaceRoot": "/workspace",
+          "interactiveAccess": "opt_in",
+          "lastValidatedAt": "2026-04-06T12:00:00.000Z"
+        }
+      },
+      "agentRemoteDefaults": {
+        "professor": {
+          "manualSshProfileId": "runpod-manual-a100"
+        }
+      },
       "executionTargets": {
         "runpod-a100": {
           "id": "runpod-a100",
@@ -261,6 +335,7 @@ Secret handling:
 - `RUNPOD_API_KEY` must live in `.env.local` or shell env only
 - SSH private keys must not be embedded in `opencolab.json`
 - state may store non-secret key references or local paths if required later
+- saved manual Pod profiles may store host, port, username, pod id, key path, or SSH config alias, but not secret key material
 
 ## 10. Project Filesystem Layout
 
@@ -274,6 +349,9 @@ Suggested layout:
 - `projects/<project_id>/experiments/runs/<run_id>/logs/`
 - `projects/<project_id>/experiments/runs/<run_id>/artifacts/`
 - `projects/<project_id>/experiments/runs/<run_id>/sync/`
+- `projects/<project_id>/experiments/ssh-profiles/`
+- `projects/<project_id>/experiments/ssh-sessions/<session_id>/session.json`
+- `projects/<project_id>/experiments/ssh-sessions/<session_id>/transcript.log`
 
 Suggested semantics:
 
@@ -282,6 +360,9 @@ Suggested semantics:
 - `logs/` stores fetched stdout, stderr, and OpenColab polling notes
 - `artifacts/` stores files copied back from the remote run
 - `sync/` stores generated sync lists or packaging metadata, not a duplicate copy of the entire project by default
+- `ssh-profiles/` stores human-inspectable snapshots or exports of saved manual Pod profile metadata when the implementation chooses to mirror project state there
+- `ssh-sessions/<session_id>/session.json` stores mutable interactive-session metadata
+- `ssh-sessions/<session_id>/transcript.log` stores the live shell transcript outside normal conversation memory
 
 ## 11. Target Shape
 
@@ -640,6 +721,44 @@ Responsibility split:
 - `src/ignite.ts` should handle setup UX and first GPU server creation
 - `gpu server` and `gpu job` lifecycle commands should remain available outside `ignite` for later changes and repeatable operator control
 
+### 18.3 Manual Pod SSH Profile and Session Plan
+
+The manual Pod path should have its own operator-facing CLI surface rather than overloading `gpu job exec`.
+
+Suggested command families:
+
+- `opencolab gpu ssh profile save --profile-id <id> --pod-id <id> --host <host> --port <port> --user <user>`
+- `opencolab gpu ssh profile list`
+- `opencolab gpu ssh profile show --profile-id <id>`
+- `opencolab gpu ssh profile test --profile-id <id>`
+- `opencolab gpu ssh profile remove --profile-id <id>`
+- `opencolab gpu ssh profile set-default --profile-id <id> [--agent-id <id>]`
+- `opencolab gpu ssh session start --profile-id <id>`
+- `opencolab gpu ssh session read --session-id <id>`
+- `opencolab gpu ssh session write --session-id <id> --stdin "<text>"`
+- `opencolab gpu ssh session stop --session-id <id>`
+- `opencolab gpu ssh session list`
+
+Why this should be separate from `gpu job exec`:
+
+- `gpu job exec` is correctly scoped to one OpenColab-managed `run_id`
+- a user-managed Pod is outside the normal OpenColab run lifecycle
+- the manual path needs saved connection identity plus live session control, not just one-shot command execution
+
+Suggested session semantics:
+
+- `session start` should open a PTY-backed SSH session and return a stable `session_id`
+- `session read` should return newly appended transcript output since the last cursor or checkpoint
+- `session write` should send bounded input into the live remote shell
+- `session stop` should terminate the local session controller and close the SSH session cleanly
+- the first version should stay line-oriented and should not try to support full-screen TUIs
+
+Suggested profile semantics:
+
+- the runtime may refresh host and SSH port from Runpod using `pod_id` before opening a session when credentials are available
+- if live refresh is unavailable or fails, the runtime may fall back to the last saved endpoint and warn that it may be stale
+- the active agent may keep a default manual Pod profile pointer, but the underlying profile remains project-scoped
+
 ## 19. Agent Integration
 
 Agents should not receive unrestricted remote shell authority by default.
@@ -758,6 +877,50 @@ Follow-on after the minimal version:
 - optional JSON output mode for stable agent parsing
 - optional policy controls for allowing or denying remote exec on certain targets or projects
 
+### 19.2 Saved Manual Pod Interactive SSH Plan
+
+The manual Pod workflow should also support a direct interactive path for an agent working on a user-managed Runpod Pod.
+
+This feature exists for a different reason than `gpu job exec`:
+
+- the human may already have a Pod running
+- the human may want the agent to work directly on that machine
+- the agent may need to watch logs, inspect processes, adjust commands, and react to output in real time
+
+The first surface should be:
+
+- a saved manual Pod SSH profile
+- an explicit opt-in interactive session opened from that profile
+
+Recommended operating model:
+
+- the user creates the Pod manually
+- the user gives OpenColab the `pod_id` and SSH access details once
+- OpenColab saves a structured profile for later reuse
+- the active agent may open a live interactive session only when the profile or session policy allows it
+- the runtime exposes the session through `start`, `read`, `write`, and `stop` primitives rather than giving the agent raw host and key details to assemble itself
+
+Why this should be interactive rather than only bounded exec:
+
+- a one-shot command is enough for inspection such as `nvidia-smi`
+- it is not enough when the agent must observe output continuously and decide the next step based on live shell feedback
+- PTY-backed interaction gives the agent the ability to follow the remote machine state in real time without relying on repeated disconnected command probes
+
+Guardrails for the first version:
+
+- manual interactive access must be opt-in, not automatic
+- only saved manual Pod profiles should support this path in the first version
+- one active session per agent or per profile should be strongly preferred to avoid conflicting shells
+- transcript output should be persisted to session logs, not appended verbatim into normal conversation memory
+- the runtime should summarize important outcomes back into conversation memory after the session or at meaningful checkpoints
+- OpenColab should not expose full-screen interactive terminals through Telegram in this feature
+
+Relationship to the managed Runpod path:
+
+- OpenColab-managed `gpu server` and `gpu job` remain the preferred path for reproducible detached batch runs with `run_id` tracking
+- the saved-manual-Pod interactive path is a complementary capability for human-managed Pods, not a replacement for the managed control plane
+- the two paths may share SSH helpers and session infrastructure later, but their lifecycle semantics should stay separate
+
 ## 20. Security Model
 
 The Runpod MVP should assume remote compute is powerful and expensive, and therefore risky if left unconstrained.
@@ -771,6 +934,10 @@ Required controls:
 - max runtime per target or run
 - stop or cleanup behavior for stale Pods
 - clear operator visibility into active remote cost exposure
+- explicit opt-in before an agent may open an interactive SSH session on a saved manual Pod
+- clear visibility into which manual Pod profile and SSH session, if any, is currently active
+- idle timeout or explicit close behavior for interactive sessions
+- transcript persistence for auditing and recovery
 
 Security-sensitive defaults:
 
@@ -778,6 +945,10 @@ Security-sensitive defaults:
 - never sync `.env.local`
 - never auto-forward all local environment variables to the Pod
 - prefer explicit env var allowlists or secret references
+- never store raw SSH private key contents in profile or session state
+- never silently upgrade bounded exec authority into interactive session authority
+- prefer key-based SSH auth or existing SSH config aliases rather than password prompts
+- keep interactive sessions line-oriented in the first version and defer full TTY feature breadth such as port forwarding or arbitrary terminal multiplexing
 
 ## 21. Failure and Recovery
 
@@ -812,6 +983,13 @@ SSH-specific recovery rules:
 - if SSH is interrupted before launch is confirmed, the run should remain in a non-terminal uncertain state until reconciliation succeeds or timeout policy is reached
 - if the Pod is gone, the run should be treated as failed even if some artifacts survive on a preserved network volume
 - if artifact fetch fails after the experiment finished, the run result should distinguish experiment completion from artifact collection failure
+
+Manual interactive-session recovery rules:
+
+- if a live interactive SSH session disconnects but the Pod still appears alive, mark the session degraded rather than assuming the Pod is gone
+- allow the runtime to reopen a new session against the same saved profile when reconnection succeeds
+- keep the session transcript up to the last confirmed local line even when reconnection fails
+- if the remote shell launched long-running work that should survive disconnects, the runtime should encourage detached remote process patterns rather than pretending the shell itself was durable
 
 ## 22. Cost and Resource Policy
 
@@ -864,6 +1042,7 @@ Defer the following until the MVP is stable:
 - automatic image selection
 - automatic dataset preloading heuristics
 - backend abstraction for Lambda, Vast, or Modal
+- full-screen TUI support over agent-managed interactive SSH sessions
 
 ## 25. Acceptance Criteria For The First Runpod Milestone
 
@@ -894,6 +1073,9 @@ These questions should be resolved before promotion into `docs/spec.md`:
 - what exact detached-launch mechanism should be the MVP default: `tmux`, `nohup`, background wrapper script, or another approach
 - should artifact declarations be strict by default or best-effort by default
 - how much operator confirmation is needed before a high-cost run starts
+- should manual Pod SSH profiles live only in project state, or also mirror to human-readable files under `experiments/ssh-profiles/`
+- should interactive-session authority be granted per profile, per agent, per session, or by some combination
+- what is the minimum viable PTY/session protocol for agent-safe read and write control without exposing raw terminal complexity
 
 ## 27. Promotion Path
 
