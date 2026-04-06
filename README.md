@@ -473,6 +473,7 @@ pnpm test
 
 - openclaw: https://github.com/openclaw/openclaw
 - nanoclaw: https://github.com/qwibitai/nanoclaw
+- autoresearch: https://github.com/karpathy/autoresearch
 
 ## License
 
