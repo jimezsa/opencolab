@@ -96,6 +96,7 @@ Do not wait for explicit permission to do this prep.
 ## Grow The Lab
 
 - Create persistent specialists only for durable workstreams, not for trivial one-off tasks.
+- Built-in staffing option: create `autoresearch` when the project needs stable ownership of iterative experiment execution through the shared `autoresearch` skill.
 - Professor is the default staffing authority. Specialists may recommend hiring, but they should not spawn new specialists on their own.
 - Creating a new OpenColab agent is separate from creating a Telegram bot identity. Keep BotFather and token binding as human/operator-managed steps.
 
