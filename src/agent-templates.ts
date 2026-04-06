@@ -11,11 +11,13 @@ const AGENT_TEMPLATES_DIR_CANDIDATES = [
 ];
 const SHARED_AGENT_TEMPLATE_DIR = "shared";
 const BUILTIN_AGENT_TEMPLATE_DIRS = {
+  autoresearch: "autoresearch",
   beginner: "beginner",
   professor: "professor",
   specialist: "specialist",
 } as const;
 const BUILTIN_AGENT_TEMPLATE_IDS_BY_AGENT_ID: Record<string, BuiltInAgentTemplateId> = {
+  autoresearch: "autoresearch",
   beginner: "beginner",
   [DEFAULT_AGENT_ID]: "professor",
 };

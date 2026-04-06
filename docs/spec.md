@@ -101,10 +101,11 @@ Agent naming guidance:
 
 - `professor` is the fixed default lead agent id for each project
 - `beginner` is an optional built-in beginner-student agent id
+- `autoresearch` is an optional built-in experiment specialist id for sustained iterative experiment-loop work through the shared `autoresearch` skill
 - additional agents are PhD-style specialist agents
 - additional agent ids should use memorable, descriptive names that reflect their specialty or work style
 - additional agent ids do not need to follow a rigid `phd_*` naming scheme
-- built-in agent templates live under `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and role folders such as `src/agent-templates/professor/`, `src/agent-templates/beginner/`, and `src/agent-templates/specialist/`
+- built-in agent templates live under `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and role folders such as `src/agent-templates/professor/`, `src/agent-templates/beginner/`, `src/agent-templates/autoresearch/`, and `src/agent-templates/specialist/`
 
 Each agent directory must include:
 
@@ -129,6 +130,7 @@ Shared project skills requirements:
 - the shared `fast-search`, `pro-search`, and `deep-search` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
 - the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
 - the shared `pdf-figure-extract` skill is the canonical path for extracting and returning figures from already-downloaded local PDFs, optionally reusing PageIndex artifacts to narrow page selection before multimodal verification and delivery
+- the shared `autoresearch` skill is the canonical path for iterative keep/discard experiment loops over one explicitly configured repo; any agent may use it when needed, but sustained ownership belongs by default to the built-in `autoresearch` specialist when present; it must require an explicit `repo_path`, `editable_file_path`, `run_command`, and `metric_rule`, must treat a non-zero exit code or missing metric as failure by default, must use a dedicated disposable branch or worktree for keep/discard iteration, and must not assume the editable file is `train.py` or the run command is `uv run train.py`
 - the shared `runpod-job` skill is the canonical AI-facing path for Runpod work and by default it must ask the human to manually create a Runpod Pod with the desired GPU type, wait for the user to provide the `pod_id`, and then use direct SSH against that user-managed Pod rather than trying to provision capacity itself; this default is capacity-driven even though the OpenColab Runpod CLI remains supported; the skill must describe that default path as outside the normal OpenColab `run_id` lifecycle, must not invent a `run_id`, and must not claim that `opencolab gpu job exec` works directly against a raw `pod_id`; when the user explicitly wants the OpenColab-managed lifecycle, the skill may instead use the `opencolab gpu server` and `opencolab gpu job` CLI commands, and in that managed path it must launch jobs in detached mode with `--wait false`, return the `run_id` promptly, refresh the run with `opencolab gpu job status --run-id <run_id>` before reporting on it so the latest remote logs are downloaded locally, review the `bootstrap`, `stdout`, `stderr`, and `poller` log streams when summarizing a run, use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when remote SSH-backed access is needed, prefer a single `NVIDIA A100 80GB PCIe` GPU candidate with `keep_warm` for curated target creation, ask the user whether to keep a finished warm Pod running or cancel it, and surface failed or degraded runs clearly with a proposed next useful action
 
 Agent-local skills requirements:
@@ -151,11 +153,12 @@ Initialization requirements:
 - when an agent directory is created, `MEMORY.md` must be seeded from an internal runtime template
 - the default `professor` agent must seed from the built-in `src/agent-templates/professor/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
 - the built-in `beginner` agent id must seed from the built-in `src/agent-templates/beginner/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
+- the built-in `autoresearch` agent id must seed from the built-in `src/agent-templates/autoresearch/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
 - additional agents must seed from the built-in `src/agent-templates/specialist/` template folder in the source tree unless future runtime configuration chooses another built-in template
 - template-specific files may fall back to `src/agent-templates/shared/` in the source tree when a role folder does not provide an override, and packaged installs must preserve that fallback behavior with shipped runtime assets
-- in the current built-in layout, role folders provide `AGENTS.md` overrides and `src/agent-templates/shared/` provides the shared `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
+- in the current built-in layout, role folders provide `AGENTS.md` overrides, some roles may also override `IDENTITY.md`, and `src/agent-templates/shared/` provides the shared fallback `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
-- the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, and `runpod-job` skills must be available from the shared `projects/SKILLS/` directory
+- the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job` skills must be available from the shared `projects/SKILLS/` directory
 - built-in tool guidance and built-in skill summaries must be repo-managed and injected into prompts at runtime rather than copied into agent-local `TOOLS.md`
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
@@ -166,6 +169,7 @@ Initialization requirements:
 - default `professor` guidance must treat specialist creation as a normal lead-agent responsibility, require human approval before creation, and teach the exact OpenColab CLI path for creation through `opencolab agent create --agent-id <id>`
 - default `professor` guidance must mention follow-up per-agent model setup through `opencolab setup model --agent-id <id> ...` when needed
 - default `professor` guidance must require updating `PROJECT-AND-TEAM.md` after a new specialist is created or approved in principle
+- the built-in `autoresearch` agent guidance must orient the seeded agent around iterative experiment execution through the shared `autoresearch` skill and default ownership of sustained experiment-loop work
 - default `specialist` and `beginner` guidance must state that they do not create more specialists by default and should route staffing recommendations back through `professor`
 - default `AGENTS.md` must explain that OpenColab owns Telegram live status for routed runs, derives it from native runtime events instead of an agent-written progress file, and expects agents to avoid low-signal step-by-step chatter
 - default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences
@@ -928,8 +932,9 @@ v1 is complete when all are true:
 - `opencolab.json` persists active project, all project/agent configs, and one shared Telegram config.
 - The default `professor` agent is created under `projects/<project_id>/AGENTS/professor/`.
 - The optional built-in `beginner` agent is created under `projects/<project_id>/AGENTS/beginner/` when used.
+- The optional built-in `autoresearch` agent is created under `projects/<project_id>/AGENTS/autoresearch/` when used.
 - Additional agents are created under `projects/<project_id>/AGENTS/<agent_id>/`.
-- The default `professor` agent seeds from the built-in professor template assets, sourced from `src/agent-templates/professor/` in the repository and shipped in packaged installs; the built-in `beginner` agent id and additional agents follow the same built-in template rules with fallback to shared template assets.
+- The default `professor` agent seeds from the built-in professor template assets, sourced from `src/agent-templates/professor/` in the repository and shipped in packaged installs; the built-in `beginner` and `autoresearch` agent ids and additional agents follow the same built-in template rules with fallback to shared template assets.
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
 - Long-running routed tasks can emit bounded intermediate Telegram updates before the final answer.
 - Progress updates are treated as operational events rather than normal assistant conversation turns.

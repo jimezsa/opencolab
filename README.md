@@ -446,12 +446,12 @@ Telegram slash-menu commands:
 - Creating an OpenColab agent is separate from creating a Telegram bot identity; BotFather and token binding remain operator-managed steps
 - Shared skills live under `projects/SKILLS/` and are reused across all projects and agents
 - Agent-local skills live under `projects/<project_id>/AGENTS/<agent_id>/SKILLS/`
-- Built-in templates come from `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and role overrides in folders such as `professor/`, `beginner/`, and `specialist/`
+- Built-in templates come from `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and role overrides in folders such as `professor/`, `beginner/`, `autoresearch/`, and `specialist/`
 - Current session logs live in `<agent_path>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`
 - Previous-day summaries live in `<agent_path>/memory/Daily/<YYYY-MM-DD>.md`
 - Long-term durable facts belong in `MEMORY.md`
 
-Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, and `runpod-job` now defaults to a user-managed Runpod Pod workflow where the human creates the Pod, shares the `pod_id`, and the agent uses direct SSH, while keeping the OpenColab-managed `gpu server` and `gpu job` flow available as an explicit opt-in when the user wants `run_id` tracking and managed lifecycle behavior.
+Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, `autoresearch` handles iterative keep/discard experiment loops over one explicitly configured repo without assuming `train.py` or `uv run train.py`, and `runpod-job` now defaults to a user-managed Runpod Pod workflow where the human creates the Pod, shares the `pod_id`, and the agent uses direct SSH, while keeping the OpenColab-managed `gpu server` and `gpu job` flow available as an explicit opt-in when the user wants `run_id` tracking and managed lifecycle behavior. Any agent may use `autoresearch`, but the built-in `autoresearch` specialist is the default owner for sustained experiment-loop work.
 
 ## Configuration and Development
 

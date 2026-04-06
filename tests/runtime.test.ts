@@ -559,7 +559,7 @@ test("setupExecutionTarget preserves ordered Runpod fallback candidates", () => 
   }
 });
 
-test("init and agent create seed professor, beginner, and specialist AGENTS.md templates", () => {
+test("init and agent create seed professor, beginner, autoresearch, and specialist AGENTS.md templates", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-agent-template-"));
   const runtime = createRuntime(tempDir);
 
@@ -635,6 +635,28 @@ test("init and agent create seed professor, beginner, and specialist AGENTS.md t
     );
     assert.notEqual(beginnerDoc, professorDoc);
 
+    runtime.configureAgent("autoresearch");
+    const autoresearchAgentPath = path.join(buildAgentDir(tempDir, "default", "autoresearch"), "AGENTS.md");
+    const autoresearchDoc = fs.readFileSync(autoresearchAgentPath, "utf8");
+    assert.equal(autoresearchDoc.includes("# AGENTS.md - Autoresearch Specialist Essentials"), true);
+    assert.equal(
+      autoresearchDoc.includes("You are the project's autoresearch specialist."),
+      true
+    );
+    assert.equal(
+      autoresearchDoc.includes("Your primary responsibility is iterative experiment execution through the shared `autoresearch` skill"),
+      true
+    );
+    assert.equal(
+      autoresearchDoc.includes("Read `projects/SKILLS/autoresearch/SKILL.md` before running iterative experiment work"),
+      true
+    );
+    assert.equal(
+      autoresearchDoc.includes("Do not assume the editable file is `train.py` or the run command is `uv run train.py`."),
+      true
+    );
+    assert.notEqual(autoresearchDoc, professorDoc);
+
     runtime.configureAgent("scout");
     const specialistAgentPath = path.join(buildAgentDir(tempDir, "default", "scout"), "AGENTS.md");
     const specialistDoc = fs.readFileSync(specialistAgentPath, "utf8");
@@ -685,7 +707,7 @@ test("seeded AGENTS.md reads BOOTSTRAP.md before ALMA.md while bootstrap exists"
   try {
     runtime.init();
 
-    for (const agentId of ["professor", "beginner", "scout"]) {
+    for (const agentId of ["professor", "beginner", "autoresearch", "scout"]) {
       if (agentId !== "professor") {
         runtime.configureAgent(agentId);
       }
@@ -733,6 +755,29 @@ test("init seeds IDENTITY.md from built-in identity template", () => {
     assert.equal(identityDoc.includes("🐙 (default; change if you want)"), true);
     assert.equal(identityDoc.includes("Before investigating deeply, you must clarify the human's true intention for the topic."), true);
     assert.equal(identityDoc.includes("Save this file in the active agent directory as IDENTITY.md."), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("autoresearch agent seeds IDENTITY.md from built-in autoresearch identity template", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-autoresearch-identity-template-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.configureAgent("autoresearch");
+
+    const identityPath = path.join(buildAgentDir(tempDir, "default", "autoresearch"), "IDENTITY.md");
+    const identityDoc = fs.readFileSync(identityPath, "utf8");
+    assert.equal(identityDoc.includes("# IDENTITY.md - Autoresearch Specialist"), true);
+    assert.equal(identityDoc.includes("**Stable role:** autoresearch experiment specialist"), true);
+    assert.equal(
+      identityDoc.includes("**Primary responsibility:** iterative experiment execution through `projects/SKILLS/autoresearch/SKILL.md`"),
+      true
+    );
+    assert.equal(identityDoc.includes("do not assume `train.py` or `uv run train.py`"), true);
+    assert.equal(identityDoc.includes("Coordinate experiment goals, constraints, and summaries with `professor`."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
