@@ -9,6 +9,7 @@ import type {
   ExperimentRunManifest,
   ExperimentRunStatus,
   ExperimentRunSummary,
+  ManualSshSession,
   ProjectState
 } from "./types.js";
 import { ensureDir, nowIso, randomDigits, safeReadJson, writeJson } from "./utils.js";
@@ -23,6 +24,46 @@ export function buildExperimentTargetsDir(rootDir: string, project: ProjectState
 
 export function buildExperimentRunsDir(rootDir: string, project: ProjectState): string {
   return path.join(buildProjectExperimentsPath(rootDir, project), "runs");
+}
+
+export function buildManualSshProfilesDir(rootDir: string, project: ProjectState): string {
+  return path.join(buildProjectExperimentsPath(rootDir, project), "ssh-profiles");
+}
+
+export function buildManualSshSessionsDir(rootDir: string, project: ProjectState): string {
+  return path.join(buildProjectExperimentsPath(rootDir, project), "ssh-sessions");
+}
+
+export function buildManualSshSessionDir(
+  rootDir: string,
+  project: ProjectState,
+  sessionId: string
+): string {
+  return path.join(buildManualSshSessionsDir(rootDir, project), sessionId);
+}
+
+export function buildManualSshSessionStatePath(
+  rootDir: string,
+  project: ProjectState,
+  sessionId: string
+): string {
+  return path.join(buildManualSshSessionDir(rootDir, project, sessionId), "session.json");
+}
+
+export function buildManualSshSessionTranscriptPath(
+  rootDir: string,
+  project: ProjectState,
+  sessionId: string
+): string {
+  return path.join(buildManualSshSessionDir(rootDir, project, sessionId), "transcript.log");
+}
+
+export function buildManualSshSessionInboxPath(
+  rootDir: string,
+  project: ProjectState,
+  sessionId: string
+): string {
+  return path.join(buildManualSshSessionDir(rootDir, project, sessionId), "inbox.jsonl");
 }
 
 export function buildExperimentTargetPath(
@@ -72,6 +113,8 @@ export function buildExperimentSyncDir(rootDir: string, project: ProjectState, r
 export function ensureProjectExperimentDirs(rootDir: string, project: ProjectState): void {
   ensureDir(buildExperimentTargetsDir(rootDir, project));
   ensureDir(buildExperimentRunsDir(rootDir, project));
+  ensureDir(buildManualSshProfilesDir(rootDir, project));
+  ensureDir(buildManualSshSessionsDir(rootDir, project));
 }
 
 export function ensureExperimentRunDirs(rootDir: string, project: ProjectState, runId: string): void {
@@ -80,6 +123,15 @@ export function ensureExperimentRunDirs(rootDir: string, project: ProjectState, 
   ensureDir(buildExperimentLogsDir(rootDir, project, runId));
   ensureDir(buildExperimentArtifactsDir(rootDir, project, runId));
   ensureDir(buildExperimentSyncDir(rootDir, project, runId));
+}
+
+export function ensureManualSshSessionDir(
+  rootDir: string,
+  project: ProjectState,
+  sessionId: string
+): void {
+  ensureProjectExperimentDirs(rootDir, project);
+  ensureDir(buildManualSshSessionDir(rootDir, project, sessionId));
 }
 
 export function writeExecutionTargetSnapshot(
@@ -255,4 +307,24 @@ export function overwriteExperimentLog(
   const filePath = path.join(buildExperimentLogsDir(rootDir, project, runId), `${logName}.log`);
   fs.writeFileSync(filePath, text, "utf8");
   return filePath;
+}
+
+export function readManualSshSession(
+  rootDir: string,
+  project: ProjectState,
+  sessionId: string
+): ManualSshSession | null {
+  return safeReadJson<ManualSshSession | null>(
+    buildManualSshSessionStatePath(rootDir, project, sessionId),
+    null
+  );
+}
+
+export function writeManualSshSession(
+  rootDir: string,
+  project: ProjectState,
+  session: ManualSshSession
+): void {
+  ensureManualSshSessionDir(rootDir, project, session.sessionId);
+  writeJson(buildManualSshSessionStatePath(rootDir, project, session.sessionId), session);
 }

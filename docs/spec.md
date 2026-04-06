@@ -65,7 +65,7 @@ Not required in v1:
 - multi-user support
 - background autonomous jobs
 - cross-project concurrent execution
-- arbitrary interactive remote shells exposed directly to agents
+- unrestricted or implicit interactive remote shells exposed directly to agents
 
 ## 5. Filesystem Layout
 
@@ -131,7 +131,7 @@ Shared project skills requirements:
 - the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
 - the shared `pdf-figure-extract` skill is the canonical path for extracting and returning figures from already-downloaded local PDFs, optionally reusing PageIndex artifacts to narrow page selection before multimodal verification and delivery
 - the shared `autoresearch` skill is the canonical path for iterative keep/discard experiment loops over one explicitly configured repo; any agent may use it when needed, but sustained ownership belongs by default to the built-in `autoresearch` specialist when present; it must require an explicit `repo_path`, `editable_file_path`, `run_command`, and `metric_rule`, must treat a non-zero exit code or missing metric as failure by default, must use a dedicated disposable branch or worktree for keep/discard iteration, and must not assume the editable file is `train.py` or the run command is `uv run train.py`
-- the shared `runpod-job` skill is the canonical AI-facing path for Runpod work and by default it must ask the human to manually create a Runpod Pod with the desired GPU type, wait for the user to provide the `pod_id`, and then use direct SSH against that user-managed Pod rather than trying to provision capacity itself; this default is capacity-driven even though the OpenColab Runpod CLI remains supported; the skill must describe that default path as outside the normal OpenColab `run_id` lifecycle, must not invent a `run_id`, and must not claim that `opencolab gpu job exec` works directly against a raw `pod_id`; when the user explicitly wants the OpenColab-managed lifecycle, the skill may instead use the `opencolab gpu server` and `opencolab gpu job` CLI commands, and in that managed path it must launch jobs in detached mode with `--wait false`, return the `run_id` promptly, refresh the run with `opencolab gpu job status --run-id <run_id>` before reporting on it so the latest remote logs are downloaded locally, review the `bootstrap`, `stdout`, `stderr`, and `poller` log streams when summarizing a run, use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when remote SSH-backed access is needed, prefer a single `NVIDIA A100 80GB PCIe` GPU candidate with `keep_warm` for curated target creation, ask the user whether to keep a finished warm Pod running or cancel it, and surface failed or degraded runs clearly with a proposed next useful action
+- the shared `runpod-job` skill is the canonical AI-facing path for Runpod work and by default it must ask the human to manually create a Runpod Pod with the desired GPU type, wait for the user to provide the `pod_id`, and then use direct SSH against that user-managed Pod rather than trying to provision capacity itself; this default is capacity-driven even though the OpenColab Runpod CLI remains supported; the skill must describe that default path as outside the normal OpenColab `run_id` lifecycle, must not invent a `run_id`, and must not claim that `opencolab gpu job exec` works directly against a raw `pod_id`; when the user expects recurring direct access to the same manual Pod, the skill should prefer saving a project-scoped manual SSH profile through `opencolab gpu ssh profile ...`, set an active-agent default when appropriate, and use `opencolab gpu ssh session start|read|write|stop` for explicit opt-in line-oriented live SSH sessions with transcript-backed state; when the user explicitly wants the OpenColab-managed lifecycle, the skill may instead use the `opencolab gpu server` and `opencolab gpu job` CLI commands, and in that managed path it must launch jobs in detached mode with `--wait false`, return the `run_id` promptly, refresh the run with `opencolab gpu job status --run-id <run_id>` before reporting on it so the latest remote logs are downloaded locally, review the `bootstrap`, `stdout`, `stderr`, and `poller` log streams when summarizing a run, use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when remote SSH-backed access is needed, prefer a single `NVIDIA A100 80GB PCIe` GPU candidate with `keep_warm` for curated target creation, ask the user whether to keep a finished warm Pod running or cancel it, and surface failed or degraded runs clearly with a proposed next useful action
 
 Agent-local skills requirements:
 
@@ -331,6 +331,9 @@ Responsibilities:
 - `gpu server availability` must inspect live Runpod datacenter and GPU stock for one named target without mutating project state
 - `gpu server availability` should use the same ordered datacenter and GPU candidate lists that launch uses, report the best currently matching option when one exists, and state clearly that the result is only a live snapshot rather than a reservation
 - `gpu server availability` should warn when a datacenter appears in live stock but is not currently accepted by the Runpod Pod create API, and should also surface known prior network-volume provisioning failures for candidate datacenters when that evidence exists locally
+- `gpu ssh profile save|list|show|test|remove|set-default` must manage project-scoped saved manual SSH profiles for user-managed Pods, with optional per-agent default pointers
+- `gpu ssh session start|list|read|write|stop` must manage explicit opt-in live manual SSH sessions against saved profiles rather than generic raw shell authority
+- `gpu ssh session read` should return a stable machine-readable transcript slice including the requested offset, the next offset, and the current session state
 - `gpu job exec` must run one bounded remote shell command against the Pod associated with one `run_id`, rather than against a generic server target
 - `gpu job exec` should reconcile the run first, fail clearly when the run is not yet SSH-usable or is already terminal, and treat `running_unreachable` as a live-but-not-currently-reachable degraded state
 - `gpu job exec` should return a stable machine-readable result including `runId`, `targetId`, `exitCode`, `stdout`, and `stderr`
@@ -518,6 +521,7 @@ Notes:
 - when Anthropic auth mode is `oauth`, `ANTHROPIC_API_KEY` is optional
 - when Gemini auth mode is `oauth`, `GEMINI_API_KEY` is optional
 - execution targets belong at project scope, not inside per-agent provider configuration
+- saved manual SSH profiles for user-managed Pods also belong at project scope, not inside per-agent provider configuration
 - SSH private keys must not be embedded in `opencolab.json`
 - `opencolab.json` must not store raw secret values or env-var secret references
 - extra fields are allowed if they do not break the minimum contract
@@ -532,6 +536,7 @@ Requirements:
 
 - an `ExecutionTarget` is a named remote GPU environment available to a project
 - execution targets must live at project scope, not inside agent provider config
+- saved manual SSH profiles for user-managed Pods must also live at project scope, with optional per-agent default pointers
 - the first supported backend must be `runpod`
 - the first supported Runpod compute product must be `Pods`
 - the first supported cloud class must be `Secure Cloud`
@@ -573,6 +578,14 @@ Runpod MVP constraints:
 - `datacenterId` and `gpuType` remain the primary or first-choice values for compatibility, but the target may also carry ordered fallback lists for location and GPU selection
 - if multiple datacenter candidates are allowed, the implementation must manage network volumes per datacenter rather than assuming one shared volume instance can follow the Pod across locations
 
+Saved manual Pod SSH requirements:
+
+- a saved manual SSH profile must store structured connection fields rather than a raw secret-bearing shell string
+- a saved manual SSH profile may store `pod_id`, host, port, user, key-path reference, SSH config host alias, workspace root, and an interactive-access policy
+- saved manual SSH profiles are distinct from OpenColab-managed `ExecutionTarget` runs and remain outside the normal `run_id` lifecycle
+- live manual SSH sessions must be explicit opt-in, transcript-backed, and line-oriented in the first version
+- transcript output from live manual SSH sessions must not be copied verbatim into normal conversation memory
+
 ### 11.2 Run Manifest and Local State
 
 Requirements:
@@ -582,6 +595,7 @@ Requirements:
 - the manifest is the canonical local record for reproducibility and debugging
 - the manifest must include run id, project id, agent id, target id, requested command, working directory, environment variable references, sync include list, expected artifact paths, timestamps, and source revision metadata when available
 - status tracking must preserve the last meaningful stage even when provisioning, launch, fetch, or cleanup fails
+- live manual SSH sessions must keep mutable session metadata plus a transcript under the project `experiments/ssh-sessions/` tree
 
 Suggested run states:
 

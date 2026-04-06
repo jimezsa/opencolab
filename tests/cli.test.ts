@@ -280,6 +280,69 @@ test("gpu job help describes the exec command", () => {
   }
 });
 
+test("gpu ssh help describes profile and session commands", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-ssh-help-"));
+
+  try {
+    const result = runCli(tempDir, ["gpu", "ssh", "--help"]);
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(
+      result.stdout.includes("opencolab gpu ssh profile [subcommand]"),
+      true
+    );
+    assert.equal(
+      result.stdout.includes("opencolab gpu ssh session [subcommand]"),
+      true
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("gpu ssh profile save persists a manual Pod SSH profile and default", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-ssh-profile-"));
+
+  try {
+    const runtime = createRuntime(tempDir);
+    runtime.init();
+
+    const saveResult = runCli(tempDir, [
+      "gpu",
+      "ssh",
+      "profile",
+      "save",
+      "--profile-id",
+      "runpod-manual-a100",
+      "--pod-id",
+      "pod_123",
+      "--ssh-command",
+      "ssh -p 21438 -i ~/.ssh/id_ed25519 root@203.0.113.10",
+      "--set-default",
+      "true"
+    ]);
+
+    assert.equal(saveResult.status, 0, saveResult.stderr || saveResult.stdout);
+    assert.equal(saveResult.stdout.includes("Manual SSH profile saved: runpod-manual-a100"), true);
+    assert.equal(saveResult.stdout.includes("Runpod Pod: pod_123"), true);
+
+    const listResult = runCli(tempDir, ["gpu", "ssh", "profile", "list"]);
+    assert.equal(listResult.status, 0, listResult.stderr || listResult.stdout);
+    assert.equal(listResult.stdout.includes("* runpod-manual-a100 [runpod/manual_pod]"), true);
+
+    const reloadedRuntime = createRuntime(tempDir);
+    reloadedRuntime.init();
+    const project = reloadedRuntime.getActiveProject();
+    assert.equal(project.manualSshProfiles["runpod-manual-a100"]?.port, 21438);
+    assert.equal(
+      project.agentRemoteDefaults[reloadedRuntime.getActiveAgent().id]?.manualSshProfileId,
+      "runpod-manual-a100"
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("upgrade help describes git and packaged install flows", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-upgrade-help-"));
 

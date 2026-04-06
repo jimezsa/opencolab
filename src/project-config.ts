@@ -12,9 +12,11 @@ import {
   usesLegacyProviderCliDefaults
 } from "./provider.js";
 import type {
+  AgentRemoteDefaults,
   AgentConfig,
   AgentFiles,
   ExecutionTargetConfig,
+  ManualSshProfile,
   OpenColabState,
   ProjectState,
   ProviderConfig,
@@ -97,6 +99,31 @@ function cloneExecutionTargetConfig(source: ExecutionTargetConfig): ExecutionTar
   };
 }
 
+function cloneManualSshProfile(source: ManualSshProfile): ManualSshProfile {
+  return {
+    id: source.id,
+    backend: source.backend,
+    mode: source.mode,
+    podId: source.podId,
+    host: source.host,
+    port: source.port,
+    user: source.user,
+    privateKeyPath: source.privateKeyPath,
+    sshConfigHost: source.sshConfigHost,
+    workspaceRoot: source.workspaceRoot,
+    interactiveAccess: source.interactiveAccess,
+    lastValidatedAt: source.lastValidatedAt,
+    createdAt: source.createdAt,
+    updatedAt: source.updatedAt
+  };
+}
+
+function cloneAgentRemoteDefaults(source: AgentRemoteDefaults): AgentRemoteDefaults {
+  return {
+    manualSshProfileId: source.manualSshProfileId
+  };
+}
+
 export function buildProjectPath(projectId: string): string {
   return `projects/${projectId}`;
 }
@@ -175,6 +202,8 @@ export function createDefaultProjectState(projectId = DEFAULT_PROJECT_ID): Proje
     id: projectId,
     path: buildProjectPath(projectId),
     activeAgentId: defaultAgent.id,
+    manualSshProfiles: {},
+    agentRemoteDefaults: {},
     executionTargets: {},
     agents: {
       [defaultAgent.id]: defaultAgent
@@ -468,12 +497,72 @@ function normalizeProject(projectId: string, source: Record<string, unknown> | n
     id: asString(source.id, projectId),
     path: asString(source.path, defaults.path),
     activeAgentId,
+    manualSshProfiles: normalizeManualSshProfiles(asRecord(source.manualSshProfiles)),
+    agentRemoteDefaults: normalizeAgentRemoteDefaults(asRecord(source.agentRemoteDefaults)),
     executionTargets: normalizeExecutionTargets(
       projectId,
       asRecord(source.executionTargets)
     ),
     agents: normalizedAgents
   };
+}
+
+function normalizeManualSshProfiles(
+  sourceProfiles: Record<string, unknown> | null
+): Record<string, ManualSshProfile> {
+  if (!sourceProfiles) {
+    return {};
+  }
+
+  const normalizedProfiles: Record<string, ManualSshProfile> = {};
+  for (const [candidateId, value] of Object.entries(sourceProfiles)) {
+    const normalizedId = asString(asRecord(value)?.id, candidateId).trim();
+    if (!normalizedId) {
+      continue;
+    }
+    normalizedProfiles[normalizedId] = normalizeManualSshProfile(normalizedId, asRecord(value));
+  }
+  return normalizedProfiles;
+}
+
+function normalizeManualSshProfile(
+  profileId: string,
+  source: Record<string, unknown> | null
+): ManualSshProfile {
+  const defaults = createDefaultManualSshProfile(profileId);
+  return {
+    id: asString(source?.id, defaults.id),
+    backend: "runpod",
+    mode: "manual_pod",
+    podId: asNullableString(source?.podId),
+    host: asNullableString(source?.host),
+    port: asNullableInteger(source?.port),
+    user: asNullableString(source?.user) ?? defaults.user,
+    privateKeyPath: asNullableString(source?.privateKeyPath),
+    sshConfigHost: asNullableString(source?.sshConfigHost),
+    workspaceRoot: asString(source?.workspaceRoot, defaults.workspaceRoot),
+    interactiveAccess: asManualSshInteractiveAccess(source?.interactiveAccess, defaults.interactiveAccess),
+    lastValidatedAt: asNullableString(source?.lastValidatedAt),
+    createdAt: asNullableString(source?.createdAt),
+    updatedAt: asNullableString(source?.updatedAt)
+  };
+}
+
+function normalizeAgentRemoteDefaults(
+  sourceDefaults: Record<string, unknown> | null
+): Record<string, AgentRemoteDefaults> {
+  if (!sourceDefaults) {
+    return {};
+  }
+
+  const normalizedDefaults: Record<string, AgentRemoteDefaults> = {};
+  for (const [candidateAgentId, value] of Object.entries(sourceDefaults)) {
+    const candidate = asRecord(value);
+    normalizedDefaults[candidateAgentId] = {
+      manualSshProfileId: asNullableString(candidate?.manualSshProfileId)
+    };
+  }
+  return normalizedDefaults;
 }
 
 function normalizeExecutionTargets(
@@ -651,6 +740,25 @@ function normalizeTelegram(
   };
 }
 
+export function createDefaultManualSshProfile(profileId: string): ManualSshProfile {
+  return {
+    id: profileId,
+    backend: "runpod",
+    mode: "manual_pod",
+    podId: null,
+    host: null,
+    port: null,
+    user: "root",
+    privateKeyPath: null,
+    sshConfigHost: null,
+    workspaceRoot: "/workspace",
+    interactiveAccess: "opt_in",
+    lastValidatedAt: null,
+    createdAt: null,
+    updatedAt: null
+  };
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -749,6 +857,16 @@ function asAutoStopPolicy(
   fallback: ExecutionTargetConfig["autoStopPolicy"]
 ): ExecutionTargetConfig["autoStopPolicy"] {
   if (value === "stop_on_completion" || value === "keep_warm") {
+    return value;
+  }
+  return fallback;
+}
+
+function asManualSshInteractiveAccess(
+  value: unknown,
+  fallback: ManualSshProfile["interactiveAccess"]
+): ManualSshProfile["interactiveAccess"] {
+  if (value === "disabled" || value === "opt_in") {
     return value;
   }
   return fallback;

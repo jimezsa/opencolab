@@ -192,6 +192,80 @@ test("project state infers fallback candidate lists from legacy fixed Runpod fie
   }
 });
 
+test("project state normalizes saved manual SSH profiles and agent defaults", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-manual-ssh-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: DEFAULT_AGENT_ID,
+            manualSshProfiles: {
+              "runpod-manual-a100": {
+                id: "runpod-manual-a100",
+                backend: "runpod",
+                mode: "manual_pod",
+                podId: "pod_123",
+                host: "203.0.113.10",
+                port: 21438,
+                user: "root",
+                privateKeyPath: "~/.ssh/id_ed25519",
+                workspaceRoot: "/workspace",
+                interactiveAccess: "opt_in"
+              }
+            },
+            agentRemoteDefaults: {
+              [DEFAULT_AGENT_ID]: {
+                manualSshProfileId: "runpod-manual-a100"
+              }
+            },
+            agents: {
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    const profile = loaded.projects.alpha.manualSshProfiles["runpod-manual-a100"];
+    assert.equal(profile.backend, "runpod");
+    assert.equal(profile.mode, "manual_pod");
+    assert.equal(profile.podId, "pod_123");
+    assert.equal(profile.host, "203.0.113.10");
+    assert.equal(profile.port, 21438);
+    assert.equal(profile.privateKeyPath, "~/.ssh/id_ed25519");
+    assert.equal(profile.workspaceRoot, "/workspace");
+    assert.equal(profile.interactiveAccess, "opt_in");
+    assert.equal(
+      loaded.projects.alpha.agentRemoteDefaults[DEFAULT_AGENT_ID]?.manualSshProfileId,
+      "runpod-manual-a100"
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("project state migrates legacy project provider into agent config", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-"));
 

@@ -272,8 +272,36 @@ If a routed provider run hits that timeout, OpenColab preserves the inbound requ
 
 OpenColab keeps remote GPU execution separate from the agent reasoning runtime. Providers still handle planning and coding; Runpod is only the remote experiment target.
 For agent-driven remote GPU execution through OpenColab, use the shared `runpod-job` skill.
-The default workflow is now human-managed Pod creation: the human creates the Runpod Pod manually with the desired GPU, gives the agent the `pod_id`, and the agent works against that Pod directly over SSH. This is a capacity-driven default, not a statement that the OpenColab Runpod CLI is broken. In that default path, the skill must describe the work as outside the normal OpenColab `run_id` lifecycle and must not pretend that `opencolab gpu job exec` works with a raw `pod_id`. If the user explicitly wants the OpenColab-managed lifecycle, the skill may instead use `opencolab gpu server` and `opencolab gpu job`; in that managed path it should launch jobs in detached mode with `--wait false`, return the `run_id` promptly, refresh the run with `opencolab gpu job status --run-id <id>` before reporting, review `bootstrap`, `stdout`, `stderr`, and `poller`, prefer the single `NVIDIA A100 80GB PCIe` GPU with `--auto-stop-policy keep_warm`, and ask whether to keep a finished warm Pod running or cancel it.
+The default workflow is now human-managed Pod creation: the human creates the Runpod Pod manually, gives the agent the `pod_id`, and the agent works against that Pod directly over SSH. This is a capacity-driven default, not a statement that the OpenColab Runpod CLI is broken. In that default path, the skill must describe the work as outside the normal OpenColab `run_id` lifecycle and must not pretend that `opencolab gpu job exec` works with a raw `pod_id`. When the user wants recurring direct access to the same manual Pod, OpenColab can save a project-scoped manual SSH profile and expose a line-oriented live session through `opencolab gpu ssh session start|read|write|stop`. If the user explicitly wants the OpenColab-managed lifecycle, the skill may instead use `opencolab gpu server` and `opencolab gpu job`; in that managed path it should launch jobs in detached mode with `--wait false`, return the `run_id` promptly, refresh the run with `opencolab gpu job status --run-id <id>` before reporting, review `bootstrap`, `stdout`, `stderr`, and `poller`, prefer the single `NVIDIA A100 80GB PCIe` GPU with `--auto-stop-policy keep_warm`, and ask whether to keep a finished warm Pod running or cancel it.
 Curated/default Runpod targets use the `pytorch-cu12` bootstrap profile unless the operator overrides it.
+
+Saved manual Pod flow:
+
+```bash
+# Save one user-managed Runpod Pod connection and make it the default for the active agent
+opencolab gpu ssh profile save \
+  --profile-id runpod-manual-a100 \
+  --pod-id abc123xyz \
+  --ssh-command "ssh -p 21438 -i ~/.ssh/id_ed25519 root@203.0.113.10" \
+  --set-default true
+
+# Validate the saved connection, refreshing host and port from Runpod when possible
+opencolab gpu ssh profile test --profile-id runpod-manual-a100
+
+# Start a live line-oriented SSH session from the saved profile
+opencolab gpu ssh session start --profile-id runpod-manual-a100
+
+# Read the transcript incrementally
+opencolab gpu ssh session read --session-id <session_id>
+opencolab gpu ssh session read --session-id <session_id> --offset <next_offset>
+
+# Send one line of input to the remote shell
+opencolab gpu ssh session write --session-id <session_id> --stdin "nvidia-smi"
+opencolab gpu ssh session write --session-id <session_id> --stdin "tail -f /workspace/train.log"
+
+# Stop the live session when finished
+opencolab gpu ssh session stop --session-id <session_id>
+```
 
 Optional OpenColab-managed flow:
 
@@ -340,6 +368,18 @@ opencolab gpu server availability --server-id <id>                           # C
 opencolab gpu server test --server-id <id>                                   # Check local prerequisites and target candidate readiness
 opencolab gpu server remove --server-id <id>                                 # Remove one target from project state
 
+opencolab gpu ssh profile save --profile-id <id> [flags]                     # Save or update a manual Pod SSH profile
+opencolab gpu ssh profile list                                               # List saved manual Pod SSH profiles
+opencolab gpu ssh profile show [--profile-id <id>]                           # Print one saved manual Pod SSH profile as JSON
+opencolab gpu ssh profile test [--profile-id <id>]                           # Validate one saved manual Pod SSH profile
+opencolab gpu ssh profile remove --profile-id <id>                           # Remove one saved manual Pod SSH profile
+opencolab gpu ssh profile set-default --profile-id <id> [--agent-id <id>]   # Set the default manual Pod SSH profile for an agent
+opencolab gpu ssh session start [--profile-id <id>] [--agent-id <id>]       # Start a live manual Pod SSH session
+opencolab gpu ssh session list                                               # List saved manual Pod SSH sessions
+opencolab gpu ssh session read --session-id <id> [--offset <n>]              # Read one transcript slice as JSON
+opencolab gpu ssh session write --session-id <id> --stdin "<text>"           # Send one line of input to a live manual SSH session
+opencolab gpu ssh session stop --session-id <id>                             # Stop one live manual SSH session
+
 opencolab gpu job start --server-id <id> --command "<command>" [flags]       # Start a remote GPU job
 opencolab gpu job status --run-id <id>                                       # Refresh and print job status as JSON
 opencolab gpu job logs --run-id <id> [--stream stdout|stderr|bootstrap|poller] # Print one local log stream
@@ -352,6 +392,8 @@ opencolab gpu job list                                                       # L
 Notes:
 
 - `RUNPOD_API_KEY` must exist in `.env.local` or the shell environment.
+- Saved manual Pod SSH profiles live in project state and are separate from OpenColab-managed `run_id` jobs.
+- Live manual SSH sessions are explicit opt-in, line-oriented, and transcript-backed under `projects/<project_id>/experiments/ssh-sessions/`.
 - Use `--location` for one or more preferred Runpod datacenter ids in fallback order. `--datacenter-id` remains as a legacy alias.
 - `--gpu-type` accepts a comma-separated ordered list, so one logical server can choose the first available acceptable GPU.
 - `opencolab gpu server availability --server-id <id>` shows a live snapshot of matching datacenter/GPU stock before launch; it helps pick a target, but it does not reserve capacity.
@@ -454,7 +496,7 @@ Telegram slash-menu commands:
 - Previous-day summaries live in `<agent_path>/memory/Daily/<YYYY-MM-DD>.md`
 - Long-term durable facts belong in `MEMORY.md`
 
-Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, `autoresearch` handles iterative keep/discard experiment loops over one explicitly configured repo without assuming `train.py` or `uv run train.py`, and `runpod-job` now defaults to a user-managed Runpod Pod workflow where the human creates the Pod, shares the `pod_id`, and the agent uses direct SSH, while keeping the OpenColab-managed `gpu server` and `gpu job` flow available as an explicit opt-in when the user wants `run_id` tracking and managed lifecycle behavior. Any agent may use `autoresearch`, but the built-in `autoresearch` specialist is the default owner for sustained experiment-loop work.
+Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, `autoresearch` handles iterative keep/discard experiment loops over one explicitly configured repo without assuming `train.py` or `uv run train.py`, and `runpod-job` now defaults to a user-managed Runpod Pod workflow where the human creates the Pod, shares the `pod_id`, and the agent uses direct SSH, with saved `gpu ssh profile` plus transcript-backed `gpu ssh session` commands available when recurring direct access to the same manual Pod is needed, while keeping the OpenColab-managed `gpu server` and `gpu job` flow available as an explicit opt-in when the user wants `run_id` tracking and managed lifecycle behavior. Any agent may use `autoresearch`, but the built-in `autoresearch` specialist is the default owner for sustained experiment-loop work.
 
 ## Configuration and Development
 

@@ -26,6 +26,8 @@ export type ExecutionTargetVolumeMode = "network_volume";
 export type ExecutionTargetSshMode = "public_ip";
 export type ExecutionTargetBootstrapProfile = "python-ml" | "pytorch-cu12" | "minimal-shell";
 export type ExecutionTargetAutoStopPolicy = "stop_on_completion" | "keep_warm";
+export type ManualSshProfileMode = "manual_pod";
+export type ManualSshInteractiveAccess = "disabled" | "opt_in";
 
 export interface ExecutionTargetVolumeConfig {
   mode: ExecutionTargetVolumeMode;
@@ -61,6 +63,27 @@ export interface ExecutionTargetConfig {
   idleStopMinutes: number | null;
   autoStopPolicy: ExecutionTargetAutoStopPolicy;
   maxEstimatedCostUsd: number | null;
+}
+
+export interface ManualSshProfile {
+  id: string;
+  backend: ExecutionBackend;
+  mode: ManualSshProfileMode;
+  podId: string | null;
+  host: string | null;
+  port: number | null;
+  user: string | null;
+  privateKeyPath: string | null;
+  sshConfigHost: string | null;
+  workspaceRoot: string;
+  interactiveAccess: ManualSshInteractiveAccess;
+  lastValidatedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface AgentRemoteDefaults {
+  manualSshProfileId: string | null;
 }
 
 export type ProviderName =
@@ -103,6 +126,8 @@ export interface ProjectState {
   path: string;
   activeAgentId: string;
   agents: Record<string, AgentConfig>;
+  manualSshProfiles: Record<string, ManualSshProfile>;
+  agentRemoteDefaults: Record<string, AgentRemoteDefaults>;
   executionTargets: Record<string, ExecutionTargetConfig>;
 }
 
@@ -365,4 +390,58 @@ export interface ExecutionTargetAvailabilityResult {
   bestCandidate: ExecutionTargetAvailabilityCandidate | null;
   candidates: ExecutionTargetAvailabilityCandidate[];
   warnings: string[];
+}
+
+export interface ManualSshProfileTestResult {
+  ok: boolean;
+  profileId: string;
+  backend: ExecutionBackend;
+  warnings: string[];
+  details: string[];
+  resolvedHost: string | null;
+  resolvedPort: number | null;
+  resolvedUser: string | null;
+  refreshedFromRunpod: boolean;
+}
+
+export type ManualSshSessionState =
+  | "starting"
+  | "running"
+  | "degraded"
+  | "stopping"
+  | "stopped"
+  | "failed";
+
+export interface ManualSshSession {
+  sessionId: string;
+  projectId: string;
+  agentId: string;
+  profileId: string;
+  backend: ExecutionBackend;
+  state: ManualSshSessionState;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  lastActivityAt: string | null;
+  workerPid: number | null;
+  sshPid: number | null;
+  resolvedHost: string | null;
+  resolvedPort: number | null;
+  resolvedUser: string | null;
+  transcriptPath: string;
+  inboxPath: string;
+  cursor: number;
+  error: string | null;
+}
+
+export interface ManualSshSessionReadResult {
+  sessionId: string;
+  profileId: string;
+  state: ManualSshSessionState;
+  offset: number;
+  nextOffset: number;
+  output: string;
+  transcriptPath: string;
 }

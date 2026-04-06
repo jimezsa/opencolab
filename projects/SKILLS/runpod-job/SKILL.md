@@ -32,6 +32,7 @@ Preferred execution paths:
 - Treat a user-supplied `pod_id` as a manual path outside the normal OpenColab `run_id` lifecycle.
 - Do not invent a `run_id` for a manual Pod.
 - Do not claim that `opencolab gpu job exec` works against a raw `pod_id`; it does not.
+- When the user wants recurring direct access to the same manual Pod, prefer saving a project-scoped profile with `opencolab gpu ssh profile save ...` and then use `opencolab gpu ssh session start|read|write|stop` instead of repeatedly reconstructing raw SSH commands.
 - Ask for the SSH connection details needed to reach the Pod if they are not already available locally.
 - Keep commands bounded and task-focused. This skill is for concrete remote work, not open-ended interactive shells.
 - Prefer minimal `rsync`, `scp`, or one small uploaded script over broad workspace copies.
@@ -101,6 +102,27 @@ Tell the user that:
 - you are using a direct SSH path to a user-managed Pod
 - this is outside the normal OpenColab `gpu job` and `run_id` lifecycle
 - OpenColab may not automatically track status, logs, artifacts, or cleanup for this path
+
+If the user wants the agent to work on the same manual Pod more than once, prefer this saved-profile path:
+
+```bash
+opencolab gpu ssh profile save \
+  --profile-id <profile_id> \
+  --pod-id <pod_id> \
+  --ssh-command "ssh -p <ssh_port> <ssh_user>@<ssh_host>" \
+  --set-default true
+
+opencolab gpu ssh session start --profile-id <profile_id>
+opencolab gpu ssh session read --session-id <session_id>
+opencolab gpu ssh session write --session-id <session_id> --stdin "nvidia-smi"
+opencolab gpu ssh session stop --session-id <session_id>
+```
+
+Notes:
+
+- the saved profile is project-scoped and may also be set as the default for the active agent
+- the live session is explicit opt-in and transcript-backed
+- `session read` returns machine-readable output slices so the agent can follow live shell output over multiple steps
 
 ### 3. Stage only what is needed
 

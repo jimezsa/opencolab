@@ -21,6 +21,7 @@ import {
 import {
   buildAgentPath,
   createDefaultExecutionTargetConfig,
+  createDefaultManualSshProfile,
   createDefaultAgentConfig,
   createDefaultProjectState,
   DEFAULT_AGENT_ID,
@@ -41,6 +42,7 @@ import {
   type RunpodExecutionService,
   type RunpodJobStartInput
 } from "./gpu-providers/runpod/index.js";
+import { ManualSshService } from "./manual-ssh.js";
 import {
   type TelegramCallbackAnswerer,
   type TelegramDraftSender,
@@ -63,13 +65,18 @@ import type {
   ExperimentRunStatus,
   ExperimentRunSummary,
   GatewayResult,
+  ManualSshInteractiveAccess,
+  ManualSshProfile,
+  ManualSshProfileTestResult,
+  ManualSshSession,
+  ManualSshSessionReadResult,
   OpenColabState,
   ProjectState,
   ProviderAuthMode,
   ProviderName,
   ProviderReasoningEffort
 } from "./types.js";
-import { ensureDir } from "./utils.js";
+import { ensureDir, nowIso } from "./utils.js";
 
 export interface RuntimeOptions {
   telegramSender?: TelegramSender;
@@ -80,6 +87,7 @@ export interface RuntimeOptions {
   telegramStatusMessageCreator?: TelegramStatusMessageCreator;
   telegramMessageEditor?: TelegramMessageEditor;
   runpodExecutionService?: RunpodExecutionService;
+  manualSshService?: ManualSshService;
   agentResponder?: (
     input: ProviderAgentInput,
     options?: ProviderRespondOptions
@@ -141,6 +149,29 @@ export interface GpuJobExecInput {
   command: string;
 }
 
+export interface ManualSshProfileSetupInput {
+  id: string;
+  podId?: string | null;
+  host?: string | null;
+  port?: number | null;
+  user?: string | null;
+  privateKeyPath?: string | null;
+  sshConfigHost?: string | null;
+  workspaceRoot?: string;
+  interactiveAccess?: ManualSshInteractiveAccess;
+}
+
+export interface ManualSshSessionStartInput {
+  profileId?: string;
+  agentId?: string;
+}
+
+export interface ManualSshSessionWriteInput {
+  sessionId: string;
+  input: string;
+  appendNewline?: boolean;
+}
+
 export class OpenColabRuntime {
   readonly config: OpenColabConfig;
 
@@ -148,6 +179,7 @@ export class OpenColabRuntime {
   private readonly conversations: ConversationStore;
   private readonly providerAgent: ProviderAgent;
   private readonly runpodExecutionService: RunpodExecutionService;
+  private readonly manualSshService: ManualSshService;
   private readonly gateway: TelegramGateway;
 
   constructor(cwd = resolveRuntimeRootDir(), private readonly options: RuntimeOptions = {}) {
@@ -157,6 +189,7 @@ export class OpenColabRuntime {
     this.providerAgent = new ProviderAgent(this.config, () => this.state);
     this.runpodExecutionService =
       options.runpodExecutionService ?? new RunpodExecutionServiceImpl(this.config);
+    this.manualSshService = options.manualSshService ?? new ManualSshService(this.config);
 
     this.gateway = new TelegramGateway(this.config, {
       getState: () => this.state,
@@ -221,6 +254,27 @@ export class OpenColabRuntime {
       throw new Error(`Unknown project: ${projectId}`);
     }
     return Object.values(project.executionTargets).sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  listManualSshProfiles(projectId = this.state.activeProjectId): ManualSshProfile[] {
+    const project = this.state.projects[projectId];
+    if (!project) {
+      throw new Error(`Unknown project: ${projectId}`);
+    }
+    return Object.values(project.manualSshProfiles).sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  getManualSshProfile(profileId?: string, projectId = this.state.activeProjectId): ManualSshProfile {
+    const project = this.state.projects[projectId];
+    if (!project) {
+      throw new Error(`Unknown project: ${projectId}`);
+    }
+    const resolvedId = this.resolveManualSshProfileId(project, profileId);
+    const profile = project.manualSshProfiles[resolvedId];
+    if (!profile) {
+      throw new Error(`Unknown manual SSH profile in project '${project.id}': ${resolvedId}`);
+    }
+    return profile;
   }
 
   getExecutionTarget(targetId: string, projectId = this.state.activeProjectId): ExecutionTargetConfig {
@@ -489,6 +543,115 @@ export class OpenColabRuntime {
     return this.state;
   }
 
+  saveManualSshProfile(input: ManualSshProfileSetupInput): OpenColabState {
+    const project = this.getActiveProject();
+    const id = normalizeEntityId(input.id);
+    const existing = project.manualSshProfiles[id] ?? createDefaultManualSshProfile(id);
+    const timestamp = nowIso();
+    const profile: ManualSshProfile = {
+      ...existing,
+      id,
+      podId: normalizeNullableText(input.podId, existing.podId),
+      host: normalizeNullableText(input.host, existing.host),
+      port: input.port ?? existing.port,
+      user: normalizeNullableText(input.user, existing.user) ?? "root",
+      privateKeyPath: normalizeNullableText(input.privateKeyPath, existing.privateKeyPath),
+      sshConfigHost: normalizeNullableText(input.sshConfigHost, existing.sshConfigHost),
+      workspaceRoot: input.workspaceRoot?.trim() || existing.workspaceRoot,
+      interactiveAccess: input.interactiveAccess ?? existing.interactiveAccess,
+      createdAt: existing.createdAt ?? timestamp,
+      updatedAt: timestamp
+    };
+    if (!profile.podId && !profile.host && !profile.sshConfigHost) {
+      throw new Error(
+        "Manual SSH profiles require at least one Pod id, direct host, or SSH config host alias."
+      );
+    }
+    if (!profile.sshConfigHost && profile.host && !profile.port) {
+      throw new Error("Manual SSH profiles with a direct host also require an SSH port.");
+    }
+
+    this.state = {
+      ...this.state,
+      projects: {
+        ...this.state.projects,
+        [project.id]: {
+          ...project,
+          manualSshProfiles: {
+            ...project.manualSshProfiles,
+            [id]: profile
+          }
+        }
+      }
+    };
+
+    this.persist();
+    return this.state;
+  }
+
+  removeManualSshProfile(profileId: string): OpenColabState {
+    const project = this.getActiveProject();
+    const resolvedId = this.resolveManualSshProfileId(project, profileId);
+    if (!project.manualSshProfiles[resolvedId]) {
+      throw new Error(`Unknown manual SSH profile in project '${project.id}': ${resolvedId}`);
+    }
+
+    const nextProfiles = { ...project.manualSshProfiles };
+    delete nextProfiles[resolvedId];
+    const nextDefaults = { ...project.agentRemoteDefaults };
+    for (const [agentId, defaults] of Object.entries(nextDefaults)) {
+      if (defaults.manualSshProfileId === resolvedId) {
+        nextDefaults[agentId] = {
+          ...defaults,
+          manualSshProfileId: null
+        };
+      }
+    }
+
+    this.state = {
+      ...this.state,
+      projects: {
+        ...this.state.projects,
+        [project.id]: {
+          ...project,
+          manualSshProfiles: nextProfiles,
+          agentRemoteDefaults: nextDefaults
+        }
+      }
+    };
+
+    this.persist();
+    return this.state;
+  }
+
+  setManualSshProfileDefault(profileId: string, agentId?: string): OpenColabState {
+    const project = this.getActiveProject();
+    const resolvedId = this.resolveManualSshProfileId(project, profileId);
+    const resolvedAgentId = agentId ? normalizeEntityId(agentId) : this.getActiveAgent().id;
+    if (!project.agents[resolvedAgentId]) {
+      throw new Error(`Unknown agent in project '${project.id}': ${resolvedAgentId}`);
+    }
+
+    this.state = {
+      ...this.state,
+      projects: {
+        ...this.state.projects,
+        [project.id]: {
+          ...project,
+          agentRemoteDefaults: {
+            ...project.agentRemoteDefaults,
+            [resolvedAgentId]: {
+              manualSshProfileId: resolvedId
+            }
+          }
+        }
+      }
+    };
+
+    this.persist();
+    return this.state;
+  }
+
   removeExecutionTarget(targetId: string): OpenColabState {
     const project = this.getActiveProject();
     const id = normalizeEntityId(targetId);
@@ -580,6 +743,70 @@ export class OpenColabRuntime {
     return this.runpodExecutionService.execRunCommand(project, input.runId, input.command);
   }
 
+  async testManualSshProfile(profileId?: string): Promise<ManualSshProfileTestResult> {
+    const project = this.getActiveProject();
+    const profile = this.getManualSshProfile(profileId, project.id);
+    const resolved = await this.persistResolvedManualSshProfile(project, profile.id);
+    const result = await this.manualSshService.testProfile(resolved);
+    if (result.ok) {
+      this.saveManualSshProfile({
+        id: resolved.id,
+        podId: resolved.podId,
+        host: resolved.host,
+        port: resolved.port,
+        user: resolved.user,
+        privateKeyPath: resolved.privateKeyPath,
+        sshConfigHost: resolved.sshConfigHost,
+        workspaceRoot: resolved.workspaceRoot,
+        interactiveAccess: resolved.interactiveAccess
+      });
+      const refreshedProject = this.getActiveProject();
+      const refreshedProfile = refreshedProject.manualSshProfiles[resolved.id];
+      if (refreshedProfile) {
+        refreshedProfile.lastValidatedAt = nowIso();
+        refreshedProfile.updatedAt = nowIso();
+        this.persist();
+      }
+    }
+    return result;
+  }
+
+  async startManualSshSession(input: ManualSshSessionStartInput = {}): Promise<ManualSshSession> {
+    const project = this.getActiveProject();
+    const agent = input.agentId ? this.requireProjectAgent(project, input.agentId) : this.getActiveAgent();
+    const profileId = this.resolveManualSshProfileId(project, input.profileId, agent.id);
+    const profile = await this.persistResolvedManualSshProfile(project, profileId);
+    return this.manualSshService.startSession(project, agent, profile);
+  }
+
+  listManualSshSessions(projectId = this.state.activeProjectId): ManualSshSession[] {
+    const project = this.state.projects[projectId];
+    if (!project) {
+      throw new Error(`Unknown project: ${projectId}`);
+    }
+    return this.manualSshService.listSessions(project);
+  }
+
+  readManualSshSession(sessionId: string, offset?: number): ManualSshSessionReadResult {
+    const project = this.getActiveProject();
+    return this.manualSshService.readSession(project, sessionId, offset);
+  }
+
+  writeManualSshSession(input: ManualSshSessionWriteInput): ManualSshSession {
+    const project = this.getActiveProject();
+    return this.manualSshService.writeSession(
+      project,
+      input.sessionId,
+      input.input,
+      input.appendNewline ?? true
+    );
+  }
+
+  async stopManualSshSession(sessionId: string): Promise<ManualSshSession> {
+    const project = this.getActiveProject();
+    return this.manualSshService.stopSession(project, sessionId);
+  }
+
   async fetchGpuJobOutputs(runId: string): Promise<ExperimentRunStatus> {
     const project = this.getActiveProject();
     return this.runpodExecutionService.fetchRunOutputs(project, runId);
@@ -627,6 +854,72 @@ export class OpenColabRuntime {
     writeProjectState(this.config, this.state);
     this.state = ensureProjectAndAgent(readProjectState(this.config));
     this.ensureActiveProjectFiles();
+  }
+
+  private requireProjectAgent(project: ProjectState, agentId: string): AgentConfig {
+    const resolvedAgentId = normalizeEntityId(agentId);
+    const agent = project.agents[resolvedAgentId];
+    if (!agent) {
+      throw new Error(`Unknown agent in project '${project.id}': ${resolvedAgentId}`);
+    }
+    return agent;
+  }
+
+  private resolveManualSshProfileId(
+    project: ProjectState,
+    profileId?: string,
+    agentId = this.getActiveAgent().id
+  ): string {
+    if (profileId?.trim()) {
+      return normalizeEntityId(profileId);
+    }
+
+    const preferred = project.agentRemoteDefaults[agentId]?.manualSshProfileId;
+    if (preferred) {
+      return preferred;
+    }
+
+    const profileIds = Object.keys(project.manualSshProfiles);
+    if (profileIds.length === 1) {
+      return profileIds[0];
+    }
+
+    if (profileIds.length === 0) {
+      throw new Error(`Project '${project.id}' has no saved manual SSH profiles.`);
+    }
+
+    throw new Error(
+      `Project '${project.id}' has multiple manual SSH profiles. Pass --profile-id or set a default first.`
+    );
+  }
+
+  private async persistResolvedManualSshProfile(
+    project: ProjectState,
+    profileId: string
+  ): Promise<ManualSshProfile> {
+    const current = project.manualSshProfiles[profileId];
+    if (!current) {
+      throw new Error(`Unknown manual SSH profile in project '${project.id}': ${profileId}`);
+    }
+
+    const resolved = await this.manualSshService.resolveProfile(current);
+    if (!manualSshProfilesEqual(current, resolved.profile)) {
+      this.state = {
+        ...this.state,
+        projects: {
+          ...this.state.projects,
+          [project.id]: {
+            ...project,
+            manualSshProfiles: {
+              ...project.manualSshProfiles,
+              [profileId]: resolved.profile
+            }
+          }
+        }
+      };
+      this.persist();
+    }
+    return this.getManualSshProfile(profileId, project.id);
   }
 }
 
@@ -688,4 +981,8 @@ function normalizeOrderedValues(
   }
 
   return [...ordered];
+}
+
+function manualSshProfilesEqual(left: ManualSshProfile, right: ManualSshProfile): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }

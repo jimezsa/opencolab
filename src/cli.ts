@@ -44,6 +44,7 @@ import {
   TELEGRAM_BOT_TOKEN_ENV_VAR,
   writeSecretToLocalEnv
 } from "./secrets.js";
+import { parseManualSshCommand } from "./manual-ssh.js";
 import type {
   OpenColabState,
   ProviderAuthMode,
@@ -641,10 +642,12 @@ function usageGpu(): string {
     "Usage:",
     helpCommand("opencolab gpu server [subcommand]", "Manage Runpod-backed GPU servers"),
     helpCommand("opencolab gpu job [subcommand]", "Manage bounded GPU jobs"),
+    helpCommand("opencolab gpu ssh [subcommand]", "Manage saved manual SSH profiles and sessions"),
     "",
     "Try:",
     helpCommand("gpu server --help", "Show gpu server flags"),
-    helpCommand("gpu job --help", "Show gpu job flags")
+    helpCommand("gpu job --help", "Show gpu job flags"),
+    helpCommand("gpu ssh --help", "Show gpu ssh flags")
   ]);
 }
 
@@ -721,6 +724,90 @@ function usageGpuJob(): string {
   ]);
 }
 
+function usageGpuSsh(): string {
+  return formatHelp([
+    "Usage:",
+    helpCommand("opencolab gpu ssh profile [subcommand]", "Manage saved manual Pod SSH profiles"),
+    helpCommand("opencolab gpu ssh session [subcommand]", "Manage live manual SSH sessions"),
+    "",
+    "Try:",
+    helpCommand("gpu ssh profile --help", "Show manual SSH profile flags"),
+    helpCommand("gpu ssh session --help", "Show manual SSH session flags")
+  ]);
+}
+
+function usageGpuSshProfile(): string {
+  return formatHelp([
+    "Usage:",
+    helpCommand(
+      "opencolab gpu ssh profile save --profile-id <id> [--pod-id <id>] [--ssh-command <command>] [flags]",
+      "Create or update a saved manual Pod SSH profile"
+    ),
+    helpCommand("opencolab gpu ssh profile list", "List saved manual SSH profiles"),
+    helpCommand(
+      "opencolab gpu ssh profile show [--profile-id <id>]",
+      "Print one saved manual SSH profile as JSON"
+    ),
+    helpCommand(
+      "opencolab gpu ssh profile test [--profile-id <id>]",
+      "Validate one saved manual SSH profile"
+    ),
+    helpCommand(
+      "opencolab gpu ssh profile remove --profile-id <id>",
+      "Remove one saved manual SSH profile"
+    ),
+    helpCommand(
+      "opencolab gpu ssh profile set-default --profile-id <id> [--agent-id <id>]",
+      "Set the default manual SSH profile for an agent"
+    ),
+    "",
+    "Flags:",
+    helpFlag("--profile-id <id>", "Project-scoped manual SSH profile id"),
+    helpFlag("--pod-id <id>", "Optional user-managed Runpod Pod id"),
+    helpFlag("--host <host>", "SSH host or public IP"),
+    helpFlag("--port <n>", "SSH port"),
+    helpFlag("--user <user>", "SSH username (default: root)"),
+    helpFlag("--ssh-key-path <path>", "SSH private key path"),
+    helpFlag("--ssh-config-host <name>", "SSH config host alias"),
+    helpFlag("--ssh-command <command>", "Parse and normalize an existing ssh command"),
+    helpFlag("--workspace-root <path>", "Remote workspace root (default: /workspace)"),
+    helpFlag("--interactive-access disabled|opt_in", "Interactive session policy"),
+    helpFlag("--agent-id <id>", "Agent id when setting a default profile"),
+    helpFlag("--set-default true|false", "Set the saved profile as the active agent default")
+  ]);
+}
+
+function usageGpuSshSession(): string {
+  return formatHelp([
+    "Usage:",
+    helpCommand(
+      "opencolab gpu ssh session start [--profile-id <id>] [--agent-id <id>]",
+      "Start a live manual SSH session from a saved profile"
+    ),
+    helpCommand("opencolab gpu ssh session list", "List saved manual SSH sessions"),
+    helpCommand(
+      "opencolab gpu ssh session read --session-id <id> [--offset <n>]",
+      "Read transcript output from a live session"
+    ),
+    helpCommand(
+      "opencolab gpu ssh session write --session-id <id> --stdin <text> [--append-newline true|false]",
+      "Send one line of input to a live session"
+    ),
+    helpCommand(
+      "opencolab gpu ssh session stop --session-id <id>",
+      "Stop one live manual SSH session"
+    ),
+    "",
+    "Flags:",
+    helpFlag("--profile-id <id>", "Saved manual SSH profile id (defaults when available)"),
+    helpFlag("--agent-id <id>", "Agent id used for default profile resolution"),
+    helpFlag("--session-id <id>", "Saved manual SSH session id"),
+    helpFlag("--offset <n>", "Character offset for transcript reads"),
+    helpFlag("--stdin <text>", "Input text to send to the live shell"),
+    helpFlag("--append-newline true|false", "Append a trailing newline when writing input")
+  ]);
+}
+
 function resolveHelp(argv: string[]): string | null {
   const [command, subcommand, action] = argv;
   const wantsHelp =
@@ -787,6 +874,15 @@ function resolveHelp(argv: string[]): string | null {
     }
     if (subcommand === "job") {
       return usageGpuJob();
+    }
+    if (subcommand === "ssh") {
+      if (action === "profile") {
+        return usageGpuSshProfile();
+      }
+      if (action === "session") {
+        return usageGpuSshSession();
+      }
+      return usageGpuSsh();
     }
     return usageGpu();
   }
@@ -1914,7 +2010,204 @@ async function main(): Promise<void> {
       throw new Error("Unknown gpu job command.");
     }
 
-    throw new Error("Unknown gpu command. Use 'server' or 'job'.");
+    if (subcommand === "ssh") {
+      const sshAction = action;
+      const sshSubaction = rest[0];
+
+      if (sshAction === "profile") {
+        const { values } = parseFlags(rest.slice(1));
+        const profileId = values["profile-id"]?.trim();
+
+        if (sshSubaction === "save") {
+          if (!profileId) {
+            throw new Error(`${accent("--profile-id")} is required`);
+          }
+
+          const rawSshCommand = values["ssh-command"]?.trim();
+          const parsedCommand = rawSshCommand ? parseManualSshCommand(rawSshCommand) : null;
+          const interactiveAccess = values["interactive-access"]?.trim();
+          if (
+            interactiveAccess &&
+            interactiveAccess !== "disabled" &&
+            interactiveAccess !== "opt_in"
+          ) {
+            throw new Error("Unsupported interactive access policy.");
+          }
+
+          runtime.saveManualSshProfile({
+            id: profileId,
+            podId: values["pod-id"] ?? undefined,
+            host: values.host ?? parsedCommand?.host ?? undefined,
+            port: parseOptionalIntegerFlag(values.port) ?? parsedCommand?.port ?? undefined,
+            user: values.user ?? parsedCommand?.user ?? undefined,
+            privateKeyPath: values["ssh-key-path"] ?? parsedCommand?.privateKeyPath ?? undefined,
+            sshConfigHost: values["ssh-config-host"] ?? parsedCommand?.sshConfigHost ?? undefined,
+            workspaceRoot: values["workspace-root"] ?? undefined,
+            interactiveAccess:
+              interactiveAccess as "disabled" | "opt_in" | undefined
+          });
+
+          if (parseBooleanFlag(values["set-default"], false)) {
+            runtime.setManualSshProfileDefault(profileId, values["agent-id"]);
+          }
+
+          const profile = runtime.getManualSshProfile(profileId);
+          console.log(`Project: ${runtime.getActiveProject().id}`);
+          console.log(`Manual SSH profile saved: ${profile.id}`);
+          console.log(`Backend: ${profile.backend}`);
+          if (profile.podId) {
+            console.log(`Runpod Pod: ${profile.podId}`);
+          }
+          if (profile.sshConfigHost) {
+            console.log(`SSH config host: ${profile.sshConfigHost}`);
+          } else {
+            console.log(`Host: ${profile.host}`);
+            console.log(`Port: ${profile.port}`);
+            console.log(`User: ${profile.user}`);
+          }
+          console.log(`Interactive access: ${profile.interactiveAccess}`);
+          return;
+        }
+
+        if (sshSubaction === "list") {
+          const project = runtime.getActiveProject();
+          const activeAgentId = runtime.getActiveAgent().id;
+          const defaultProfileId = project.agentRemoteDefaults[activeAgentId]?.manualSshProfileId;
+          for (const profile of runtime.listManualSshProfiles()) {
+            const marker = profile.id === defaultProfileId ? "*" : "-";
+            const destination = profile.sshConfigHost
+              ? profile.sshConfigHost
+              : `${profile.user ?? "root"}@${profile.host}:${String(profile.port ?? 0)}`;
+            const podLabel = profile.podId ? ` pod=${profile.podId}` : "";
+            console.log(
+              `${marker} ${profile.id} [${profile.backend}/${profile.mode}] ${destination}${podLabel}`,
+            );
+          }
+          return;
+        }
+
+        if (sshSubaction === "show") {
+          console.log(JSON.stringify(runtime.getManualSshProfile(profileId), null, 2));
+          return;
+        }
+
+        if (sshSubaction === "test") {
+          const result = await runtime.testManualSshProfile(profileId);
+          console.log(`Profile: ${result.profileId}`);
+          console.log(`Backend: ${result.backend}`);
+          console.log(`Status: ${result.ok ? "ready" : "warnings"}`);
+          if (result.resolvedHost) {
+            console.log(`Host: ${result.resolvedHost}`);
+          }
+          if (result.resolvedPort) {
+            console.log(`Port: ${result.resolvedPort}`);
+          }
+          if (result.resolvedUser) {
+            console.log(`User: ${result.resolvedUser}`);
+          }
+          if (result.refreshedFromRunpod) {
+            console.log("Refreshed from Runpod: yes");
+          }
+          for (const detail of result.details) {
+            console.log(`- ${detail}`);
+          }
+          for (const warning of result.warnings) {
+            console.log(`Warning: ${warning}`);
+          }
+          return;
+        }
+
+        if (sshSubaction === "remove") {
+          if (!profileId) {
+            throw new Error(`${accent("--profile-id")} is required`);
+          }
+          runtime.removeManualSshProfile(profileId);
+          console.log(`Manual SSH profile removed: ${profileId}`);
+          return;
+        }
+
+        if (sshSubaction === "set-default") {
+          if (!profileId) {
+            throw new Error(`${accent("--profile-id")} is required`);
+          }
+          runtime.setManualSshProfileDefault(profileId, values["agent-id"]);
+          const targetAgentId = values["agent-id"]?.trim() || runtime.getActiveAgent().id;
+          console.log(`Manual SSH profile default set: ${profileId}`);
+          console.log(`Agent: ${targetAgentId}`);
+          return;
+        }
+
+        throw new Error("Unknown gpu ssh profile command.");
+      }
+
+      if (sshAction === "session") {
+        const { values } = parseFlags(rest.slice(1));
+
+        if (sshSubaction === "start") {
+          const session = await runtime.startManualSshSession({
+            profileId: values["profile-id"],
+            agentId: values["agent-id"]
+          });
+          console.log(`Session ID: ${session.sessionId}`);
+          console.log(`Profile: ${session.profileId}`);
+          console.log(`State: ${session.state}`);
+          console.log(`Message: ${session.message}`);
+          return;
+        }
+
+        if (sshSubaction === "list") {
+          for (const session of runtime.listManualSshSessions()) {
+            console.log(
+              `${session.sessionId} [${session.state}] profile=${session.profileId} agent=${session.agentId}`,
+            );
+          }
+          return;
+        }
+
+        if (sshSubaction === "read") {
+          const sessionId = values["session-id"]?.trim();
+          if (!sessionId) {
+            throw new Error(`${accent("--session-id")} is required`);
+          }
+          const offset = parseOptionalIntegerFlag(values.offset);
+          console.log(JSON.stringify(runtime.readManualSshSession(sessionId, offset), null, 2));
+          return;
+        }
+
+        if (sshSubaction === "write") {
+          const sessionId = values["session-id"]?.trim();
+          const inputValue = values.stdin;
+          if (!sessionId) {
+            throw new Error(`${accent("--session-id")} is required`);
+          }
+          if (inputValue === undefined) {
+            throw new Error(`${accent("--stdin")} is required`);
+          }
+          const session = runtime.writeManualSshSession({
+            sessionId,
+            input: inputValue,
+            appendNewline: parseBooleanFlag(values["append-newline"], true)
+          });
+          console.log(JSON.stringify(session, null, 2));
+          return;
+        }
+
+        if (sshSubaction === "stop") {
+          const sessionId = values["session-id"]?.trim();
+          if (!sessionId) {
+            throw new Error(`${accent("--session-id")} is required`);
+          }
+          console.log(JSON.stringify(await runtime.stopManualSshSession(sessionId), null, 2));
+          return;
+        }
+
+        throw new Error("Unknown gpu ssh session command.");
+      }
+
+      throw new Error("Unknown gpu ssh command. Use 'profile' or 'session'.");
+    }
+
+    throw new Error("Unknown gpu command. Use 'server', 'job', or 'ssh'.");
   }
 
   throw new Error(`Unknown command: ${argv.join(" ")}`);
