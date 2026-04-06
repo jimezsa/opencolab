@@ -1754,6 +1754,102 @@ test("provider CLI native stream events are normalized into Telegram live status
   }
 });
 
+test("Codex item lifecycle events are normalized into user-facing Telegram activity", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-codex-stream-json-"));
+  const sentTexts: string[] = [];
+  const statusCreates: string[] = [];
+  const statusEdits: string[] = [];
+  const originalOpenAiKey = process.env.OPENAI_API_KEY;
+
+  process.env.OPENAI_API_KEY = "test-openai-key";
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text) => {
+      statusCreates.push(text);
+      return "status-1";
+    },
+    telegramMessageEditor: async (_chatId, _messageId, text) => {
+      statusEdits.push(text);
+      return true;
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupModel({
+      providerName: "openai",
+      model: "gpt-5.4",
+      cliCommand: "node",
+      cliArgs: [
+        "-e",
+        [
+          "console.log(JSON.stringify({ type: 'thread.started' }));",
+          "setTimeout(() => {",
+          "  console.log(JSON.stringify({ type: 'turn.started' }));",
+          "}, 50);",
+          "setTimeout(() => {",
+          "  console.log(JSON.stringify({ type: 'item.started', item: { id: 'item_1', type: 'command_execution', command: 'cd /home/david/.opencolab/projects/default/parameter-golf-exp && git status', status: 'in_progress' } }));",
+          "}, 100);",
+          "setTimeout(() => {",
+          "  console.log(JSON.stringify({ type: 'item.started', item: { id: 'item_2', type: 'command_execution', command: 'git log --oneline -5', status: 'in_progress' } }));",
+          "}, 200);",
+          "setTimeout(() => {",
+          "  console.log(JSON.stringify({ type: 'item.started', item: { id: 'item_3', type: 'command_execution', command: 'git push', status: 'in_progress' } }));",
+          "}, 300);",
+          "setTimeout(() => {",
+          "  console.log(JSON.stringify({ type: 'turn.completed', last_agent_message: 'parameter golf run synced' }));",
+          "}, 400);"
+        ].join(" ")
+      ]
+    });
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "sync the branch",
+        chat: { id: "10001", type: "group" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.deepEqual(sentTexts, ["parameter golf run synced"]);
+    assert.equal(statusCreates.length, 1);
+    assert.equal(statusCreates[0].startsWith("Agent activity"), true);
+    assert.equal(
+      statusCreates[0].includes(
+        "Run cd /home/david/.opencolab/projects/default/parameter-golf-exp && git status."
+      ),
+      true
+    );
+    assert.deepEqual(statusEdits.length, 1);
+    assert.equal(statusEdits[0].startsWith("Finalizing"), true);
+    assert.equal(statusEdits[0].includes("Run git log --oneline -5."), true);
+    assert.equal(statusEdits[0].includes("Run git push."), true);
+    assert.equal(statusEdits[0].includes("Preparing the final answer."), true);
+    assert.equal(statusEdits[0].includes("item.started"), false);
+    assert.equal(statusEdits[0].includes("turn.completed"), false);
+  } finally {
+    if (originalOpenAiKey === undefined) {
+      delete process.env.OPENAI_API_KEY;
+    } else {
+      process.env.OPENAI_API_KEY = originalOpenAiKey;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("paired webhook splits oversized Telegram final replies and preserves message threads", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-long-final-reply-"));
   const sentMessages: Array<{ text: string; messageThreadId?: string }> = [];

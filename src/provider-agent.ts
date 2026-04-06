@@ -646,6 +646,37 @@ async function consumeCodexStreamEvent(
     return;
   }
 
+  if (type === "turn.completed") {
+    const lastAgentMessage =
+      asProgressString(parsed.last_agent_message) ??
+      extractUnknownText(parsed.last_agent_message) ??
+      extractUnknownText(parsed.lastAgentMessage);
+    if (lastAgentMessage) {
+      state.finalResponse = lastAgentMessage;
+    }
+    await emitProviderProgress(state, {
+      kind: "completed",
+      stage: "finalize",
+      slot: "finalize",
+      message: "Preparing the final answer."
+    });
+    return;
+  }
+
+  if (type === "turn.failed") {
+    const detail =
+      asProgressString(parsed.message) ??
+      extractUnknownText(parsed.error) ??
+      "Codex reported that the turn failed before completion.";
+    await emitProviderProgress(state, {
+      kind: "warning",
+      stage: "warning",
+      slot: "warning",
+      message: detail
+    });
+    return;
+  }
+
   if (type === "error") {
     const detail = asProgressString(parsed.message);
     if (detail) {
@@ -661,18 +692,73 @@ async function consumeCodexStreamEvent(
     return;
   }
 
+  const item = asRecord(parsed.item);
+  if (item) {
+    const assistantText = extractCodexAgentMessageText(type, parsed, item);
+    if (assistantText) {
+      if (type === "item.updated") {
+        state.assistantText += assistantText;
+      } else {
+        state.assistantText = assistantText;
+      }
+    }
+
+    const itemProgress = describeCodexItemProgress(type, item);
+    if (itemProgress) {
+      await emitProviderProgress(state, itemProgress);
+    }
+    return;
+  }
+
   const progress =
+    describeCodexEventProgress(type, parsed) ??
     describeToolProgress(
       asProgressString(parsed.tool_name) ??
-        asProgressString(parsed.toolName) ??
-        asProgressString(parsed.event) ??
-        type,
+        asProgressString(parsed.toolName),
       parsed
-    ) ??
-    describeCodexEventProgress(type, parsed);
+    );
   if (progress) {
     await emitProviderProgress(state, progress);
   }
+}
+
+function describeCodexItemProgress(
+  eventType: string,
+  item: Record<string, unknown>
+): TaskProgressEvent | null {
+  const itemType = asProgressString(item.type)?.toLowerCase();
+  if (!itemType) {
+    return null;
+  }
+
+  if (itemType === "agent_message" || itemType === "reasoning" || itemType === "todo_list") {
+    return null;
+  }
+
+  if (itemType === "command_execution") {
+    if (eventType === "item.completed") {
+      return describeCodexCommandCompletion(item);
+    }
+    return describeToolProgress("exec_command", item);
+  }
+
+  if (itemType === "file_change") {
+    return describeCodexFileChangeProgress(item);
+  }
+
+  if (itemType === "mcp_tool_call") {
+    const toolName =
+      asProgressString(item.tool_name) ??
+      asProgressString(item.toolName) ??
+      asProgressString(item.name);
+    return toolName ? describeToolProgress(toolName, item) : describeCodexMcpToolProgress(item);
+  }
+
+  if (itemType === "web_search_call" || itemType === "web_search") {
+    return describeWebToolProgress(item);
+  }
+
+  return null;
 }
 
 function describeCodexEventProgress(
@@ -692,18 +778,113 @@ function describeCodexEventProgress(
   if (normalized.includes("search") || normalized.includes("read")) {
     return describeToolProgress(type, parsed);
   }
-  if (normalized.includes("message")) {
-    const text = extractUnknownText(parsed);
-    if (text) {
-      return {
-        kind: "progress",
-        stage: "inspect",
-        slot: "inspect:plan",
-        message: "Planning the next step."
-      };
+  return null;
+}
+
+function describeCodexCommandCompletion(item: Record<string, unknown>): TaskProgressEvent | null {
+  const warning =
+    asProgressString(item.warning) ??
+    extractUnknownText(item.error);
+  if (warning) {
+    return {
+      kind: "warning",
+      stage: "warning",
+      slot: "warning",
+      message: warning
+    };
+  }
+
+  const exitCode = asNumber(item.exit_code) ?? asNumber(item.exitCode);
+  if (exitCode === null || exitCode === 0) {
+    return null;
+  }
+
+  const command = formatCommandPreview(extractCommandText(item));
+  return {
+    kind: "warning",
+    stage: "warning",
+    slot: command ? `warning:${slotToken(command)}` : "warning",
+    message: command ? `Command failed: ${command}.` : "A command failed during execution."
+  };
+}
+
+function describeCodexFileChangeProgress(item: Record<string, unknown>): TaskProgressEvent {
+  const filePath = extractCodexFileChangePath(item) ?? formatPathPreview(extractPathText(item));
+  if (filePath) {
+    return buildToolProgressEvent("edit", `edit:${slotToken(filePath)}`, `Edit ${filePath}.`);
+  }
+  return buildToolProgressEvent("edit", "edit:workspace", "Apply code changes.");
+}
+
+function describeCodexMcpToolProgress(item: Record<string, unknown>): TaskProgressEvent | null {
+  const query = formatQuotedPreview(extractSearchQueryText(item));
+  if (query) {
+    return buildToolProgressEvent(
+      "search",
+      `search:${slotToken(query)}`,
+      `Search the workspace for ${query}.`
+    );
+  }
+
+  const url = formatUrlPreview(extractUrlText(item));
+  if (url) {
+    return buildToolProgressEvent("search", `search:${slotToken(url)}`, `Open docs at ${url}.`);
+  }
+
+  const filePath = formatPathPreview(extractPathText(item));
+  if (filePath) {
+    return buildToolProgressEvent(
+      "inspect",
+      `inspect:${slotToken(filePath)}`,
+      `Inspect files in ${filePath}.`
+    );
+  }
+
+  return null;
+}
+
+function extractCodexFileChangePath(item: Record<string, unknown>): string | null {
+  const direct = formatPathPreview(extractPathText(item));
+  if (direct) {
+    return direct;
+  }
+
+  const changes = asArray(item.changes);
+  if (!changes) {
+    return null;
+  }
+
+  for (const change of changes) {
+    const record = asRecord(change);
+    const filePath = formatPathPreview(extractPathText(record));
+    if (filePath) {
+      return filePath;
     }
   }
+
   return null;
+}
+
+function extractCodexAgentMessageText(
+  eventType: string,
+  parsed: Record<string, unknown>,
+  item: Record<string, unknown>
+): string | null {
+  const itemType = asProgressString(item.type)?.toLowerCase();
+  if (itemType !== "agent_message") {
+    return null;
+  }
+
+  if (eventType === "item.updated") {
+    return (
+      asProgressString(parsed.delta) ??
+      asProgressString(item.delta) ??
+      extractUnknownText(parsed.delta) ??
+      extractUnknownText(item.delta)
+    );
+  }
+
+  return asProgressString(item.text) ?? extractUnknownText(item);
 }
 
 async function emitProviderProgress(
@@ -945,7 +1126,15 @@ function extractCommandText(payload?: Record<string, unknown> | null): string | 
   }
 
   const direct =
-    extractToolField(payload, ["command", "cmd", "commandLine", "shell_command", "input"]);
+    extractToolField(payload, [
+      "command",
+      "cmd",
+      "commandLine",
+      "shell_command",
+      "parsed_cmd",
+      "parsedCmd",
+      "input"
+    ]);
   if (direct) {
     return direct;
   }
@@ -956,10 +1145,14 @@ function extractCommandText(payload?: Record<string, unknown> | null): string | 
 function extractPathText(payload?: Record<string, unknown> | null): string | null {
   return extractToolField(payload, [
     "path",
+    "absolute_file_path",
+    "absoluteFilePath",
     "file_path",
     "filePath",
     "filepath",
     "file",
+    "move_path",
+    "movePath",
     "target",
     "target_path",
     "targetPath",
@@ -1202,6 +1395,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function asArray(value: unknown): unknown[] | null {
   return Array.isArray(value) ? value : null;
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function getErrorCode(error: unknown): string | undefined {

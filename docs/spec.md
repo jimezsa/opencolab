@@ -719,6 +719,7 @@ Requirements:
 - `slot` is optional and allows the gateway to update or replace an earlier progress message for the same workstream
 - `ephemeral` defaults to `true`; operational progress updates must not be treated as normal assistant conversation turns
 - raw provider events must be normalized into this internal event model before Telegram rendering
+- Codex lifecycle events such as `item.started`, `item.completed`, and `turn.completed` must be normalized from their nested payloads or completion fields; those raw protocol names must never be rendered as user-facing progress text
 
 Notes:
 
