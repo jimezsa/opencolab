@@ -752,11 +752,13 @@ Requirements:
 - if no status events are emitted, current `typing` behavior remains the fallback
 - Telegram API failures must retain the API status and description in gateway logs so delivery errors such as oversized messages are diagnosable
 - routed Telegram text replies should be prefixed with the active agent id on its own first line so operators managing multiple agents in one chat can see who answered, while conversation memory keeps the underlying assistant text without that transport-only header
+- live status lines should mark the newest visible current step with `🟢` and older still-visible steps with `⚪` so the active line is obvious at a glance
 
 Recommended UX policy:
 
 - create the live status surface only after the first meaningful runtime event
 - render one short heading plus a few current lines instead of a transcript
+- when multiple live status lines are visible, highlight only the newest line as active and keep earlier visible lines visually subdued
 - in paired private chats, prefer phase-level summaries such as inspection, editing, checks, or finalizing
 - in group chats, prefer recent user-facing tool actions such as read, search, edit, run, or fetch
 - send updates only on meaningful stage changes, count deltas, blockers, or transitions that help the user

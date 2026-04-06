@@ -1561,12 +1561,18 @@ test("paired webhook renders one live status surface before the final answer wit
     ]);
     assert.equal(statusCreates.length, 1);
     assert.equal(
-      statusCreates[0].includes("Searching for candidate papers across 2 query waves."),
+      statusCreates[0].includes("🟢 Searching for candidate papers across 2 query waves."),
       true
     );
     assert.deepEqual(statusEdits.length, 1);
-    assert.equal(statusEdits[0].includes("Found 20 candidate papers. Selecting 6 for deep read."), true);
-    assert.equal(statusEdits[0].includes("Summaries complete. Writing the final findings now."), true);
+    assert.equal(
+      statusEdits[0].includes("⚪ Found 20 candidate papers. Selecting 6 for deep read."),
+      true
+    );
+    assert.equal(
+      statusEdits[0].includes("🟢 Summaries complete. Writing the final findings now."),
+      true
+    );
     assert.equal(statusEdits[0].startsWith("Finalizing"), true);
 
     const sessionsDir = path.join(buildAgentDir(tempDir, "default"), "memory", "Session");
@@ -1671,14 +1677,14 @@ test("group chats stream recent tool activity through one editable live status m
     assert.equal(draftCalls, 0);
     assert.equal(statusCreates.length, 1);
     assert.equal(statusCreates[0].startsWith("Agent activity"), true);
-    assert.equal(statusCreates[0].includes("Read README.md."), true);
+    assert.equal(statusCreates[0].includes("🟢 Read README.md."), true);
     assert.deepEqual(statusEdits.length, 1);
     assert.equal(statusEdits[0].startsWith("Finalizing"), true);
-    assert.equal(statusEdits[0].includes("Read README.md."), true);
-    assert.equal(statusEdits[0].includes("Search the workspace for \"sendMessageDraft\"."), true);
-    assert.equal(statusEdits[0].includes("Edit src/gateway.ts."), true);
-    assert.equal(statusEdits[0].includes("Run pnpm test."), true);
-    assert.equal(statusEdits[0].includes("Preparing the final answer."), true);
+    assert.equal(statusEdits[0].includes("⚪ Read README.md."), true);
+    assert.equal(statusEdits[0].includes("⚪ Search the workspace for \"sendMessageDraft\"."), true);
+    assert.equal(statusEdits[0].includes("⚪ Edit src/gateway.ts."), true);
+    assert.equal(statusEdits[0].includes("⚪ Run pnpm test."), true);
+    assert.equal(statusEdits[0].includes("🟢 Preparing the final answer."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -1753,10 +1759,10 @@ test("provider CLI native stream events are normalized into Telegram live status
     assert.equal(result.action, "agent_response");
     assert.deepEqual(sentTexts, [formatTelegramAgentReply("professor", "paper search complete")]);
     assert.equal(statusCreates.length, 1);
-    assert.equal(statusCreates[0].includes("Read README.md."), true);
+    assert.equal(statusCreates[0].includes("🟢 Read README.md."), true);
     assert.deepEqual(statusEdits.length, 1);
-    assert.equal(statusEdits[0].includes("Run pnpm test."), true);
-    assert.equal(statusEdits[0].includes("Preparing the final answer."), true);
+    assert.equal(statusEdits[0].includes("⚪ Run pnpm test."), true);
+    assert.equal(statusEdits[0].includes("🟢 Preparing the final answer."), true);
   } finally {
     if (originalAnthropicKey === undefined) {
       delete process.env.ANTHROPIC_API_KEY;
@@ -1842,15 +1848,15 @@ test("Codex item lifecycle events are normalized into user-facing Telegram activ
     assert.equal(statusCreates[0].startsWith("Agent activity"), true);
     assert.equal(
       statusCreates[0].includes(
-        "Run cd /home/david/.opencolab/projects/default/parameter-golf-exp && git status."
+        "🟢 Run cd /home/david/.opencolab/projects/default/parameter-golf-exp && git status."
       ),
       true
     );
     assert.deepEqual(statusEdits.length, 1);
     assert.equal(statusEdits[0].startsWith("Finalizing"), true);
-    assert.equal(statusEdits[0].includes("Run git log --oneline -5."), true);
-    assert.equal(statusEdits[0].includes("Run git push."), true);
-    assert.equal(statusEdits[0].includes("Preparing the final answer."), true);
+    assert.equal(statusEdits[0].includes("⚪ Run git log --oneline -5."), true);
+    assert.equal(statusEdits[0].includes("⚪ Run git push."), true);
+    assert.equal(statusEdits[0].includes("🟢 Preparing the final answer."), true);
     assert.equal(statusEdits[0].includes("item.started"), false);
     assert.equal(statusEdits[0].includes("turn.completed"), false);
   } finally {

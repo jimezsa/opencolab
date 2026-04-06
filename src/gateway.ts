@@ -238,6 +238,7 @@ class TelegramLiveStatusSession {
       return null;
     }
     const visibleLines = lines;
+    const latestIndex = visibleLines.length - 1;
     const latestKind = visibleLines[visibleLines.length - 1]?.kind ?? "started";
     const heading =
       latestKind === "warning"
@@ -253,7 +254,7 @@ class TelegramLiveStatusSession {
     return [
       heading,
       "",
-      ...visibleLines.map((line) => `- ${line.message}`),
+      ...visibleLines.map((line, index) => `${index === latestIndex ? "🟢" : "⚪"} ${line.message}`),
     ].join("\n");
   }
 
