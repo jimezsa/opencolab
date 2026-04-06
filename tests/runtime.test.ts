@@ -22,6 +22,10 @@ function buildProjectDir(rootDir: string, projectId: string): string {
   return path.join(rootDir, "projects", projectId);
 }
 
+function formatTelegramAgentReply(agentId: string, text: string): string {
+  return `${agentId}\n\n${text}`;
+}
+
 function createSampleRunStatus(runId = "run-1"): ExperimentRunStatus {
   return {
     runId,
@@ -1347,7 +1351,10 @@ test("paired webhook routes message to the active agent and stores conversation"
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.equal(result.response, "research:Find recent breakthroughs in SAE methods");
+    assert.equal(
+      result.response,
+      formatTelegramAgentReply("professor", "research:Find recent breakthroughs in SAE methods")
+    );
     assert.equal(sentTexts.includes(result.response), true);
     assert.equal(typingCalls > 0, true);
 
@@ -1422,7 +1429,9 @@ test("paired webhook keeps typing without creating a generic live status before 
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.deepEqual(sentTexts, ["research:Look into sparse autoencoders"]);
+    assert.deepEqual(sentTexts, [
+      formatTelegramAgentReply("professor", "research:Look into sparse autoencoders")
+    ]);
     assert.deepEqual(statusCreates, []);
     assert.deepEqual(statusEdits, []);
     assert.equal(typingCalls > 0, true);
@@ -1547,7 +1556,9 @@ test("paired webhook renders one live status surface before the final answer wit
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.deepEqual(sentTexts, ["research:Find recent breakthroughs in SAE methods"]);
+    assert.deepEqual(sentTexts, [
+      formatTelegramAgentReply("professor", "research:Find recent breakthroughs in SAE methods")
+    ]);
     assert.equal(statusCreates.length, 1);
     assert.equal(
       statusCreates[0].includes("Searching for candidate papers across 2 query waves."),
@@ -1654,7 +1665,9 @@ test("group chats stream recent tool activity through one editable live status m
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.deepEqual(sentTexts, ["research:show me the live activity"]);
+    assert.deepEqual(sentTexts, [
+      formatTelegramAgentReply("professor", "research:show me the live activity")
+    ]);
     assert.equal(draftCalls, 0);
     assert.equal(statusCreates.length, 1);
     assert.equal(statusCreates[0].startsWith("Agent activity"), true);
@@ -1738,7 +1751,7 @@ test("provider CLI native stream events are normalized into Telegram live status
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.deepEqual(sentTexts, ["paper search complete"]);
+    assert.deepEqual(sentTexts, [formatTelegramAgentReply("professor", "paper search complete")]);
     assert.equal(statusCreates.length, 1);
     assert.equal(statusCreates[0].includes("Read README.md."), true);
     assert.deepEqual(statusEdits.length, 1);
@@ -1824,7 +1837,7 @@ test("Codex item lifecycle events are normalized into user-facing Telegram activ
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.deepEqual(sentTexts, ["parameter golf run synced"]);
+    assert.deepEqual(sentTexts, [formatTelegramAgentReply("professor", "parameter golf run synced")]);
     assert.equal(statusCreates.length, 1);
     assert.equal(statusCreates[0].startsWith("Agent activity"), true);
     assert.equal(
@@ -1892,7 +1905,10 @@ test("paired webhook splits oversized Telegram final replies and preserves messa
     assert.equal(sentMessages.length > 1, true);
     assert.equal(sentMessages.every((message) => message.text.length <= 4_000), true);
     assert.equal(sentMessages.every((message) => message.messageThreadId === "77"), true);
-    assert.equal(sentMessages.map((message) => message.text).join(""), longReply);
+    assert.equal(
+      sentMessages.map((message) => message.text).join(""),
+      formatTelegramAgentReply("professor", longReply)
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -2004,7 +2020,10 @@ test("timed out routed runs preserve a compact recovery summary for the next tur
 
     assert.equal(second.ok, true);
     assert.equal(second.action, "agent_response");
-    assert.equal(second.response, "resume:Continue from the last stage");
+    assert.equal(
+      second.response,
+      formatTelegramAgentReply("professor", "resume:Continue from the last stage")
+    );
     assert.deepEqual(seenWorkingMemory, [
       [],
       ["Investigate sparse autoencoders", recoveryTurn.content]
@@ -2061,8 +2080,8 @@ test("agent response can send telegram files when the directive is backticked an
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.equal(result.response, "Image exists & re-sent.");
-    assert.deepEqual(sentTexts, ["Image exists & re-sent."]);
+    assert.equal(result.response, formatTelegramAgentReply("professor", "Image exists & re-sent."));
+    assert.deepEqual(sentTexts, [formatTelegramAgentReply("professor", "Image exists & re-sent.")]);
     assert.equal(sentFiles.length, 1);
     assert.deepEqual(sentFiles[0], {
       kind: "photo",
@@ -2171,8 +2190,11 @@ test("paired webhook routes document-only inbound message to the agent", async (
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.equal(result.response, "files:1 kind:document text:true");
-    assert.equal(sentTexts.includes("files:1 kind:document text:true"), true);
+    assert.equal(result.response, formatTelegramAgentReply("professor", "files:1 kind:document text:true"));
+    assert.equal(
+      sentTexts.includes(formatTelegramAgentReply("professor", "files:1 kind:document text:true")),
+      true
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -2275,7 +2297,7 @@ test("paired webhook routes photo captions with a downloaded local file path", a
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.equal(result.response, "photo received");
+    assert.equal(result.response, formatTelegramAgentReply("professor", "photo received"));
     assert.equal(seenInputs.length, 1);
     assert.equal(seenInputs[0].files.length, 1);
     assert.equal(seenInputs[0].files[0].kind, "photo");
@@ -2510,7 +2532,7 @@ test("paired webhook preserves telegram metadata when local file download fails"
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.equal(result.response, "fallback metadata received");
+    assert.equal(result.response, formatTelegramAgentReply("professor", "fallback metadata received"));
     assert.equal(seenInputs.length, 1);
     assert.equal(seenInputs[0].telegramFilePath, "docs/report.pdf");
     assert.equal(seenInputs[0].localPath, undefined);
@@ -2573,8 +2595,8 @@ test("agent response can send telegram files via @telegram-file directives", asy
 
     assert.equal(result.ok, true);
     assert.equal(result.action, "agent_response");
-    assert.equal(result.response, "Uploaded your file.");
-    assert.equal(sentTexts.includes("Uploaded your file."), true);
+    assert.equal(result.response, formatTelegramAgentReply("professor", "Uploaded your file."));
+    assert.equal(sentTexts.includes(formatTelegramAgentReply("professor", "Uploaded your file.")), true);
     assert.equal(sentFiles.length, 2);
     assert.deepEqual(sentFiles[0], { kind: "document", file: "doc_abc123", caption: "analysis" });
     assert.deepEqual(sentFiles[1], { kind: "photo", file: "https://example.com/chart.png" });

@@ -394,6 +394,7 @@ opencolab gateway restart --port 4646
 - OpenColab waits for real runtime progress before creating the live status surface; it does not send a generic placeholder status card
 - In paired private chats, OpenColab prefers Telegram `sendMessageDraft` and keeps the live status compact
 - In groups and other non-private chats, OpenColab uses one editable status message and streams a bounded recent tool-activity list
+- Routed Telegram text replies are prefixed with the active agent id on the first line so one chat can safely manage multiple agents
 - Final text replies are split into ordered chunks when needed so Telegram's text limit does not drop the answer
 - `sendChatAction` remains active as startup feedback and as fallback when no live status event is available
 - If provider execution fails because of auth, timeout, CLI setup problems, or Telegram API delivery issues, the gateway logs the Telegram status and description instead of failing silently

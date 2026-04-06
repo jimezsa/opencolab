@@ -595,6 +595,7 @@ export class TelegramGateway {
         response,
         path.resolve(this.config.rootDir, activeAgent.path),
       );
+      const outboundTextForTelegram = formatTelegramAgentReply(activeAgent.id, outbound.text);
       const assistantLog = buildAssistantLogContent(
         outbound.text,
         outbound.files,
@@ -613,7 +614,7 @@ export class TelegramGateway {
         const textSent = await safeSendTelegramMessage(
           this.sender,
           inbound.chatId,
-          outbound.text,
+          outboundTextForTelegram,
           state,
           replyOptions,
         );
@@ -634,7 +635,7 @@ export class TelegramGateway {
       }
 
       const responseText =
-        outbound.text || summarizeOutboundFiles(outbound.files);
+        outboundTextForTelegram || summarizeOutboundFiles(outbound.files);
 
       return {
         ok: true,
@@ -1827,6 +1828,20 @@ function buildAssistantLogContent(
   });
 
   return lines.join("\n").trim();
+}
+
+function formatTelegramAgentReply(agentId: string, text: string): string {
+  const normalizedText = text.trim();
+  if (!normalizedText) {
+    return "";
+  }
+
+  const normalizedAgentId = agentId.trim();
+  if (!normalizedAgentId) {
+    return normalizedText;
+  }
+
+  return `${normalizedAgentId}\n\n${normalizedText}`;
 }
 
 function summarizeOutboundFiles(files: TelegramOutboundFile[]): string {

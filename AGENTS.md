@@ -62,6 +62,7 @@ Agent contract details that matter for implementation:
 - The seeded `specialist` and `beginner` contracts must state that they do not create more specialists by default and should route staffing recommendations back through `professor`.
 - The seeded `AGENTS.md` contract must explain that OpenColab owns Telegram live status for routed runs, derives it from runtime events instead of an agent-written progress file, expects agents to avoid low-signal step-by-step chatter, and may surface a bounded recent tool-activity list in Telegram groups.
 - Codex lifecycle events such as `item.started`, `item.completed`, and `turn.completed` must be normalized before Telegram rendering and must never appear verbatim in live status text.
+- Routed Telegram text replies should be prefixed with the active agent id on the first line, but that transport-only label must not be copied into normal conversation memory.
 - The seeded agent docs must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines rather than markdown-wrapped snippets.
 
 For behavior changes, update `docs/spec.md` first, then sync `README.md`, `AGENTS.md`, and code in the same change.

@@ -751,6 +751,7 @@ Requirements:
 - `sendChatAction` should only be used as short startup fallback feedback before the live status surface exists
 - if no status events are emitted, current `typing` behavior remains the fallback
 - Telegram API failures must retain the API status and description in gateway logs so delivery errors such as oversized messages are diagnosable
+- routed Telegram text replies should be prefixed with the active agent id on its own first line so operators managing multiple agents in one chat can see who answered, while conversation memory keeps the underlying assistant text without that transport-only header
 
 Recommended UX policy:
 

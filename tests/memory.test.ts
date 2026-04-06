@@ -220,8 +220,8 @@ test("runtime passes structured working memory to the agent responder", async ()
       }
     });
 
-    assert.equal(first.response, "wm:0 prev:0");
-    assert.equal(second.response, "wm:2 prev:0");
+    assert.equal(first.response, "professor\n\nwm:0 prev:0");
+    assert.equal(second.response, "professor\n\nwm:2 prev:0");
     assert.deepEqual(seenWorkingMemorySizes, [0, 2]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
