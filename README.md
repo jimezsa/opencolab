@@ -51,40 +51,28 @@ Check [docs/VISION.md](docs/VISION.md) for project direction and [docs/spec.md](
 ## How It Works
 
 ```text
-+-----------------------+
-| Human (Assistant)     | <-------------|
-+-----------+-----------+               |
-            ^                           |
-            |                           |
-            v                           |
-+-----------------------+               |
-| Shared goals and plan |               |
-+-----------+-----------+               |
-            ^                           |
-            |                           |
-            v                           |
-+-----------------------+      +------------------+
-| Professor (Lead)      | <--> | Beginner Student |
-| coordinates execution |      | naive questions  |
-+-----------+-----------+      +--------+---------+
-            ^                           |
-            |                           v
-            v
-+-----------------------------------------------+
-| PhD Students                                  |
-| A: literature  B: experiments  C: synthesis   |
-+-----------+-----------------------------------+
-            ^
-            |
-            v
-+-----------------------+
-| Feedback to Human     |
-+-----------------------+
+┌────────┐   goals/feedback   ┌───────────┐
+│ Human  │ ─────────────────▶ │ Professor │
+└───┬────┘                    └─────┬─────┘
+    │ direct messages               │ coordination / PhD Students
+    ├──────────────┬────────────────┼─────────────────┐
+    ▼              ▼                ▼                 ▼
+┌────────────┐  ┌─────────────┐  ┌──────────────┐  ┌──────────┐
+│ Literature │  │ Experiments │  │ AutoResearch │  │ Beginner │
+└────────────┘  └─────────────┘  └──────────────┘  └──────────┘
 ```
 
 Current runtime architecture:
 
-`Telegram -> Gateway -> Active Project -> Active Agent -> Provider Runtime`
+```text
+┌──────────────┐   routed input   ┌─────────┐   active scope   ┌─────────────────┐
+│ Telegram/CLI │ ───────────────▶ │ Gateway │ ───────────────▶ │ Project + Agent │
+└──────────────┘                  └─────────┘                  └─────────────────┘
+                                                                    │
+                                    ┌───────────────────────────────┼──────────────────────────────┐
+                                    ▼                               ▼                              ▼
+                               Provider Runtime                Shared Skills                Execution Target
+```
 
 Remote experiment path:
 
@@ -94,14 +82,14 @@ Remote experiment path:
 
 Install the upstream runtime CLI that matches the provider you want OpenColab to drive:
 
-| Provider    | Runtime CLI | Install guide                                                                   | Command  |
-| ----------- | ----------- | ------------------------------------------------------------------------------- | -------- |
-| `openai`    | Codex       | [Codex CLI](https://developers.openai.com/codex/cli)                            | `codex`  |
-| `anthropic` | Claude Code | [Claude Code setup](https://code.claude.com/docs/en/getting-started)            | `claude` |
-| `gemini`    | Gemini CLI  | [Gemini CLI installation](https://geminicli.com/docs/get-started/installation/) | `gemini` |
-| `xai`       | PI          | [PI install](https://pi.dev/)                                                   | `pi`     |
-| `openrouter` | PI         | [PI install](https://pi.dev/)                                                   | `pi`     |
-| `kimi`      | PI          | [PI install](https://pi.dev/)                                                   | `pi`     |
+| Provider     | Runtime CLI | Install guide                                                                   | Command  |
+| ------------ | ----------- | ------------------------------------------------------------------------------- | -------- |
+| `openai`     | Codex       | [Codex CLI](https://developers.openai.com/codex/cli)                            | `codex`  |
+| `anthropic`  | Claude Code | [Claude Code setup](https://code.claude.com/docs/en/getting-started)            | `claude` |
+| `gemini`     | Gemini CLI  | [Gemini CLI installation](https://geminicli.com/docs/get-started/installation/) | `gemini` |
+| `xai`        | PI          | [PI install](https://pi.dev/)                                                   | `pi`     |
+| `openrouter` | PI          | [PI install](https://pi.dev/)                                                   | `pi`     |
+| `kimi`       | PI          | [PI install](https://pi.dev/)                                                   | `pi`     |
 
 `minimax` runs through the `claude` runtime, and `xai`, `openrouter`, and `kimi` run through `pi`.
 
