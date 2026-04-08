@@ -36,6 +36,7 @@ export function startTelegramPolling(
   const tokenValue = token;
 
   let running = true;
+  const inFlight = new Set<Promise<unknown>>();
   void pollLoop();
 
   return {
@@ -51,17 +52,19 @@ export function startTelegramPolling(
       try {
         const updates = await getUpdates(tokenValue, offset);
         for (const update of updates) {
-          try {
-            await runtime.handleTelegramWebhook(update);
-          } catch (error) {
-            log(
-              `Telegram update ${String(update.update_id)} failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`
-            );
-          } finally {
-            offset = update.update_id + 1;
-          }
+          const task = Promise.resolve(runtime.handleTelegramWebhook(update))
+            .catch((error) => {
+              log(
+                `Telegram update ${String(update.update_id)} failed: ${
+                  error instanceof Error ? error.message : String(error)
+                }`
+              );
+            })
+            .finally(() => {
+              inFlight.delete(task);
+            });
+          inFlight.add(task);
+          offset = update.update_id + 1;
         }
       } catch (error) {
         log(

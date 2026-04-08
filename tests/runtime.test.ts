@@ -2687,6 +2687,198 @@ test("paired webhook can reset the session with /session_reset and create a new 
   }
 });
 
+test("paired webhook returns a short no-op reply for /stop when no task is active", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-stop-noop-"));
+  const sentTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }) => `research:${text}`
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/stop",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "management_command");
+    assert.equal(result.response, "No active task to stop.");
+    assert.deepEqual(sentTexts, ["No active task to stop."]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("paired webhook can stop an active routed run, save a recovery summary, and suppress late replies", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-stop-active-"));
+  const sentTexts: string[] = [];
+  const statusCreates: string[] = [];
+  const statusEdits: string[] = [];
+  let resolveProgressSeen!: () => void;
+  const progressSeen = new Promise<void>((resolve) => {
+    resolveProgressSeen = resolve;
+  });
+  let releaseLateReply!: () => void;
+  const lateReplyReleased = new Promise<void>((resolve) => {
+    releaseLateReply = resolve;
+  });
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text) => {
+      statusCreates.push(text);
+      return "status-1";
+    },
+    telegramMessageEditor: async (_chatId, _messageId, text) => {
+      statusEdits.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }, options) => {
+      await options?.onProgress?.({
+        kind: "milestone",
+        stage: "inspect",
+        slot: "inspect",
+        message: "Reviewing the current implementation."
+      });
+      resolveProgressSeen();
+
+      await new Promise<void>((resolve) => {
+        if (options?.signal?.aborted) {
+          resolve();
+          return;
+        }
+
+        options?.signal?.addEventListener(
+          "abort",
+          () => {
+            void (async () => {
+              await options?.onProgress?.({
+                kind: "completed",
+                stage: "finalize",
+                slot: "finalize",
+                message: "Should not appear after stop."
+              });
+              resolve();
+            })();
+          },
+          { once: true }
+        );
+      });
+
+      await lateReplyReleased;
+      return `late:${text}`;
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const firstRun = runtime.handleTelegramWebhook({
+      message: {
+        text: "Investigate sparse autoencoders",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    await progressSeen;
+
+    const stopResult = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/stop",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+    releaseLateReply();
+    const firstResult = await firstRun;
+
+    assert.equal(stopResult.ok, true);
+    assert.equal(stopResult.action, "management_command");
+    assert.equal(
+      stopResult.response,
+      "Stopped the current task.\nSaved the latest progress so you can ask me to continue later."
+    );
+    assert.equal(firstResult.ok, true);
+    assert.equal(firstResult.action, "agent_stopped");
+    assert.equal(firstResult.sent, false);
+    assert.deepEqual(sentTexts, [
+      "Stopped the current task.\nSaved the latest progress so you can ask me to continue later."
+    ]);
+    assert.equal(
+      sentTexts.some((text) => text.includes("late:Investigate sparse autoencoders")),
+      false
+    );
+    assert.equal(statusCreates.length, 1);
+    assert.equal(
+      statusCreates[0].includes("🟢 Reviewing the current implementation."),
+      true
+    );
+    assert.equal(
+      statusEdits.some((text) => text.includes("Should not appear after stop.")),
+      false
+    );
+
+    const sessionsDir = path.join(buildAgentDir(tempDir, "default"), "memory", "Session");
+    const sessionDirs = fs
+      .readdirSync(sessionsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    const historyPath = path.join(
+      sessionsDir,
+      sessionDirs[0],
+      `${new Date().toISOString().slice(0, 10)}.jsonl`
+    );
+    const lines = fs.readFileSync(historyPath, "utf8").trim().split(/\r?\n/);
+    assert.equal(lines.length, 2);
+
+    const firstTurn = JSON.parse(lines[0]) as { role: string; content: string };
+    const recoveryTurn = JSON.parse(lines[1]) as { role: string; content: string };
+    assert.equal(firstTurn.role, "user");
+    assert.equal(firstTurn.content, "Investigate sparse autoencoders");
+    assert.equal(recoveryTurn.role, "assistant");
+    assert.equal(
+      recoveryTurn.content.includes(
+        `Previous attempt was stopped by the user with /stop using ${runtime.getActiveAgent().provider.name}/${runtime.getActiveAgent().provider.model}.`
+      ),
+      true
+    );
+    assert.equal(
+      recoveryTurn.content.includes("Last progress: Reviewing the current implementation."),
+      true
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("removed Telegram command families fall back to the supported picker commands", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-removed-commands-"));
 
@@ -2735,7 +2927,7 @@ test("removed Telegram command families fall back to the supported picker comman
 
       assert.equal(result.ok, true);
       assert.equal(result.action, "management_command");
-      assert.equal(result.response, "Supported commands: /projects | /agents | /session_reset");
+      assert.equal(result.response, "Supported commands: /projects | /agents | /session_reset | /stop");
       assert.equal(JSON.stringify(runtime.getState()), initialState);
     }
   } finally {

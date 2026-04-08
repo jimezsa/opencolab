@@ -106,7 +106,11 @@ const DRAFT_STATUS_THROTTLE_MS = 1_200;
 const MAX_LIVE_STATUS_LINES = 4;
 const MAX_GROUP_LIVE_STATUS_LINES = 5;
 const SUPPORTED_TELEGRAM_COMMANDS_TEXT =
-  "Supported commands: /projects | /agents | /session_reset";
+  "Supported commands: /projects | /agents | /session_reset | /stop";
+const STOPPED_TASK_CONFIRMATION_TEXT = [
+  "Stopped the current task.",
+  "Saved the latest progress so you can ask me to continue later.",
+].join("\n");
 
 interface ManagementCommandResult {
   nextState?: OpenColabState;
@@ -117,6 +121,15 @@ interface ManagementCommandResult {
 
 interface RequestProgressState {
   lastMeaningfulMessage: string | null;
+}
+
+interface ActiveRequest {
+  provider: ProviderConfig;
+  progressState: RequestProgressState;
+  liveStatus: TelegramLiveStatusSession;
+  abortController: AbortController;
+  stopRequested: boolean;
+  recoveryLogged: boolean;
 }
 
 interface LiveStatusLine {
@@ -354,6 +367,8 @@ export class TelegramGateway {
   private readonly typingSender: TelegramTypingSender;
   private readonly fileSender: TelegramFileSender;
   private readonly callbackAnswerer: TelegramCallbackAnswerer;
+  private readonly activeRequests = new Map<string, ActiveRequest>();
+  private readonly laneQueues = new Map<string, Promise<void>>();
 
   constructor(
     private readonly config: OpenColabConfig,
@@ -467,8 +482,6 @@ export class TelegramGateway {
     }
 
     const state = ensureProjectAndAgent(this.deps.getState());
-    const project = getActiveProject(state);
-    const activeAgent = getProjectActiveAgent(project);
 
     if (!state.telegram.chatId || inbound.chatId !== state.telegram.chatId) {
       return {
@@ -491,6 +504,27 @@ export class TelegramGateway {
       };
     }
 
+    const laneKey = buildTelegramConversationLaneKey(
+      inbound.chatId,
+      inbound.messageThreadId,
+    );
+    if (isStopCommand(inbound)) {
+      return this.handleStopCommand(inbound, state, laneKey);
+    }
+
+    return this.runQueuedLane(laneKey, async () =>
+      this.handleQueuedWebhook(inbound, laneKey),
+    );
+  }
+
+  private async handleQueuedWebhook(
+    inbound: TelegramInbound,
+    laneKey: string,
+  ): Promise<GatewayResult> {
+    const state = ensureProjectAndAgent(this.deps.getState());
+    const project = getActiveProject(state);
+    const activeAgent = getProjectActiveAgent(project);
+
     let commandResult: ManagementCommandResult | null = null;
     try {
       commandResult = this.tryHandleManagementCommand(inbound, state);
@@ -501,37 +535,7 @@ export class TelegramGateway {
       };
     }
     if (commandResult) {
-      const responseState = commandResult.nextState
-        ? ensureProjectAndAgent(commandResult.nextState)
-        : state;
-      if (commandResult.nextState) {
-        this.deps.saveState(commandResult.nextState);
-      }
-
-      if (inbound.callbackQueryId) {
-        await safeAnswerTelegramCallback(
-          this.callbackAnswerer,
-          inbound.callbackQueryId,
-          truncateTelegramCallbackText(commandResult.callbackAnswerText ?? commandResult.response),
-          responseState,
-        );
-      }
-
-      const sent = await this.sender(
-        inbound.chatId,
-        commandResult.response,
-        responseState,
-        {
-          ...commandResult.options,
-          ...(inbound.messageThreadId ? { messageThreadId: inbound.messageThreadId } : {}),
-        },
-      );
-      return {
-        ok: true,
-        action: "management_command",
-        response: commandResult.response,
-        sent,
-      };
+      return this.sendManagementCommandResult(inbound, state, commandResult);
     }
 
     const memory = this.deps.readConversationMemory(inbound.chatId, 8);
@@ -548,8 +552,13 @@ export class TelegramGateway {
       this.statusMessageCreator,
       this.messageEditor,
     );
+    const activeRequest = createActiveRequest(
+      activeAgent.provider,
+      progressState,
+      liveStatus,
+    );
+    this.activeRequests.set(laneKey, activeRequest);
     let progressQueue = Promise.resolve();
-    let inboundText = "";
     let appendedUserTurn = false;
 
     try {
@@ -559,7 +568,11 @@ export class TelegramGateway {
         project.path,
         inbound.files,
       );
-      inboundText = buildInboundText(inbound.text, resolvedFiles);
+      if (activeRequest.stopRequested) {
+        return buildStoppedGatewayResult();
+      }
+
+      const inboundText = buildInboundText(inbound.text, resolvedFiles);
       this.deps.appendConversation(inbound.chatId, {
         role: "user",
         content: inboundText,
@@ -575,7 +588,11 @@ export class TelegramGateway {
           memory,
         },
         {
+          signal: activeRequest.abortController.signal,
           onProgress: (event) => {
+            if (activeRequest.stopRequested) {
+              return progressQueue;
+            }
             progressQueue = progressQueue
               .then(async () =>
                 this.sendProgressUpdate(
@@ -592,16 +609,26 @@ export class TelegramGateway {
       await progressQueue;
       await liveStatus.close();
 
+      if (activeRequest.stopRequested) {
+        return buildStoppedGatewayResult();
+      }
+
       const outbound = parseOutboundAgentResponse(
         response,
         path.resolve(this.config.rootDir, activeAgent.path),
       );
+      if (activeRequest.stopRequested) {
+        return buildStoppedGatewayResult();
+      }
       const outboundTextForTelegram = formatTelegramAgentReply(activeAgent.id, outbound.text);
       const assistantLog = buildAssistantLogContent(
         outbound.text,
         outbound.files,
       );
 
+      if (activeRequest.stopRequested) {
+        return buildStoppedGatewayResult();
+      }
       this.deps.appendConversation(inbound.chatId, {
         role: "assistant",
         content: assistantLog,
@@ -611,7 +638,7 @@ export class TelegramGateway {
       let sent = true;
       let sentAny = false;
 
-      if (outbound.text) {
+      if (!activeRequest.stopRequested && outbound.text) {
         const textSent = await safeSendTelegramMessage(
           this.sender,
           inbound.chatId,
@@ -624,6 +651,9 @@ export class TelegramGateway {
       }
 
       for (const file of outbound.files) {
+        if (activeRequest.stopRequested) {
+          return buildStoppedGatewayResult();
+        }
         const fileSent = await this.fileSender(inbound.chatId, file, state);
         sent = sent && fileSent;
         sentAny = sentAny || fileSent;
@@ -647,6 +677,10 @@ export class TelegramGateway {
     } catch (error) {
       await progressQueue.catch(() => undefined);
       await liveStatus.close();
+      if (activeRequest.stopRequested) {
+        return buildStoppedGatewayResult();
+      }
+
       const response = buildAgentFailureMessage(
         error,
         progressState.lastMeaningfulMessage,
@@ -679,6 +713,105 @@ export class TelegramGateway {
       };
     } finally {
       stopTyping?.();
+      if (this.activeRequests.get(laneKey) === activeRequest) {
+        this.activeRequests.delete(laneKey);
+      }
+    }
+  }
+
+  private async sendManagementCommandResult(
+    inbound: TelegramInbound,
+    state: OpenColabState,
+    commandResult: ManagementCommandResult,
+  ): Promise<GatewayResult> {
+    const responseState = commandResult.nextState
+      ? ensureProjectAndAgent(commandResult.nextState)
+      : state;
+    if (commandResult.nextState) {
+      this.deps.saveState(commandResult.nextState);
+    }
+
+    if (inbound.callbackQueryId) {
+      await safeAnswerTelegramCallback(
+        this.callbackAnswerer,
+        inbound.callbackQueryId,
+        truncateTelegramCallbackText(commandResult.callbackAnswerText ?? commandResult.response),
+        responseState,
+      );
+    }
+
+    const sent = await this.sender(
+      inbound.chatId,
+      commandResult.response,
+      responseState,
+      {
+        ...commandResult.options,
+        ...(inbound.messageThreadId ? { messageThreadId: inbound.messageThreadId } : {}),
+      },
+    );
+    return {
+      ok: true,
+      action: "management_command",
+      response: commandResult.response,
+      sent,
+    };
+  }
+
+  private async handleStopCommand(
+    inbound: TelegramInbound,
+    state: OpenColabState,
+    laneKey: string,
+  ): Promise<GatewayResult> {
+    const activeRequest = this.activeRequests.get(laneKey);
+    if (!activeRequest) {
+      return this.sendManagementCommandResult(inbound, state, {
+        response: "No active task to stop.",
+      });
+    }
+
+    if (!activeRequest.stopRequested) {
+      activeRequest.stopRequested = true;
+      activeRequest.abortController.abort();
+      await activeRequest.liveStatus.close();
+
+      if (!activeRequest.recoveryLogged) {
+        this.deps.appendConversation(inbound.chatId, {
+          role: "assistant",
+          content: buildAssistantStopRecoveryLog(
+            activeRequest.provider,
+            activeRequest.progressState.lastMeaningfulMessage,
+          ),
+          at: nowIso(),
+        });
+        activeRequest.recoveryLogged = true;
+      }
+    }
+
+    return this.sendManagementCommandResult(inbound, state, {
+      response: STOPPED_TASK_CONFIRMATION_TEXT,
+    });
+  }
+
+  private async runQueuedLane<T>(
+    laneKey: string,
+    task: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.laneQueues.get(laneKey) ?? Promise.resolve();
+    let releaseCurrent!: () => void;
+    const current = new Promise<void>((resolve) => {
+      releaseCurrent = resolve;
+    });
+    const tail = previous.catch(() => undefined).then(() => current);
+    this.laneQueues.set(laneKey, tail);
+
+    await previous.catch(() => undefined);
+    try {
+      return await task();
+    } finally {
+      releaseCurrent();
+      if (this.laneQueues.get(laneKey) === tail) {
+        this.laneQueues.delete(laneKey);
+      }
     }
   }
 
@@ -1085,9 +1218,48 @@ function buildAssistantRecoveryLog(
   return lines.join("\n");
 }
 
+function buildAssistantStopRecoveryLog(
+  provider: ProviderConfig,
+  lastProgressMessage?: string | null,
+): string {
+  const lines = [
+    `Previous attempt was stopped by the user with /stop using ${provider.name}/${provider.model}.`,
+  ];
+  const lastProgress = truncateForRecovery(normalizeProgressMessage(lastProgressMessage ?? ""), 220);
+  if (lastProgress) {
+    lines.push(`Last progress: ${lastProgress}`);
+  }
+  lines.push("Next action: continue from the last completed stage if the user asks to resume.");
+  return lines.join("\n");
+}
+
 function createRequestProgressState(): RequestProgressState {
   return {
     lastMeaningfulMessage: null,
+  };
+}
+
+function createActiveRequest(
+  provider: ProviderConfig,
+  progressState: RequestProgressState,
+  liveStatus: TelegramLiveStatusSession,
+): ActiveRequest {
+  return {
+    provider,
+    progressState,
+    liveStatus,
+    abortController: new AbortController(),
+    stopRequested: false,
+    recoveryLogged: false,
+  };
+}
+
+function buildStoppedGatewayResult(): GatewayResult {
+  return {
+    ok: true,
+    action: "agent_stopped",
+    response: STOPPED_TASK_CONFIRMATION_TEXT,
+    sent: false,
   };
 }
 
@@ -1549,6 +1721,27 @@ function normalizeManagementInput(raw: string): string {
   const scope = normalizeCommandToken(tokens[0]).toLowerCase();
   const rest = tokens.slice(1).join(" ").trim();
   return [scope, rest].filter(Boolean).join(" ").trim();
+}
+
+function buildTelegramConversationLaneKey(
+  chatId: string,
+  messageThreadId?: string,
+): string {
+  return `${chatId}::${messageThreadId ?? ""}`;
+}
+
+function isStopCommand(inbound: TelegramInbound): boolean {
+  if (inbound.kind !== "message") {
+    return false;
+  }
+
+  const text = normalizeManagementInput(inbound.commandText);
+  if (!text.startsWith("/")) {
+    return false;
+  }
+
+  const tokens = text.split(/\s+/);
+  return normalizeCommandToken(tokens[0]).toLowerCase() === "/stop";
 }
 
 function normalizeCommandToken(token: string | undefined): string {

@@ -39,6 +39,7 @@ import type {
 import { ensureDir } from "./utils.js";
 
 const MAX_CLI_CAPTURE_CHARS = 200_000;
+const PROVIDER_EXECUTION_STOPPED_MESSAGE = "Provider execution stopped by user request.";
 
 interface ProviderCliInput {
   prompt: string;
@@ -56,6 +57,7 @@ export interface ProviderAgentInput {
 
 export interface ProviderRespondOptions {
   onProgress?: (event: TaskProgressEvent) => void | Promise<void>;
+  signal?: AbortSignal;
 }
 
 export class ProviderAgent {
@@ -102,6 +104,10 @@ export class ProviderAgent {
     agentPath: string,
     options: ProviderRespondOptions
   ): Promise<string> {
+    if (options.signal?.aborted) {
+      return Promise.reject(createProviderExecutionStoppedError());
+    }
+
     const authMode = resolveProviderAuthMode(provider.name, provider.authMode);
     const canonicalKeyName = getProviderApiKeyEnvVar(provider.name);
     let apiKey: string | null = null;
@@ -189,6 +195,7 @@ export class ProviderAgent {
       let stderrTruncated = false;
       let settled = false;
       let streamQueue = Promise.resolve();
+      let forceKillHandle: NodeJS.Timeout | null = null;
 
       const appendLimited = (current: string, chunk: Buffer): { next: string; truncated: boolean } => {
         const nextRaw = current + chunk.toString("utf8");
@@ -204,15 +211,44 @@ export class ProviderAgent {
         }
         settled = true;
         clearTimeout(timeoutHandle);
+        if (forceKillHandle) {
+          clearTimeout(forceKillHandle);
+          forceKillHandle = null;
+        }
+        options.signal?.removeEventListener("abort", abortProviderExecution);
         void Promise.resolve(streamQueue)
           .finally(() => finalizeProviderStreamState(streamState))
           .finally(handler);
+      };
+
+      const abortProviderExecution = (): void => {
+        try {
+          child.kill("SIGTERM");
+        } catch {
+          // Best-effort termination.
+        }
+
+        forceKillHandle = setTimeout(() => {
+          try {
+            child.kill("SIGKILL");
+          } catch {
+            // Best-effort termination.
+          }
+        }, 500);
+
+        finish(() => reject(createProviderExecutionStoppedError()));
       };
 
       const timeoutHandle = setTimeout(() => {
         child.kill("SIGKILL");
         finish(() => reject(new Error(normalizeProviderCliTimeout(provider, authMode))));
       }, Math.max(this.config.providerCliTimeoutMs, 1000));
+
+      if (options.signal?.aborted) {
+        abortProviderExecution();
+        return;
+      }
+      options.signal?.addEventListener("abort", abortProviderExecution, { once: true });
 
       child.stdout.on("data", (chunk: Buffer) => {
         const text = chunk.toString("utf8");
@@ -399,6 +435,10 @@ function resolveProviderCliResponse(
     return "";
   }
   return stdoutFallback.trim();
+}
+
+function createProviderExecutionStoppedError(): Error {
+  return new Error(PROVIDER_EXECUTION_STOPPED_MESSAGE);
 }
 
 function readProviderOutputFile(filePath: string | null): string | null {

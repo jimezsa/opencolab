@@ -220,7 +220,7 @@ Requirements for session storage:
 - conversation logs must not be stored in `.opencolab`
 - raw session logs are archival and must not be fed wholesale into provider prompts
 - routed agent executions must append the inbound user turn before provider execution begins so timeout or failure does not erase the request from session history
-- timed-out or failed routed executions must append a compact assistant recovery entry to the active session so the next turn can resume from the last known state without replaying the whole transcript
+- timed-out, stopped, or failed routed executions must append a compact assistant recovery entry to the active session so the next turn can resume from the last known state without replaying the whole transcript
 - working memory should include only the recent turns from the active session and current UTC day
 - recent episodic memory should include only the previous UTC day summary
 - `MEMORY.md` should contain only durable facts, preferences, and recurring constraints
@@ -358,13 +358,14 @@ Responsibilities:
 
 ## 8. Telegram Commands
 
-Gateway must support project/agent picker commands plus a direct session reset command from authorized, paired chat.
+Gateway must support project/agent picker commands plus direct session reset and stop commands from authorized, paired chat.
 
 Minimum supported commands:
 
 - `/projects`
 - `/agents`
 - `/session_reset`
+- `/stop`
 
 Messages that are not management commands are routed to the active agent.
 
@@ -374,6 +375,7 @@ Interactive selection requirements:
 - tapping a project button must switch the active project and persist the selection
 - `/agents` must return an agent picker with inline Telegram buttons for every agent in the active project plus a cancel button
 - tapping an agent button must switch the active agent and persist the selection
+- `/stop` must cancel the active routed run for the same Telegram conversation lane, append a compact assistant recovery entry, and prevent the stopped run from sending a late final reply
 - gateway must accept Telegram `callback_query` updates for these button taps, answer the callback query, and send a clear selection confirmation
 
 Slash-menu registration:
@@ -381,6 +383,7 @@ Slash-menu registration:
 - `/projects` -> interactive project picker
 - `/agents` -> interactive agent picker
 - `/session_reset` -> reset the active session and start a new session folder
+- `/stop` -> stop the active routed run and save a compact recovery summary
 
 ## 9. Provider Constraints
 
@@ -685,7 +688,7 @@ Requirements:
   - example: `@telegram-file {"kind":"document","file":"<file_id_or_url>","caption":"optional"}`
   - local file paths may be relative to the active agent working directory or absolute
   - directive lines may be wrapped in a single pair of backticks and should still be accepted
-- `setup telegram` should register the supported Telegram commands via `setMyCommands` so `/projects`, `/agents`, and `/session_reset` appear in slash-menu suggestions
+- `setup telegram` should register the supported Telegram commands via `setMyCommands` so `/projects`, `/agents`, `/session_reset`, and `/stop` appear in slash-menu suggestions
 
 ## 13. Incremental Task Updates
 

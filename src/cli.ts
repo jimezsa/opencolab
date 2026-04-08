@@ -89,6 +89,7 @@ const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
   { command: "projects", description: "Pick active project" },
   { command: "agents", description: "Pick active agent" },
   { command: "session_reset", description: "Reset active session" },
+  { command: "stop", description: "Stop active task" },
 ];
 
 function supportsColor(): boolean {

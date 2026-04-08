@@ -454,6 +454,7 @@ Telegram:
 /projects
 /agents
 /session_reset
+/stop
 ```
 
 Telegram slash-menu commands:
@@ -462,9 +463,10 @@ Telegram slash-menu commands:
 /projects
 /agents
 /session_reset
+/stop
 ```
 
-`/projects` and `/agents` open inline-button pickers in Telegram so users can switch the active project or agent with one tap. `/session_reset` starts a new active session. Project and agent creation remain CLI-driven.
+`/projects` and `/agents` open inline-button pickers in Telegram so users can switch the active project or agent with one tap. `/session_reset` starts a new active session. `/stop` cancels the active routed task for the same chat or topic and saves a compact recovery summary for later resume. Project and agent creation remain CLI-driven.
 
 ## Agent Layout and Memory
 

@@ -26,7 +26,7 @@ Core implementation areas:
 - `src/gpu-providers/runpod/index.ts`: Runpod-backed execution-target validation, availability-aware location/GPU selection, Pod lifecycle, SSH sync/bootstrap/launch, and run reconciliation.
 - `src/manual-ssh.ts` and `src/manual-ssh-worker.ts`: saved manual Pod SSH profile management, transcript-backed live session control, and detached SSH session worker lifecycle.
 - `src/http.ts`: local HTTP server, health/state endpoints, Telegram webhook ingestion, and optional long polling startup.
-- `src/gateway.ts`: Telegram authorization, pairing, command routing, typing updates, live-status ownership, split final-text delivery, and Telegram API error reporting.
+- `src/gateway.ts`: Telegram authorization, pairing, command routing including `/stop` cancellation with recovery summaries, typing updates, live-status ownership, split final-text delivery, and Telegram API error reporting.
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd` and Linux `systemd`.
 - `src/telegram-poller.ts`: Telegram long-polling loop and update ingestion.
 - `src/upgrade.ts`: install-aware OpenColab upgrade flow for one-link installer-managed package or clone installs plus manual git/source checkouts, with guidance only for generic package installs.

@@ -239,6 +239,7 @@ export interface GatewayResult {
     | "unauthorized_chat"
     | "pairing_required"
     | "agent_error"
+    | "agent_stopped"
     | "agent_response"
     | "management_command";
   response: string;
