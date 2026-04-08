@@ -1,113 +1,52 @@
-# Telegram `/stop` Proposal
+# Telegram `/stop` Spec
 
-This document is a focused proposal for a minimal interrupt feature before any broader "pause on new message" behavior is added to the main product spec.
+## Goal
 
-The goal is to support one explicit Telegram stop command that cancels the current routed agent run and preserves enough context for a later resume.
+Add a Telegram `/stop` command that cancels the active routed agent run and saves a short recovery summary for later resume.
 
-## Summary
-
-Add a Telegram `/stop` command.
-
-When a routed agent task is currently running for the active Telegram conversation lane, `/stop` must:
-
-- stop the in-flight provider/runtime execution,
-- prevent the stopped run from sending a late final answer,
-- close its live status surface,
-- append a compact recovery summary to session memory,
-- send the user a short confirmation reply.
-
-If no routed task is active for that conversation lane, `/stop` should reply with a short "nothing is running" message and do nothing else.
-
-This is intentionally a stop-and-summarize feature, not a true process pause/resume feature.
-
-## Why This First
-
-This is the smallest useful interruption feature that fits the current architecture.
-
-Reasons:
-
-- the gateway already tracks meaningful progress messages during a routed run,
-- the gateway already writes compact recovery summaries for failed or timed out runs,
-- provider execution is currently modeled as one in-flight CLI process,
-- true suspend/resume semantics would be provider-specific and much more complex.
-
-The first version should therefore treat `/stop` as:
-
-- user-requested cancellation,
-- plus a resumable summary in conversation memory.
+This is a stop-and-summarize feature, not true process pause/resume.
 
 ## Scope
 
-In scope:
-
-- Telegram `/stop` command from an authorized, paired chat,
-- cancellation of one active routed agent task for the same conversation lane,
-- preservation of the latest meaningful runtime progress as a recovery summary,
-- protection against stale late replies from a stopped run,
-- tests for both normal and edge cases.
-
-Out of scope:
-
-- automatic interruption when any new non-command message arrives,
-- true OS-level process suspension and later continuation,
-- provider-native checkpointing,
-- cancellation of background GPU jobs or manual SSH sessions,
-- general multi-run concurrency across one chat lane.
-
-## Conversation Lane
-
-For this feature, an active routed task is scoped to one Telegram conversation lane:
+`/stop` applies only to the active routed run for the same Telegram conversation lane:
 
 - `chatId`
-- plus `messageThreadId` when present
+- `messageThreadId` when present
 
-This prevents `/stop` in one Telegram topic/thread from cancelling unrelated work in another topic/thread.
+It must not cancel unrelated work in another chat or thread.
 
-## User-Facing Behavior
+## Behavior
 
-### Supported command
+If a routed run is active for that conversation lane, `/stop` must:
 
-- `/stop`
+1. cancel the in-flight provider/runtime execution,
+2. close the live status surface for that run,
+3. save a compact recovery summary in session memory,
+4. prevent the stopped run from sending a late final reply,
+5. send a short confirmation reply.
 
-### Command behavior
+Recommended confirmation:
 
-If a routed agent run is active for the same conversation lane:
+```text
+Stopped the current task.
+Saved the latest progress so you can ask me to continue later.
+```
 
-1. Mark the run as stopping.
-2. Cancel provider execution.
-3. Close any active live status session for that run.
-4. Append a compact assistant recovery entry to session memory.
-5. Send a short Telegram confirmation.
+If no routed run is active for that conversation lane, `/stop` should reply:
 
-Recommended confirmation copy:
+```text
+No active task to stop.
+```
 
-- `Stopped the current task.`
-- `Saved the latest progress so you can ask me to continue later.`
+## Recovery Summary
 
-If no routed agent run is active for that lane:
-
-- reply with a short no-op message such as `No active task to stop.`
-
-### Resume expectations
-
-The system does not automatically resume a stopped process.
-
-Instead, the next user message may ask the agent to continue, for example:
-
-- `continue from the last stage`
-- `resume the stopped task`
-
-The agent should see the recovery summary in session memory and continue from there when reasonable.
-
-## Recovery Summary Requirements
-
-When a run is stopped by `/stop`, the gateway must append a compact assistant recovery entry to the active session memory.
+When a run is stopped by `/stop`, the gateway must append a compact assistant recovery entry to session memory.
 
 Required content:
 
-- that the previous attempt was stopped by the user,
-- the active provider/model label,
-- the latest meaningful progress line when available,
+- the run was stopped by the user with `/stop`,
+- the active provider/model,
+- the latest meaningful progress message when available,
 - a short next-action hint.
 
 Recommended shape:
@@ -118,143 +57,37 @@ Last progress: <latest meaningful progress message>
 Next action: continue from the last completed stage if the user asks to resume.
 ```
 
-Requirements:
+Rules:
 
-- do not append raw progress events as normal assistant chatter,
-- do not dump the full live status history,
-- use the latest meaningful progress line, not low-signal token or heartbeat updates,
-- if no progress was emitted yet, omit the `Last progress:` line.
+- omit `Last progress:` if no meaningful progress exists yet,
+- do not append raw live status events as normal conversation turns,
+- do not append partial cancelled output as if it were a finished assistant answer.
 
-## Runtime Model
+## Runtime Rules
 
-### Active request registry
+The gateway should keep one in-memory active-request record per conversation lane.
 
-The gateway should maintain an in-memory registry of active routed requests keyed by conversation lane.
+Minimum runtime requirements:
 
-Each active entry should minimally store:
-
-- request id,
-- `chatId`,
-- optional `messageThreadId`,
-- active project id,
-- active agent id,
-- provider label,
-- current lifecycle state: `running | stopping | stopped | completed`,
-- latest meaningful progress message,
-- live status session handle,
-- cancellation handle for provider execution.
-
-This registry is operational state only.
-
-It must not be persisted as conversation history.
-
-### Stop semantics
-
-`/stop` is a cancellation request, not a graceful provider-native pause.
-
-The runtime should:
-
-- attempt to terminate the provider CLI child process,
-- escalate to a stronger kill if the process does not exit promptly,
-- mark the request as stopped,
-- ignore any subsequent output from that request.
-
-If the provider exits after cancellation and still produces buffered output, that output must not be sent to Telegram as a final answer and must not be appended as a normal assistant reply.
-
-## Provider Integration Requirements
-
-The provider execution layer must expose a cancellation handle for an in-flight routed request.
-
-Minimum behavior:
-
-- one spawned provider CLI process per routed request,
-- gateway-owned cancel function,
-- child-process termination on `/stop`,
-- no late final resolve path after a request is marked stopped.
-
-This proposal does not require provider-specific graceful shutdown semantics beyond child-process termination.
-
-## Live Status Behavior
-
-If a stopped run already has a live status surface:
-
-- stop accepting further progress updates from that run,
-- close the live status session,
-- do not replace the stop confirmation with another provider-generated completion message.
-
-The final user-visible message after `/stop` should be the explicit stop confirmation, not a stale answer from the cancelled run.
+- `/stop` must have a cancellation handle for the in-flight provider process,
+- the provider process should be terminated on `/stop`,
+- a stopped request must be marked stale,
+- stale requests must not send a final Telegram answer after stop,
+- stale requests must not append a normal assistant completion turn.
 
 ## Polling Constraint
 
 Telegram long polling currently processes updates serially.
 
-That means a later `/stop` update can be blocked behind the very run it is trying to stop.
+`/stop` is only complete if polling mode can interrupt an in-flight routed run. If polling keeps waiting for the old run to finish before handling `/stop`, the feature is incomplete in polling mode.
 
-Therefore this feature requires one of these behaviors:
-
-1. polling dispatch must hand off routed updates without awaiting full request completion, or
-2. `/stop` support is only considered complete for webhook/concurrent delivery modes.
-
-Recommended direction:
-
-- make polling dispatch non-blocking after an update has been accepted for execution,
-- still advance Telegram update offsets once the runtime has taken ownership of the update,
-- ensure a stopped run cannot be retried or resurrected by polling.
-
-## Memory and Transcript Rules
-
-Conversation memory rules for `/stop`:
-
-- append the inbound `/stop` user turn only if command turns are already treated as normal conversation for that lane,
-- always append the compact assistant recovery summary for the stopped run,
-- do not append the cancelled run's partial output as if it were a finished assistant answer,
-- do not append transport-level live status lines as normal conversation turns.
-
-If the product wants command turns excluded from conversational memory, that should remain a separate decision from this proposal.
-
-## Failure Cases
-
-### No active run
-
-`/stop` should return a short no-op response and must not write a recovery summary.
-
-### Stop before first progress event
-
-The summary should still state that the run was stopped by the user, but may omit `Last progress:`.
-
-### Provider does not exit cleanly
-
-The runtime should:
-
-- attempt forced termination,
-- still mark the run stopped from the user perspective,
-- preserve the latest known progress in the recovery summary,
-- log the cleanup problem for diagnostics.
-
-### Late provider output after stop
-
-Late output must be discarded for user-facing delivery.
-
-No final Telegram answer should be sent from the stopped request.
-
-## Testing Requirements
+## Tests
 
 Add focused tests for:
 
 - `/stop` cancels an active routed run,
-- `/stop` with no active run returns a no-op message,
-- stopped runs append a compact recovery summary,
-- stopped runs do not send a late final Telegram answer,
+- `/stop` with no active run returns a short no-op reply,
+- stopping a run saves the compact recovery summary,
+- a stopped run does not send a late final Telegram reply,
 - live status closes cleanly on stop,
-- latest meaningful progress is preserved in the summary,
-- polling mode can deliver `/stop` while another routed request is still active.
-
-## Future Extension
-
-If this proposal works well, a later phase may add:
-
-- "what are you doing now" as a local status query against the active request registry,
-- preemption of an active run when a new normal user message arrives,
-- provider-specific resume/checkpoint support where a runtime can actually continue prior work.
-
-Those should be treated as follow-on features, not part of the first `/stop` delivery.
+- the latest meaningful progress message is preserved when available.
