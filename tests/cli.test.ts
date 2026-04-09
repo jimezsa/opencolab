@@ -295,6 +295,34 @@ test("gpu ssh help describes profile and session commands", () => {
       result.stdout.includes("opencolab gpu ssh session [subcommand]"),
       true
     );
+    assert.equal(
+      result.stdout.includes("opencolab gpu ssh session start --profile-id runpod-manual-a100"),
+      true
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("gpu ssh session help shows live session examples and flags", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-ssh-session-help-"));
+
+  try {
+    const result = runCli(tempDir, ["gpu", "ssh", "session", "--help"]);
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(
+      result.stdout.includes("opencolab gpu ssh session read --session-id manual-ssh-session-123 --offset 0"),
+      true
+    );
+    assert.equal(
+      result.stdout.includes("opencolab gpu ssh session write --session-id manual-ssh-session-123 --stdin \"nvidia-smi\""),
+      true
+    );
+    assert.equal(
+      result.stdout.includes("--append-newline true|false"),
+      true
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

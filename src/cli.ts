@@ -733,7 +733,17 @@ function usageGpuSsh(): string {
     "",
     "Try:",
     helpCommand("gpu ssh profile --help", "Show manual SSH profile flags"),
-    helpCommand("gpu ssh session --help", "Show manual SSH session flags")
+    helpCommand("gpu ssh session --help", "Show manual SSH session flags"),
+    "",
+    "Examples:",
+    ...helpExample(
+      "opencolab gpu ssh profile save --profile-id runpod-manual-a100 --ssh-command \"ssh -p 21438 -i ~/.ssh/id_ed25519 root@203.0.113.10\"",
+      "Save one manual Pod SSH profile"
+    ),
+    ...helpExample(
+      "opencolab gpu ssh session start --profile-id runpod-manual-a100",
+      "Start a live manual SSH session from a saved profile"
+    )
   ]);
 }
 
@@ -805,7 +815,25 @@ function usageGpuSshSession(): string {
     helpFlag("--session-id <id>", "Saved manual SSH session id"),
     helpFlag("--offset <n>", "Character offset for transcript reads"),
     helpFlag("--stdin <text>", "Input text to send to the live shell"),
-    helpFlag("--append-newline true|false", "Append a trailing newline when writing input")
+    helpFlag("--append-newline true|false", "Append a trailing newline when writing input"),
+    "",
+    "Examples:",
+    ...helpExample(
+      "opencolab gpu ssh session start --profile-id runpod-manual-a100",
+      "Start a session from a saved manual SSH profile"
+    ),
+    ...helpExample(
+      "opencolab gpu ssh session read --session-id manual-ssh-session-123 --offset 0",
+      "Read the transcript from the beginning"
+    ),
+    ...helpExample(
+      "opencolab gpu ssh session write --session-id manual-ssh-session-123 --stdin \"nvidia-smi\"",
+      "Send one command to the remote shell"
+    ),
+    ...helpExample(
+      "opencolab gpu ssh session stop --session-id manual-ssh-session-123",
+      "Stop a live manual SSH session"
+    )
   ]);
 }
 
