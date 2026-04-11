@@ -101,11 +101,14 @@ test("ignite configures project, provider, and telegram", async () => {
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(agent.provider.cliCommand, "codex");
     assert.deepEqual(agent.provider.cliArgs, [
+      "-a",
+      "never",
       "exec",
       "--json",
       "--output-last-message",
       "{output_file}",
-      "--full-auto",
+      "--sandbox",
+      "danger-full-access",
       "--add-dir",
       "{project_dir}",
       "--add-dir",

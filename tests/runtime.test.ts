@@ -926,11 +926,14 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
     assert.equal(agent.provider.reasoningEffort, "medium");
     assert.equal(agent.provider.cliCommand, "codex");
     assert.deepEqual(agent.provider.cliArgs, [
+      "-a",
+      "never",
       "exec",
       "--json",
       "--output-last-message",
       "{output_file}",
-      "--full-auto",
+      "--sandbox",
+      "danger-full-access",
       "--add-dir",
       "{project_dir}",
       "--add-dir",

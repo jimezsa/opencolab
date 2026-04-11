@@ -420,6 +420,7 @@ Runtime architecture:
   - `anthropic` -> `claude`
   - `gemini` -> `gemini`
   - `minimax` -> `claude` with Anthropic-compatible gateway env wiring
+- repo-managed Codex defaults must launch `codex` with `-a never`, `exec --json`, and `--sandbox danger-full-access` so routed Codex runs can edit, clone, and push within the active project workspace without interactive approval prompts or the default workspace-write sandbox blocking git operations
 - repo-managed OpenAI defaults and onboarding examples should use `gpt-5.4`
 - repo-managed OpenRouter examples that point at an OpenAI model should use `openai/gpt-5.4`
 - pi-backed defaults should be:
@@ -725,7 +726,7 @@ Requirements:
 
 - provider adapters must prefer native machine-readable runtime streams over prompt-level progress protocols
 - the default provider integrations must use native event modes for routed Telegram runs:
-  - Codex: `codex exec --json`
+  - Codex: `codex -a never exec --json` with `--sandbox danger-full-access`
   - Claude Code: `claude -p --verbose --output-format stream-json`
   - Gemini CLI: `gemini --output-format stream-json`
   - Pi: `pi --mode json`

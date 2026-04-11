@@ -87,11 +87,14 @@ const CLAUDE_LEGACY_STREAM_JSON_ARGS = [
 ] as const;
 
 const CODEX_WORKSPACE_ARGS = [
+  "-a",
+  "never",
   "exec",
   "--json",
   "--output-last-message",
   "{output_file}",
-  "--full-auto",
+  "--sandbox",
+  "danger-full-access",
   "--add-dir",
   "{project_dir}",
   "--add-dir",
@@ -270,11 +273,6 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     supportedAuthModes: ["api_key", "oauth"],
     aliases: ["codex"],
     resetEnvVars: [...OPENAI_RUNTIME_RESET_ENV_VARS],
-    legacyCliDefaults: {
-      model: "gpt-5.4",
-      cliCommand: "codex",
-      cliArgs: ["exec", "-"]
-    },
     buildRuntimeEnv: (apiKey, _model, authMode) => {
       const env: Record<string, string> = {};
       if (authMode !== "oauth") {
@@ -552,11 +550,15 @@ export function buildProviderInvocationArgs(provider: ProviderConfig): string[] 
     provider.name === "openai" &&
     normalizeProviderReasoningEffort(provider.name, provider.model, provider.reasoningEffort)
   ) {
+    const execIndex = args.indexOf("exec");
+    if (execIndex < 0) {
+      return args;
+    }
     return [
-      args[0] ?? "exec",
+      ...args.slice(0, execIndex + 1),
       "-c",
       `model_reasoning_effort="${provider.reasoningEffort}"`,
-      ...args.slice(1)
+      ...args.slice(execIndex + 1)
     ];
   }
 

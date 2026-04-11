@@ -556,67 +556,6 @@ test("project state migrates older Claude workspace args without stream-json to 
   }
 });
 
-test("project state migrates legacy provider CLI defaults to workspace defaults on the agent", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-cli-migrate-"));
-
-  try {
-    const config = loadConfig(tempDir);
-    fs.writeFileSync(
-      config.projectConfigPath,
-      JSON.stringify({
-        activeProjectId: "alpha",
-        projects: {
-          alpha: {
-            id: "alpha",
-            path: "projects/alpha",
-            activeAgentId: DEFAULT_AGENT_ID,
-            agents: {
-              [DEFAULT_AGENT_ID]: {
-                id: DEFAULT_AGENT_ID,
-                path: buildDefaultAgentPath("alpha"),
-                files: {
-                  agents: "AGENTS.md",
-                  bootstrap: "BOOTSTRAP.md",
-                  identity: "IDENTITY.md",
-                  alma: "ALMA.md",
-                  tools: "TOOLS.md",
-                  user: "USER.md",
-                  todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            },
-            provider: {
-              name: "codex",
-              cliCommand: "codex",
-              cliArgs: ["exec", "-"]
-            }
-          }
-        }
-      }),
-      "utf8"
-    );
-
-    const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "api_key");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "codex");
-    assert.deepEqual(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliArgs, [
-      "exec",
-      "--json",
-      "--output-last-message",
-      "{output_file}",
-      "--full-auto",
-      "--add-dir",
-      "{project_dir}",
-      "--add-dir",
-      "{shared_skills_dir}",
-      "-"
-    ]);
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
 test("project state preserves custom provider CLI defaults on the agent", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-cli-custom-"));
 

@@ -61,11 +61,14 @@ test("OpenAI setup defaults support OAuth and API key auth modes", () => {
   assert.equal(defaults.runtime, "codex");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
+    "-a",
+    "never",
     "exec",
     "--json",
     "--output-last-message",
     "{output_file}",
-    "--full-auto",
+    "--sandbox",
+    "danger-full-access",
     "--add-dir",
     "{project_dir}",
     "--add-dir",
@@ -249,15 +252,27 @@ test("provider invocation args add native reasoning flags when configured", () =
       model: "gpt-5.4",
       runtime: "codex",
       cliCommand: "codex",
-      cliArgs: ["exec", "--full-auto", "--add-dir", "{project_dir}", "-"],
+      cliArgs: [
+        "-a",
+        "never",
+        "exec",
+        "--sandbox",
+        "danger-full-access",
+        "--add-dir",
+        "{project_dir}",
+        "-"
+      ],
       authMode: "api_key",
       reasoningEffort: "xhigh"
     }),
     [
+      "-a",
+      "never",
       "exec",
       "-c",
       'model_reasoning_effort="xhigh"',
-      "--full-auto",
+      "--sandbox",
+      "danger-full-access",
       "--add-dir",
       "{project_dir}",
       "-"
