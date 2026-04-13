@@ -2,300 +2,181 @@
 
 ## 1. Status
 
-This document is a planning note for agent heartbeat support in OpenColab.
+This document is a planning note for a minimal heartbeat v1.
 
-It is intentionally simple and focused on a small v1 design.
-It is not yet normative runtime contract until promoted into `docs/spec.md`, `README.md`, and implementation.
+It is intentionally narrow.
+It is not yet a normative runtime contract until promoted into `docs/spec.md`, `README.md`, and implementation.
 
-## 2. Purpose
+## 2. Goal
 
-OpenColab already has strong agent files for startup, planning, and memory, but it does not yet have a lightweight way for an agent to wake itself up on a schedule and check the next thing to do.
+Heartbeat should be a delayed follow-up for the default lead agent, not a general scheduler.
 
-The goal is to let selected agents run a small periodic self-check without introducing a heavy scheduler model.
+After an agent run ends in one of these states:
 
-Primary v1 targets:
+- completed
+- stopped by the user
+- timed out by the provider CLI
 
-- `professor`
-- `autoresearch`
+OpenColab may schedule one later wake-up for the default lead agent `professor`.
 
-The intended model is:
+When the wake-up fires, the runtime should start one internal turn for `professor` with the prompt:
 
-- each target agent gets a `HEARTBEAT.md` file in its own folder
-- the heartbeat interval is defined inside that file
-- if the file has no valid heartbeat interval, heartbeat is off
-- the runtime periodically checks whether the agent is due
-- when due, the runtime triggers one internal heartbeat turn for that agent
+```text
+continue
+```
 
-## 3. Design Goal
+That is the whole feature.
 
-This feature should stay much simpler than a job scheduler.
+## 3. Scope
 
-V1 should avoid:
+V1 supports only:
 
+- the default lead agent `professor`
+- one human-edited file at `projects/<project_id>/AGENTS/professor/HEARTBEAT.md`
+- one pending wake-up per project
+- one fixed internal prompt: `continue`
+
+V1 does not support:
+
+- heartbeat for `beginner`, `autoresearch`, or specialist agents
+- periodic multi-agent scanning
 - cron syntax
-- retry policies
-- backoff state machines
-- distributed locks
-- complex heartbeat history or analytics
-- autonomous unsolicited Telegram replies
+- custom heartbeat prompts
+- queued wake-ups
+- retries or backoff
+- heartbeat-specific notification policies
 
-The point is not to build a general automation platform.
-The point is to let `professor` and `autoresearch` wake up, inspect their local state, and act on the next obvious step.
+## 4. `HEARTBEAT.md` Contract
 
-## 4. Core Principle
+`HEARTBEAT.md` is human-edited.
 
-Use only two persistent pieces of data:
+The runtime reads only one setting:
 
-1. `HEARTBEAT.md`
-2. one runtime-owned last-run timestamp per agent
+- `after: <duration>`
 
-That is enough for a clean v1.
-
-## 5. Agent File Layout
-
-Each heartbeat-enabled agent should have:
-
-- `projects/<project_id>/AGENTS/<agent_id>/HEARTBEAT.md`
-
-Recommended v1 seeding:
-
-- seed `HEARTBEAT.md` for built-in `professor`
-- seed `HEARTBEAT.md` for built-in `autoresearch`
-- do not require it for all other agents yet
-
-The feature may later become generic for any agent, but v1 should stay focused on the two agents that benefit most from periodic review.
-
-## 6. File Contract
-
-`HEARTBEAT.md` is a human-edited file.
-
-It should contain:
-
-- one simple interval line such as `every: 30m`
-- plain-language instructions for what the agent should check or do on each wake-up
-
-If the file has no valid `every:` line, heartbeat is disabled.
-
-This is intentionally more robust than trying to decide whether the file is "empty enough".
-Comments or placeholder text can remain in the file without accidentally enabling heartbeats.
-
-### Disabled Example
+Example:
 
 ```md
 # HEARTBEAT.md
 
-# Keep this file empty (or with only comments) to skip heartbeat API calls.
-
-# Add tasks below when you want the agent to check something periodically.
+after: 30m
 ```
 
-### Enabled Example
-
-```md
-# HEARTBEAT.md
-
-every: 30m
-
-Review TODO.md and PROJECT-AND-TEAM.md.
-If there is a clear next action, do it.
-If blocked on the human, write the blocker clearly in TODO.md.
-Do not start costly or destructive work without approval.
-```
-
-## 7. Interval Format
-
-To keep parsing simple, v1 should support only a small duration format such as:
-
-- `15m`
-- `30m`
-- `45m`
-- `1h`
-- `2h`
-
-Recommended parser rule:
+Rules:
 
 - ignore blank lines
 - ignore comment lines that start with `#`
-- scan for the first valid `every: <duration>` line
-- if none is found, heartbeat is disabled
+- read the first valid `after:` line
+- if no valid `after:` line exists, heartbeat is disabled
 
-V1 should not support cron expressions.
+Supported v1 duration format should stay small:
 
-## 8. Runtime State
+- `15m`
+- `30m`
+- `1h`
+- `2h`
 
-The runtime should store only one tiny scheduler value per agent:
+Any other text in the file is ignored by the runtime in v1.
 
-- `last_run_at`
+## 5. Scheduling Rule
+
+This is not a wall-clock scheduler.
+It is a one-shot delay that is armed by a terminal agent event.
+
+Rules:
+
+- only `professor` can be auto-woken
+- the agent that just finished does not matter
+- any qualifying completion, stop, or timeout can arm the next wake-up for `professor`
+- a heartbeat-triggered `professor` run can arm the next heartbeat again when it finishes
+- auto-waking `professor` must not implicitly switch the project's active agent selection
+
+## 6. Runtime State
+
+V1 should store one tiny runtime-owned value per project:
+
+- `wake_at`
 
 Recommended location:
 
-- `.opencolab/heartbeat/<project_id>/<agent_id>.last-run`
+- `.opencolab/heartbeat/<project_id>/default-agent.next-wake`
 
-This file is runtime-owned, not agent-owned.
+This state exists only to answer:
 
-It is not:
+- when should `professor` receive the next `continue` turn
 
-- conversation memory
-- shared project context
-- task planning
-- part of `HEARTBEAT.md`
+V1 does not need:
 
-It exists only so the runtime can answer:
+- per-agent heartbeat state
+- heartbeat history
+- retry counters
+- `last_run_at`
 
-- when did this agent last run its heartbeat
-- is the agent due again now
+## 7. Runtime Flow
 
-## 9. Runtime Loop
+Minimal flow:
 
-The background runtime should do a very small periodic check, for example once per minute.
-
-V1 loop:
-
-1. Wake up every minute.
-2. Check `professor` and `autoresearch`.
-3. Read each agent's `HEARTBEAT.md`.
-4. If no valid `every:` line exists, skip that agent.
-5. If the agent is already busy handling another turn, skip that agent.
-6. Read `last_run_at`.
-7. If `now` is earlier than `last_run_at + interval`, skip.
-8. If due, run one internal heartbeat turn for that agent.
-9. When that turn begins, or when it finishes, write the new `last_run_at` value consistently.
+1. An agent run ends as `completed`, `stopped`, or `timed_out`.
+2. The runtime reads `projects/<project_id>/AGENTS/professor/HEARTBEAT.md`.
+3. If heartbeat is disabled, clear any pending wake-up and stop.
+4. If no wake-up is pending, store `wake_at = now + after`.
+5. If a wake-up is already pending, keep the existing one. V1 never queues more than one wake-up.
+6. If `professor` starts any turn before the wake-up fires, clear the pending wake-up. That turn can arm the next one when it ends.
+7. A small background check, such as once per minute, looks for due wake-ups.
+8. When `wake_at <= now` and `professor` is idle, start one internal `professor` turn with the prompt `continue`.
+9. Clear the pending wake-up when `professor` starts that turn.
+10. If `professor` is busy when the wake-up becomes due, keep the pending wake-up and try again on the next check.
 
 Important simplification:
 
-- v1 assumes one normal OpenColab background process owns this loop
-- v1 does not try to coordinate multiple scheduler processes
+- V1 assumes one normal OpenColab background process owns this small check loop
 
-That is acceptable because OpenColab already has a single background gateway/service model.
+## 8. Turn Semantics
 
-## 10. Busy Rule
+The automatic wake-up is an internal runtime-triggered turn.
 
-Heartbeat should never compete with a normal user-driven turn for the same agent.
+It is not:
 
-If an agent is already busy:
+- a Telegram webhook
+- a human chat message
+- a special rich heartbeat payload
 
-- skip this heartbeat check
-- wait for the next scheduler tick
+The injected prompt should stay minimal:
 
-This keeps the design simple and prevents overlapping runs for `professor` or `autoresearch`.
+- `continue`
 
-## 11. Heartbeat Turn Semantics
+V1 should reuse existing normal runtime/session behavior where possible.
+No special heartbeat transcript format is required for this plan.
+Existing stop or timeout recovery summaries can continue to provide the context that `professor` sees on the next turn.
 
-A heartbeat run should be treated as an internal runtime-triggered turn, not as a Telegram webhook and not as an ordinary human chat message.
+## 9. Notification Rule
 
-The runtime should supply a compact internal instruction such as:
-
-- this is a heartbeat wake-up
-- current time
-- the content of `HEARTBEAT.md`
-- reminder to inspect normal agent files like `TODO.md` and `PROJECT-AND-TEAM.md`
-
-The agent should then decide whether there is a clear next action.
-
-Expected outcomes:
-
-- no-op if nothing needs to be done
-- update local files like `TODO.md`, `PROJECT-AND-TEAM.md`, or `MEMORY.md` when appropriate
-- do one bounded next step if the file instructs it and the work is safe
-- stop and leave a clear blocker if human input is needed
-
-## 12. Memory Rule
-
-Heartbeat turns should not pollute normal user conversation history.
-
-V1 should therefore avoid appending heartbeat runs into:
-
-- `memory/Session/`
-- working memory
-- daily summaries intended for human conversation continuity
-
-The heartbeat is not a normal conversation turn.
-
-If a heartbeat discovers something durable, the agent should write it into the correct file instead:
-
-- `TODO.md` for active next steps or blockers
-- `PROJECT-AND-TEAM.md` for stable shared project facts
-- `MEMORY.md` for durable long-term agent facts
-
-## 13. Notification Policy
-
-V1 should be quiet by default.
+V1 should stay quiet by default.
 
 That means:
 
-- no autonomous Telegram messages on every heartbeat
-- no routine "I checked and nothing changed" messages
-- no new notification system in v1
+- no automatic Telegram message just because the wake-up was scheduled
+- no routine "heartbeat ran" message
+- no new notification policy in this document
 
-Heartbeat is primarily for self-maintenance and forward progress, not for background chatter.
+The wake-up is for internal follow-through, not background chatter.
 
-If a future version wants notification support, it should be added later as an explicit policy layer.
+## 10. Minimal Implementation Plan
 
-## 14. Why This Is Clean
+1. Seed `HEARTBEAT.md` only for the default `professor` agent.
+2. Parse one `after:` duration from that file.
+3. Store one pending `wake_at` timestamp per project.
+4. Arm that wake-up when any agent run completes, is stopped by the user, or hits CLI timeout.
+5. When the wake-up is due and `professor` is idle, run one internal `continue` turn for `professor`.
+6. Keep everything else out of v1.
 
-This design is clean because it keeps responsibilities separate:
+## 11. Non-Goals
 
-- `HEARTBEAT.md` is human-edited policy and instructions
-- `TODO.md` remains the active task list
-- `PROJECT-AND-TEAM.md` remains curated shared project context
-- `MEMORY.md` remains long-term memory
-- `.opencolab/heartbeat/...` remains tiny runtime scheduler bookkeeping
-
-It also keeps the parser and runtime behavior small:
-
-- one interval line
-- one timestamp file
-- one periodic check loop
-
-## 15. Non-Goals
-
-This design should not try to solve:
+This document does not try to define:
 
 - general workflow automation
-- multi-step recurring pipelines with dependencies
-- recurring external notifications
-- cross-machine scheduler coordination
-- agent-to-agent autonomous chatter on a timer
-- complex failure recovery policy
-
-If those become necessary later, they should be added after the simple version proves useful.
-
-## 16. Suggested V1 Defaults
-
-For `professor`, heartbeat should usually focus on:
-
-- reading `TODO.md`
-- reading `PROJECT-AND-TEAM.md`
-- checking whether there is an obvious next coordination step
-- keeping the project moving without spamming the human
-
-For `autoresearch`, heartbeat should usually focus on:
-
-- reading `TODO.md`
-- checking whether a bounded next experiment step is already authorized
-- updating the local plan or blocker state
-- avoiding risky or costly runs unless the instructions explicitly allow them
-
-## 17. Future Extensions
-
-These can wait until after the simple version works:
-
-- notification policies such as `notify: on_change`
-- retry or backoff behavior
-- optional heartbeat logs
-- startup catch-up behavior like "run immediately if overdue"
-- support for more agents by default
-- richer config front matter
-
-## 18. Recommendation
-
-Start with the smallest viable contract:
-
-- one `HEARTBEAT.md` file per target agent
-- one `every:` line for schedule
-- one runtime `last_run_at` file
-- one minute scheduler tick
-- skip when busy
-- no normal conversation-memory writes
-
-That should be enough to prove the feature is useful without making OpenColab harder to understand or maintain.
+- recurring schedules for all agents
+- custom prompts per agent
+- autonomous agent-to-agent chatter
+- rich scheduler state or analytics
+- broader behavior changes outside this heartbeat note
