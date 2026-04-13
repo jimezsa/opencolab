@@ -2,7 +2,7 @@
 
 ## Mission
 
-OpenColab is an always-on multi-agent AI research lab designed to help researchers investigate, build, and publish faster.
+OpenColab is an always-on multi-agent AI research lab designed to help researchers investigate, build, and discover faster.
 
 OpenColab turns one researcher into a coordinated research group with AI agents that can plan, execute, critique, and iterate with discipline.
 
