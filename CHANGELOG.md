@@ -8,10 +8,12 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Added
 
+- Every agent now seeds an empty `HEARTBEAT.md`, and users can enable a delayed active-agent wake-up by adding a valid `after: <duration>` line such as `after: 30m`.
 - Telegram now supports `/stop` for cancelling the active routed task in the same chat or topic, saving a compact recovery summary in session memory so a later turn can resume from the last known stage.
 
 ### Changed
 
+- After an active-agent run completes, is stopped, or times out, OpenColab can now arm one quiet per-project heartbeat wake-up in `opencolab.json`, and the background gateway process will fire one internal `continue` turn when that same agent is still active and idle at the scheduled time.
 - Routed provider execution now exposes a gateway-owned cancellation path so stopped Telegram runs close live status cleanly, suppress stale late replies, and avoid appending cancelled partial output as a finished assistant answer.
 - Telegram long polling now dispatches consumed updates without waiting for the previous routed run to finish, so `/stop` can interrupt an in-flight task instead of being blocked behind it.
 - CLI help for `opencolab gpu ssh` and `opencolab gpu ssh session` now includes concrete manual-SSH session examples for `start`, `read`, `write`, and `stop`.
@@ -25,8 +27,10 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Added
 
+- Anthropic provider setup now supports `oauth` mode through Claude Code login, including runtime preflight and remediation when the stored Claude session is missing or API-key auth is still active.
 - Built-in `pi`-backed provider support for `openrouter` and `kimi`, including `opencolab setup model`, `ignite` onboarding, runtime env wiring for `OPENROUTER_API_KEY` and `KIMI_API_KEY`, and the upstream `kimi-coding` provider mapping used by `pi`.
 - A shared `autoresearch` skill plus a built-in `autoresearch` specialist template for iterative keep/discard experiment loops over one explicitly configured repo, with explicit repo contract requirements, disposable branch/worktree guidance, and default ownership of sustained experiment-loop work by the `autoresearch` agent.
+- Project-scoped `opencolab gpu ssh profile ...` and `opencolab gpu ssh session ...` commands for saving user-managed Runpod Pod SSH details, setting per-agent defaults, and running transcript-backed live manual SSH sessions.
 
 ### Changed
 
