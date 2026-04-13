@@ -9,7 +9,7 @@ It is not yet a normative runtime contract until promoted into `docs/spec.md`, `
 
 ## 2. Goal
 
-Heartbeat should be a delayed follow-up for the default lead agent, not a general scheduler.
+Heartbeat should be a delayed follow-up for the active agent, not a general scheduler.
 
 After an agent run ends in one of these states:
 
@@ -17,9 +17,9 @@ After an agent run ends in one of these states:
 - stopped by the user
 - timed out by the provider CLI
 
-OpenColab may schedule one later wake-up for the default lead agent `professor`.
+OpenColab may schedule one later wake-up for that same active agent.
 
-When the wake-up fires, the runtime should start one internal turn for `professor` with the prompt:
+When the wake-up fires, the runtime should start one internal turn for that agent with the prompt:
 
 ```text
 continue
@@ -31,18 +31,17 @@ That is the whole feature.
 
 V1 supports only:
 
-- the default lead agent `professor`
-- one human-edited file at `projects/<project_id>/AGENTS/professor/HEARTBEAT.md`
+- one human-edited file at `projects/<project_id>/AGENTS/<agent_id>/HEARTBEAT.md`
+- only the current active agent may arm or receive an automatic wake-up
 - one pending wake-up per project
 - one fixed internal prompt: `continue`
 
 V1 does not support:
 
-- heartbeat for `beginner`, `autoresearch`, or specialist agents
+- multiple pending wake-ups per project
 - periodic multi-agent scanning
 - cron syntax
 - custom heartbeat prompts
-- queued wake-ups
 - retries or backoff
 - heartbeat-specific notification policies
 
@@ -81,51 +80,52 @@ Any other text in the file is ignored by the runtime in v1.
 ## 5. Scheduling Rule
 
 This is not a wall-clock scheduler.
-It is a one-shot delay that is armed by a terminal agent event.
+It is a one-shot delay that is armed by a terminal event for the active agent.
 
 Rules:
 
-- only `professor` can be auto-woken
-- the agent that just finished does not matter
-- any qualifying completion, stop, or timeout can arm the next wake-up for `professor`
-- a heartbeat-triggered `professor` run can arm the next heartbeat again when it finishes
-- auto-waking `professor` must not implicitly switch the project's active agent selection
+- only the project's active agent can be auto-woken
+- a qualifying completion, stop, or timeout may arm a wake-up only for the same agent that just finished
+- a later qualifying run from a different active agent replaces any older pending wake-up for the project
+- if the project's active agent selection changes before the wake-up fires, clear the pending wake-up
+- a heartbeat-triggered run can arm the next heartbeat again when it finishes
 
 ## 6. Runtime State
 
-V1 should store one tiny runtime-owned value per project:
+V1 should store one tiny runtime-owned record per project:
 
+- `agent_id`
 - `wake_at`
 
 Recommended location:
 
-- `.opencolab/heartbeat/<project_id>/default-agent.next-wake`
+- `.opencolab/heartbeat/<project_id>/active-agent.next-wake.json`
 
 This state exists only to answer:
 
-- when should `professor` receive the next `continue` turn
+- which agent should receive the next `continue` turn
+- when that turn should fire
 
 V1 does not need:
 
 - per-agent heartbeat state
 - heartbeat history
 - retry counters
-- `last_run_at`
 
 ## 7. Runtime Flow
 
 Minimal flow:
 
-1. An agent run ends as `completed`, `stopped`, or `timed_out`.
-2. The runtime reads `projects/<project_id>/AGENTS/professor/HEARTBEAT.md`.
+1. The active agent's run ends as `completed`, `stopped`, or `timed_out`.
+2. The runtime reads `projects/<project_id>/AGENTS/<agent_id>/HEARTBEAT.md` for that same agent.
 3. If heartbeat is disabled, clear any pending wake-up and stop.
-4. If no wake-up is pending, store `wake_at = now + after`.
-5. If a wake-up is already pending, keep the existing one. V1 never queues more than one wake-up.
-6. If `professor` starts any turn before the wake-up fires, clear the pending wake-up. That turn can arm the next one when it ends.
-7. A small background check, such as once per minute, looks for due wake-ups.
-8. When `wake_at <= now` and `professor` is idle, start one internal `professor` turn with the prompt `continue`.
-9. Clear the pending wake-up when `professor` starts that turn.
-10. If `professor` is busy when the wake-up becomes due, keep the pending wake-up and try again on the next check.
+4. Store or replace the pending wake-up with `{ agent_id, wake_at = now + after }`.
+5. If that same agent starts any turn before the wake-up fires, clear the pending wake-up. That turn can arm the next one when it ends.
+6. If the project active-agent selection changes away from the pending `agent_id`, clear the pending wake-up.
+7. A small background check, such as once per minute, looks for a due pending wake-up.
+8. When `wake_at <= now`, the pending `agent_id` is still the active agent, and that agent is idle, start one internal turn for that agent with the prompt `continue`.
+9. Clear the pending wake-up when that turn starts.
+10. If the pending agent is busy when the wake-up becomes due, keep the pending wake-up and try again on the next check.
 
 Important simplification:
 
@@ -147,7 +147,7 @@ The injected prompt should stay minimal:
 
 V1 should reuse existing normal runtime/session behavior where possible.
 No special heartbeat transcript format is required for this plan.
-Existing stop or timeout recovery summaries can continue to provide the context that `professor` sees on the next turn.
+Existing stop or timeout recovery summaries can continue to provide the context that the agent sees on the next turn.
 
 ## 9. Notification Rule
 
@@ -163,19 +163,21 @@ The wake-up is for internal follow-through, not background chatter.
 
 ## 10. Minimal Implementation Plan
 
-1. Seed `HEARTBEAT.md` only for the default `professor` agent.
+1. Allow `HEARTBEAT.md` for any agent.
 2. Parse one `after:` duration from that file.
-3. Store one pending `wake_at` timestamp per project.
-4. Arm that wake-up when any agent run completes, is stopped by the user, or hits CLI timeout.
-5. When the wake-up is due and `professor` is idle, run one internal `continue` turn for `professor`.
-6. Keep everything else out of v1.
+3. Store one pending `{ agent_id, wake_at }` record per project.
+4. When the active agent completes, is stopped by the user, or hits CLI timeout, arm or replace the pending wake-up for that same agent.
+5. Clear the pending wake-up if the active agent changes or the target agent starts another turn before the wake-up fires.
+6. When the wake-up is due and the same agent is still active and idle, run one internal `continue` turn for that agent.
+7. Keep everything else out of v1.
 
 ## 11. Non-Goals
 
 This document does not try to define:
 
 - general workflow automation
-- recurring schedules for all agents
+- simultaneous heartbeats for multiple agents
+- background scans across all agents
 - custom prompts per agent
 - autonomous agent-to-agent chatter
 - rich scheduler state or analytics
