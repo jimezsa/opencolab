@@ -14,6 +14,7 @@ import type { AgentConfig, AgentFiles, AgentMemoryContext } from "./types.js";
 import { ensureDir } from "./utils.js";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const HEARTBEAT_FILE_NAME = "HEARTBEAT.md";
 const BUILTIN_PROJECT_SKILLS_DIR_CANDIDATES = [
   path.resolve(MODULE_DIR, "../projects/SKILLS"),
   path.resolve(MODULE_DIR, "../../projects/SKILLS"),
@@ -261,6 +262,10 @@ export function ensureAgentFiles(rootDir: string, agent: AgentConfig): string {
       const content = getBuiltInAgentFileContent(agent.id, key);
       fs.writeFileSync(filePath, content, "utf8");
     }
+  }
+  const heartbeatPath = path.join(agentDir, HEARTBEAT_FILE_NAME);
+  if (!fs.existsSync(heartbeatPath)) {
+    fs.writeFileSync(heartbeatPath, "", "utf8");
   }
   return agentDir;
 }

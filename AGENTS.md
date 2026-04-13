@@ -45,7 +45,8 @@ Agent contract details that matter for implementation:
 
 - Each project must seed `projects/<project_id>/PROJECT-AND-TEAM.md` as the canonical shared project context file visible to all agents.
 - Agent directories live under `projects/<project_id>/AGENTS/<agent_id>/`.
-- Required agent files are `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, plus agent-local `SKILLS/`.
+- Required agent files are `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `HEARTBEAT.md`, plus agent-local `SKILLS/`.
+- `HEARTBEAT.md` must be seeded as an empty file when an agent is created, stays disabled by default, and only enables delayed auto-wake behavior when the user adds a valid `after:` value.
 - Shared skills live only under `projects/SKILLS/`; do not duplicate them into each project or agent. Source and packaged installs must both provide the built-in shared skill library.
 - The shared `block-diagram` skill defaults to compact layouts with unlabeled arrows, supports optional LaTeX equation blocks when they materially clarify a model or pipeline, and only uses edge labels when they carry concrete meaning such as a protocol or payload, not generic `input` or `output` text.
 - The shared `fast-search`, `pro-search`, and `deep-search` skills must keep their `findings.md` formats stable while also producing a companion literature-map block diagram through `block-diagram`, returning concise, friendly channel-agnostic summaries, and, when appropriate, returning `findings.md` plus a PNG-first diagram through the active channel's file-delivery mechanism, with SVG fallback if PNG rendering is unavailable.
@@ -111,7 +112,7 @@ Useful repository checks:
 - Use deterministic tests with the built-in Node test runner.
 - Keep coverage focused on:
   - `opencolab.json` defaults/migrations
-  - project and agent file seeding plus prompt assembly (`PROJECT-AND-TEAM.md`, `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `SKILLS/`)
+  - project and agent file seeding plus prompt assembly (`PROJECT-AND-TEAM.md`, `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `HEARTBEAT.md`, `SKILLS/`)
   - shared skills vs agent-local skills behavior
   - npm/package publish surface, packaged asset availability, and install-mode-aware upgrade behavior
   - provider defaults, auth modes, CLI args, runtime env wiring, and preflight/remediation behavior

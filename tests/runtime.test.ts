@@ -18,6 +18,10 @@ function buildAgentDir(rootDir: string, projectId: string, agentId = "professor"
   return path.join(rootDir, "projects", projectId, "AGENTS", agentId);
 }
 
+function buildHeartbeatPath(rootDir: string, projectId: string, agentId = "professor"): string {
+  return path.join(buildAgentDir(rootDir, projectId, agentId), "HEARTBEAT.md");
+}
+
 function buildProjectDir(rootDir: string, projectId: string): string {
   return path.join(rootDir, "projects", projectId);
 }
@@ -105,7 +109,8 @@ test("init creates required agent context files for active project", () => {
       "TOOLS.md",
       "USER.md",
       "TODO.md",
-      "MEMORY.md"
+      "MEMORY.md",
+      "HEARTBEAT.md"
     ];
     for (const file of required) {
       assert.equal(fs.existsSync(path.join(agentDir, file)), true, `${file} should exist`);
@@ -1382,6 +1387,76 @@ test("paired webhook routes message to the active agent and stores conversation"
   }
 });
 
+test("completed routed runs can arm heartbeat and fire an internal continue turn when due", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-completed-"));
+  const seenTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async ({ text }) => {
+      seenTexts.push(text);
+      return `research:${text}`;
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 15m\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const first = await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(first.ok, true);
+    assert.equal(first.action, "agent_response");
+    const firstPending = runtime.getState().projects.default.heartbeat.pending;
+    assert.equal(firstPending?.agentId, "professor");
+    assert.equal(typeof firstPending?.wakeAt, "string");
+
+    await runtime.runHeartbeatTick(new Date(Date.parse(firstPending?.wakeAt ?? "") + 1_000));
+
+    const secondPending = runtime.getState().projects.default.heartbeat.pending;
+    assert.equal(seenTexts[0], "Review the current TODOs");
+    assert.equal(seenTexts[1], "continue");
+    assert.equal(secondPending?.agentId, "professor");
+    assert.equal(
+      Date.parse(secondPending?.wakeAt ?? "") > Date.parse(firstPending?.wakeAt ?? ""),
+      true
+    );
+
+    const sessionsDir = path.join(buildAgentDir(tempDir, "default"), "memory", "Session");
+    const sessionDirs = fs
+      .readdirSync(sessionsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    const historyPath = path.join(
+      sessionsDir,
+      sessionDirs[0],
+      `${new Date().toISOString().slice(0, 10)}.jsonl`
+    );
+    const lines = fs.readFileSync(historyPath, "utf8").trim().split(/\r?\n/);
+    const contents = lines.map((line) => (JSON.parse(line) as { content: string }).content);
+    assert.deepEqual(contents, [
+      "Review the current TODOs",
+      "research:Review the current TODOs",
+      "continue",
+      "research:continue"
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("paired webhook keeps typing without creating a generic live status before real progress exists", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-typing-only-"));
   const sentTexts: string[] = [];
@@ -2037,6 +2112,45 @@ test("timed out routed runs preserve a compact recovery summary for the next tur
       [],
       ["Investigate sparse autoencoders", recoveryTurn.content]
     ]);
+  } finally {
+    console.error = originalConsoleError;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("timed out routed runs can arm heartbeat when the active agent enables it", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-timeout-"));
+  const originalConsoleError = console.error;
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async () => {
+      throw new Error("openai CLI timed out");
+    }
+  });
+
+  try {
+    console.error = () => undefined;
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 30m\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "Investigate sparse autoencoders",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.action, "agent_error");
+    assert.equal(runtime.getState().projects.default.heartbeat.pending?.agentId, "professor");
   } finally {
     console.error = originalConsoleError;
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -2877,6 +2991,73 @@ test("paired webhook can stop an active routed run, save a recovery summary, and
       recoveryTurn.content.includes("Last progress: Reviewing the current implementation."),
       true
     );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("stopped routed runs can arm heartbeat when the active agent enables it", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-stop-"));
+  let resolveProgressSeen!: () => void;
+  const progressSeen = new Promise<void>((resolve) => {
+    resolveProgressSeen = resolve;
+  });
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async (_input, options) => {
+      await options?.onProgress?.({
+        kind: "milestone",
+        stage: "inspect",
+        slot: "inspect",
+        message: "Reviewing the current implementation."
+      });
+      resolveProgressSeen();
+
+      await new Promise<void>((resolve) => {
+        if (options?.signal?.aborted) {
+          resolve();
+          return;
+        }
+        options?.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+
+      return "late";
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 30m\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const firstRun = runtime.handleTelegramWebhook({
+      message: {
+        text: "Investigate sparse autoencoders",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    await progressSeen;
+
+    const stopResult = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/stop",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+    const firstResult = await firstRun;
+
+    assert.equal(stopResult.ok, true);
+    assert.equal(firstResult.action, "agent_stopped");
+    assert.equal(runtime.getState().projects.default.heartbeat.pending?.agentId, "professor");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

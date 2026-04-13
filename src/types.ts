@@ -86,6 +86,15 @@ export interface AgentRemoteDefaults {
   manualSshProfileId: string | null;
 }
 
+export interface HeartbeatPending {
+  agentId: string;
+  wakeAt: string;
+}
+
+export interface ProjectHeartbeatState {
+  pending: HeartbeatPending | null;
+}
+
 export type ProviderName =
   | "openai"
   | "anthropic"
@@ -126,6 +135,7 @@ export interface ProjectState {
   path: string;
   activeAgentId: string;
   agents: Record<string, AgentConfig>;
+  heartbeat: ProjectHeartbeatState;
   manualSshProfiles: Record<string, ManualSshProfile>;
   agentRemoteDefaults: Record<string, AgentRemoteDefaults>;
   executionTargets: Record<string, ExecutionTargetConfig>;

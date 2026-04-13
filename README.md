@@ -472,7 +472,8 @@ Telegram slash-menu commands:
 
 - Each project keeps shared project context in `projects/<project_id>/PROJECT-AND-TEAM.md`
 - Agent directories live under `projects/<project_id>/AGENTS/<agent_id>/`
-- Required agent files: `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, plus agent-local `SKILLS/`
+- Required agent files: `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `HEARTBEAT.md`, plus agent-local `SKILLS/`
+- `HEARTBEAT.md` is seeded empty for every agent and stays off by default; heartbeat activates only when the user adds a valid `after:` duration such as `after: 30m`
 - On first contact, agents must read `BOOTSTRAP.md` before `ALMA.md` whenever `BOOTSTRAP.md` still exists
 - `PROJECT-AND-TEAM.md` is the canonical shared project context file for goal, scope, constraints, key decisions, humans, agents, and roles
 - Agents should treat `PROJECT-AND-TEAM.md` as curated shared context, not as transcript storage or scratch memory
@@ -490,7 +491,7 @@ Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `p
 
 ## Configuration and Development
 
-- `opencolab.json` stores active project state, project and agent maps, per-agent provider config, project-scoped execution targets, and shared Telegram pairing state at the runtime root
+- `opencolab.json` stores active project state, project and agent maps, per-agent provider config, project-scoped execution targets, optional per-project pending heartbeat wake-up state, and shared Telegram pairing state at the runtime root
 - `.env.local` stores secrets such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, and `TELEGRAM_BOT_TOKEN` at the runtime root
 - Remote run manifests, status, logs, sync metadata, and fetched artifacts live under `projects/<project_id>/experiments/`
 - Secret values should not be committed to git

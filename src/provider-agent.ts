@@ -28,8 +28,10 @@ import {
   resolveProviderApiKey
 } from "./secrets.js";
 import type {
+  AgentConfig,
   AgentMemoryContext,
   OpenColabState,
+  ProjectState,
   ProviderAuthMode,
   ProviderConfig,
   ProviderRuntime,
@@ -74,6 +76,16 @@ export class ProviderAgent {
     const state = this.getState();
     const project = getActiveProject(state);
     const agent = getActiveAgent(project);
+    return this.respondFor(project, agent, input, options, startedAt);
+  }
+
+  async respondFor(
+    project: ProjectState,
+    agent: AgentConfig,
+    input: ProviderAgentInput,
+    options: ProviderRespondOptions = {},
+    startedAt = Date.now()
+  ): Promise<string> {
     const provider = agent.provider;
     const promptStartedAt = Date.now();
     const cliInput = this.buildCliInput(agent, project.path, provider, input.memory, input.text);

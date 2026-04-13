@@ -18,6 +18,8 @@ function sendJson(response: ServerResponse, status: number, data: unknown): void
   response.end(JSON.stringify(data));
 }
 
+const HEARTBEAT_TICK_MS = 60_000;
+
 async function readJson(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) {
@@ -58,6 +60,13 @@ export function startHttpServer(
   const poller: TelegramPollingHandle | null = telegramPollingEnabled
     ? startTelegramPolling(runtime, { logger: (message) => console.log(message) })
     : null;
+  const heartbeatTimer = setInterval(() => {
+    void runtime.runHeartbeatTick().catch((error) => {
+      console.error(
+        `OpenColab heartbeat tick failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    });
+  }, HEARTBEAT_TICK_MS);
 
   const server = createServer(async (request, response) => {
     try {
@@ -95,6 +104,7 @@ export function startHttpServer(
 
   const shutdown = () => {
     poller?.stop();
+    clearInterval(heartbeatTimer);
     server.close(() => {
       process.exit(0);
     });

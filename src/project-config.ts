@@ -16,9 +16,11 @@ import type {
   AgentConfig,
   AgentFiles,
   ExecutionTargetConfig,
+  HeartbeatPending,
   ManualSshProfile,
   OpenColabState,
   ProjectState,
+  ProjectHeartbeatState,
   ProviderConfig,
   TelegramConfig
 } from "./types.js";
@@ -202,6 +204,9 @@ export function createDefaultProjectState(projectId = DEFAULT_PROJECT_ID): Proje
     id: projectId,
     path: buildProjectPath(projectId),
     activeAgentId: defaultAgent.id,
+    heartbeat: {
+      pending: null
+    },
     manualSshProfiles: {},
     agentRemoteDefaults: {},
     executionTargets: {},
@@ -295,6 +300,9 @@ export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
     projects[activeProjectId] = {
       ...activeProject,
       activeAgentId: fallbackAgent.id,
+      heartbeat: normalizeProjectHeartbeat(activeProject.heartbeat, fallbackAgent.id, {
+        [fallbackAgent.id]: fallbackAgent
+      }),
       agents: {
         [fallbackAgent.id]: fallbackAgent
       }
@@ -308,9 +316,18 @@ export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
   }
 
   if (activeProject.agents[activeProject.activeAgentId]) {
+    projects[activeProjectId] = {
+      ...activeProject,
+      heartbeat: normalizeProjectHeartbeat(
+        activeProject.heartbeat,
+        activeProject.activeAgentId,
+        activeProject.agents
+      )
+    };
     return {
       ...state,
       activeProjectId,
+      projects,
       telegram
     };
   }
@@ -318,7 +335,8 @@ export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
   const fallbackAgentId = Object.keys(activeProject.agents)[0];
   projects[activeProjectId] = {
     ...activeProject,
-    activeAgentId: fallbackAgentId
+    activeAgentId: fallbackAgentId,
+    heartbeat: normalizeProjectHeartbeat(activeProject.heartbeat, fallbackAgentId, activeProject.agents)
   };
 
   return {
@@ -497,6 +515,12 @@ function normalizeProject(projectId: string, source: Record<string, unknown> | n
     id: asString(source.id, projectId),
     path: asString(source.path, defaults.path),
     activeAgentId,
+    heartbeat: normalizeHeartbeatState(
+      asRecord(source.heartbeat),
+      defaults.heartbeat,
+      activeAgentId,
+      normalizedAgents
+    ),
     manualSshProfiles: normalizeManualSshProfiles(asRecord(source.manualSshProfiles)),
     agentRemoteDefaults: normalizeAgentRemoteDefaults(asRecord(source.agentRemoteDefaults)),
     executionTargets: normalizeExecutionTargets(
@@ -504,6 +528,61 @@ function normalizeProject(projectId: string, source: Record<string, unknown> | n
       asRecord(source.executionTargets)
     ),
     agents: normalizedAgents
+  };
+}
+
+function normalizeHeartbeatState(
+  source: Record<string, unknown> | null,
+  defaults: ProjectHeartbeatState,
+  activeAgentId: string,
+  agents: Record<string, AgentConfig>
+): ProjectHeartbeatState {
+  const pending = normalizeHeartbeatPending(asRecord(source?.pending));
+  return normalizeProjectHeartbeat(
+    {
+      pending: pending ?? defaults.pending
+    },
+    activeAgentId,
+    agents
+  );
+}
+
+function normalizeHeartbeatPending(source: Record<string, unknown> | null): HeartbeatPending | null {
+  if (!source) {
+    return null;
+  }
+
+  const agentId = asNullableString(source.agentId);
+  const wakeAt = asNullableString(source.wakeAt);
+  if (!agentId || !wakeAt) {
+    return null;
+  }
+
+  return {
+    agentId,
+    wakeAt
+  };
+}
+
+function normalizeProjectHeartbeat(
+  source: ProjectHeartbeatState | null | undefined,
+  activeAgentId: string,
+  agents: Record<string, AgentConfig>
+): ProjectHeartbeatState {
+  const pending = source?.pending;
+  if (!pending) {
+    return { pending: null };
+  }
+
+  if (!agents[pending.agentId] || pending.agentId !== activeAgentId || Number.isNaN(Date.parse(pending.wakeAt))) {
+    return { pending: null };
+  }
+
+  return {
+    pending: {
+      agentId: pending.agentId,
+      wakeAt: pending.wakeAt
+    }
   };
 }
 

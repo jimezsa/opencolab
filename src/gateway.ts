@@ -84,6 +84,12 @@ interface GatewayDependencies {
   readConversationMemory: (chatId: string, limit: number) => AgentMemoryContext;
   appendConversation: (chatId: string, message: ConversationMessage) => void;
   resetConversationSession: () => string;
+  onAgentTurnStarted?: (projectId: string, agentId: string) => void | Promise<void>;
+  onAgentTurnFinished?: (
+    projectId: string,
+    agentId: string,
+    outcome: "completed" | "stopped" | "timed_out" | "failed"
+  ) => void | Promise<void>;
   respond: (
     input: ProviderAgentInput,
     options?: ProviderRespondOptions,
@@ -124,12 +130,15 @@ interface RequestProgressState {
 }
 
 interface ActiveRequest {
+  projectId: string;
+  agentId: string;
   provider: ProviderConfig;
   progressState: RequestProgressState;
   liveStatus: TelegramLiveStatusSession;
   abortController: AbortController;
   stopRequested: boolean;
   recoveryLogged: boolean;
+  turnFinished: boolean;
 }
 
 interface LiveStatusLine {
@@ -553,6 +562,8 @@ export class TelegramGateway {
       this.messageEditor,
     );
     const activeRequest = createActiveRequest(
+      project.id,
+      activeAgent.id,
       activeAgent.provider,
       progressState,
       liveStatus,
@@ -562,6 +573,7 @@ export class TelegramGateway {
     let appendedUserTurn = false;
 
     try {
+      await this.deps.onAgentTurnStarted?.(project.id, activeAgent.id);
       stopTyping = this.startTypingFeedback(inbound.chatId, state);
       const resolvedFiles = await resolveInboundFiles(
         this.config,
@@ -668,6 +680,8 @@ export class TelegramGateway {
       const responseText =
         outboundTextForTelegram || summarizeOutboundFiles(outbound.files);
 
+      await this.notifyAgentTurnFinished(activeRequest, "completed");
+
       return {
         ok: true,
         action: "agent_response",
@@ -684,6 +698,10 @@ export class TelegramGateway {
       const response = buildAgentFailureMessage(
         error,
         progressState.lastMeaningfulMessage,
+      );
+      await this.notifyAgentTurnFinished(
+        activeRequest,
+        isProviderTimeoutError(error) ? "timed_out" : "failed"
       );
       if (appendedUserTurn) {
         this.deps.appendConversation(inbound.chatId, {
@@ -785,6 +803,7 @@ export class TelegramGateway {
         });
         activeRequest.recoveryLogged = true;
       }
+      await this.notifyAgentTurnFinished(activeRequest, "stopped");
     }
 
     return this.sendManagementCommandResult(inbound, state, {
@@ -813,6 +832,26 @@ export class TelegramGateway {
         this.laneQueues.delete(laneKey);
       }
     }
+  }
+
+  isAgentBusy(projectId: string, agentId: string): boolean {
+    for (const request of this.activeRequests.values()) {
+      if (request.projectId === projectId && request.agentId === agentId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async notifyAgentTurnFinished(
+    activeRequest: ActiveRequest,
+    outcome: "completed" | "stopped" | "timed_out" | "failed"
+  ): Promise<void> {
+    if (activeRequest.turnFinished) {
+      return;
+    }
+    activeRequest.turnFinished = true;
+    await this.deps.onAgentTurnFinished?.(activeRequest.projectId, activeRequest.agentId, outcome);
   }
 
   private tryHandleManagementCommand(
@@ -1182,7 +1221,7 @@ function buildAgentFailureMessage(
   return `${withProgress.slice(0, MAX_TELEGRAM_ERROR_CHARS - 3)}...`;
 }
 
-function buildAssistantRecoveryLog(
+export function buildAssistantRecoveryLog(
   error: unknown,
   provider: ProviderConfig,
   timeoutMs: number,
@@ -1240,17 +1279,22 @@ function createRequestProgressState(): RequestProgressState {
 }
 
 function createActiveRequest(
+  projectId: string,
+  agentId: string,
   provider: ProviderConfig,
   progressState: RequestProgressState,
   liveStatus: TelegramLiveStatusSession,
 ): ActiveRequest {
   return {
+    projectId,
+    agentId,
     provider,
     progressState,
     liveStatus,
     abortController: new AbortController(),
     stopRequested: false,
     recoveryLogged: false,
+    turnFinished: false,
   };
 }
 
@@ -1267,7 +1311,7 @@ function normalizeProgressMessage(value: string): string {
   return String(value ?? "").trim();
 }
 
-function isProviderTimeoutError(error: unknown): boolean {
+export function isProviderTimeoutError(error: unknown): boolean {
   const detail = error instanceof Error ? error.message : String(error ?? "");
   return /\bcli timed out\b/i.test(detail);
 }

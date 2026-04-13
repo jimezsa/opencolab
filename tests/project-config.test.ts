@@ -42,6 +42,7 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(agent.provider.name, "anthropic");
     assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "api_key");
+    assert.equal(project.heartbeat.pending, null);
     assert.deepEqual(project.executionTargets, {});
     assert.equal(state.telegram.paired, false);
   } finally {
@@ -761,6 +762,69 @@ test("project state migrates legacy per-project telegram shape", () => {
     assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "api_key");
     assert.equal(loaded.telegram.chatId, "55555");
     assert.equal(loaded.telegram.paired, true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state clears stale pending heartbeat when the active agent changes", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-heartbeat-stale-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: "reviewer",
+            heartbeat: {
+              pending: {
+                agentId: DEFAULT_AGENT_ID,
+                wakeAt: "2026-04-13T12:30:00.000Z"
+              }
+            },
+            agents: {
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              },
+              reviewer: {
+                id: "reviewer",
+                path: "projects/alpha/AGENTS/reviewer",
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  todo: "TODO.md",
+                  memory: "MEMORY.md"
+                }
+              }
+            }
+          }
+        }
+      }),
+      "utf8"
+    );
+
+    const loaded = readProjectState(config);
+    assert.equal(loaded.projects.alpha.heartbeat.pending, null);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

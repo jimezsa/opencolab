@@ -3,7 +3,7 @@
  * Coordinates state persistence, gateway integration, agent execution, and setup actions.
  */
 import fs from "node:fs";
-import { ensureAgentFiles, ensureProjectAndTeamFile } from "./agent.js";
+import { ensureAgentFiles, ensureProjectAndTeamFile, resolveAgentDirectory } from "./agent.js";
 import { loadConfig, type OpenColabConfig } from "./config.js";
 import { ConversationStore } from "./conversation.js";
 import {
@@ -44,6 +44,7 @@ import {
 } from "./gpu-providers/runpod/index.js";
 import { ManualSshService } from "./manual-ssh.js";
 import {
+  buildAssistantRecoveryLog,
   type TelegramCallbackAnswerer,
   type TelegramDraftSender,
   type TelegramMessageEditor,
@@ -51,7 +52,8 @@ import {
   TelegramGateway,
   type TelegramFileSender,
   type TelegramSender,
-  type TelegramTypingSender
+  type TelegramTypingSender,
+  isProviderTimeoutError
 } from "./gateway.js";
 import { resolveRuntimeRootDir } from "./install.js";
 import type {
@@ -176,6 +178,7 @@ export class OpenColabRuntime {
   readonly config: OpenColabConfig;
 
   private state: OpenColabState;
+  private readonly heartbeatInFlight = new Set<string>();
   private readonly conversations: ConversationStore;
   private readonly providerAgent: ProviderAgent;
   private readonly runpodExecutionService: RunpodExecutionService;
@@ -203,6 +206,12 @@ export class OpenColabRuntime {
       appendConversation: (chatId, message) =>
         this.conversations.append(this.resolveActiveAgentPath(), message),
       resetConversationSession: () => this.conversations.resetSession(this.resolveActiveAgentPath()),
+      onAgentTurnStarted: (projectId, agentId) => {
+        this.clearPendingHeartbeatForTurnStart(projectId, agentId);
+      },
+      onAgentTurnFinished: (projectId, agentId, outcome) => {
+        this.recordHeartbeatOutcome(projectId, agentId, outcome);
+      },
       respond: async (input, respondOptions) => {
         if (this.options.agentResponder) {
           return this.options.agentResponder(input, respondOptions);
@@ -829,6 +838,45 @@ export class OpenColabRuntime {
     return this.gateway.handleWebhook(body);
   }
 
+  async runHeartbeatTick(now = new Date()): Promise<boolean> {
+    let didWork = false;
+
+    for (const project of Object.values(this.state.projects)) {
+      const pending = project.heartbeat.pending;
+      if (!pending) {
+        continue;
+      }
+
+      const agent = project.agents[pending.agentId];
+      if (!agent || project.activeAgentId !== pending.agentId) {
+        didWork = this.clearPendingHeartbeat(project.id) || didWork;
+        continue;
+      }
+
+      if (this.readHeartbeatDelayMs(agent) === null) {
+        didWork = this.clearPendingHeartbeat(project.id) || didWork;
+        continue;
+      }
+
+      const wakeAtMs = Date.parse(pending.wakeAt);
+      if (Number.isNaN(wakeAtMs)) {
+        didWork = this.clearPendingHeartbeat(project.id) || didWork;
+        continue;
+      }
+      if (wakeAtMs > now.getTime()) {
+        continue;
+      }
+      if (this.gateway.isAgentBusy(project.id, agent.id) || this.isHeartbeatRunning(project.id, agent.id)) {
+        continue;
+      }
+
+      await this.runHeartbeatTurn(project.id, agent.id);
+      didWork = true;
+    }
+
+    return didWork;
+  }
+
   private ensureActiveProjectFiles(): void {
     const project = getActiveProject(this.state);
     const agent = getProjectActiveAgent(project);
@@ -854,6 +902,199 @@ export class OpenColabRuntime {
     writeProjectState(this.config, this.state);
     this.state = ensureProjectAndAgent(readProjectState(this.config));
     this.ensureActiveProjectFiles();
+  }
+
+  private async runHeartbeatTurn(projectId: string, agentId: string): Promise<void> {
+    const project = this.state.projects[projectId];
+    if (!project || project.activeAgentId !== agentId) {
+      this.clearPendingHeartbeat(projectId);
+      return;
+    }
+
+    const agent = project.agents[agentId];
+    if (!agent) {
+      this.clearPendingHeartbeat(projectId);
+      return;
+    }
+
+    const key = this.agentTurnKey(projectId, agentId);
+    if (this.heartbeatInFlight.has(key)) {
+      return;
+    }
+
+    this.heartbeatInFlight.add(key);
+    this.clearPendingHeartbeat(projectId);
+    ensureAgentFiles(this.config.rootDir, agent);
+
+    const memory = this.conversations.readPromptMemory(agent.path, 8);
+    this.conversations.append(agent.path, {
+      role: "user",
+      content: "continue",
+      at: nowIso()
+    });
+
+    try {
+      const response = await this.respondWithAgentContext(
+        project,
+        agent,
+        {
+          chatId: "",
+          sender: "heartbeat",
+          text: "continue",
+          files: [],
+          memory
+        }
+      );
+      this.conversations.append(agent.path, {
+        role: "assistant",
+        content: response,
+        at: nowIso()
+      });
+      this.recordHeartbeatOutcome(projectId, agentId, "completed");
+    } catch (error) {
+      this.conversations.append(agent.path, {
+        role: "assistant",
+        content: buildAssistantRecoveryLog(
+          error,
+          agent.provider,
+          this.config.providerCliTimeoutMs
+        ),
+        at: nowIso()
+      });
+      this.recordHeartbeatOutcome(projectId, agentId, isProviderTimeoutError(error) ? "timed_out" : "failed");
+    } finally {
+      this.heartbeatInFlight.delete(key);
+    }
+  }
+
+  private async respondWithAgentContext(
+    project: ProjectState,
+    agent: AgentConfig,
+    input: ProviderAgentInput,
+    respondOptions?: ProviderRespondOptions
+  ): Promise<string> {
+    if (this.options.agentResponder) {
+      return this.options.agentResponder(input, respondOptions);
+    }
+    return this.providerAgent.respondFor(project, agent, input, respondOptions);
+  }
+
+  private readHeartbeatDelayMs(agent: AgentConfig): number | null {
+    const heartbeatPath = `${resolveAgentDirectory(this.config.rootDir, agent.path)}/HEARTBEAT.md`;
+    if (!fs.existsSync(heartbeatPath)) {
+      return null;
+    }
+
+    const lines = fs.readFileSync(heartbeatPath, "utf8").split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) {
+        continue;
+      }
+      const match = /^after:\s*(\d+)\s*([mh])$/i.exec(line);
+      if (!match) {
+        continue;
+      }
+
+      const value = Number(match[1]);
+      if (!Number.isInteger(value) || value <= 0) {
+        return null;
+      }
+      return match[2].toLowerCase() === "h" ? value * 60 * 60_000 : value * 60_000;
+    }
+
+    return null;
+  }
+
+  private clearPendingHeartbeatForTurnStart(projectId: string, agentId: string): void {
+    const project = this.state.projects[projectId];
+    if (!project || project.heartbeat.pending?.agentId !== agentId) {
+      return;
+    }
+    this.clearPendingHeartbeat(projectId);
+  }
+
+  private recordHeartbeatOutcome(
+    projectId: string,
+    agentId: string,
+    outcome: "completed" | "stopped" | "timed_out" | "failed",
+    now = new Date()
+  ): void {
+    const project = this.state.projects[projectId];
+    if (!project) {
+      return;
+    }
+    if (project.activeAgentId !== agentId) {
+      this.clearPendingHeartbeat(projectId);
+      return;
+    }
+    if (outcome === "failed") {
+      return;
+    }
+    this.armHeartbeat(projectId, agentId, now);
+  }
+
+  private armHeartbeat(projectId: string, agentId: string, now: Date): void {
+    const project = this.state.projects[projectId];
+    const agent = project?.agents[agentId];
+    if (!project || !agent || project.activeAgentId !== agentId) {
+      this.clearPendingHeartbeat(projectId);
+      return;
+    }
+
+    const delayMs = this.readHeartbeatDelayMs(agent);
+    if (delayMs === null) {
+      this.clearPendingHeartbeat(projectId);
+      return;
+    }
+
+    this.updateProjectHeartbeat(projectId, {
+      agentId,
+      wakeAt: new Date(now.getTime() + delayMs).toISOString()
+    });
+  }
+
+  private clearPendingHeartbeat(projectId: string): boolean {
+    return this.updateProjectHeartbeat(projectId, null);
+  }
+
+  private updateProjectHeartbeat(projectId: string, pending: ProjectState["heartbeat"]["pending"]): boolean {
+    const project = this.state.projects[projectId];
+    if (!project) {
+      return false;
+    }
+
+    const current = project.heartbeat.pending;
+    const unchanged =
+      current?.agentId === pending?.agentId &&
+      current?.wakeAt === pending?.wakeAt &&
+      Boolean(current) === Boolean(pending);
+    if (unchanged) {
+      return false;
+    }
+
+    this.state = {
+      ...this.state,
+      projects: {
+        ...this.state.projects,
+        [project.id]: {
+          ...project,
+          heartbeat: {
+            pending
+          }
+        }
+      }
+    };
+    this.persist();
+    return true;
+  }
+
+  private isHeartbeatRunning(projectId: string, agentId: string): boolean {
+    return this.heartbeatInFlight.has(this.agentTurnKey(projectId, agentId));
+  }
+
+  private agentTurnKey(projectId: string, agentId: string): string {
+    return `${projectId}:${agentId}`;
   }
 
   private requireProjectAgent(project: ProjectState, agentId: string): AgentConfig {

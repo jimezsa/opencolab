@@ -117,6 +117,7 @@ Each agent directory must include:
 - `USER.md`
 - `TODO.md`
 - `MEMORY.md`
+- `HEARTBEAT.md`
 - `SKILLS/` for agent-local skills
 
 Shared project skills requirements:
@@ -151,6 +152,8 @@ Initialization requirements:
 - when an agent directory is created, `USER.md` must be seeded from an internal runtime template
 - when an agent directory is created, `TODO.md` must be seeded from an internal runtime template
 - when an agent directory is created, `MEMORY.md` must be seeded from an internal runtime template
+- when an agent directory is created, `HEARTBEAT.md` must be seeded as an empty file
+- seeded `HEARTBEAT.md` must keep heartbeat disabled by default until the user explicitly adds a valid `after: <duration>` line
 - the default `professor` agent must seed from the built-in `src/agent-templates/professor/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
 - the built-in `beginner` agent id must seed from the built-in `src/agent-templates/beginner/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
 - the built-in `autoresearch` agent id must seed from the built-in `src/agent-templates/autoresearch/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
@@ -483,6 +486,9 @@ Minimum shape:
           }
         }
       },
+      "heartbeat": {
+        "pending": null
+      },
       "executionTargets": {
         "runpod-a100": {
           "id": "runpod-a100",
@@ -517,6 +523,13 @@ Minimum shape:
   }
 }
 ```
+
+Heartbeat persistence requirements:
+
+- pending heartbeat state must live in the owning project entry inside `opencolab.json`
+- the minimal persisted shape is `projects.<project_id>.heartbeat.pending`
+- `pending` must be either `null` or `{ "agentId": "<agent_id>", "wakeAt": "<iso8601>" }`
+- heartbeat must not create a separate runtime-owned persistence file for scheduling state
 
 Notes:
 
@@ -943,6 +956,21 @@ Requirements:
 - bounded runtime telemetry for timed-out executions may be persisted separately from conversation memory, but if persisted it must live in a separate operational log rather than in `memory/Session/` as synthetic assistant chatter
 - timeout handling should attempt a short final progress flush before forceful termination when the provider runtime supports it, but the recovery record must not depend on that flush succeeding
 
+### 13.10 Heartbeat Wake-Up
+
+Heartbeat is a delayed follow-up for the active agent, not a general scheduler.
+
+Requirements:
+
+- every agent directory must include a seeded empty `HEARTBEAT.md`
+- heartbeat must stay disabled until the user explicitly edits `HEARTBEAT.md` and adds a valid `after: <duration>` line
+- after an active-agent run completes, is stopped by `/stop`, or times out, the runtime may arm one pending wake-up for that same agent
+- the pending wake-up must be stored in the owning project state in `opencolab.json`
+- if the active agent changes before the wake-up fires, the pending wake-up must be cleared
+- if the same agent starts another turn before the wake-up fires, the pending wake-up must be cleared
+- when the wake-up is due and that same agent is idle, the background gateway process must run one internal turn with the prompt `continue`
+- heartbeat must stay quiet by default and must not emit routine Telegram chatter just because a wake-up was scheduled or fired
+
 ## 14. Acceptance Criteria
 
 v1 is complete when all are true:
@@ -956,11 +984,13 @@ v1 is complete when all are true:
 - The optional built-in `beginner` agent is created under `projects/<project_id>/AGENTS/beginner/` when used.
 - The optional built-in `autoresearch` agent is created under `projects/<project_id>/AGENTS/autoresearch/` when used.
 - Additional agents are created under `projects/<project_id>/AGENTS/<agent_id>/`.
+- New agents seed an empty `HEARTBEAT.md`, and heartbeat stays disabled until the user adds a valid `after:` value.
 - The default `professor` agent seeds from the built-in professor template assets, sourced from `src/agent-templates/professor/` in the repository and shipped in packaged installs; the built-in `beginner` and `autoresearch` agent ids and additional agents follow the same built-in template rules with fallback to shared template assets.
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
 - Long-running routed tasks can emit bounded intermediate Telegram updates before the final answer.
 - Progress updates are treated as operational events rather than normal assistant conversation turns.
 - Shared search skills support agent-chosen progress events for retrieval, selection, download, summarization, and synthesis phases.
+- The background gateway process can schedule one pending heartbeat wake-up per project and fire an internal `continue` turn for the same active agent when due.
 
 The Runpod-first remote execution milestone is complete when all are true:
 
