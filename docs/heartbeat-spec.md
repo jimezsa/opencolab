@@ -32,7 +32,9 @@ That is the whole feature.
 V1 supports only:
 
 - one human-edited file at `projects/<project_id>/AGENTS/<agent_id>/HEARTBEAT.md`
+- an empty `HEARTBEAT.md` seeded when an agent is created
 - only the current active agent may arm or receive an automatic wake-up
+- disabled-by-default behavior that activates only after explicit user setup
 - one pending wake-up per project
 - one fixed internal prompt: `continue`
 
@@ -48,6 +50,9 @@ V1 does not support:
 ## 4. `HEARTBEAT.md` Contract
 
 `HEARTBEAT.md` is human-edited.
+OpenColab should create this file as an empty stub when the agent is created.
+There is no default heartbeat time in v1.
+This feature must stay off until the user explicitly enables it.
 
 The runtime reads only one setting:
 
@@ -66,7 +71,9 @@ Rules:
 - ignore blank lines
 - ignore comment lines that start with `#`
 - read the first valid `after:` line
-- if no valid `after:` line exists, heartbeat is disabled
+- if no valid `after:` line exists, heartbeat is disabled, including the seeded empty file
+- if `HEARTBEAT.md` is missing on older or manually edited agents, heartbeat is disabled
+- OpenColab must not auto-fill a default `after:` value
 
 Supported v1 duration format should stay small:
 
@@ -163,12 +170,15 @@ The wake-up is for internal follow-through, not background chatter.
 ## 10. Minimal Implementation Plan
 
 1. Allow `HEARTBEAT.md` for any agent.
-2. Parse one `after:` duration from that file.
-3. Store one pending `{ agent_id, wake_at }` record per project.
-4. When the active agent completes, is stopped by the user, or hits CLI timeout, arm or replace the pending wake-up for that same agent.
-5. Clear the pending wake-up if the active agent changes or the target agent starts another turn before the wake-up fires.
-6. When the wake-up is due and the same agent is still active and idle, run one internal `continue` turn for that agent.
-7. Keep everything else out of v1.
+2. Seed an empty `HEARTBEAT.md` when an agent is created.
+3. Keep heartbeat disabled by default. Do not set any default schedule automatically.
+4. Enable heartbeat only when the user explicitly edits `HEARTBEAT.md` with a valid `after:` value.
+5. Parse one `after:` duration from that file.
+6. Store one pending `{ agent_id, wake_at }` record per project.
+7. When the active agent completes, is stopped by the user, or hits CLI timeout, arm or replace the pending wake-up for that same agent.
+8. Clear the pending wake-up if the active agent changes or the target agent starts another turn before the wake-up fires.
+9. When the wake-up is due and the same agent is still active and idle, run one internal `continue` turn for that agent.
+10. Keep everything else out of v1.
 
 ## 11. Non-Goals
 
