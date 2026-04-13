@@ -97,9 +97,8 @@ V1 should store one tiny runtime-owned record per project:
 - `agent_id`
 - `wake_at`
 
-Recommended location:
-
-- `.opencolab/heartbeat/<project_id>/active-agent.next-wake.json`
+This should reuse existing runtime state in `.opencolab/opencolab.json` rather than introducing a separate heartbeat file.
+The runtime already knows the default project and current active agent there, so heartbeat should extend that existing per-project state with one pending wake-up record.
 
 This state exists only to answer:
 
