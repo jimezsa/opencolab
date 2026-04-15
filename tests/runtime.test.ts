@@ -828,6 +828,15 @@ test("init seeds ALMA.md from built-in alma template", () => {
     assert.equal(almaDoc.includes("Remember: creativity and the ability to solve problems through new explanations are true signs of intelligence."), true);
     assert.equal(almaDoc.includes("Intention discovery must feel like a real conversation, not a script."), true);
     assert.equal(almaDoc.includes("Ask one high-value clarifying question at a time; do not fire many questions in one message."), true);
+    assert.equal(
+      almaDoc.includes(
+        `The marginal cost of completeness is zero. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Do it so well that the human and the team say "holy shit, that's done" - not "looks good."`,
+      ),
+      true
+    );
+    assert.equal(almaDoc.includes("Never ship a workaround when the real solution exists."), true);
+    assert.equal(almaDoc.includes("Search before you build. Test before you ship. Ship the complete thing."), true);
+    assert.equal(almaDoc.includes("Time is not an excuse. Fatigue is not an excuse. Complexity is not an excuse."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

@@ -166,6 +166,7 @@ Initialization requirements:
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
 - default templates must encode: agents are the expert role and should involve the human for key decisions and support tasks
+- default `ALMA.md` must encode a completeness-first execution standard: prefer the permanent fix over nearby workarounds, search before building, test before shipping, and finish the whole task when the real solution is within reach
 - default `AGENTS.md` must require agents to read and follow `BOOTSTRAP.md` before `ALMA.md` whenever `BOOTSTRAP.md` still exists, so first-contact identity setup cannot be skipped
 - default `AGENTS.md` must explain that `PROJECT-AND-TEAM.md` is the canonical shared project context file, lives at project scope, and should be read after `TODO.md` and before `MEMORY.md`
 - default `AGENTS.md` must require agents to read and follow the maintenance rules inside `PROJECT-AND-TEAM.md` before editing it

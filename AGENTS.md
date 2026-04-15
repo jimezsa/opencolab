@@ -57,6 +57,7 @@ Agent contract details that matter for implementation:
 - Conversation history belongs under agent-local `memory/Session/` and `memory/Daily/`, not under `.opencolab`.
 - Routed provider timeouts or failures must preserve the inbound user turn and append a compact assistant recovery entry to the active session history, while keeping raw progress events out of normal conversation memory.
 - `TOOLS.md` is the user-owned local tooling layer; repo-managed built-in tool guidance must be injected at prompt-build time rather than copied into `TOOLS.md`.
+- The seeded `ALMA.md` contract must encode a completeness-first execution standard: search before building, test before shipping, prefer permanent fixes over nearby workarounds, and finish the whole task when the real solution is within reach.
 - The seeded `AGENTS.md` contract must require agents to read `BOOTSTRAP.md` before `ALMA.md` whenever bootstrap still exists, so first-contact identity setup cannot be skipped.
 - The seeded `AGENTS.md` contract must explain that `PROJECT-AND-TEAM.md` is the project-scoped shared context file, is read after `TODO.md` and before `MEMORY.md`, and must be consulted before agents edit it.
 - The seeded `professor` contract must teach professor-led specialist creation through the OpenColab CLI, require human approval before creation, and require roster updates in `PROJECT-AND-TEAM.md`.
