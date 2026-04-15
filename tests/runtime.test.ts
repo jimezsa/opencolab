@@ -786,7 +786,51 @@ test("autoresearch agent seeds IDENTITY.md from built-in autoresearch identity t
       true
     );
     assert.equal(identityDoc.includes("do not assume `train.py` or `uv run train.py`"), true);
+    assert.equal(
+      identityDoc.includes(
+        "carry forward experiment constraints, repeated user corrections, rejected paths, and lessons from failed runs so the human does not need to repeat them"
+      ),
+      true
+    );
+    assert.equal(
+      identityDoc.includes("every failed or discarded run must produce a concrete lesson and a changed next step, not just another retry"),
+      true
+    );
     assert.equal(identityDoc.includes("Coordinate experiment goals, constraints, and summaries with `professor`."), true);
+    assert.equal(identityDoc.includes("Treat explicit user corrections as binding until they are explicitly changed."), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("autoresearch agent seeds ALMA.md from built-in autoresearch alma template", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-autoresearch-alma-template-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+    runtime.configureAgent("autoresearch");
+
+    const almaPath = path.join(buildAgentDir(tempDir, "default", "autoresearch"), "ALMA.md");
+    const almaDoc = fs.readFileSync(almaPath, "utf8");
+    assert.equal(almaDoc.includes("# ALMA.md - Autoresearch Specialist"), true);
+    assert.equal(
+      almaDoc.includes("Autoresearch is stateful work. Carry forward the current repo contract, active constraints, rejected ideas, and recent lessons across turns."),
+      true
+    );
+    assert.equal(
+      almaDoc.includes("If the user corrects you once, treat that correction as binding until explicitly changed."),
+      true
+    );
+    assert.equal(
+      almaDoc.includes("Every failed or discarded run must teach you something concrete. Write down what failed, why it failed, and what changes next."),
+      true
+    );
+    assert.equal(
+      almaDoc.includes("Before editing or running, restate the current repo contract: repo path, editable file path, run command, metric rule, and key constraints."),
+      true
+    );
+    assert.equal(almaDoc.includes("End each loop with a clear outcome: kept, discarded, blocked, or needs a decision."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

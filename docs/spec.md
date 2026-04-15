@@ -159,7 +159,7 @@ Initialization requirements:
 - the built-in `autoresearch` agent id must seed from the built-in `src/agent-templates/autoresearch/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
 - additional agents must seed from the built-in `src/agent-templates/specialist/` template folder in the source tree unless future runtime configuration chooses another built-in template
 - template-specific files may fall back to `src/agent-templates/shared/` in the source tree when a role folder does not provide an override, and packaged installs must preserve that fallback behavior with shipped runtime assets
-- in the current built-in layout, role folders provide `AGENTS.md` overrides, some roles may also override `IDENTITY.md`, and `src/agent-templates/shared/` provides the shared fallback `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
+- in the current built-in layout, role folders provide `AGENTS.md` overrides, some roles may also override `IDENTITY.md` or `ALMA.md`, and `src/agent-templates/shared/` provides the shared fallback `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
 - the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job` skills must be available from the shared `projects/SKILLS/` directory
 - built-in tool guidance and built-in skill summaries must be repo-managed and injected into prompts at runtime rather than copied into agent-local `TOOLS.md`
@@ -173,7 +173,7 @@ Initialization requirements:
 - default `professor` guidance must treat specialist creation as a normal lead-agent responsibility, require human approval before creation, and teach the exact OpenColab CLI path for creation through `opencolab agent create --agent-id <id>`
 - default `professor` guidance must mention follow-up per-agent model setup through `opencolab setup model --agent-id <id> ...` when needed
 - default `professor` guidance must require updating `PROJECT-AND-TEAM.md` after a new specialist is created or approved in principle
-- the built-in `autoresearch` agent guidance must orient the seeded agent around iterative experiment execution through the shared `autoresearch` skill and default ownership of sustained experiment-loop work
+- the built-in `autoresearch` agent guidance must orient the seeded agent around iterative experiment execution through the shared `autoresearch` skill, default ownership of sustained experiment-loop work, and explicit carry-forward of repo contract details, user corrections, rejected paths, and lessons from failed runs so the human does not need to repeat them
 - default `specialist` and `beginner` guidance must state that they do not create more specialists by default and should route staffing recommendations back through `professor`
 - default `AGENTS.md` must explain that OpenColab owns Telegram live status for routed runs, derives it from native runtime events instead of an agent-written progress file, and expects agents to avoid low-signal step-by-step chatter
 - default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences

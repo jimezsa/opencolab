@@ -484,6 +484,7 @@ Telegram slash-menu commands:
 - Shared skills live under `projects/SKILLS/` and are reused across all projects and agents
 - Agent-local skills live under `projects/<project_id>/AGENTS/<agent_id>/SKILLS/`
 - Built-in templates come from `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and role overrides in folders such as `professor/`, `beginner/`, `autoresearch/`, and `specialist/`
+- The built-in `autoresearch` template is stricter than the generic default: it should carry forward repo-contract details, repeated user corrections, rejected paths, and lessons from failed runs so experiment loops do not keep relearning the same thing
 - Current session logs live in `<agent_path>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`
 - Previous-day summaries live in `<agent_path>/memory/Daily/<YYYY-MM-DD>.md`
 - Long-term durable facts belong in `MEMORY.md`
