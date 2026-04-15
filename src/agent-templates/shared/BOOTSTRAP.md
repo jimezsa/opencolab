@@ -35,7 +35,7 @@ Update these files with what you learned:
 - IDENTITY.md: your name, nature, vibe, signature, avatar.
 - USER.md: user name, preferred address, timezone, and workflow preferences.
 - ALMA.md: behavior style, boundaries, and interaction rules.
-- TODO.md: initial plan, immediate tasks, and ownership.
+- TODO.md: a lean working list with the current focus, top priorities, and any live blocker.
 - MEMORY.md: only stable facts that should persist across sessions.
 
 ## Lab Setup

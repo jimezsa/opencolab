@@ -178,7 +178,7 @@ Initialization requirements:
 - default `AGENTS.md` must explain that OpenColab owns Telegram live status for routed runs, derives it from native runtime events instead of an agent-written progress file, and expects agents to avoid low-signal step-by-step chatter
 - default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences
 - the default templates must keep only essential, role-appropriate instructions
-- `TODO.md` must be used for active planning and task tracking based on interactions with the human and other agents
+- `TODO.md` must be used as a lean current working list for active planning and task tracking based on interactions with the human and other agents
 
 `MEMORY.md` remains reserved for long-term memory only.
 
@@ -201,6 +201,16 @@ Prompt construction must load context in this order:
 7. `PROJECT-AND-TEAM.md`
 8. `MEMORY.md`
 9. recent session memory and the current inbound message
+
+Requirements for `TODO.md`:
+
+- it must stay lean, current, and easy to scan in seconds
+- it must capture only the current focus, the top near-term priorities, and any live blocker or waiting item that matters right now
+- by default it should keep at most three open priority items unless the human explicitly asks for a broader plan
+- it must not become a backlog, transcript, scratchpad, or done-history log
+- completed, stale, or low-priority items must be removed or rewritten promptly instead of accumulated
+- durable user preferences belong in `USER.md`, shared project facts belong in `PROJECT-AND-TEAM.md`, and long-term facts belong in `MEMORY.md`
+- agents should rewrite it whenever priorities, ownership, or blockers change instead of treating it as append-only
 
 Requirements for `PROJECT-AND-TEAM.md`:
 

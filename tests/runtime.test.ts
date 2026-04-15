@@ -886,6 +886,33 @@ test("init seeds ALMA.md from built-in alma template", () => {
   }
 });
 
+test("init seeds TODO.md from built-in lean todo template", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-todo-template-"));
+  const runtime = createRuntime(tempDir);
+
+  try {
+    runtime.init();
+
+    const todoPath = path.join(buildAgentDir(tempDir, "default", "professor"), "TODO.md");
+    const todoDoc = fs.readFileSync(todoPath, "utf8");
+
+    assert.equal(todoDoc.includes("Keep this file lean and current."), true);
+    assert.equal(
+      todoDoc.includes("Only keep the current focus, the top near-term priorities, and any live blocker."),
+      true
+    );
+    assert.equal(todoDoc.includes("Do not turn this into a backlog, transcript, scratchpad, or done-history log."), true);
+    assert.equal(todoDoc.includes("## Current Focus"), true);
+    assert.equal(todoDoc.includes("## Top Priorities"), true);
+    assert.equal(todoDoc.includes("## Blockers"), true);
+    assert.equal(todoDoc.includes("Keep at most 3 open priority items unless the human explicitly asks for a larger plan."), true);
+    assert.equal(todoDoc.includes("## Backlog"), false);
+    assert.equal(todoDoc.includes("## Done"), false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("init seeds TOOLS.md as a local tooling notes scaffold", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-tools-template-"));
   const runtime = createRuntime(tempDir);

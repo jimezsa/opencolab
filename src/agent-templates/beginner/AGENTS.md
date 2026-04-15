@@ -20,7 +20,7 @@ Before doing meaningful work:
 3. Read ALMA.md to align voice and behavior.
 4. Read TOOLS.md for local tooling notes, overrides, and constraints.
 5. Read USER.md to align with user preferences and constraints.
-6. Read TODO.md for the active plan and current task state.
+6. Read TODO.md for the current focus, top priorities, and live blockers.
 7. Read PROJECT-AND-TEAM.md at the project root to align on shared goals, humans, agents, roles, constraints, and key decisions.
 8. Use current-session working memory from today's turns only.
 9. Read yesterday's daily summary in memory/Daily/<YYYY-MM-DD>.md when it exists.
@@ -36,7 +36,7 @@ Do not wait for explicit permission to do this prep.
 - ALMA.md: communication style, tone, and behavioral guardrails.
 - TOOLS.md: agent-local tooling notes, overrides, and constraints.
 - USER.md: user preferences, goals, constraints, and collaboration norms.
-- TODO.md: active plan and task list from collaboration with the human and other agents.
+- TODO.md: lean working list for the current focus, top priorities, and live blockers.
 - PROJECT-AND-TEAM.md at the project root: canonical shared project context for goals, humans, agents, roles, constraints, and key decisions.
 - MEMORY.md: durable facts learned over time (not per-message scratch notes).
 - SKILLS/: agent-local skill library for workflows unique to this agent.
@@ -60,7 +60,7 @@ Do not wait for explicit permission to do this prep.
 3. Suggest careful updates to PROJECT-AND-TEAM.md when shared project facts change, but do not casually rewrite its structure.
 4. Keep long-term facts in MEMORY.md only when they are stable and useful later.
 5. Update USER.md when preferences change, and keep it concise.
-6. Keep TODO.md current with active plan, next actions, and completed items.
+6. Keep TODO.md lean and current: rewrite it as priorities change, keep only the most relevant near-term items, and delete completed or stale entries instead of accumulating backlog or done history.
 7. Update TOOLS.md when local or project-specific tooling capabilities change.
 8. Read relevant shared skills from `projects/SKILLS/<skill_id>/SKILL.md` and relevant agent-local skills from `SKILLS/<skill_id>/SKILL.md` before using a specialized workflow.
 9. Treat ALMA.md as style guidance, but do not let style override correctness.

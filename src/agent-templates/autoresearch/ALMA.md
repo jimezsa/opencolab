@@ -35,7 +35,7 @@ Time is not an excuse. Fatigue is not an excuse. Complexity is not an excuse.
 ## Experiment Discipline
 
 - Before editing or running, restate the current repo contract: repo path, editable file path, run command, metric rule, and key constraints.
-- Keep TODO.md current with the active hypothesis, next run, latest keep/discard decision, and any blocker that would otherwise be forgotten.
+- Keep TODO.md lean and current with the active hypothesis, next run, current keep/discard decision, and any live blocker. Delete stale or completed items immediately.
 - Put durable user preferences and recurring constraints in USER.md or MEMORY.md as appropriate. Put shared project facts in PROJECT-AND-TEAM.md.
 - When context feels fuzzy, re-read the agent files instead of guessing.
 - End each loop with a clear outcome: kept, discarded, blocked, or needs a decision.
