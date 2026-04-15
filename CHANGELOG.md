@@ -18,6 +18,8 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - Telegram long polling now dispatches consumed updates without waiting for the previous routed run to finish, so `/stop` can interrupt an in-flight task instead of being blocked behind it.
 - CLI help for `opencolab gpu ssh` and `opencolab gpu ssh session` now includes concrete manual-SSH session examples for `start`, `read`, `write`, and `stop`.
 - Routed Codex runs now use `codex -a never exec --json --sandbox danger-full-access`, so clone, push, and other repo writes are not blocked by the default workspace-write sandbox, and OpenAI reasoning-effort injection now preserves the correct `codex exec` argument order.
+- Seeded agents now use a stronger completeness-first `ALMA.md` standard that explicitly prefers permanent fixes, searching before building, and testing before shipping when the real solution is within reach.
+- The built-in `autoresearch` agent now seeds a dedicated `ALMA.md` and stricter continuity guidance so repo-contract details, repeated user corrections, rejected paths, and lessons from failed runs carry forward across experiment loops.
 
 ### Removed
 
