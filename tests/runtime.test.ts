@@ -1537,6 +1537,240 @@ test("completed routed runs can arm heartbeat and fire an internal continue turn
   }
 });
 
+test("heartbeat stays quiet in Telegram by default when notify is omitted", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-quiet-default-"));
+  const sentTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }) =>
+      text === "continue"
+        ? "Finished the follow-up work and updated TODO.md."
+        : "Initial foreground reply."
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 15m\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    sentTexts.length = 0;
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+
+    assert.deepEqual(sentTexts, []);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("heartbeat digest sends a compact completion summary when enabled", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-digest-success-"));
+  const sentTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }) =>
+      text === "continue"
+        ? "Finished the comparison notes and updated TODO.md.\n\nExtra detail that should stay out of the digest."
+        : "Initial foreground reply."
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 15m\nnotify: digest\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    sentTexts.length = 0;
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+
+    assert.deepEqual(sentTexts, [
+      "professor\n\nHeartbeat follow-up completed.\nFinished the comparison notes and updated TODO.md."
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("heartbeat digest sends a timeout summary when enabled", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-digest-timeout-"));
+  const sentTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }) => {
+      if (text === "continue") {
+        throw new Error("openai CLI timed out");
+      }
+      return "Initial foreground reply.";
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 15m\nnotify: digest\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    sentTexts.length = 0;
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+
+    assert.equal(sentTexts.length, 1);
+    assert.equal(sentTexts[0].includes("professor\n\nHeartbeat follow-up timed out."), true);
+    assert.equal(sentTexts[0].includes("openai CLI timed out"), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("heartbeat digest sends a blocker summary when the heartbeat run needs input", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-digest-blocker-"));
+  const sentTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }, options) => {
+      if (text === "continue") {
+        await options?.onProgress?.({
+          kind: "needs_input",
+          stage: "clarify",
+          slot: "clarify",
+          message: "Confirm whether I should use the backup dataset."
+        });
+        return "Please confirm whether I should use the backup dataset.";
+      }
+      return "Initial foreground reply.";
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 15m\nnotify: digest\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    sentTexts.length = 0;
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+
+    assert.deepEqual(sentTexts, [
+      "professor\n\nHeartbeat follow-up needs input.\nConfirm whether I should use the backup dataset."
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("heartbeat digest skips Telegram delivery when the paired chat is no longer valid", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-digest-missing-target-"));
+  const sentTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }) =>
+      text === "continue"
+        ? "Finished the follow-up work and updated TODO.md."
+        : "Initial foreground reply."
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 15m\nnotify: digest\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    sentTexts.length = 0;
+    runtime.setupTelegram({
+      chatId: "10002"
+    });
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+
+    assert.deepEqual(sentTexts, []);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("paired webhook keeps typing without creating a generic live status before real progress exists", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-typing-only-"));
   const sentTexts: string[] = [];

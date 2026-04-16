@@ -474,6 +474,7 @@ Telegram slash-menu commands:
 - Agent directories live under `projects/<project_id>/AGENTS/<agent_id>/`
 - Required agent files: `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `HEARTBEAT.md`, plus agent-local `SKILLS/`
 - `HEARTBEAT.md` is seeded empty for every agent and stays off by default; heartbeat activates only when the user adds a valid `after:` duration such as `after: 30m`
+- `HEARTBEAT.md` may also include `notify: digest` to send one compact follow-up to the paired Telegram chat after a meaningful heartbeat completion, timeout, failure, or clear blocker; if `notify:` is omitted, heartbeat stays silent in Telegram
 - On first contact, agents must read `BOOTSTRAP.md` before `ALMA.md` whenever `BOOTSTRAP.md` still exists
 - The shared `ALMA.md` template sets a completeness-first bar: search before building, test before shipping, prefer permanent fixes over nearby workarounds, and finish the whole task when the real solution is within reach
 - `TODO.md` is a lean, actively maintained working list for current focus, top priorities, and live blockers only; agents should rewrite it as priorities change and delete completed or stale items instead of keeping backlog or done-history there

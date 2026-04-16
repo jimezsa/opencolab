@@ -154,6 +154,7 @@ Initialization requirements:
 - when an agent directory is created, `MEMORY.md` must be seeded from an internal runtime template
 - when an agent directory is created, `HEARTBEAT.md` must be seeded as an empty file
 - seeded `HEARTBEAT.md` must keep heartbeat disabled by default until the user explicitly adds a valid `after: <duration>` line
+- `HEARTBEAT.md` may also include an optional `notify: digest` line to enable one compact paired-chat Telegram follow-up after a background heartbeat turn finishes
 - the default `professor` agent must seed from the built-in `src/agent-templates/professor/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
 - the built-in `beginner` agent id must seed from the built-in `src/agent-templates/beginner/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
 - the built-in `autoresearch` agent id must seed from the built-in `src/agent-templates/autoresearch/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
@@ -975,12 +976,16 @@ Requirements:
 
 - every agent directory must include a seeded empty `HEARTBEAT.md`
 - heartbeat must stay disabled until the user explicitly edits `HEARTBEAT.md` and adds a valid `after: <duration>` line
+- heartbeat may optionally honor `notify: digest` in `HEARTBEAT.md`; if omitted, heartbeat remains fully silent in Telegram
 - after an active-agent run completes, is stopped by `/stop`, or times out, the runtime may arm one pending wake-up for that same agent
 - the pending wake-up must be stored in the owning project state in `opencolab.json`
 - if the active agent changes before the wake-up fires, the pending wake-up must be cleared
 - if the same agent starts another turn before the wake-up fires, the pending wake-up must be cleared
 - when the wake-up is due and that same agent is idle, the background gateway process must run one internal turn with the prompt `continue`
 - heartbeat must stay quiet by default and must not emit routine Telegram chatter just because a wake-up was scheduled or fired
+- `notify: digest` must send at most one compact final text message after the heartbeat turn finishes; it must not create live status or progress streaming for the background run
+- `notify: digest` must always notify on heartbeat `failed` and `timed_out` outcomes, should notify on clear human-input blockers, and should notify on `completed` only when the final assistant output is meaningful and non-trivial
+- heartbeat digest delivery in the first implementation must target the exact paired Telegram chat only; private chats, groups, and supergroups are allowed, but the runtime must not guess a different chat or a topic/thread destination
 
 ## 14. Acceptance Criteria
 
@@ -996,6 +1001,7 @@ v1 is complete when all are true:
 - The optional built-in `autoresearch` agent is created under `projects/<project_id>/AGENTS/autoresearch/` when used.
 - Additional agents are created under `projects/<project_id>/AGENTS/<agent_id>/`.
 - New agents seed an empty `HEARTBEAT.md`, and heartbeat stays disabled until the user adds a valid `after:` value.
+- Optional `notify: digest` can send one compact paired-chat Telegram follow-up after a meaningful heartbeat completion, timeout, failure, or clear blocker.
 - The default `professor` agent seeds from the built-in professor template assets, sourced from `src/agent-templates/professor/` in the repository and shipped in packaged installs; the built-in `beginner` and `autoresearch` agent ids and additional agents follow the same built-in template rules with fallback to shared template assets.
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
 - Long-running routed tasks can emit bounded intermediate Telegram updates before the final answer.

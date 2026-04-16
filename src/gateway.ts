@@ -526,6 +526,25 @@ export class TelegramGateway {
     );
   }
 
+  async sendHeartbeatDigest(text: string): Promise<boolean> {
+    const message = normalizeProgressMessage(text);
+    if (!message) {
+      return false;
+    }
+
+    const state = ensureProjectAndAgent(this.deps.getState());
+    if (!state.telegram.chatId || !state.telegram.paired) {
+      return false;
+    }
+
+    return safeSendTelegramMessage(
+      this.sender,
+      state.telegram.chatId,
+      message,
+      state,
+    );
+  }
+
   private async handleQueuedWebhook(
     inbound: TelegramInbound,
     laneKey: string,
@@ -1197,7 +1216,7 @@ async function safeAnswerTelegramCallback(
   }
 }
 
-function buildAgentFailureMessage(
+export function buildAgentFailureMessage(
   error: unknown,
   lastProgressMessage?: string | null,
 ): string {

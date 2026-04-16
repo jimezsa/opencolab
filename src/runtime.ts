@@ -44,6 +44,7 @@ import {
 } from "./gpu-providers/runpod/index.js";
 import { ManualSshService } from "./manual-ssh.js";
 import {
+  buildAgentFailureMessage,
   buildAssistantRecoveryLog,
   type TelegramCallbackAnswerer,
   type TelegramDraftSender,
@@ -76,9 +77,34 @@ import type {
   ProjectState,
   ProviderAuthMode,
   ProviderName,
-  ProviderReasoningEffort
+  ProviderReasoningEffort,
+  TaskProgressKind
 } from "./types.js";
 import { ensureDir, nowIso } from "./utils.js";
+
+type HeartbeatNotifyMode = "quiet" | "digest";
+
+interface HeartbeatSettings {
+  delayMs: number | null;
+  notifyMode: HeartbeatNotifyMode;
+}
+
+interface HeartbeatProgressState {
+  lastMeaningfulMessage: string | null;
+  needsInputMessage: string | null;
+}
+
+type HeartbeatDigestResult =
+  | {
+      outcome: "completed";
+      response: string;
+      progressState: HeartbeatProgressState;
+    }
+  | {
+      outcome: "failed" | "timed_out";
+      error: unknown;
+      progressState: HeartbeatProgressState;
+    };
 
 export interface RuntimeOptions {
   telegramSender?: TelegramSender;
@@ -925,8 +951,10 @@ export class OpenColabRuntime {
     this.heartbeatInFlight.add(key);
     this.clearPendingHeartbeat(projectId);
     ensureAgentFiles(this.config.rootDir, agent);
+    const heartbeatSettings = this.readHeartbeatSettings(agent);
 
     const memory = this.conversations.readPromptMemory(agent.path, 8);
+    const progressState = createHeartbeatProgressState();
     this.conversations.append(agent.path, {
       role: "user",
       content: "continue",
@@ -943,6 +971,11 @@ export class OpenColabRuntime {
           text: "continue",
           files: [],
           memory
+        },
+        {
+          onProgress: async (event) => {
+            recordHeartbeatProgress(progressState, event.message, event.kind);
+          }
         }
       );
       this.conversations.append(agent.path, {
@@ -951,6 +984,11 @@ export class OpenColabRuntime {
         at: nowIso()
       });
       this.recordHeartbeatOutcome(projectId, agentId, "completed");
+      await this.maybeSendHeartbeatDigest(agent, heartbeatSettings.notifyMode, {
+        outcome: "completed",
+        response,
+        progressState
+      });
     } catch (error) {
       this.conversations.append(agent.path, {
         role: "assistant",
@@ -961,7 +999,13 @@ export class OpenColabRuntime {
         ),
         at: nowIso()
       });
-      this.recordHeartbeatOutcome(projectId, agentId, isProviderTimeoutError(error) ? "timed_out" : "failed");
+      const outcome = isProviderTimeoutError(error) ? "timed_out" : "failed";
+      this.recordHeartbeatOutcome(projectId, agentId, outcome);
+      await this.maybeSendHeartbeatDigest(agent, heartbeatSettings.notifyMode, {
+        outcome,
+        error,
+        progressState
+      });
     } finally {
       this.heartbeatInFlight.delete(key);
     }
@@ -980,15 +1024,29 @@ export class OpenColabRuntime {
   }
 
   private readHeartbeatDelayMs(agent: AgentConfig): number | null {
+    return this.readHeartbeatSettings(agent).delayMs;
+  }
+
+  private readHeartbeatSettings(agent: AgentConfig): HeartbeatSettings {
     const heartbeatPath = `${resolveAgentDirectory(this.config.rootDir, agent.path)}/HEARTBEAT.md`;
     if (!fs.existsSync(heartbeatPath)) {
-      return null;
+      return {
+        delayMs: null,
+        notifyMode: "quiet"
+      };
     }
 
+    let delayMs: number | null = null;
+    let notifyMode: HeartbeatNotifyMode = "quiet";
     const lines = fs.readFileSync(heartbeatPath, "utf8").split(/\r?\n/);
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (!line || line.startsWith("#")) {
+        continue;
+      }
+      const notifyMatch = /^notify:\s*(quiet|digest)\s*$/i.exec(line);
+      if (notifyMatch) {
+        notifyMode = notifyMatch[1].toLowerCase() === "digest" ? "digest" : "quiet";
         continue;
       }
       const match = /^after:\s*(\d+)\s*([mh])$/i.exec(line);
@@ -998,12 +1056,35 @@ export class OpenColabRuntime {
 
       const value = Number(match[1]);
       if (!Number.isInteger(value) || value <= 0) {
-        return null;
+        return {
+          delayMs: null,
+          notifyMode
+        };
       }
-      return match[2].toLowerCase() === "h" ? value * 60 * 60_000 : value * 60_000;
+      delayMs = match[2].toLowerCase() === "h" ? value * 60 * 60_000 : value * 60_000;
     }
 
-    return null;
+    return {
+      delayMs,
+      notifyMode
+    };
+  }
+
+  private async maybeSendHeartbeatDigest(
+    agent: AgentConfig,
+    notifyMode: HeartbeatNotifyMode,
+    result: HeartbeatDigestResult
+  ): Promise<void> {
+    if (notifyMode !== "digest") {
+      return;
+    }
+
+    const digest = buildHeartbeatDigest(agent.id, result);
+    if (!digest) {
+      return;
+    }
+
+    await this.gateway.sendHeartbeatDigest(digest);
   }
 
   private clearPendingHeartbeatForTurnStart(projectId: string, agentId: string): void {
@@ -1222,6 +1303,117 @@ function normalizeOrderedValues(
   }
 
   return [...ordered];
+}
+
+function createHeartbeatProgressState(): HeartbeatProgressState {
+  return {
+    lastMeaningfulMessage: null,
+    needsInputMessage: null
+  };
+}
+
+function recordHeartbeatProgress(
+  state: HeartbeatProgressState,
+  message: string,
+  kind: TaskProgressKind
+): void {
+  const normalized = normalizeHeartbeatSummary(message, 400);
+  if (!normalized) {
+    return;
+  }
+
+  if (kind !== "progress") {
+    state.lastMeaningfulMessage = normalized;
+  }
+  if (kind === "needs_input") {
+    state.needsInputMessage = normalized;
+  }
+}
+
+function buildHeartbeatDigest(agentId: string, result: HeartbeatDigestResult): string | null {
+  if (result.outcome === "completed") {
+    const summary = summarizeHeartbeatResponse(result.response);
+    const needsInputSummary =
+      result.progressState.needsInputMessage ??
+      (looksLikeHeartbeatNeedsInput(summary) ? summary : null);
+    if (needsInputSummary) {
+      return formatHeartbeatDigest(agentId, "Heartbeat follow-up needs input.", needsInputSummary);
+    }
+    if (!isMeaningfulHeartbeatSummary(summary)) {
+      return null;
+    }
+    return formatHeartbeatDigest(agentId, "Heartbeat follow-up completed.", summary);
+  }
+
+  const detail = normalizeHeartbeatSummary(
+    buildAgentFailureMessage(result.error, result.progressState.lastMeaningfulMessage),
+    700
+  );
+  if (!detail) {
+    return null;
+  }
+
+  return formatHeartbeatDigest(
+    agentId,
+    result.outcome === "timed_out"
+      ? "Heartbeat follow-up timed out."
+      : "Heartbeat follow-up failed.",
+    detail
+  );
+}
+
+function formatHeartbeatDigest(agentId: string, heading: string, detail: string): string {
+  return `${agentId}\n\n${heading}\n${detail}`;
+}
+
+function summarizeHeartbeatResponse(response: string): string {
+  const withoutDirectives = String(response ?? "")
+    .replace(/^\s*@telegram-file\s+\{.*\}\s*$/gmu, "")
+    .trim();
+  if (!withoutDirectives) {
+    return "";
+  }
+
+  const firstParagraph =
+    withoutDirectives
+      .split(/\n\s*\n/u)
+      .map((part) => part.trim())
+      .find((part) => part.length > 0) ?? withoutDirectives;
+  return normalizeHeartbeatSummary(firstParagraph, 500);
+}
+
+function normalizeHeartbeatSummary(value: string, limit: number): string {
+  const normalized = String(value ?? "").replace(/\s+/gu, " ").trim();
+  if (!normalized || normalized.length <= limit) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(limit - 3, 0))}...`;
+}
+
+function isMeaningfulHeartbeatSummary(summary: string): boolean {
+  if (!summary) {
+    return false;
+  }
+  if (/^\(empty response from .+ cli\)$/iu.test(summary)) {
+    return false;
+  }
+  if (/^continue[.!?]*$/iu.test(summary)) {
+    return false;
+  }
+  return true;
+}
+
+function looksLikeHeartbeatNeedsInput(summary: string): boolean {
+  if (!summary) {
+    return false;
+  }
+  return (
+    /\bneed(?:s)? input\b/iu.test(summary) ||
+    /\bplease confirm\b/iu.test(summary) ||
+    /\bconfirm whether\b/iu.test(summary) ||
+    /\bwhich should\b/iu.test(summary) ||
+    /^should i\b/iu.test(summary)
+  );
 }
 
 function manualSshProfilesEqual(left: ManualSshProfile, right: ManualSshProfile): boolean {
