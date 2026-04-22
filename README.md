@@ -115,13 +115,7 @@ Windows PowerShell:
 powershell -c "irm https://opencolab.ai/install.ps1 | iex"
 ```
 
-The macOS/Linux installer keeps runtime state under `~/.opencolab` by default and installs the package into a user-owned npm prefix.
-The Windows installer uses `%LOCALAPPDATA%\OpenColab\root` for runtime state, `%LOCALAPPDATA%\OpenColab\package` for the npm prefix, and `%LOCALAPPDATA%\OpenColab\bin\opencolab.cmd` as the user shim.
-One-link installs persist managed-install metadata under the runtime root, pin `OPENCOLAB_ROOT` through the installed shim, and keep `opencolab.json` plus `.env.local` directly under that runtime root while internal runtime/service state lives under `<runtime_root>/.opencolab/`.
-`install.sh` now fails fast on Windows and points users to `install.ps1`.
-Run `opencolab --version` to print the installed CLI version, or just run `opencolab` to see the version in the top help banner immediately.
-
-If the npm package is not published yet for the version you want, the one-link installers also support a hacky git-clone mode.
+### Hacky install mode.
 
 macOS / Linux clone mode:
 
