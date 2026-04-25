@@ -82,7 +82,7 @@ test("OpenAI setup defaults support OAuth and API key auth modes", () => {
     "high",
     "xhigh"
   ]);
-  assert.equal(getProviderDefaultReasoningEffort("openai", "gpt-5.4"), "medium");
+  assert.equal(getProviderDefaultReasoningEffort("openai", "gpt-5.4"), "high");
   assert.equal(normalizeProviderAuthMode("api-key"), "api_key");
   assert.equal(normalizeProviderAuthMode("oauth"), "oauth");
 });
@@ -114,9 +114,10 @@ test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
     "low",
     "medium",
     "high",
+    "xhigh",
     "max"
   ]);
-  assert.equal(getProviderDefaultReasoningEffort("anthropic", "claude-opus-4-6"), "medium");
+  assert.equal(getProviderDefaultReasoningEffort("anthropic", "claude-opus-4-6"), "high");
   assert.equal(
     getProviderOauthSetupHint("anthropic", "claude"),
     "Run 'claude auth login' if needed."
@@ -238,9 +239,10 @@ test("Kimi setup defaults use the pi runtime and kimi-coding provider id", () =>
 test("provider reasoning helpers validate only supported native values", () => {
   assert.equal(normalizeProviderReasoningEffort("openai", "gpt-5.4", "high"), "high");
   assert.equal(normalizeProviderReasoningEffort("openai", "gpt-5.4", "max"), null);
+  assert.equal(normalizeProviderReasoningEffort("anthropic", "claude-opus-4-6", "xhigh"), "xhigh");
   assert.equal(normalizeProviderReasoningEffort("anthropic", "claude-opus-4-6", "max"), "max");
   assert.equal(normalizeProviderReasoningEffort("gemini", "gemini-2.5-pro", "high"), null);
-  assert.equal(resolveProviderReasoningEffort("openai", "gpt-5.4", undefined, undefined), "medium");
+  assert.equal(resolveProviderReasoningEffort("openai", "gpt-5.4", undefined, undefined), "high");
   assert.equal(resolveProviderReasoningEffort("anthropic", "claude-opus-4-6", "high"), "high");
   assert.equal(resolveProviderReasoningEffort("gemini", "gemini-2.5-pro", "high"), undefined);
 });

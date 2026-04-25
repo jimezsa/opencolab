@@ -197,8 +197,8 @@ OpenColab configures provider CLIs for non-interactive runs inside the active pr
 - `openrouter`: `api_key` with `OPENROUTER_API_KEY` through the `pi` runtime
 - `kimi`: `api_key` with `KIMI_API_KEY` through the `pi` runtime, mapped to the upstream `kimi-coding` provider id
 - `ignite` and `opencolab setup model` expose native reasoning-effort choices when the selected provider/model supports them
-- OpenAI `gpt-5.4`: `low`, `medium`, `high`, `xhigh`
-- Anthropic Claude on the Claude runtime: `low`, `medium`, `high`, `max`
+- OpenAI `gpt-5.4`: `low`, `medium`, `high`, `xhigh`; default `high`
+- Anthropic Claude on the Claude runtime: `low`, `medium`, `high`, `xhigh`, `max`; default `high`
 - Gemini-based shared tools still require `GEMINI_API_KEY` even when the active agent runtime uses another provider or Gemini OAuth
 - `pageindex-grounded` uses `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini OAuth
 - `opencolab ignite` prints direct setup links before asking for provider and Runpod API key values, and a BotFather instruction before asking for `TELEGRAM_BOT_TOKEN`

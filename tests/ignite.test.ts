@@ -196,7 +196,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.model, "gpt-5.4");
     assert.equal(agent.provider.authMode, "api_key");
-    assert.equal(agent.provider.reasoningEffort, "medium");
+    assert.equal(agent.provider.reasoningEffort, "high");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(state.telegram.chatId, null);
     assert.equal(agent.id, "professor");
@@ -243,7 +243,7 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.model, "gpt-5.4");
     assert.equal(agent.provider.authMode, "api_key");
-    assert.equal(agent.provider.reasoningEffort, "medium");
+    assert.equal(agent.provider.reasoningEffort, "high");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
   } finally {
@@ -397,7 +397,7 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.authMode, "oauth");
-    assert.equal(agent.provider.reasoningEffort, "medium");
+    assert.equal(agent.provider.reasoningEffort, "high");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
     assert.equal(process.env.OPENAI_API_KEY, undefined);

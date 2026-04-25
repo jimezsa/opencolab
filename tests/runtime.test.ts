@@ -969,7 +969,7 @@ test("setupModel auto-sets provider CLI defaults for the active agent", () => {
     assert.equal(agent.provider.name, "anthropic");
     assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "api_key");
-    assert.equal(agent.provider.reasoningEffort, "medium");
+    assert.equal(agent.provider.reasoningEffort, "high");
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
@@ -1008,7 +1008,7 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.runtime, "codex");
     assert.equal(agent.provider.authMode, "oauth");
-    assert.equal(agent.provider.reasoningEffort, "medium");
+    assert.equal(agent.provider.reasoningEffort, "high");
     assert.equal(agent.provider.cliCommand, "codex");
     assert.deepEqual(agent.provider.cliArgs, [
       "-a",
@@ -1046,7 +1046,7 @@ test("setupModel stores Anthropic oauth auth mode on the agent", () => {
     assert.equal(agent.provider.name, "anthropic");
     assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.authMode, "oauth");
-    assert.equal(agent.provider.reasoningEffort, "medium");
+    assert.equal(agent.provider.reasoningEffort, "high");
     assert.equal(agent.provider.cliCommand, "claude");
     assert.deepEqual(agent.provider.cliArgs, [
       "-p",
@@ -1164,7 +1164,7 @@ test("runtime persistence excludes secret references from opencolab.json", () =>
     assert.equal(Object.hasOwn(provider, "apiKeyEnvVar"), false);
     assert.equal(provider.authMode, "api_key");
     assert.equal(provider.runtime, "codex");
-    assert.equal(provider.reasoningEffort, "medium");
+    assert.equal(provider.reasoningEffort, "high");
     assert.equal(Object.hasOwn(raw.telegram, "botTokenEnvVar"), false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -1192,7 +1192,7 @@ test("agents in one project can use different providers", () => {
     assert.equal(project.agents.professor.provider.name, "anthropic");
     assert.equal(project.agents.professor.provider.runtime, "claude");
     assert.equal(project.agents.professor.provider.authMode, "api_key");
-    assert.equal(project.agents.professor.provider.reasoningEffort, "medium");
+    assert.equal(project.agents.professor.provider.reasoningEffort, "high");
     assert.equal(project.agents.scout.provider.name, "minimax");
     assert.equal(project.agents.scout.provider.runtime, "claude");
     assert.equal(project.agents.scout.provider.authMode, "api_key");

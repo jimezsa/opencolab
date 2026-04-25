@@ -305,8 +305,8 @@ Responsibilities:
 - `ignite` should offer curated concrete model options per provider ordered from smarter to less smart; Gemini options must include `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`; MiniMax options must include `MiniMax-M2.5` and `MiniMax-M2.7`
 - OpenAI, Anthropic, and Gemini provider auth modes must support `api_key` and `oauth`
 - `opencolab setup model` must accept a native `--reasoning-effort <value>` flag for provider/model pairs that support configurable reasoning
-- OpenAI `gpt-5.4` must support native reasoning effort values `low`, `medium`, `high`, and `xhigh`
-- Anthropic Claude models on the Claude runtime must support native reasoning effort values `low`, `medium`, `high`, and `max`
+- OpenAI `gpt-5.4` must support native reasoning effort values `low`, `medium`, `high`, and `xhigh`, defaulting to `high`
+- Anthropic Claude models on the Claude runtime must support native reasoning effort values `low`, `medium`, `high`, `xhigh`, and `max`, defaulting to `high`
 - in `api_key` mode, provider API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, or `XAI_API_KEY`)
 - when `ignite` asks for a provider or Runpod API key value, it should print a direct setup URL for that key first
 - when `ignite` asks for `TELEGRAM_BOT_TOKEN`, it should print a BotFather instruction first
