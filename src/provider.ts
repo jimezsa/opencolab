@@ -7,7 +7,7 @@ import type {
   ProviderConfig,
   ProviderName,
   ProviderReasoningEffort,
-  ProviderRuntime
+  ProviderRuntime,
 } from "./types.js";
 
 interface ProviderCliDefaults {
@@ -32,7 +32,7 @@ interface ProviderDefinition extends ProviderSetupDefaults {
   buildRuntimeEnv: (
     apiKey: string | null,
     model: string,
-    authMode: ProviderAuthMode
+    authMode: ProviderAuthMode,
   ) => Record<string, string>;
 }
 
@@ -55,10 +55,15 @@ const CLAUDE_WORKSPACE_ARGS = [
   "--add-dir",
   "{shared_skills_dir}",
   "--",
-  "{prompt}"
+  "{prompt}",
 ] as const;
 
-const CLAUDE_LEGACY_SIMPLE_ARGS = ["-p", "{prompt}", "--model", "{model}"] as const;
+const CLAUDE_LEGACY_SIMPLE_ARGS = [
+  "-p",
+  "{prompt}",
+  "--model",
+  "{model}",
+] as const;
 const CLAUDE_LEGACY_WORKSPACE_ARGS = [
   "-p",
   "{prompt}",
@@ -69,7 +74,7 @@ const CLAUDE_LEGACY_WORKSPACE_ARGS = [
   "--add-dir",
   "{project_dir}",
   "--add-dir",
-  "{shared_skills_dir}"
+  "{shared_skills_dir}",
 ] as const;
 const CLAUDE_LEGACY_STREAM_JSON_ARGS = [
   "-p",
@@ -83,7 +88,7 @@ const CLAUDE_LEGACY_STREAM_JSON_ARGS = [
   "--add-dir",
   "{project_dir}",
   "--add-dir",
-  "{shared_skills_dir}"
+  "{shared_skills_dir}",
 ] as const;
 
 const CODEX_WORKSPACE_ARGS = [
@@ -99,7 +104,7 @@ const CODEX_WORKSPACE_ARGS = [
   "{project_dir}",
   "--add-dir",
   "{shared_skills_dir}",
-  "-"
+  "-",
 ] as const;
 
 const GEMINI_WORKSPACE_ARGS = [
@@ -109,7 +114,7 @@ const GEMINI_WORKSPACE_ARGS = [
   "stream-json",
   "--model",
   "{model}",
-  "--yolo"
+  "--yolo",
 ] as const;
 
 const PI_WORKSPACE_ARGS = [
@@ -129,7 +134,7 @@ const PI_WORKSPACE_ARGS = [
   "--no-themes",
   "--tools",
   "read,bash,edit,write,grep,find,ls",
-  "{user_message}"
+  "{user_message}",
 ] as const;
 
 const CLAUDE_RUNTIME_RESET_ENV_VARS = [
@@ -142,7 +147,7 @@ const CLAUDE_RUNTIME_RESET_ENV_VARS = [
   "ANTHROPIC_DEFAULT_OPUS_MODEL",
   "ANTHROPIC_DEFAULT_HAIKU_MODEL",
   "API_TIMEOUT_MS",
-  "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"
+  "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
 ] as const;
 
 const OPENAI_RUNTIME_RESET_ENV_VARS = ["OPENAI_API_KEY"] as const;
@@ -152,7 +157,7 @@ const GEMINI_RUNTIME_RESET_ENV_VARS = [
   "GOOGLE_GENAI_USE_VERTEXAI",
   "GOOGLE_CLOUD_PROJECT",
   "GOOGLE_CLOUD_LOCATION",
-  "GOOGLE_APPLICATION_CREDENTIALS"
+  "GOOGLE_APPLICATION_CREDENTIALS",
 ] as const;
 const XAI_RUNTIME_RESET_ENV_VARS = ["XAI_API_KEY"] as const;
 const OPENROUTER_RUNTIME_RESET_ENV_VARS = ["OPENROUTER_API_KEY"] as const;
@@ -161,12 +166,12 @@ const KIMI_RUNTIME_RESET_ENV_VARS = ["KIMI_API_KEY"] as const;
 function buildMigratableCliDefaults(
   model: string,
   cliCommand: string,
-  argSets: ReadonlyArray<ReadonlyArray<string>>
+  argSets: ReadonlyArray<ReadonlyArray<string>>,
 ): ProviderCliDefaults[] {
   return argSets.map((cliArgs) => ({
     model,
     cliCommand,
-    cliArgs: [...cliArgs]
+    cliArgs: [...cliArgs],
   }));
 }
 
@@ -176,19 +181,19 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
   openai: {
     "gpt-5.4": {
       options: ["low", "medium", "high", "xhigh"],
-      defaultEffort: "medium"
-    }
+      defaultEffort: "high",
+    },
   },
   anthropic: {
     "claude-opus-4-6": {
-      options: ["low", "medium", "high", "max"],
-      defaultEffort: "medium"
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
     },
     "claude-sonnet-4-5": {
-      options: ["low", "medium", "high", "max"],
-      defaultEffort: "medium"
-    }
-  }
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
+  },
 };
 
 const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
@@ -205,20 +210,24 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     legacyCliDefaults: {
       model: "claude-opus-4-6",
       cliCommand: "claude",
-      cliArgs: [...CLAUDE_LEGACY_SIMPLE_ARGS]
+      cliArgs: [...CLAUDE_LEGACY_SIMPLE_ARGS],
     },
-    migratableCliDefaults: buildMigratableCliDefaults("claude-opus-4-6", "claude", [
-      CLAUDE_LEGACY_SIMPLE_ARGS,
-      CLAUDE_LEGACY_WORKSPACE_ARGS,
-      CLAUDE_LEGACY_STREAM_JSON_ARGS
-    ]),
+    migratableCliDefaults: buildMigratableCliDefaults(
+      "claude-opus-4-6",
+      "claude",
+      [
+        CLAUDE_LEGACY_SIMPLE_ARGS,
+        CLAUDE_LEGACY_WORKSPACE_ARGS,
+        CLAUDE_LEGACY_STREAM_JSON_ARGS,
+      ],
+    ),
     buildRuntimeEnv: (apiKey, _model, authMode) => {
       const env: Record<string, string> = {};
       if (authMode !== "oauth") {
         env.ANTHROPIC_API_KEY = requireApiKey(apiKey, "ANTHROPIC_API_KEY");
       }
       return env;
-    }
+    },
   },
   gemini: {
     runtime: "gemini",
@@ -235,7 +244,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
         env.GEMINI_API_KEY = requireApiKey(apiKey, "GEMINI_API_KEY");
       }
       return env;
-    }
+    },
   },
   minimax: {
     runtime: "claude",
@@ -246,11 +255,15 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     apiKeyEnvVar: "MINIMAX_API_KEY",
     supportedAuthModes: ["api_key"],
     resetEnvVars: [...CLAUDE_RUNTIME_RESET_ENV_VARS],
-    migratableCliDefaults: buildMigratableCliDefaults("MiniMax-M2.5", "claude", [
-      CLAUDE_LEGACY_SIMPLE_ARGS,
-      CLAUDE_LEGACY_WORKSPACE_ARGS,
-      CLAUDE_LEGACY_STREAM_JSON_ARGS
-    ]),
+    migratableCliDefaults: buildMigratableCliDefaults(
+      "MiniMax-M2.5",
+      "claude",
+      [
+        CLAUDE_LEGACY_SIMPLE_ARGS,
+        CLAUDE_LEGACY_WORKSPACE_ARGS,
+        CLAUDE_LEGACY_STREAM_JSON_ARGS,
+      ],
+    ),
     buildRuntimeEnv: (apiKey, model) => ({
       ANTHROPIC_AUTH_TOKEN: requireApiKey(apiKey, "MINIMAX_API_KEY"),
       ANTHROPIC_BASE_URL: "https://api.minimax.io/anthropic",
@@ -260,8 +273,8 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
       ANTHROPIC_DEFAULT_OPUS_MODEL: model,
       ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
       API_TIMEOUT_MS: "3000000",
-      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
-    })
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+    }),
   },
   openai: {
     runtime: "codex",
@@ -279,7 +292,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
         env.OPENAI_API_KEY = requireApiKey(apiKey, "OPENAI_API_KEY");
       }
       return env;
-    }
+    },
   },
   xai: {
     runtime: "pi",
@@ -291,8 +304,8 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     supportedAuthModes: ["api_key"],
     resetEnvVars: [...XAI_RUNTIME_RESET_ENV_VARS],
     buildRuntimeEnv: (apiKey) => ({
-      XAI_API_KEY: requireApiKey(apiKey, "XAI_API_KEY")
-    })
+      XAI_API_KEY: requireApiKey(apiKey, "XAI_API_KEY"),
+    }),
   },
   openrouter: {
     runtime: "pi",
@@ -304,8 +317,8 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     supportedAuthModes: ["api_key"],
     resetEnvVars: [...OPENROUTER_RUNTIME_RESET_ENV_VARS],
     buildRuntimeEnv: (apiKey) => ({
-      OPENROUTER_API_KEY: requireApiKey(apiKey, "OPENROUTER_API_KEY")
-    })
+      OPENROUTER_API_KEY: requireApiKey(apiKey, "OPENROUTER_API_KEY"),
+    }),
   },
   kimi: {
     runtime: "pi",
@@ -319,9 +332,9 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     runtimeProvider: "kimi-coding",
     resetEnvVars: [...KIMI_RUNTIME_RESET_ENV_VARS],
     buildRuntimeEnv: (apiKey) => ({
-      KIMI_API_KEY: requireApiKey(apiKey, "KIMI_API_KEY")
-    })
-  }
+      KIMI_API_KEY: requireApiKey(apiKey, "KIMI_API_KEY"),
+    }),
+  },
 };
 
 export function getSupportedProviderNames(): ProviderName[] {
@@ -332,7 +345,10 @@ export function normalizeProviderName(value: string): ProviderName | null {
   const normalized = value.trim().toLowerCase();
   for (const providerName of getSupportedProviderNames()) {
     const definition = PROVIDER_DEFINITIONS[providerName];
-    if (normalized === providerName || definition.aliases?.includes(normalized)) {
+    if (
+      normalized === providerName ||
+      definition.aliases?.includes(normalized)
+    ) {
       return providerName;
     }
   }
@@ -344,32 +360,40 @@ export function isProviderName(value: string): value is ProviderName {
   return Object.hasOwn(PROVIDER_DEFINITIONS, value);
 }
 
-export function getProviderSetupDefaults(providerName: ProviderName): ProviderSetupDefaults {
+export function getProviderSetupDefaults(
+  providerName: ProviderName,
+): ProviderSetupDefaults {
   const definition = PROVIDER_DEFINITIONS[providerName];
   return {
     runtime: definition.runtime,
     model: definition.model,
     cliCommand: definition.cliCommand,
     cliArgs: [...definition.cliArgs],
-    authMode: definition.authMode
+    authMode: definition.authMode,
   };
 }
 
-export function getProviderSupportedAuthModes(providerName: ProviderName): ProviderAuthMode[] {
+export function getProviderSupportedAuthModes(
+  providerName: ProviderName,
+): ProviderAuthMode[] {
   return [...PROVIDER_DEFINITIONS[providerName].supportedAuthModes];
 }
 
-export function getProviderRuntime(providerName: ProviderName): ProviderRuntime {
+export function getProviderRuntime(
+  providerName: ProviderName,
+): ProviderRuntime {
   return PROVIDER_DEFINITIONS[providerName].runtime;
 }
 
-export function getProviderRuntimeProviderName(providerName: ProviderName): string {
+export function getProviderRuntimeProviderName(
+  providerName: ProviderName,
+): string {
   return PROVIDER_DEFINITIONS[providerName].runtimeProvider ?? providerName;
 }
 
 function getProviderReasoningCapability(
   providerName: ProviderName,
-  model: string
+  model: string,
 ): ProviderReasoningCapability | null {
   const providerCapabilities = PROVIDER_REASONING_CAPABILITIES[providerName];
   if (!providerCapabilities) {
@@ -380,22 +404,26 @@ function getProviderReasoningCapability(
 
 export function getProviderReasoningEffortOptions(
   providerName: ProviderName,
-  model: string
+  model: string,
 ): ProviderReasoningEffort[] {
-  return [...(getProviderReasoningCapability(providerName, model)?.options ?? [])];
+  return [
+    ...(getProviderReasoningCapability(providerName, model)?.options ?? []),
+  ];
 }
 
 export function getProviderDefaultReasoningEffort(
   providerName: ProviderName,
-  model: string
+  model: string,
 ): ProviderReasoningEffort | null {
-  return getProviderReasoningCapability(providerName, model)?.defaultEffort ?? null;
+  return (
+    getProviderReasoningCapability(providerName, model)?.defaultEffort ?? null
+  );
 }
 
 export function normalizeProviderReasoningEffort(
   providerName: ProviderName,
   model: string,
-  value: string | null | undefined
+  value: string | null | undefined,
 ): ProviderReasoningEffort | null {
   const capability = getProviderReasoningCapability(providerName, model);
   if (!capability || typeof value !== "string") {
@@ -410,19 +438,27 @@ export function resolveProviderReasoningEffort(
   providerName: ProviderName,
   model: string,
   candidate: string | null | undefined,
-  fallback?: ProviderReasoningEffort | null
+  fallback?: ProviderReasoningEffort | null,
 ): ProviderReasoningEffort | undefined {
   const capability = getProviderReasoningCapability(providerName, model);
   if (!capability) {
     return undefined;
   }
 
-  const normalizedCandidate = normalizeProviderReasoningEffort(providerName, model, candidate);
+  const normalizedCandidate = normalizeProviderReasoningEffort(
+    providerName,
+    model,
+    candidate,
+  );
   if (normalizedCandidate) {
     return normalizedCandidate;
   }
 
-  const normalizedFallback = normalizeProviderReasoningEffort(providerName, model, fallback);
+  const normalizedFallback = normalizeProviderReasoningEffort(
+    providerName,
+    model,
+    fallback,
+  );
   if (normalizedFallback) {
     return normalizedFallback;
   }
@@ -430,11 +466,18 @@ export function resolveProviderReasoningEffort(
   return capability.defaultEffort;
 }
 
-export function providerSupportsAuthMode(providerName: ProviderName, authMode: ProviderAuthMode): boolean {
-  return PROVIDER_DEFINITIONS[providerName].supportedAuthModes.includes(authMode);
+export function providerSupportsAuthMode(
+  providerName: ProviderName,
+  authMode: ProviderAuthMode,
+): boolean {
+  return PROVIDER_DEFINITIONS[providerName].supportedAuthModes.includes(
+    authMode,
+  );
 }
 
-export function normalizeProviderAuthMode(value: string): ProviderAuthMode | null {
+export function normalizeProviderAuthMode(
+  value: string,
+): ProviderAuthMode | null {
   const normalized = value.trim().toLowerCase().replaceAll("-", "_");
   if (normalized === "api_key" || normalized === "apikey") {
     return "api_key";
@@ -448,12 +491,17 @@ export function normalizeProviderAuthMode(value: string): ProviderAuthMode | nul
 export function resolveProviderAuthMode(
   providerName: ProviderName,
   candidate: string | null | undefined,
-  fallback?: ProviderAuthMode
+  fallback?: ProviderAuthMode,
 ): ProviderAuthMode {
   const definition = PROVIDER_DEFINITIONS[providerName];
   const normalizedCandidate =
-    typeof candidate === "string" && candidate.trim() ? normalizeProviderAuthMode(candidate) : null;
-  if (normalizedCandidate && definition.supportedAuthModes.includes(normalizedCandidate)) {
+    typeof candidate === "string" && candidate.trim()
+      ? normalizeProviderAuthMode(candidate)
+      : null;
+  if (
+    normalizedCandidate &&
+    definition.supportedAuthModes.includes(normalizedCandidate)
+  ) {
     return normalizedCandidate;
   }
 
@@ -471,27 +519,37 @@ export function resolveProviderAuthMode(
 export function usesLegacyProviderCliDefaults(
   providerName: ProviderName,
   cliCommand: string,
-  cliArgs: string[]
+  cliArgs: string[],
 ): boolean {
   const definition = PROVIDER_DEFINITIONS[providerName];
   const candidates = [
     ...(definition.legacyCliDefaults ? [definition.legacyCliDefaults] : []),
-    ...(definition.migratableCliDefaults ?? [])
+    ...(definition.migratableCliDefaults ?? []),
   ];
   return candidates.some(
-    (candidate) => cliCommand === candidate.cliCommand && hasExactArgs(cliArgs, candidate.cliArgs)
+    (candidate) =>
+      cliCommand === candidate.cliCommand &&
+      hasExactArgs(cliArgs, candidate.cliArgs),
   );
 }
 
 function hasExactArgs(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
 
-export function getCanonicalProviderKeyEnvVar(providerName: ProviderName): string {
+export function getCanonicalProviderKeyEnvVar(
+  providerName: ProviderName,
+): string {
   return PROVIDER_DEFINITIONS[providerName].apiKeyEnvVar;
 }
 
-export function getProviderOauthSetupHint(providerName: ProviderName, cliCommand: string): string {
+export function getProviderOauthSetupHint(
+  providerName: ProviderName,
+  cliCommand: string,
+): string {
   if (providerName === "openai") {
     return `Run '${cliCommand} login' if needed.`;
   }
@@ -507,7 +565,7 @@ export function getProviderOauthSetupHint(providerName: ProviderName, cliCommand
 export function getProviderOauthMissingSessionMessage(
   providerName: ProviderName,
   cliCommand: string,
-  detail?: string
+  detail?: string,
 ): string {
   const base =
     providerName === "openai"
@@ -523,21 +581,30 @@ export function buildProviderRuntimeEnv(
   providerName: ProviderName,
   authMode: ProviderAuthMode,
   apiKey: string | null,
-  model: string
+  model: string,
 ): NodeJS.ProcessEnv {
   const definition = PROVIDER_DEFINITIONS[providerName];
-  const resolvedAuthMode = resolveProviderAuthMode(providerName, authMode, definition.authMode);
+  const resolvedAuthMode = resolveProviderAuthMode(
+    providerName,
+    authMode,
+    definition.authMode,
+  );
   const env: NodeJS.ProcessEnv = { ...baseEnv };
 
   for (const key of definition.resetEnvVars ?? []) {
     delete env[key];
   }
 
-  Object.assign(env, definition.buildRuntimeEnv(apiKey, model, resolvedAuthMode));
+  Object.assign(
+    env,
+    definition.buildRuntimeEnv(apiKey, model, resolvedAuthMode),
+  );
   return env;
 }
 
-export function buildProviderInvocationArgs(provider: ProviderConfig): string[] {
+export function buildProviderInvocationArgs(
+  provider: ProviderConfig,
+): string[] {
   const args = [...provider.cliArgs];
   if (!provider.reasoningEffort) {
     return args;
@@ -548,7 +615,11 @@ export function buildProviderInvocationArgs(provider: ProviderConfig): string[] 
 
   if (
     provider.name === "openai" &&
-    normalizeProviderReasoningEffort(provider.name, provider.model, provider.reasoningEffort)
+    normalizeProviderReasoningEffort(
+      provider.name,
+      provider.model,
+      provider.reasoningEffort,
+    )
   ) {
     const execIndex = args.indexOf("exec");
     if (execIndex < 0) {
@@ -558,13 +629,17 @@ export function buildProviderInvocationArgs(provider: ProviderConfig): string[] 
       ...args.slice(0, execIndex + 1),
       "-c",
       `model_reasoning_effort="${provider.reasoningEffort}"`,
-      ...args.slice(execIndex + 1)
+      ...args.slice(execIndex + 1),
     ];
   }
 
   if (
     provider.name === "anthropic" &&
-    normalizeProviderReasoningEffort(provider.name, provider.model, provider.reasoningEffort)
+    normalizeProviderReasoningEffort(
+      provider.name,
+      provider.model,
+      provider.reasoningEffort,
+    )
   ) {
     const separatorIndex = args.indexOf("--");
     if (separatorIndex >= 0) {
@@ -572,7 +647,7 @@ export function buildProviderInvocationArgs(provider: ProviderConfig): string[] 
         ...args.slice(0, separatorIndex),
         "--effort",
         provider.reasoningEffort,
-        ...args.slice(separatorIndex)
+        ...args.slice(separatorIndex),
       ];
     }
     return [...args, "--effort", provider.reasoningEffort];
