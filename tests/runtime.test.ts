@@ -30,6 +30,24 @@ function formatTelegramAgentReply(agentId: string, text: string): string {
   return `${agentId}\n\n${text}`;
 }
 
+function readSessionContents(rootDir: string, projectId = "default", agentId = "professor"): string[] {
+  const sessionsDir = path.join(buildAgentDir(rootDir, projectId, agentId), "memory", "Session");
+  const sessionDirs = fs
+    .readdirSync(sessionsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  const historyPath = path.join(
+    sessionsDir,
+    sessionDirs[0],
+    `${new Date().toISOString().slice(0, 10)}.jsonl`
+  );
+  return fs
+    .readFileSync(historyPath, "utf8")
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => (JSON.parse(line) as { content: string }).content);
+}
+
 function createSampleRunStatus(runId = "run-1"): ExperimentRunStatus {
   return {
     runId,
@@ -1537,6 +1555,137 @@ test("completed routed runs can arm heartbeat and fire an internal continue turn
   }
 });
 
+test("heartbeat can use a configured wake-up message", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-message-"));
+  const seenTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async ({ text }) => {
+      seenTexts.push(text);
+      return `research:${text}`;
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(
+      buildHeartbeatPath(tempDir, "default"),
+      "after: 15m\nmessage: Check the latest experiment and update TODO.md.\n",
+      "utf8"
+    );
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+
+    assert.deepEqual(seenTexts, [
+      "Review the current TODOs",
+      "Check the latest experiment and update TODO.md."
+    ]);
+    assert.deepEqual(readSessionContents(tempDir), [
+      "Review the current TODOs",
+      "research:Review the current TODOs",
+      "Check the latest experiment and update TODO.md.",
+      "research:Check the latest experiment and update TODO.md."
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("heartbeat falls back to continue for an oversized configured message", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-message-oversized-"));
+  const seenTexts: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async ({ text }) => {
+      seenTexts.push(text);
+      return `research:${text}`;
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(
+      buildHeartbeatPath(tempDir, "default"),
+      `after: 15m\nmessage: ${"x".repeat(1_001)}\n`,
+      "utf8"
+    );
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+
+    assert.equal(seenTexts[1], "continue");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("heartbeat message alone does not enable a wake-up", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-message-disabled-"));
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    agentResponder: async () => "Initial foreground reply."
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(
+      buildHeartbeatPath(tempDir, "default"),
+      "message: Check the latest experiment and update TODO.md.\n",
+      "utf8"
+    );
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(runtime.getState().projects.default.heartbeat.pending, null);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("heartbeat stays quiet in Telegram by default when notify is omitted", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-quiet-default-"));
   const sentTexts: string[] = [];
@@ -1720,6 +1869,333 @@ test("heartbeat digest sends a blocker summary when the heartbeat run needs inpu
     assert.deepEqual(sentTexts, [
       "professor\n\nHeartbeat follow-up needs input.\nConfirm whether I should use the backup dataset."
     ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("heartbeat live status reuses private chat drafts and then sends a compact digest", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-live-private-"));
+  const sentTexts: string[] = [];
+  const draftTexts: string[] = [];
+  const statusCreates: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramDraftSender: async (_chatId, _draftId, text) => {
+      draftTexts.push(text);
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text) => {
+      statusCreates.push(text);
+      return "status-1";
+    },
+    agentResponder: async ({ text }, options) => {
+      if (text === "Check experiment status.") {
+        await options?.onProgress?.({
+          kind: "started",
+          stage: "inspect",
+          slot: "inspect",
+          message: "Checking experiment status."
+        });
+        await options?.onProgress?.({
+          kind: "completed",
+          stage: "finalize",
+          slot: "finalize",
+          message: "Experiment status checked. Writing summary."
+        });
+        return "Finished checking the experiment and updated TODO.md.";
+      }
+      return "Initial foreground reply.";
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(
+      buildHeartbeatPath(tempDir, "default"),
+      "after: 15m\nnotify: live\nmessage: Check experiment status.\n",
+      "utf8"
+    );
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001", type: "private" },
+        from: { username: "alice" }
+      }
+    });
+
+    sentTexts.length = 0;
+    draftTexts.length = 0;
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+
+    assert.equal(statusCreates.length, 0);
+    assert.equal(draftTexts.length, 2);
+    assert.equal(draftTexts[0].includes("🟢 Checking experiment status."), true);
+    assert.equal(draftTexts[1].startsWith("Finalizing"), true);
+    assert.equal(draftTexts[1].includes("🟢 Experiment status checked. Writing summary."), true);
+    assert.deepEqual(sentTexts, [
+      "professor\n\nHeartbeat follow-up completed.\nFinished checking the experiment and updated TODO.md."
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("heartbeat live status preserves group topic delivery", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-live-topic-"));
+  const sentMessages: Array<{ text: string; messageThreadId?: string }> = [];
+  const statusCreates: Array<{ text: string; messageThreadId?: string }> = [];
+  const statusEdits: Array<{ text: string; messageThreadId?: string }> = [];
+  let draftCalls = 0;
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text, _state, options) => {
+      sentMessages.push({
+        text,
+        messageThreadId: options?.messageThreadId,
+      });
+      return true;
+    },
+    telegramDraftSender: async () => {
+      draftCalls += 1;
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text, _state, options) => {
+      statusCreates.push({
+        text,
+        messageThreadId: options?.messageThreadId,
+      });
+      return "status-1";
+    },
+    telegramMessageEditor: async (_chatId, _messageId, text, _state, options) => {
+      statusEdits.push({
+        text,
+        messageThreadId: options?.messageThreadId,
+      });
+      return true;
+    },
+    agentResponder: async ({ text }, options) => {
+      if (text === "continue") {
+        await options?.onProgress?.({
+          kind: "started",
+          stage: "inspect",
+          slot: "inspect",
+          message: "Inspecting heartbeat follow-up state."
+        });
+        await options?.onProgress?.({
+          kind: "completed",
+          stage: "finalize",
+          slot: "finalize",
+          message: "Heartbeat follow-up state inspected."
+        });
+        return "Finished heartbeat follow-up and updated TODO.md.";
+      }
+      return "Initial foreground reply.";
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 15m\nnotify: live\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001", type: "supergroup" },
+        from: { username: "alice" },
+        message_thread_id: 77
+      }
+    });
+
+    sentMessages.length = 0;
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+
+    assert.equal(draftCalls, 0);
+    assert.equal(statusCreates.length, 1);
+    assert.equal(statusCreates[0].messageThreadId, "77");
+    assert.equal(statusCreates[0].text.startsWith("Agent activity"), true);
+    assert.equal(statusEdits.length, 1);
+    assert.equal(statusEdits[0].messageThreadId, "77");
+    assert.equal(statusEdits[0].text.startsWith("Finalizing"), true);
+    assert.deepEqual(sentMessages, [
+      {
+        text: "professor\n\nHeartbeat follow-up completed.\nFinished heartbeat follow-up and updated TODO.md.",
+        messageThreadId: "77"
+      }
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("heartbeat live mode does not create a placeholder status without progress", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-live-no-progress-"));
+  const sentTexts: string[] = [];
+  const draftTexts: string[] = [];
+  const statusCreates: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramDraftSender: async (_chatId, _draftId, text) => {
+      draftTexts.push(text);
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text) => {
+      statusCreates.push(text);
+      return "status-1";
+    },
+    agentResponder: async ({ text }) =>
+      text === "continue"
+        ? "Finished the quiet heartbeat follow-up."
+        : "Initial foreground reply."
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 15m\nnotify: live\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001", type: "private" },
+        from: { username: "alice" }
+      }
+    });
+
+    sentTexts.length = 0;
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+
+    assert.deepEqual(draftTexts, []);
+    assert.deepEqual(statusCreates, []);
+    assert.deepEqual(sentTexts, [
+      "professor\n\nHeartbeat follow-up completed.\nFinished the quiet heartbeat follow-up."
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("heartbeat live status can be stopped from Telegram", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-live-stop-"));
+  const sentTexts: string[] = [];
+  const statusCreates: string[] = [];
+  let resolveProgressSeen!: () => void;
+  const progressSeen = new Promise<void>((resolve) => {
+    resolveProgressSeen = resolve;
+  });
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text) => {
+      statusCreates.push(text);
+      return "status-1";
+    },
+    agentResponder: async ({ text }, options) => {
+      if (text === "continue") {
+        await options?.onProgress?.({
+          kind: "milestone",
+          stage: "inspect",
+          slot: "inspect",
+          message: "Reviewing heartbeat follow-up work."
+        });
+        resolveProgressSeen();
+        await new Promise<void>((resolve) => {
+          if (options?.signal?.aborted) {
+            resolve();
+            return;
+          }
+          options?.signal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        return "late heartbeat response";
+      }
+      return "Initial foreground reply.";
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+    fs.writeFileSync(buildHeartbeatPath(tempDir, "default"), "after: 15m\nnotify: live\n", "utf8");
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "Review the current TODOs",
+        chat: { id: "10001", type: "group" },
+        from: { username: "alice" }
+      }
+    });
+
+    sentTexts.length = 0;
+    const pending = runtime.getState().projects.default.heartbeat.pending;
+    const heartbeatRun = runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
+    await progressSeen;
+
+    const stopResult = await runtime.handleTelegramWebhook({
+      message: {
+        text: "/stop",
+        chat: { id: "10001", type: "group" },
+        from: { username: "alice" }
+      }
+    });
+    await heartbeatRun;
+
+    assert.equal(stopResult.ok, true);
+    assert.equal(stopResult.action, "management_command");
+    assert.deepEqual(sentTexts, [
+      "Stopped the current task.\nSaved the latest progress so you can ask me to continue later."
+    ]);
+    assert.equal(statusCreates.length, 1);
+    assert.equal(statusCreates[0].includes("🟢 Reviewing heartbeat follow-up work."), true);
+    assert.equal(runtime.getState().projects.default.heartbeat.pending?.agentId, "professor");
+    const contents = readSessionContents(tempDir);
+    assert.equal(contents.length, 4);
+    assert.equal(contents[0], "Review the current TODOs");
+    assert.equal(contents[1], "Initial foreground reply.");
+    assert.equal(contents[2], "continue");
+    assert.equal(
+      contents[3].includes(
+        `Previous attempt was stopped by the user with /stop using ${runtime.getActiveAgent().provider.name}/${runtime.getActiveAgent().provider.model}.`
+      ),
+      true
+    );
+    assert.equal(contents[3].includes("Last progress: Reviewing heartbeat follow-up work."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

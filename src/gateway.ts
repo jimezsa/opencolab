@@ -22,6 +22,7 @@ import type {
   OpenColabState,
   ProviderConfig,
   TaskProgressEvent,
+  TelegramChatType,
   TelegramFileKind,
   TelegramFilePayload,
   TelegramInbound,
@@ -139,6 +140,14 @@ interface ActiveRequest {
   stopRequested: boolean;
   recoveryLogged: boolean;
   turnFinished: boolean;
+}
+
+export interface HeartbeatLiveStatusSession {
+  readonly signal: AbortSignal;
+  readonly stopRequested: boolean;
+  readonly lastMeaningfulMessage: string | null;
+  onProgress(event: TaskProgressEvent): Promise<void>;
+  close(): Promise<void>;
 }
 
 interface LiveStatusLine {
@@ -521,6 +530,10 @@ export class TelegramGateway {
       return this.handleStopCommand(inbound, state, laneKey);
     }
 
+    if (!isTelegramCommandLike(inbound)) {
+      this.rememberTelegramTarget(inbound, state);
+    }
+
     return this.runQueuedLane(laneKey, async () =>
       this.handleQueuedWebhook(inbound, laneKey),
     );
@@ -537,12 +550,88 @@ export class TelegramGateway {
       return false;
     }
 
+    const options = state.telegram.lastMessageThreadId
+      ? { messageThreadId: state.telegram.lastMessageThreadId }
+      : undefined;
+
     return safeSendTelegramMessage(
       this.sender,
       state.telegram.chatId,
       message,
       state,
+      options,
     );
+  }
+
+  openHeartbeatLiveStatus(
+    projectId: string,
+    agentId: string,
+    provider: ProviderConfig,
+  ): HeartbeatLiveStatusSession | null {
+    const state = ensureProjectAndAgent(this.deps.getState());
+    if (!state.telegram.chatId || !state.telegram.paired) {
+      return null;
+    }
+
+    const chatType = state.telegram.lastChatType ?? "unknown";
+    const messageThreadId = state.telegram.lastMessageThreadId ?? undefined;
+    const target: TelegramInbound = {
+      kind: "message",
+      chatId: state.telegram.chatId,
+      chatType,
+      sender: "heartbeat",
+      commandText: "",
+      text: "",
+      files: [],
+      messageThreadId,
+    };
+    const liveStatus = new TelegramLiveStatusSession(
+      target.chatId,
+      state,
+      target,
+      this.draftSender,
+      this.statusMessageCreator,
+      this.messageEditor,
+    );
+    const progressState = createRequestProgressState();
+    const activeRequest = createActiveRequest(
+      projectId,
+      agentId,
+      provider,
+      progressState,
+      liveStatus,
+    );
+    const laneKey = buildTelegramConversationLaneKey(target.chatId, messageThreadId);
+    this.activeRequests.set(laneKey, activeRequest);
+    let progressQueue = Promise.resolve();
+
+    return {
+      get signal() {
+        return activeRequest.abortController.signal;
+      },
+      get stopRequested() {
+        return activeRequest.stopRequested;
+      },
+      get lastMeaningfulMessage() {
+        return progressState.lastMeaningfulMessage;
+      },
+      onProgress: (event) => {
+        if (activeRequest.stopRequested) {
+          return progressQueue;
+        }
+        progressQueue = progressQueue
+          .then(async () => this.sendProgressUpdate(event, progressState, liveStatus))
+          .catch(() => undefined);
+        return progressQueue;
+      },
+      close: async () => {
+        await progressQueue.catch(() => undefined);
+        await liveStatus.close();
+        if (this.activeRequests.get(laneKey) === activeRequest) {
+          this.activeRequests.delete(laneKey);
+        }
+      },
+    };
   }
 
   private async handleQueuedWebhook(
@@ -792,6 +881,24 @@ export class TelegramGateway {
       response: commandResult.response,
       sent,
     };
+  }
+
+  private rememberTelegramTarget(
+    inbound: TelegramInbound,
+    state: OpenColabState,
+  ): void {
+    const lastChatType = normalizeRememberedChatType(inbound.chatType);
+    const lastMessageThreadId = inbound.messageThreadId ?? null;
+    const next: OpenColabState = {
+      ...state,
+      telegram: {
+        ...state.telegram,
+        lastChatType,
+        lastMessageThreadId,
+        lastInteractionAt: nowIso(),
+      },
+    };
+    this.deps.saveState(next);
   }
 
   private async handleStopCommand(
@@ -1719,6 +1826,10 @@ function parseChatType(chat: Record<string, unknown>): TelegramInbound["chatType
   return "unknown";
 }
 
+function normalizeRememberedChatType(chatType: TelegramChatType): TelegramChatType | null {
+  return chatType === "unknown" ? null : chatType;
+}
+
 function parseSender(from: Record<string, unknown> | null): string {
   if (!from) {
     return "telegram_user";
@@ -1805,6 +1916,13 @@ function isStopCommand(inbound: TelegramInbound): boolean {
 
   const tokens = text.split(/\s+/);
   return normalizeCommandToken(tokens[0]).toLowerCase() === "/stop";
+}
+
+function isTelegramCommandLike(inbound: TelegramInbound): boolean {
+  if (inbound.kind === "callback_query") {
+    return true;
+  }
+  return normalizeManagementInput(inbound.commandText).startsWith("/");
 }
 
 function normalizeCommandToken(token: string | undefined): string {

@@ -15,8 +15,9 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 - `ignite` onboarding now offers OpenAI `gpt-5.5`, Anthropic `claude-opus-4-7`, and matching OpenRouter model ids in the curated model chooser.
 - Supported OpenAI and Anthropic reasoning-effort defaults now use `high`, and Anthropic Claude models now also expose `xhigh`.
+- `HEARTBEAT.md` now supports `notify: live` for Telegram live status during heartbeat wake-ups and `message: <plain text>` to replace the default `continue` prompt.
 - After an active-agent run completes, is stopped, or times out, OpenColab can now arm one quiet per-project heartbeat wake-up in `opencolab.json`, and the background gateway process will fire one internal `continue` turn when that same agent is still active and idle at the scheduled time.
-- `HEARTBEAT.md` can now opt into one compact paired-chat Telegram follow-up with `notify: digest`, so meaningful heartbeat completions, timeouts, failures, and clear blockers no longer have to stay completely silent while background runs still avoid live status and topic-aware routing in the first cut.
+- `HEARTBEAT.md` can now opt into one compact paired-chat Telegram follow-up with `notify: digest`, so meaningful heartbeat completions, timeouts, failures, and clear blockers no longer have to stay completely silent.
 - Routed provider execution now exposes a gateway-owned cancellation path so stopped Telegram runs close live status cleanly, suppress stale late replies, and avoid appending cancelled partial output as a finished assistant answer.
 - Telegram long polling now dispatches consumed updates without waiting for the previous routed run to finish, so `/stop` can interrupt an in-flight task instead of being blocked behind it.
 - CLI help for `opencolab gpu ssh` and `opencolab gpu ssh session` now includes concrete manual-SSH session examples for `start`, `read`, `write`, and `stop`.

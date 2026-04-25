@@ -82,11 +82,15 @@ import type {
 } from "./types.js";
 import { ensureDir, nowIso } from "./utils.js";
 
-type HeartbeatNotifyMode = "quiet" | "digest";
+type HeartbeatNotifyMode = "quiet" | "digest" | "live";
+
+const DEFAULT_HEARTBEAT_MESSAGE = "continue";
+const MAX_HEARTBEAT_MESSAGE_CHARS = 1_000;
 
 interface HeartbeatSettings {
   delayMs: number | null;
   notifyMode: HeartbeatNotifyMode;
+  message: string;
 }
 
 interface HeartbeatProgressState {
@@ -438,7 +442,10 @@ export class OpenColabRuntime {
         paired: chatChanged ? false : this.state.telegram.paired,
         pairedAt: chatChanged ? null : this.state.telegram.pairedAt,
         pendingPairingCode: null,
-        pendingPairingExpiresAt: null
+        pendingPairingExpiresAt: null,
+        lastChatType: chatChanged ? null : this.state.telegram.lastChatType,
+        lastMessageThreadId: chatChanged ? null : this.state.telegram.lastMessageThreadId,
+        lastInteractionAt: chatChanged ? null : this.state.telegram.lastInteractionAt
       }
     };
 
@@ -952,12 +959,17 @@ export class OpenColabRuntime {
     this.clearPendingHeartbeat(projectId);
     ensureAgentFiles(this.config.rootDir, agent);
     const heartbeatSettings = this.readHeartbeatSettings(agent);
+    const heartbeatMessage = heartbeatSettings.message;
+    const liveStatus =
+      heartbeatSettings.notifyMode === "live"
+        ? this.gateway.openHeartbeatLiveStatus(projectId, agentId, agent.provider)
+        : null;
 
     const memory = this.conversations.readPromptMemory(agent.path, 8);
     const progressState = createHeartbeatProgressState();
     this.conversations.append(agent.path, {
       role: "user",
-      content: "continue",
+      content: heartbeatMessage,
       at: nowIso()
     });
 
@@ -968,16 +980,22 @@ export class OpenColabRuntime {
         {
           chatId: "",
           sender: "heartbeat",
-          text: "continue",
+          text: heartbeatMessage,
           files: [],
           memory
         },
         {
+          signal: liveStatus?.signal,
           onProgress: async (event) => {
             recordHeartbeatProgress(progressState, event.message, event.kind);
+            await liveStatus?.onProgress(event);
           }
         }
       );
+      await liveStatus?.close();
+      if (liveStatus?.stopRequested) {
+        return;
+      }
       this.conversations.append(agent.path, {
         role: "assistant",
         content: response,
@@ -990,6 +1008,10 @@ export class OpenColabRuntime {
         progressState
       });
     } catch (error) {
+      await liveStatus?.close();
+      if (liveStatus?.stopRequested) {
+        return;
+      }
       this.conversations.append(agent.path, {
         role: "assistant",
         content: buildAssistantRecoveryLog(
@@ -1007,6 +1029,7 @@ export class OpenColabRuntime {
         progressState
       });
     } finally {
+      await liveStatus?.close();
       this.heartbeatInFlight.delete(key);
     }
   }
@@ -1032,21 +1055,39 @@ export class OpenColabRuntime {
     if (!fs.existsSync(heartbeatPath)) {
       return {
         delayMs: null,
-        notifyMode: "quiet"
+        notifyMode: "quiet",
+        message: DEFAULT_HEARTBEAT_MESSAGE
       };
     }
 
     let delayMs: number | null = null;
     let notifyMode: HeartbeatNotifyMode = "quiet";
+    let message = DEFAULT_HEARTBEAT_MESSAGE;
+    let sawMessage = false;
     const lines = fs.readFileSync(heartbeatPath, "utf8").split(/\r?\n/);
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (!line || line.startsWith("#")) {
         continue;
       }
-      const notifyMatch = /^notify:\s*(quiet|digest)\s*$/i.exec(line);
+      const notifyMatch = /^notify:\s*(quiet|digest|live)\s*$/i.exec(line);
       if (notifyMatch) {
-        notifyMode = notifyMatch[1].toLowerCase() === "digest" ? "digest" : "quiet";
+        const normalizedNotify = notifyMatch[1].toLowerCase();
+        notifyMode =
+          normalizedNotify === "live"
+            ? "live"
+            : normalizedNotify === "digest"
+              ? "digest"
+              : "quiet";
+        continue;
+      }
+      const messageMatch = /^message:\s*(.*)$/i.exec(line);
+      if (messageMatch && !sawMessage) {
+        sawMessage = true;
+        const candidate = messageMatch[1].trim();
+        if (candidate && candidate.length <= MAX_HEARTBEAT_MESSAGE_CHARS) {
+          message = candidate;
+        }
         continue;
       }
       const match = /^after:\s*(\d+)\s*([mh])$/i.exec(line);
@@ -1058,7 +1099,8 @@ export class OpenColabRuntime {
       if (!Number.isInteger(value) || value <= 0) {
         return {
           delayMs: null,
-          notifyMode
+          notifyMode,
+          message
         };
       }
       delayMs = match[2].toLowerCase() === "h" ? value * 60 * 60_000 : value * 60_000;
@@ -1066,7 +1108,8 @@ export class OpenColabRuntime {
 
     return {
       delayMs,
-      notifyMode
+      notifyMode,
+      message
     };
   }
 
@@ -1075,7 +1118,7 @@ export class OpenColabRuntime {
     notifyMode: HeartbeatNotifyMode,
     result: HeartbeatDigestResult
   ): Promise<void> {
-    if (notifyMode !== "digest") {
+    if (notifyMode !== "digest" && notifyMode !== "live") {
       return;
     }
 

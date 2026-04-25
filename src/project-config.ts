@@ -22,6 +22,7 @@ import type {
   ProjectState,
   ProjectHeartbeatState,
   ProviderConfig,
+  TelegramChatType,
   TelegramConfig
 } from "./types.js";
 import { nowIso, safeReadJson, writeJson } from "./utils.js";
@@ -222,7 +223,10 @@ export function createDefaultTelegramConfig(): TelegramConfig {
     paired: false,
     pairedAt: null,
     pendingPairingCode: null,
-    pendingPairingExpiresAt: null
+    pendingPairingExpiresAt: null,
+    lastChatType: null,
+    lastMessageThreadId: null,
+    lastInteractionAt: null
   };
 }
 
@@ -815,7 +819,10 @@ function normalizeTelegram(
     paired: Boolean(sourceTelegram?.paired),
     pairedAt: asNullableString(sourceTelegram?.pairedAt),
     pendingPairingCode: asNullableString(sourceTelegram?.pendingPairingCode),
-    pendingPairingExpiresAt: asNullableString(sourceTelegram?.pendingPairingExpiresAt)
+    pendingPairingExpiresAt: asNullableString(sourceTelegram?.pendingPairingExpiresAt),
+    lastChatType: asTelegramChatType(sourceTelegram?.lastChatType, defaults.lastChatType),
+    lastMessageThreadId: asNullableString(sourceTelegram?.lastMessageThreadId),
+    lastInteractionAt: asNullableString(sourceTelegram?.lastInteractionAt)
   };
 }
 
@@ -855,6 +862,20 @@ function asNullableString(value: unknown): string | null {
   }
   const parsed = String(value).trim();
   return parsed ? parsed : null;
+}
+
+function asTelegramChatType(value: unknown, fallback: TelegramChatType | null): TelegramChatType | null {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (
+    normalized === "private" ||
+    normalized === "group" ||
+    normalized === "supergroup" ||
+    normalized === "channel" ||
+    normalized === "unknown"
+  ) {
+    return normalized;
+  }
+  return fallback;
 }
 
 function asStringArray(value: unknown): string[] | null {

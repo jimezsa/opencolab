@@ -128,6 +128,9 @@ export interface TelegramConfig {
   pairedAt: string | null;
   pendingPairingCode: string | null;
   pendingPairingExpiresAt: string | null;
+  lastChatType: TelegramChatType | null;
+  lastMessageThreadId: string | null;
+  lastInteractionAt: string | null;
 }
 
 export interface ProjectState {

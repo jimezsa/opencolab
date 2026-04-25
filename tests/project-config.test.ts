@@ -45,6 +45,9 @@ test("project state defaults to a default project and agent", () => {
     assert.equal(project.heartbeat.pending, null);
     assert.deepEqual(project.executionTargets, {});
     assert.equal(state.telegram.paired, false);
+    assert.equal(state.telegram.lastChatType, null);
+    assert.equal(state.telegram.lastMessageThreadId, null);
+    assert.equal(state.telegram.lastInteractionAt, null);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -644,7 +647,10 @@ test("project state persists agent provider updates in opencolab.json", () => {
           ...current.telegram,
           chatId: "10001",
           paired: true,
-          pairedAt: "2026-02-27T00:00:00.000Z"
+          pairedAt: "2026-02-27T00:00:00.000Z",
+          lastChatType: "supergroup",
+          lastMessageThreadId: "77",
+          lastInteractionAt: "2026-02-27T00:05:00.000Z"
         }
       };
     });
@@ -656,6 +662,9 @@ test("project state persists agent provider updates in opencolab.json", () => {
     assert.equal(agent.provider.model, "gpt-5.4");
     assert.equal(loaded.telegram.chatId, "10001");
     assert.equal(loaded.telegram.paired, true);
+    assert.equal(loaded.telegram.lastChatType, "supergroup");
+    assert.equal(loaded.telegram.lastMessageThreadId, "77");
+    assert.equal(loaded.telegram.lastInteractionAt, "2026-02-27T00:05:00.000Z");
     assert.equal(fs.existsSync(config.projectConfigPath), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
