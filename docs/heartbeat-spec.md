@@ -7,6 +7,11 @@ This document is a planning note for a minimal heartbeat v1.
 It is intentionally narrow.
 It is not yet a normative runtime contract until promoted into `docs/spec.md`, `README.md`, and implementation.
 
+Sections 1-11 describe the minimal heartbeat scheduling behavior.
+Section 12 describes the minimal digest notification extension.
+Section 13 describes a proposed live Telegram status extension for heartbeat wake-ups.
+Section 14 describes a proposed configurable wake-up message extension.
+
 ## 2. Goal
 
 Heartbeat should be a delayed follow-up for the active agent, not a general scheduler.
@@ -45,7 +50,7 @@ V1 does not support:
 - cron syntax
 - custom heartbeat prompts
 - retries or backoff
-- heartbeat-specific notification policies
+- live heartbeat status surfaces
 
 ## 4. `HEARTBEAT.md` Contract
 
@@ -192,9 +197,9 @@ This document does not try to define:
 - rich scheduler state or analytics
 - broader behavior changes outside this heartbeat note
 
-## 12. Follow-Up Plan: Minimal Telegram Feedback for Heartbeat
+## 12. Minimal Telegram Digest Feedback for Heartbeat
 
-This section revises the earlier follow-up idea toward minimal intervention.
+This section records the minimal follow-up idea that keeps heartbeat quiet by default and, when explicitly enabled, sends one compact final Telegram digest.
 
 It is still non-normative until promoted into `docs/spec.md`, `README.md`, and implementation.
 The goal is to add just enough feedback to avoid silent background completions without turning heartbeat into a second full Telegram workflow.
@@ -339,3 +344,308 @@ These may be revisited later, but they should not block the first intervention.
 6. Add successful completion digests only for meaningful non-trivial outputs.
 7. Support delivery to the exact paired private chat or paired group chat, but skip risky topic-specific delivery in the first cut instead of inventing lane-tracking state.
 8. Add tests for quiet-mode suppression, digest-mode success delivery, failure delivery, and missing-target safety behavior.
+
+## 13. Follow-Up Plan: Live Telegram Status for Heartbeat
+
+This section is the next proposed behavior change.
+It supersedes the earlier "avoid live status" limitation only when the user explicitly opts in.
+
+It is still non-normative until promoted into `docs/spec.md`, `README.md`, tests, and implementation.
+The goal is to let a user see what a heartbeat-woken agent is doing in Telegram by reusing the existing OpenColab live-status implementation instead of adding a second progress system.
+If the configurable wake-up message extension in Section 14 is implemented, live status should work the same way for the resolved configured message as it does for the default `continue` message.
+
+### 13.1 Goal
+
+When a heartbeat wake-up starts an internal turn, OpenColab should be able to show the same bounded live status surface used for routed Telegram turns.
+
+That means:
+
+- keep heartbeat disabled by default
+- keep scheduling and wake-up arming quiet
+- create no generic "heartbeat started" placeholder
+- create a live status surface only after the first meaningful provider progress event
+- reuse the current Telegram draft/editable-message live status renderer
+- keep final digest behavior separate from the live status surface
+- avoid copying operational progress events into normal conversation memory
+
+### 13.2 Proposed User Controls
+
+Extend `HEARTBEAT.md` with one additional notification mode:
+
+- `notify: quiet | digest | live`
+
+Planned behavior:
+
+- `quiet`: preserve fully silent behavior
+- `digest`: send one compact final completion, blocker, timeout, or failure summary after the heartbeat turn finishes
+- `live`: stream bounded live status during the heartbeat turn, then optionally send the same compact final digest when the outcome is meaningful
+
+Compatibility rules:
+
+- if `notify:` is omitted, keep heartbeat silent
+- existing `notify: digest` behavior remains final-only
+- `notify: live` is the only mode that may create a live status surface
+
+Example:
+
+```md
+# HEARTBEAT.md
+
+after: 30m
+notify: live
+```
+
+The runtime should continue to ignore unknown lines so the file remains human-editable and forward-compatible.
+
+### 13.3 Delivery Target
+
+Heartbeat currently knows the paired Telegram `chatId`, but not enough context to fully reuse the live-status transport in every chat shape.
+Live heartbeat status should therefore persist the last safe Telegram target metadata from authorized inbound Telegram activity.
+
+Recommended shared Telegram state additions:
+
+- last paired chat type, such as `private`, `group`, or `supergroup`
+- last message thread id when the paired chat uses Telegram topics
+- last interaction timestamp for diagnostics and future policy decisions
+
+Rules:
+
+- use only the configured paired chat id
+- do not guess a different chat
+- in private chats, use the same draft-first behavior as routed Telegram turns
+- in groups and supergroups, use the same editable-message behavior as routed Telegram turns
+- if a recent message thread id is known, preserve it for status and final digest delivery
+- if no chat type is known, fall back conservatively to editable-message status in the paired chat
+- if Telegram delivery fails, keep the heartbeat run and conversation memory behavior intact
+
+This avoids treating heartbeat as a webhook while still giving the live-status renderer enough target context to behave like the normal Telegram path.
+
+### 13.4 Runtime Flow
+
+`notify: live` should keep the heartbeat turn as an internal runtime-triggered turn.
+It should not fabricate a Telegram webhook or route through management-command parsing.
+
+Planned flow:
+
+1. A pending heartbeat wake-up becomes due.
+2. The runtime confirms the target agent is still active and idle.
+3. The runtime resolves the wake-up message, defaulting to `continue` unless Section 14's configured message is present.
+4. The runtime clears the pending wake-up and starts the internal wake-up turn with the resolved message.
+5. If `notify: live` is enabled and Telegram is paired, the runtime asks the gateway to open a heartbeat live-status session for the paired Telegram target.
+6. Provider progress events are fanned out to both:
+   - heartbeat progress state for final digest and recovery summaries
+   - the gateway live-status session for Telegram rendering
+7. The live-status session creates its Telegram surface only after meaningful provider progress exists.
+8. The live-status session closes before any final digest text is sent.
+9. The heartbeat turn appends normal user and assistant conversation entries, using the resolved wake-up message as the user turn.
+10. The runtime records the heartbeat outcome and arms the next wake-up when eligible.
+
+### 13.5 Gateway Reuse
+
+The implementation should reuse the current live-status machinery rather than creating a heartbeat-specific renderer.
+
+Recommended shape:
+
+- extract or expose a small gateway helper that creates a `TelegramLiveStatusSession` for a supplied target
+- return an `onProgress` function that accepts normal `TaskProgressEvent` values
+- return a `close` function that drains the same internal queue used by routed Telegram turns
+- keep the existing status throttling, line limits, headings, `🟢` current-line marker, and `⚪` older-line marker
+- keep private-chat draft preference and group editable-message behavior unchanged
+
+The provider adapter should continue to emit the existing normalized progress events.
+Heartbeat must not ask agents to print a Telegram-specific progress protocol.
+
+### 13.6 Stop Behavior
+
+Once heartbeat progress is visible in Telegram, `/stop` should be able to cancel it.
+
+Recommended behavior:
+
+- register a live heartbeat run in the gateway's active request tracking for the paired chat lane
+- give the heartbeat provider call an abort signal
+- when `/stop` arrives in that lane, close the live status, abort the provider call, append a compact recovery entry, and record the heartbeat outcome as `stopped`
+- send the existing stopped-task confirmation text
+- avoid sending a final digest after an explicit stop unless a later product decision asks for it
+
+If stop support proves too large for the first live-status patch, it may be split into a second patch, but the first patch should not make `/stop` misleading.
+
+### 13.7 Conversation Memory Rules
+
+Live heartbeat status remains operational metadata.
+
+Rules:
+
+- do not append live status lines as assistant conversation messages
+- keep the internal user turn as the resolved wake-up message, defaulting to `continue`
+- keep the final assistant response in normal conversation memory
+- on timeout or failure, append the same compact recovery entry style used by heartbeat today, preferably including the last meaningful progress message
+- do not include transport-only Telegram labels in conversation memory
+
+### 13.8 Digest Interaction
+
+`notify: live` may still send a final digest, but the digest should remain compact.
+
+Rules:
+
+- live status answers "what is happening now"
+- digest answers "what happened"
+- the digest should be sent after live status closes
+- no-op or near-empty heartbeat responses should not send a completion digest
+- failures, timeouts, and clear human-input blockers should still notify when Telegram delivery is available
+
+This keeps the live surface useful during execution without turning the final message into a progress transcript.
+
+### 13.9 Safety Rules
+
+The live heartbeat implementation should prefer silence over risky or confusing delivery.
+
+Rules:
+
+- do nothing if no paired Telegram chat is configured
+- do nothing if the bot is not paired
+- do not create a status surface before meaningful provider progress exists
+- do not send repeated routine heartbeat-started messages
+- do not invent per-agent Telegram destinations
+- do not create a second progress event model
+- do not make heartbeat scheduling depend on Telegram delivery success
+- if live status delivery fails, continue the heartbeat run and still allow final digest delivery if configured and safe
+
+### 13.10 Incremental Implementation Plan
+
+1. Promote the `notify: live` behavior into `docs/spec.md`, then sync `README.md`, `AGENTS.md`, tests, and code in the implementation change.
+2. Extend `HEARTBEAT.md` parsing to accept `notify: live` while preserving omitted `notify:` as quiet.
+3. Persist last authorized Telegram target metadata needed for live status: chat type, optional message thread id, and timestamp.
+4. Refactor the gateway live-status session into a reusable helper that can be opened for routed Telegram turns and heartbeat turns.
+5. Wire `runHeartbeatTurn` to open that helper only for `notify: live` and paired Telegram state.
+6. Fan out provider progress to both heartbeat progress recording and the live-status helper.
+7. Close and drain the live-status helper before final digest delivery or recovery handling.
+8. Add `/stop` support for visible heartbeat runs through the same active-request lane where practical.
+9. Add tests for quiet mode, digest-only mode, live status creation/editing, no-placeholder behavior, private-chat draft use, group editable-message use, topic preservation, memory cleanliness, delivery failure tolerance, and stop behavior.
+
+## 14. Follow-Up Plan: Configurable Wake-Up Message
+
+This section is a proposed extension to the original fixed `continue` prompt.
+It is still non-normative until promoted into `docs/spec.md`, `README.md`, tests, and implementation.
+
+The goal is to let the human configure what the agent receives when heartbeat wakes it, while keeping `continue` as the backward-compatible default.
+
+### 14.1 Goal
+
+The heartbeat wake-up should be able to send a human-configured message to the agent instead of always sending exactly:
+
+```text
+continue
+```
+
+This is useful when the user wants the wake-up to focus on a specific kind of follow-through, such as checking an experiment, revisiting a TODO, or continuing only a particular research thread.
+
+The configured message should stay simple:
+
+- it is plain text
+- it is read from `HEARTBEAT.md`
+- it is sent as the internal user turn for the heartbeat run
+- it is recorded in normal conversation memory as the heartbeat user turn
+- it does not change the scheduling model
+
+### 14.2 Proposed User Control
+
+Extend `HEARTBEAT.md` with one optional setting:
+
+- `message: <plain text>`
+
+Example:
+
+```md
+# HEARTBEAT.md
+
+after: 30m
+notify: live
+message: Check whether the latest Runpod experiment finished, summarize the result, and update TODO.md with the next step.
+```
+
+If `message:` is omitted, the runtime must use the default message:
+
+```text
+continue
+```
+
+### 14.3 Parsing Rules
+
+The first implementation should support a single-line message only.
+
+Rules:
+
+- ignore blank lines
+- ignore comment lines that start with `#`
+- parse the first valid `message:` line
+- trim surrounding whitespace from the message value
+- if `message:` is empty after trimming, fall back to `continue`
+- if multiple valid `message:` lines exist, use the first one and ignore the rest
+- keep unknown lines ignored for forward compatibility
+- enforce a bounded maximum length before sending the message to the provider
+
+Recommended initial maximum:
+
+- 1,000 characters after trimming
+
+If the configured message exceeds the limit, the runtime should treat it as invalid and fall back to `continue`.
+This keeps accidental paste-heavy `HEARTBEAT.md` edits from turning heartbeat into a large hidden prompt injection surface.
+
+Multi-line messages may be added later, but they should not block the first implementation.
+If multi-line support is added, prefer an explicit block syntax such as `message: |` with indented lines rather than guessing from arbitrary trailing file content.
+
+### 14.4 Runtime Semantics
+
+The resolved wake-up message is the message that the runtime sends to the provider when the heartbeat fires.
+
+Resolution order:
+
+1. Read `HEARTBEAT.md` when the wake-up starts.
+2. If heartbeat is disabled because `after:` is missing or invalid, do not run.
+3. If a valid bounded `message:` exists, use it.
+4. Otherwise use `continue`.
+
+The pending heartbeat state should not need to store the message.
+The pending state should remain only the scheduling record, such as `{ agent_id, wake_at }`.
+This lets the human edit the wake-up message before the heartbeat fires without rewriting runtime state.
+
+The configured message must not make heartbeat a general scheduler.
+It only changes the content of the single internal turn that was already going to happen.
+
+### 14.5 Interaction With Notifications
+
+The configured message should work with all notification modes:
+
+- `notify:` omitted or `notify: quiet`: run silently using the resolved message
+- `notify: digest`: run using the resolved message, then apply the existing compact digest policy
+- `notify: live`: run using the resolved message and stream provider progress through the reused live-status surface
+
+The configured message itself should not be sent to Telegram as a separate notification.
+Telegram users should see either live status derived from runtime progress, a final digest, or nothing, depending on `notify:`.
+
+### 14.6 Safety Rules
+
+The configured message is user-owned local configuration, but it still needs bounded behavior.
+
+Rules:
+
+- keep `after:` required; a `message:` alone must not enable heartbeat
+- default to `continue` on missing, empty, or invalid `message:`
+- do not support variable expansion in the first implementation
+- do not interpolate secrets, env vars, paths, dates, Telegram metadata, or prior messages
+- do not execute the message as a shell command
+- do not treat the message as markdown directives for Telegram file delivery
+- do not copy live-status or transport-only labels into the configured message
+
+This keeps the feature predictable and prevents `HEARTBEAT.md` from becoming a second automation language.
+
+### 14.7 Incremental Implementation Plan
+
+1. Promote the configurable wake-up message behavior into `docs/spec.md`, then sync `README.md`, `AGENTS.md`, tests, and code in the implementation change.
+2. Extend heartbeat settings parsing to return `{ delayMs, notifyMode, message }`.
+3. Preserve `continue` as the default when `message:` is omitted or invalid.
+4. Use the resolved message for the heartbeat provider input `text` field.
+5. Use the resolved message for the heartbeat conversation user entry.
+6. Keep pending heartbeat state unchanged; do not persist the message in `opencolab.json`.
+7. Ensure digest and live-status behavior uses provider progress and final response, not the raw configured message as a Telegram notification.
+8. Add tests for omitted message defaulting to `continue`, configured message reaching the agent responder, configured message appearing in conversation memory, empty or oversized message fallback, and compatibility with `notify: digest` and `notify: live`.
