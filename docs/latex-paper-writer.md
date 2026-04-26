@@ -24,6 +24,8 @@ Proposed skill id: `latex-paper-writer`.
   markdown tables, or experiment manifests.
 - Include architecture figures from existing assets, extracted paper figures,
   or generated block diagrams when they materially clarify the document.
+- Keep each paper workspace under Git version control so drafts, figures,
+  tables, citations, and compiled outputs can be checkpointed over time.
 - Build a final PDF and return it through Telegram or another active channel
   when requested.
 
@@ -100,6 +102,39 @@ Template selection should follow this order:
 The skill must not claim strict official venue compliance unless the exact
 official template is bundled, supplied by the user, or otherwise verified.
 
+## Paper Workspace Version Control
+
+Every generated or managed paper folder should be version controlled with Git.
+The skill should treat the paper folder as the durable workspace for the paper,
+not as a throwaway render directory.
+
+Default behavior:
+
+1. Create new generated papers under a stable folder such as
+   `research/latex/<slug>/` unless the user supplies another path.
+2. If the chosen paper folder is not inside an existing Git worktree, initialize
+   a new Git repository in that folder.
+3. If the chosen paper folder is already inside a Git worktree, use the existing
+   repository by default instead of creating a nested repository.
+4. If the user explicitly asks for each paper to have an independent repository,
+   initialize a dedicated Git repository in the paper folder and avoid touching
+   unrelated parent-repository files.
+5. Add a paper-focused `.gitignore` for LaTeX build byproducts, caches, and
+   temporary files while keeping source `.tex`, `.bib`, figures, tables, and
+   final deliverable PDFs trackable.
+
+Checkpoint policy:
+
+- Make an initial checkpoint after creating the template and successfully
+  compiling the first PDF.
+- Make later checkpoint commits after meaningful edits, successful rebuilds, or
+  imported result updates when the user has asked the agent to manage the paper.
+- Never stage or commit unrelated changes outside the paper workspace.
+- Before editing an existing paper repository, inspect `git status` and preserve
+  user changes.
+- Prefer short, descriptive commit messages such as `draft: add method section`
+  or `results: update ablation table`.
+
 ## Core Workflows
 
 ### New Paper Draft
@@ -109,7 +144,8 @@ When a user asks for a new paper, the skill should:
 1. Identify the topic, document type, target venue, deadline constraints, and
    available source material.
 2. Select the nearest template family.
-3. Create a minimal paper tree:
+3. Create or reuse the Git-controlled paper workspace.
+4. Create a minimal paper tree:
 
    ```text
    main.tex
@@ -126,10 +162,12 @@ When a user asks for a new paper, the skill should:
    tables/
    ```
 
-4. Draft only claims supported by user notes, search findings, cited papers, or
+5. Draft only claims supported by user notes, search findings, cited papers, or
    experiment artifacts.
-5. Build the PDF and report unresolved citations, missing figures, or compile
+6. Build the PDF and report unresolved citations, missing figures, or compile
    failures clearly.
+7. Create a Git checkpoint when the build succeeds and the workspace is cleanly
+   scoped to the paper.
 
 ### Existing Paper Editing
 
@@ -241,12 +279,14 @@ using the raw file directive expected by OpenColab, for example a raw
 6. Add build and validation scripts.
 7. Add a table-generation script for CSV, JSON, markdown, and simple experiment
    summaries.
-8. Document integration points with `deep-search`, `pageindex-grounded`,
+8. Add Git workspace initialization, `.gitignore`, status inspection, and
+   checkpoint guidance.
+9. Document integration points with `deep-search`, `pageindex-grounded`,
    `pdf-figure-extract`, and `block-diagram`.
-9. Update `docs/spec.md` first when turning this plan into a behavior change,
+10. Update `docs/spec.md` first when turning this plan into a behavior change,
    then sync `README.md`, `AGENTS.md`, and implementation files in the same
    change.
-10. Validate the skill with realistic prompts:
+11. Validate the skill with realistic prompts:
     - create an ICLR-style paper draft from notes
     - generate a survey PDF from `deep-search/findings.md`
     - turn experiment logs into LaTeX ablation tables
