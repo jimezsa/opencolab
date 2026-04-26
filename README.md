@@ -95,13 +95,13 @@ Install the upstream runtime CLI that matches the provider you want OpenColab to
 
 ## Install
 
-Published npm package install:
+### npm package install **(Recommended)**
 
 ```bash
 npm install -g opencolab
 ```
 
-Repository-managed installers default to the published npm package:
+Optional one-link installers are available when you want OpenColab to manage the install metadata and command shims. They still default to the published npm package:
 
 macOS / Linux:
 
