@@ -109,10 +109,10 @@ macOS / Linux:
 curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh | bash
 ```
 
-Windows Command Prompt:
+Windows PowerShell:
 
-```cmd
-curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.ps1 -o install.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 && del install.ps1
+```powershell
+powershell -c "irm https://opencolab.ai/install.ps1 | iex"
 ```
 
 ### Hacky install mode.
@@ -123,10 +123,10 @@ macOS / Linux clone mode:
 curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh | bash -s -- --hacky
 ```
 
-Windows Command Prompt clone mode:
+Windows PowerShell clone mode:
 
-```cmd
-curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.ps1 -o install.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 --hacky && del install.ps1
+```powershell
+& ([scriptblock]::Create((irm https://opencolab.ai/install.ps1))) --hacky
 ```
 
 Optional clone-mode overrides:
