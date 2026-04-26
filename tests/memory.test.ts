@@ -127,11 +127,13 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("`fast-search`"), true);
     assert.equal(prompt.includes("`pageindex-grounded`"), true);
     assert.equal(prompt.includes("`pdf-figure-extract`"), true);
+    assert.equal(prompt.includes("`latex-paper-writer`"), true);
     assert.equal(prompt.includes("`autoresearch`"), true);
     assert.equal(prompt.includes("`runpod-job`"), true);
     assert.equal(prompt.includes("`block-diagram`"), true);
     assert.equal(prompt.includes("exact claim verification"), true);
     assert.equal(prompt.includes("multimodal candidate verification"), true);
+    assert.equal(prompt.includes("Scientific LaTeX paper and report production"), true);
     assert.equal(prompt.includes("Iterative keep/discard experiment workflow"), true);
     assert.equal(prompt.includes("Any agent may use it, but the `autoresearch` specialist is the default owner"), true);
     assert.equal(prompt.includes("bounded remote GPU jobs"), true);

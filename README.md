@@ -14,11 +14,11 @@ _Accelerating Scientific Discovery_ — Turn your research into an always-on aut
 
 ## Features planned for first release
 
-- ✅ Deep Research swarm skills for paper search, grounded QA (Reasoning-based RAG), figure extraction, parallel summaries, and D2 block diagrams.
+- ✅ Deep Research swarm skills for paper search, grounded QA (Reasoning-based RAG), figure extraction, parallel summaries, D2 block diagrams, and LaTeX paper/report generation.
 - ✅ Provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, xAI, OpenRouter, and Kimi.
 - ✅ Multi-project, multi-agent local workspace with CLI and Telegram control.
 - ✅ Run Experiment on external GPU servers(Runpod)
-- ⏳ Coming: LaTeX-format paper generation.
+- ✅ Git-versioned LaTeX paper workspaces with `latexmk` PDF builds.
 
 **Note:** OpenColab is an early-stage, actively evolving project. Features and documentation are rapidly improving—feedback and contributions are welcome!
 
@@ -486,7 +486,7 @@ Telegram slash-menu commands:
 - Previous-day summaries live in `<agent_path>/memory/Daily/<YYYY-MM-DD>.md`
 - Long-term durable facts belong in `MEMORY.md`
 
-Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, `autoresearch` handles iterative keep/discard experiment loops over one explicitly configured repo without assuming `train.py` or `uv run train.py`, and `runpod-job` now defaults to a user-managed Runpod Pod workflow where the human creates the Pod, shares the `pod_id`, and the agent uses saved `gpu ssh profile` plus transcript-backed `gpu ssh session` commands as the default control path, while reserving raw `scp`, `rsync`, or one-shot `ssh` for bounded helper use and keeping the OpenColab-managed `gpu server` and `gpu job` flow available as an explicit opt-in when the user wants `run_id` tracking and managed lifecycle behavior. Any agent may use `autoresearch`, but the built-in `autoresearch` specialist is the default owner for sustained experiment-loop work.
+Built-in shared workflows include `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `latex-paper-writer`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job`. Search skills return stable `findings.md` outputs plus a companion literature-map diagram, `pageindex-grounded` handles exact follow-up QA over already-downloaded papers, `pdf-figure-extract` handles local figure extraction with PyMuPDF, `latex-paper-writer` creates and edits Git-versioned scientific LaTeX paper/report workspaces with venue-aware templates, experiment tables, `latexmk` PDF builds, and search-to-PDF summaries, `autoresearch` handles iterative keep/discard experiment loops over one explicitly configured repo without assuming `train.py` or `uv run train.py`, and `runpod-job` now defaults to a user-managed Runpod Pod workflow where the human creates the Pod, shares the `pod_id`, and the agent uses saved `gpu ssh profile` plus transcript-backed `gpu ssh session` commands as the default control path, while reserving raw `scp`, `rsync`, or one-shot `ssh` for bounded helper use and keeping the OpenColab-managed `gpu server` and `gpu job` flow available as an explicit opt-in when the user wants `run_id` tracking and managed lifecycle behavior. Any agent may use `autoresearch`, but the built-in `autoresearch` specialist is the default owner for sustained experiment-loop work.
 
 ## Configuration and Development
 
@@ -520,3 +520,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - `PageIndex`: https://github.com/VectifyAI/PageIndex - used by the shared `pageindex-grounded` workflow for grounded local paper QA.
 - `d2`: https://github.com/terrastruct/d2 - used by the shared `block-diagram` workflow for deterministic diagram generation.
 - `PyMuPDF`: https://github.com/pymupdf/PyMuPDF - used by the shared `pdf-figure-extract` workflow for local PDF figure extraction.
+- `latexmk`: https://ctan.org/pkg/latexmk - used by the shared `latex-paper-writer` workflow to compile LaTeX sources into PDFs when a local TeX distribution is installed.

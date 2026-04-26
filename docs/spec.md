@@ -131,6 +131,7 @@ Shared project skills requirements:
 - the shared `fast-search`, `pro-search`, and `deep-search` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
 - the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
 - the shared `pdf-figure-extract` skill is the canonical path for extracting and returning figures from already-downloaded local PDFs, optionally reusing PageIndex artifacts to narrow page selection before multimodal verification and delivery
+- the shared `latex-paper-writer` skill is the canonical path for creating, editing, versioning, compiling, and returning scientific LaTeX papers, reports, and search-derived PDF summaries; it must choose venue-aware templates when requested, keep each paper workspace under Git version control, use existing search and grounding artifacts for evidence, use `pdf-figure-extract` and `block-diagram` for figures or architecture visuals when appropriate, generate experiment-result tables, compile through `latexmk` when available with clear install remediation when missing, and return final PDFs through the active channel's file-delivery mechanism when requested
 - the shared `autoresearch` skill is the canonical path for iterative keep/discard experiment loops over one explicitly configured repo; any agent may use it when needed, but sustained ownership belongs by default to the built-in `autoresearch` specialist when present; it must require an explicit `repo_path`, `editable_file_path`, `run_command`, and `metric_rule`, must treat a non-zero exit code or missing metric as failure by default, must use a dedicated disposable branch or worktree for keep/discard iteration, and must not assume the editable file is `train.py` or the run command is `uv run train.py`
 - the shared `runpod-job` skill is the canonical AI-facing path for Runpod work and by default it must ask the human to manually create a Runpod Pod with the desired GPU type, wait for the user to provide the `pod_id`, save or reuse a project-scoped manual SSH profile through `opencolab gpu ssh profile ...`, and then use `opencolab gpu ssh session start|read|write|stop` as the default control path for that user-managed Pod rather than parking in raw direct SSH; this default is capacity-driven even though the OpenColab Runpod CLI remains supported; the skill must describe that manual path as outside the normal OpenColab `run_id` lifecycle, must not invent a `run_id`, and must not claim that `opencolab gpu job exec` works directly against a raw `pod_id`; it should prefer `opencolab gpu ssh profile test` before starting a session so host and port can be refreshed from Runpod Pod metadata when available, should set an active-agent default when appropriate, may use bounded `scp`, `rsync`, or one-shot `ssh` helpers only when file transfer or an explicit user request requires them, and should stop live sessions explicitly instead of leaving them open; when the user explicitly wants the OpenColab-managed lifecycle, the skill may instead use the `opencolab gpu server` and `opencolab gpu job` CLI commands, and in that managed path it must launch jobs in detached mode with `--wait false`, return the `run_id` promptly, refresh the run with `opencolab gpu job status --run-id <run_id>` before reporting on it so the latest remote logs are downloaded locally, review the `bootstrap`, `stdout`, `stderr`, and `poller` log streams when summarizing a run, use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when remote SSH-backed access is needed, prefer a single `NVIDIA A100 80GB PCIe` GPU candidate with `keep_warm` for curated target creation, ask the user whether to keep a finished warm Pod running or cancel it, and surface failed or degraded runs clearly with a proposed next useful action
 
@@ -163,7 +164,7 @@ Initialization requirements:
 - template-specific files may fall back to `src/agent-templates/shared/` in the source tree when a role folder does not provide an override, and packaged installs must preserve that fallback behavior with shipped runtime assets
 - in the current built-in layout, role folders provide `AGENTS.md` overrides, some roles may also override `IDENTITY.md` or `ALMA.md`, and `src/agent-templates/shared/` provides the shared fallback `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
-- the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job` skills must be available from the shared `projects/SKILLS/` directory
+- the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `latex-paper-writer`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job` skills must be available from the shared `projects/SKILLS/` directory
 - built-in tool guidance and built-in skill summaries must be repo-managed and injected into prompts at runtime rather than copied into agent-local `TOOLS.md`
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
@@ -916,7 +917,25 @@ The final user-facing reply from `pdf-figure-extract` should:
 - mention when the returned artifact is a clipped page render rather than a direct embedded-image extraction if that distinction materially affects what the user received
 - surface low-confidence matching, missing multimodal verification, stale PageIndex artifacts, or other material limitations when they affect confidence
 
-### 13.7 Diagram Skill Requirements
+### 13.7 LaTeX Paper Writer Skill Requirements
+
+The shared `latex-paper-writer` skill must support scientific paper and report production as a first-class OpenColab workflow.
+
+Requirements:
+
+- it must create and edit LaTeX paper workspaces without overwriting user-owned source, macros, bibliography files, figures, or tables
+- it must support venue-aware template selection for common ML, deep learning, computer vision, NLP, robotics, systems, AI, multimedia, medical AI, audio, HCI, graphics, and security venues
+- it must treat ICLR as the canonical venue name and may infer it from near misses such as ICRL when context is clear
+- it must avoid claiming official conference-template compliance unless the exact official template is bundled, provided by the user, or otherwise verified
+- it must keep generated or managed paper folders under Git version control, prefer an existing Git worktree when the paper already lives inside one, initialize a dedicated repository when needed or explicitly requested, and never stage or commit unrelated files outside the paper workspace
+- it must provide helper scripts for paper workspace initialization, scoped Git checkpoints, PDF compilation, LaTeX validation, and experiment-result table generation
+- it must compile PDFs with `latexmk` when available, fall back to a bounded `pdflatex`/bibliography flow when possible, and provide platform-specific `latexmk` installation guidance when the compiler is missing
+- it must use `fast-search`, `pro-search`, and `deep-search` outputs as research inputs for search-derived reports, `pageindex-grounded` for exact local evidence checks, `pdf-figure-extract` for figures from already-downloaded papers, and `block-diagram` for synthesized architecture or literature-map diagrams
+- it must cite non-trivial technical claims in search-derived summaries and must not fabricate paper metadata, citations, architecture details, benchmark values, or unsupported claims
+- it must generate reusable LaTeX table fragments for experiment results from CSV, JSON, markdown tables, or simple metric logs
+- when the active channel supports file delivery, it must return the final PDF through the channel's file-delivery mechanism, using raw `@telegram-file` directives for Telegram-routed runs
+
+### 13.8 Diagram Skill Requirements
 
 The shared `block-diagram` skill must:
 
@@ -947,7 +966,7 @@ The same pattern should extend to other important long-running tasks, including:
 - batch file conversion
 - report generation
 
-### 13.8 Failure and Recovery UX
+### 13.9 Failure and Recovery UX
 
 Progress support must improve failure handling as well as success handling.
 
@@ -957,7 +976,7 @@ Requirements:
 - warnings that reduce coverage or confidence should be surfaced before the final answer when they materially change the result
 - if the runtime needs human intervention, the user should receive a `needs_input` style message instead of waiting for timeout or generic failure
 
-### 13.9 Provider Timeout Recovery
+### 13.10 Provider Timeout Recovery
 
 Provider CLI timeout is a normal failure mode, not an edge case. OpenColab must preserve enough context for the next turn to resume cleanly when `OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS` is reached.
 
@@ -972,7 +991,7 @@ Requirements:
 - bounded runtime telemetry for timed-out executions may be persisted separately from conversation memory, but if persisted it must live in a separate operational log rather than in `memory/Session/` as synthetic assistant chatter
 - timeout handling should attempt a short final progress flush before forceful termination when the provider runtime supports it, but the recovery record must not depend on that flush succeeding
 
-### 13.10 Heartbeat Wake-Up
+### 13.11 Heartbeat Wake-Up
 
 Heartbeat is a delayed follow-up for the active agent, not a general scheduler.
 

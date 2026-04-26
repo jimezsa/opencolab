@@ -23,6 +23,24 @@ test("repository includes shell and PowerShell installer entrypoints", () => {
   assert.equal(fs.existsSync(path.join(REPO_ROOT, "install.ps1")), true);
 });
 
+test("repository ships the latex-paper-writer shared skill resources", () => {
+  const skillDir = path.join(REPO_ROOT, "projects", "SKILLS", "latex-paper-writer");
+  const skillDoc = fs.readFileSync(path.join(skillDir, "SKILL.md"), "utf8");
+
+  assert.match(skillDoc, /name: latex-paper-writer/);
+  assert.match(skillDoc, /Git-version/);
+  assert.match(skillDoc, /latexmk/);
+  assert.equal(fs.existsSync(path.join(skillDir, "references", "conference-map.md")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "references", "deep-search-integration.md")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "scripts", "init_paper_workspace.py")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "scripts", "git_checkpoint.py")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "scripts", "build_pdf.sh")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "scripts", "validate_latex.sh")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "scripts", "make_results_table.py")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "assets", "templates", "iclr", "main.tex")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "assets", "templates", "generic-survey", "main.tex")), true);
+});
+
 test("installer scripts expose the hacky clone flag and clone overrides", () => {
   const installSh = fs.readFileSync(path.join(REPO_ROOT, "install.sh"), "utf8");
   const installPs1 = fs.readFileSync(path.join(REPO_ROOT, "install.ps1"), "utf8");

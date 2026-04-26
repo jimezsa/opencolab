@@ -10,6 +10,8 @@ delivery through the active user channel.
 
 Proposed skill id: `latex-paper-writer`.
 
+Implementation path: `projects/SKILLS/latex-paper-writer/`.
+
 ## Target Use Cases
 
 - Create a new scientific paper draft from a topic, method description, notes,
