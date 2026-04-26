@@ -261,6 +261,58 @@ The skill should prefer deterministic local build steps:
    overfull boxes, and bibliography failures.
 5. Return a concise status with the PDF path and important warnings.
 
+### `latexmk` Installation Guidance
+
+The skill should check for `latexmk` before building:
+
+```bash
+latexmk -v
+```
+
+If `latexmk` is missing, the skill should explain that the user needs a local
+LaTeX distribution and provide concise install options for the current platform.
+It should not claim to install LaTeX automatically unless the user explicitly
+approves the install command.
+
+Common install paths:
+
+- macOS full TeX install:
+
+  ```bash
+  brew install --cask mactex
+  ```
+
+- macOS smaller TeX install:
+
+  ```bash
+  brew install --cask basictex
+  sudo tlmgr update --self
+  sudo tlmgr install latexmk
+  ```
+
+- Debian or Ubuntu:
+
+  ```bash
+  sudo apt-get update
+  sudo apt-get install -y latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
+  ```
+
+- Fedora:
+
+  ```bash
+  sudo dnf install latexmk texlive-scheme-medium
+  ```
+
+- Arch Linux:
+
+  ```bash
+  sudo pacman -S texlive-binextra texlive-latexrecommended texlive-latexextra
+  ```
+
+- Windows:
+  install MiKTeX or TeX Live, enable package installation, ensure the TeX binary
+  directory is on `PATH`, then verify with `latexmk -v`.
+
 When running in a Telegram-routed workflow, the final PDF should be returned
 using the raw file directive expected by OpenColab, for example a raw
 `@telegram-file <json>` line, not a markdown-wrapped snippet.
@@ -279,14 +331,16 @@ using the raw file directive expected by OpenColab, for example a raw
 6. Add build and validation scripts.
 7. Add a table-generation script for CSV, JSON, markdown, and simple experiment
    summaries.
-8. Add Git workspace initialization, `.gitignore`, status inspection, and
+8. Add platform-specific `latexmk` installation guidance and missing-compiler
+   remediation.
+9. Add Git workspace initialization, `.gitignore`, status inspection, and
    checkpoint guidance.
-9. Document integration points with `deep-search`, `pageindex-grounded`,
+10. Document integration points with `deep-search`, `pageindex-grounded`,
    `pdf-figure-extract`, and `block-diagram`.
-10. Update `docs/spec.md` first when turning this plan into a behavior change,
+11. Update `docs/spec.md` first when turning this plan into a behavior change,
    then sync `README.md`, `AGENTS.md`, and implementation files in the same
    change.
-11. Validate the skill with realistic prompts:
+12. Validate the skill with realistic prompts:
     - create an ICLR-style paper draft from notes
     - generate a survey PDF from `deep-search/findings.md`
     - turn experiment logs into LaTeX ablation tables
@@ -301,5 +355,6 @@ using the raw file directive expected by OpenColab, for example a raw
   or should each project define its own output convention?
 - Should the first implementation support plots directly, or start with tables
   and rely on user-provided/generated figures for graphics?
-- Which LaTeX distribution should be documented as the supported local default
-  for macOS, Linux, and Windows installs?
+- Which LaTeX distribution should be the recommended default for OpenColab
+  users: full TeX Live/MacTeX for fewer missing-package failures, or smaller
+  installs such as BasicTeX/MiKTeX with on-demand package installation?
