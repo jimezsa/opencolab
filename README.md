@@ -126,7 +126,7 @@ curl -fsSL https://raw.githubusercontent.com/jimezsa/opencolab/main/install.sh |
 Windows PowerShell clone mode:
 
 ```powershell
-& ([scriptblock]::Create((irm https://opencolab.ai/install.ps1))) --hacky
+powershell -c "& ([scriptblock]::Create((irm https://opencolab.ai/install.ps1))) --hacky"
 ```
 
 Optional clone-mode overrides:
