@@ -128,10 +128,10 @@ Shared project skills requirements:
 - each skill lives under `projects/SKILLS/<skill_id>/SKILL.md`
 - agent instructions must tell agents to read relevant `SKILL.md` files from the shared `projects/SKILLS/` directory before using a specialized workflow
 - the shared `block-diagram` skill is the deterministic path for autonomous D2 block-diagram generation and defaults to sketch-style rendering unless the user asks for clean output
-- the shared `fast-search`, `pro-search`, and `deep-search` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
+- the shared `fast-research`, `pro-research`, and `deep-research` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
 - the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
 - the shared `pdf-figure-extract` skill is the canonical path for extracting and returning figures from already-downloaded local PDFs, optionally reusing PageIndex artifacts to narrow page selection before multimodal verification and delivery
-- the shared `latex-paper-writer` skill is the canonical path for creating, editing, versioning, compiling, and returning scientific LaTeX papers, reports, and search-derived PDF summaries; it must choose venue-aware templates when requested, keep each paper workspace under Git version control, use existing search and grounding artifacts for evidence, use `pdf-figure-extract` and `block-diagram` for figures or architecture visuals when appropriate, generate experiment-result tables, compile through `latexmk` when available with clear install remediation when missing, and return final PDFs through the active channel's file-delivery mechanism when requested
+- the shared `latex-paper-writer` skill is the canonical path for creating, editing, versioning, compiling, and returning scientific LaTeX papers, reports, and research-derived PDF summaries; it must choose venue-aware templates when requested, keep each paper workspace under Git version control, use existing research and grounding artifacts for evidence, use `pdf-figure-extract` and `block-diagram` for figures or architecture visuals when appropriate, generate experiment-result tables, compile through `latexmk` when available with clear install remediation when missing, and return final PDFs through the active channel's file-delivery mechanism when requested
 - the shared `autoresearch` skill is the canonical path for iterative keep/discard experiment loops over one explicitly configured repo; any agent may use it when needed, but sustained ownership belongs by default to the built-in `autoresearch` specialist when present; it must require an explicit `repo_path`, `editable_file_path`, `run_command`, and `metric_rule`, must treat a non-zero exit code or missing metric as failure by default, must use a dedicated disposable branch or worktree for keep/discard iteration, and must not assume the editable file is `train.py` or the run command is `uv run train.py`
 - the shared `runpod-job` skill is the canonical AI-facing path for Runpod work and by default it must ask the human to manually create a Runpod Pod with the desired GPU type, wait for the user to provide the `pod_id`, save or reuse a project-scoped manual SSH profile through `opencolab gpu ssh profile ...`, and then use `opencolab gpu ssh session start|read|write|stop` as the default control path for that user-managed Pod rather than parking in raw direct SSH; this default is capacity-driven even though the OpenColab Runpod CLI remains supported; the skill must describe that manual path as outside the normal OpenColab `run_id` lifecycle, must not invent a `run_id`, and must not claim that `opencolab gpu job exec` works directly against a raw `pod_id`; it should prefer `opencolab gpu ssh profile test` before starting a session so host and port can be refreshed from Runpod Pod metadata when available, should set an active-agent default when appropriate, may use bounded `scp`, `rsync`, or one-shot `ssh` helpers only when file transfer or an explicit user request requires them, and should stop live sessions explicitly instead of leaving them open; when the user explicitly wants the OpenColab-managed lifecycle, the skill may instead use the `opencolab gpu server` and `opencolab gpu job` CLI commands, and in that managed path it must launch jobs in detached mode with `--wait false`, return the `run_id` promptly, refresh the run with `opencolab gpu job status --run-id <run_id>` before reporting on it so the latest remote logs are downloaded locally, review the `bootstrap`, `stdout`, `stderr`, and `poller` log streams when summarizing a run, use `opencolab gpu job exec --run-id <id> --command "<remote command>"` for bounded direct Pod inspection when remote SSH-backed access is needed, prefer a single `NVIDIA A100 80GB PCIe` GPU candidate with `keep_warm` for curated target creation, ask the user whether to keep a finished warm Pod running or cancel it, and surface failed or degraded runs clearly with a proposed next useful action
 
@@ -164,7 +164,7 @@ Initialization requirements:
 - template-specific files may fall back to `src/agent-templates/shared/` in the source tree when a role folder does not provide an override, and packaged installs must preserve that fallback behavior with shipped runtime assets
 - in the current built-in layout, role folders provide `AGENTS.md` overrides, some roles may also override `IDENTITY.md` or `ALMA.md`, and `src/agent-templates/shared/` provides the shared fallback `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
-- the built-in `fast-search`, `pro-search`, `deep-search`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `latex-paper-writer`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job` skills must be available from the shared `projects/SKILLS/` directory
+- the built-in `fast-research`, `pro-research`, `deep-research`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `latex-paper-writer`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job` skills must be available from the shared `projects/SKILLS/` directory
 - built-in tool guidance and built-in skill summaries must be repo-managed and injected into prompts at runtime rather than copied into agent-local `TOOLS.md`
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
@@ -833,11 +833,11 @@ Recommended rule of thumb:
 - let the agent focus on doing the work and producing a good final answer
 - do not ask the agent to print a Telegram-specific progress protocol during normal routed runs
 
-### 13.4 Search Skill UX Requirements
+### 13.4 Research Skill UX Requirements
 
-The shared `fast-search`, `pro-search`, and `deep-search` skills must support bounded runtime status updates tied to their actual workflow stages.
+The shared `fast-research`, `pro-research`, and `deep-research` skills must support bounded runtime status updates tied to their actual workflow stages.
 
-For paper-search workflows, expected update categories include:
+For paper research workflows, expected update categories include:
 
 - retrieval started
 - candidate corpus size known
@@ -847,7 +847,7 @@ For paper-search workflows, expected update categories include:
 - synthesis/report-writing started
 - final report delivered
 
-The shared `fast-search`, `pro-search`, and `deep-search` skills must also generate a companion literature-map block diagram through the shared `block-diagram` skill.
+The shared `fast-research`, `pro-research`, and `deep-research` skills must also generate a companion literature-map block diagram through the shared `block-diagram` skill.
 
 That companion diagram should:
 
@@ -858,7 +858,7 @@ That companion diagram should:
 - produce companion `.d2` plus rendered diagram artifacts alongside the report,
 - and prefer `.png` as the primary user-facing literature-map artifact, falling back to `.svg` when PNG rendering is unavailable.
 
-The shared `fast-search`, `pro-search`, and `deep-search` skills must also keep their skill-specific `findings.md` format stable while returning a friendlier final chat reply for user-facing interactive runs. That final reply should:
+The shared `fast-research`, `pro-research`, and `deep-research` skills must also keep their skill-specific `findings.md` format stable while returning a friendlier final chat reply for user-facing interactive runs. That final reply should:
 
 - stay concise instead of dumping the whole report into chat,
 - include a direct answer, corpus coverage stats, and the most important cited takeaways,
@@ -869,12 +869,12 @@ The shared `fast-search`, `pro-search`, and `deep-search` skills must also keep 
 
 ### 13.5 PageIndex Grounded Skill Requirements
 
-The shared `pageindex-grounded` skill must complement the paper search and summary workflows rather than replace them.
+The shared `pageindex-grounded` skill must complement the paper research and summary workflows rather than replace them.
 
 Requirements:
 
 - it must operate on already-downloaded local PDFs, not on paper discovery
-- it must treat `fast-search`, `pro-search`, and `deep-search` as the retrieval path for finding papers and `paper-summary` as the canonical per-paper summary path
+- it must treat `fast-research`, `pro-research`, and `deep-research` as the retrieval path for finding papers and `paper-summary` as the canonical per-paper summary path
 - it must keep paper selection bounded before retrieval, normally searching 1 paper for a single-paper question and 2-5 papers for a cross-paper question unless the user explicitly asks for broader coverage
 - it must persist PageIndex artifacts under `research/pageindex/`, including `trees/` for cached per-paper tree JSON and `answers/` for optional grounded answer notes
 - it must maintain a machine-readable `research/pageindex/manifest.json` that records selected local papers, PDF paths, tree paths, and freshness or indexing status
@@ -930,8 +930,8 @@ Requirements:
 - it must keep generated or managed paper folders under Git version control, prefer an existing Git worktree when the paper already lives inside one, initialize a dedicated repository when needed or explicitly requested, and never stage or commit unrelated files outside the paper workspace
 - it must provide helper scripts for paper workspace initialization, scoped Git checkpoints, PDF compilation, LaTeX validation, and experiment-result table generation
 - it must compile PDFs with `latexmk` when available, fall back to a bounded `pdflatex`/bibliography flow when possible, and provide platform-specific `latexmk` installation guidance when the compiler is missing
-- it must use `fast-search`, `pro-search`, and `deep-search` outputs as research inputs for search-derived reports, `pageindex-grounded` for exact local evidence checks, `pdf-figure-extract` for figures from already-downloaded papers, and `block-diagram` for synthesized architecture or literature-map diagrams
-- it must cite non-trivial technical claims in search-derived summaries and must not fabricate paper metadata, citations, architecture details, benchmark values, or unsupported claims
+- it must use `fast-research`, `pro-research`, and `deep-research` outputs as research inputs for research-derived reports, `pageindex-grounded` for exact local evidence checks, `pdf-figure-extract` for figures from already-downloaded papers, and `block-diagram` for synthesized architecture or literature-map diagrams
+- it must cite non-trivial technical claims in research-derived summaries and must not fabricate paper metadata, citations, architecture details, benchmark values, or unsupported claims
 - it must generate reusable LaTeX table fragments for experiment results from CSV, JSON, markdown tables, or simple metric logs
 - when the active channel supports file delivery, it must return the final PDF through the channel's file-delivery mechanism, using raw `@telegram-file` directives for Telegram-routed runs
 
@@ -1032,7 +1032,7 @@ v1 is complete when all are true:
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.
 - Long-running routed tasks can emit bounded intermediate Telegram updates before the final answer.
 - Progress updates are treated as operational events rather than normal assistant conversation turns.
-- Shared search skills support agent-chosen progress events for retrieval, selection, download, summarization, and synthesis phases.
+- Shared research skills support agent-chosen progress events for retrieval, selection, download, summarization, and synthesis phases.
 - The background gateway process can schedule one pending heartbeat wake-up per project and fire an internal turn for the same active agent when due, using `continue` unless `HEARTBEAT.md` configures a valid `message:`.
 
 The Runpod-first remote execution milestone is complete when all are true:

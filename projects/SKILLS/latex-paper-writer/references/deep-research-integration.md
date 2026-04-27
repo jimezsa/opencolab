@@ -1,7 +1,7 @@
-# Search-to-PDF Integration
+# Research-to-PDF Integration
 
-Use this reference when converting `fast-search`, `pro-search`, or
-`deep-search` outputs into a LaTeX report or survey PDF.
+Use this reference when converting `fast-research`, `pro-research`, or
+`deep-research` outputs into a LaTeX report or survey PDF.
 
 ## Expected Inputs
 
@@ -35,7 +35,7 @@ Sections:
 
 ## Visuals
 
-- Use an existing literature-map diagram when the search skill already produced
+- Use an existing literature-map diagram when the research skill already produced
   one.
 - Use `block-diagram` for a synthesized taxonomy, architecture, or pipeline
   diagram when a visual would clarify the summary.
@@ -50,4 +50,3 @@ Sections:
   enough that summary-level evidence is insufficient.
 - Include a limitations paragraph when the corpus is partial, metadata-only, or
   missing local PDFs.
-

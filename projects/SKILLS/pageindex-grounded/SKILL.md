@@ -21,11 +21,11 @@ Typical use cases:
 
 - exact claim verification from one downloaded paper
 - "where does this paper say X?" questions
-- page-level follow-up after `fast-search`, `pro-search`, or `deep-search`
+- page-level follow-up after `fast-research`, `pro-research`, or `deep-research`
 - bounded cross-paper comparison across a small local paper set
 - checking whether a prior synthesis overclaimed or missed a qualification
 
-Do not use this skill for paper discovery. Use `fast-search`, `pro-search`, or `deep-search` first when the papers are not already local.
+Do not use this skill for paper discovery. Use `fast-research`, `pro-research`, or `deep-research` first when the papers are not already local.
 Do not use this skill as a replacement for `paper-summary`. `paper-summary` remains the canonical per-paper summary workflow.
 When the user wants the figure image itself instead of only a grounded answer, hand off to the shared `pdf-figure-extract` skill after you identify the likely paper and page range.
 

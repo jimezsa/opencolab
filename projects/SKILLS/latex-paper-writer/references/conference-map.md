@@ -37,6 +37,6 @@ venue-aware, not a substitute for verified official conference files.
 | Request | Template |
 | --- | --- |
 | "paper", "draft", "submission" | `generic-paper` |
-| "survey", "literature review", "deep-search summary" | `generic-survey` |
+| "survey", "literature review", "deep-research summary" | `generic-survey` |
 | "technical report", "experiment report", "internal report" | `generic-technical-report` |
 

@@ -1,6 +1,6 @@
 ---
 name: latex-paper-writer
-description: Create, edit, Git-version, compile, and deliver scientific LaTeX papers, reports, and search-derived PDF summaries. Use for venue-aware templates such as ICLR, NeurIPS, ICML, CVPR, ACL, ACM, and IEEE; experiment-result tables; architecture figures or diagrams; deep-search/pro-search/fast-search to PDF summaries; and .tex to PDF builds with latexmk.
+description: Create, edit, Git-version, compile, and deliver scientific LaTeX papers, reports, and research-derived PDF summaries. Use for venue-aware templates such as ICLR, NeurIPS, ICML, CVPR, ACL, ACM, and IEEE; experiment-result tables; architecture figures or diagrams; deep-research/pro-research/fast-research to PDF summaries; and .tex to PDF builds with latexmk.
 metadata:
   opencolab:
     emoji: "📝"
@@ -40,10 +40,10 @@ metadata:
 # LaTeX Paper Writer Skill
 
 Use this skill when the user wants a scientific paper, survey, technical report,
-search-derived PDF summary, LaTeX experiment table, or edits to an existing
+research-derived PDF summary, LaTeX experiment table, or edits to an existing
 LaTeX document.
 
-This is the canonical OpenColab path for paper production. Search, grounding,
+This is the canonical OpenColab path for paper production. Research, grounding,
 figure extraction, and architecture diagrams stay delegated to the existing
 shared skills; this skill owns the LaTeX workspace, document structure,
 template selection, scoped Git version control, PDF compilation, validation,
@@ -80,7 +80,7 @@ after the user explicitly approves installing system packages.
 
 - Read `references/conference-map.md` before choosing a venue template.
 - Read `references/citation-policy.md` before writing claims from papers.
-- Read `references/deep-search-integration.md` when converting search outputs
+- Read `references/deep-research-integration.md` when converting research outputs
   into a PDF summary or survey.
 - Read `references/experiment-tables.md` before generating result tables.
 - Use the existing paper's template and macros when editing an existing paper.
@@ -110,7 +110,7 @@ Choose the path:
 
 - new paper draft: create a workspace and template
 - existing paper edit: inspect and preserve the current structure
-- search-to-PDF summary: use `findings.md`, paper summaries, diagrams, and PDFs
+- research-to-PDF summary: use `findings.md`, paper summaries, diagrams, and PDFs
 - experiment report: generate tables/plots and cite the experiment artifacts
 - table-only task: generate `.tex` table fragments under `tables/`
 
@@ -217,7 +217,7 @@ For a full paper or report task, return:
 - Conference map: `projects/SKILLS/latex-paper-writer/references/conference-map.md`
 - Document types: `projects/SKILLS/latex-paper-writer/references/document-types.md`
 - Citation policy: `projects/SKILLS/latex-paper-writer/references/citation-policy.md`
-- Search integration: `projects/SKILLS/latex-paper-writer/references/deep-search-integration.md`
+- Research integration: `projects/SKILLS/latex-paper-writer/references/deep-research-integration.md`
 - Experiment tables: `projects/SKILLS/latex-paper-writer/references/experiment-tables.md`
 - Templates: `projects/SKILLS/latex-paper-writer/assets/templates/`
 - Workspace initializer: `projects/SKILLS/latex-paper-writer/scripts/init_paper_workspace.py`

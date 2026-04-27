@@ -21,9 +21,9 @@ For precise follow-up QA after the summaries exist, switch to the shared `pagein
 
 This skill is the canonical summary step for:
 
-- `SKILLS/fast-search/SKILL.md`
-- `SKILLS/pro-search/SKILL.md`
-- `SKILLS/deep-search/SKILL.md`
+- `SKILLS/fast-research/SKILL.md`
+- `SKILLS/pro-research/SKILL.md`
+- `SKILLS/deep-research/SKILL.md`
 
 ## Update This Skill
 
@@ -63,7 +63,7 @@ Given one paper PDF or a directory of paper PDFs:
 - A single PDF via `--pdf`, or a directory of PDFs via `--pdf-dir`.
 - Optional `--metadata-dir` so the script can recover original paper IDs and metadata fallbacks.
 - Optional `--summarized-ids` file to append successful original paper IDs.
-- Optional `--failures-tsv` file to record summary failures in the same ledger used by the search skills.
+- Optional `--failures-tsv` file to record summary failures in the same ledger used by the research skills.
 
 ## Hard Requirements
 
@@ -79,7 +79,7 @@ Given one paper PDF or a directory of paper PDFs:
 ### 1. Confirm local inputs
 
 - Verify the target PDF exists.
-- When possible, keep PDF names aligned with the `safe_id` convention already used by the search skills.
+- When possible, keep PDF names aligned with the `safe_id` convention already used by the research skills.
 - If metadata exists, keep the matching JSON at `research/meta/<safe_id>.json`.
 
 ### 2. Run the Gemini batch summarizer

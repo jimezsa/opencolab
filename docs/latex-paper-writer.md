@@ -4,7 +4,7 @@
 
 Add a shared OpenColab skill that helps agents create, edit, compile, and deliver
 scientific LaTeX papers and research-summary PDFs. The skill should support
-conference-aware templates, grounded summaries from search outputs, architecture
+conference-aware templates, grounded summaries from research outputs, architecture
 figures when needed, experiment-result tables, and final PDF generation for
 delivery through the active user channel.
 
@@ -18,7 +18,7 @@ Implementation path: `projects/SKILLS/latex-paper-writer/`.
   or experiment results.
 - Edit an existing LaTeX paper while preserving its template, macros,
   bibliography style, figures, and section organization.
-- Convert `deep-search`, `pro-search`, or `fast-search` findings into a
+- Convert `deep-research`, `pro-research`, or `fast-research` findings into a
   structured PDF summary or survey.
 - Create paper sections such as abstract, introduction, method, experiments,
   related work, limitations, and conclusion.
@@ -70,7 +70,7 @@ projects/SKILLS/latex-paper-writer/
     conference-map.md
     document-types.md
     citation-policy.md
-    deep-search-integration.md
+    deep-research-integration.md
     experiment-tables.md
   assets/
     templates/
@@ -181,13 +181,13 @@ When editing an existing paper, the skill should:
 - Make targeted edits, then compile and validate the result.
 - Summarize changed files and remaining build warnings.
 
-### Search-to-PDF Summary
+### Research-to-PDF Summary
 
-When a user asks for a summary from `deep-search`, `pro-search`, or
-`fast-search` output, the skill should:
+When a user asks for a summary from `deep-research`, `pro-research`, or
+`fast-research` output, the skill should:
 
 1. Locate `findings.md`, downloaded papers, existing BibTeX, diagrams, extracted
-   figures, and search metadata.
+   figures, and research metadata.
 2. Choose a `generic-survey` or `generic-technical-report` template unless the
    user requests a specific venue format.
 3. Produce a structured summary with:
@@ -223,7 +223,7 @@ them from `main.tex`.
 The new skill should reuse existing OpenColab skills instead of duplicating
 research, grounding, figure extraction, or diagram logic:
 
-- Use `fast-search`, `pro-search`, and `deep-search` outputs as research inputs.
+- Use `fast-research`, `pro-research`, and `deep-research` outputs as research inputs.
 - Use `pageindex-grounded` for grounded follow-up QA over already-downloaded
   papers.
 - Use `pdf-figure-extract` for extracting figures from local PDFs.
@@ -337,14 +337,14 @@ using the raw file directive expected by OpenColab, for example a raw
    remediation.
 9. Add Git workspace initialization, `.gitignore`, status inspection, and
    checkpoint guidance.
-10. Document integration points with `deep-search`, `pageindex-grounded`,
+10. Document integration points with `deep-research`, `pageindex-grounded`,
    `pdf-figure-extract`, and `block-diagram`.
 11. Update `docs/spec.md` first when turning this plan into a behavior change,
    then sync `README.md`, `AGENTS.md`, and implementation files in the same
    change.
 12. Validate the skill with realistic prompts:
     - create an ICLR-style paper draft from notes
-    - generate a survey PDF from `deep-search/findings.md`
+    - generate a survey PDF from `deep-research/findings.md`
     - turn experiment logs into LaTeX ablation tables
     - edit and rebuild an existing CVPR-style paper
 

@@ -961,9 +961,9 @@ test("init seeds TOOLS.md as a local tooling notes scaffold", () => {
       toolsDoc.includes("Record local overrides to the repo-managed defaults here."),
       true
     );
-    assert.equal(toolsDoc.includes("`fast-search`"), false);
-    assert.equal(toolsDoc.includes("`pro-search`"), false);
-    assert.equal(toolsDoc.includes("`deep-search`"), false);
+    assert.equal(toolsDoc.includes("`fast-research`"), false);
+    assert.equal(toolsDoc.includes("`pro-research`"), false);
+    assert.equal(toolsDoc.includes("`deep-research`"), false);
     assert.equal(toolsDoc.includes("`pageindex-grounded`"), false);
     assert.equal(toolsDoc.includes("`pdf-figure-extract`"), false);
     assert.equal(toolsDoc.includes("`latex-paper-writer`"), false);

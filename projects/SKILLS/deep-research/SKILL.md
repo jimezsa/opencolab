@@ -1,5 +1,5 @@
 ---
-name: deep-search
+name: deep-research
 description: Deep scientific investigation with papercli. Iterative search, broad PDF corpus download and reading, equation-level analysis, and exhaustive referenced markdown findings.
 homepage: https://github.com/jimezsa/papercli
 metadata:
@@ -30,7 +30,7 @@ metadata:
   }
 ---
 
-# Deep Search Skill
+# Deep Research Skill
 
 Use this skill for comprehensive scientific research tasks such as state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support.
 
@@ -43,8 +43,8 @@ Only do this if the user explicitly asks to update this skill from the GitHub re
 To refresh this skill directly from the GitHub repo:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jimezsa/papercli/main/SKILLS/deep-search/SKILL.md \
-  -o SKILLS/deep-search/SKILL.md
+curl -fsSL https://raw.githubusercontent.com/jimezsa/papercli/main/SKILLS/deep-research/SKILL.md \
+  -o SKILLS/deep-research/SKILL.md
 ```
 
 ## Mission
@@ -180,7 +180,7 @@ done < research/meta/deep_read_ids.txt
 
 ### 5. Create agent-ready paper summaries
 
-Delegate the summary phase to the `paper-summary` skill so the deep workflow uses the same canonical schema and batch summarizer as the other search skills.
+Delegate the summary phase to the `paper-summary` skill so the deep workflow uses the same canonical schema and batch summarizer as the other research skills.
 
 Run it after the deep-read PDFs and metadata are ready:
 

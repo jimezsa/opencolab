@@ -31,7 +31,7 @@ test("repository ships the latex-paper-writer shared skill resources", () => {
   assert.match(skillDoc, /Git-version/);
   assert.match(skillDoc, /latexmk/);
   assert.equal(fs.existsSync(path.join(skillDir, "references", "conference-map.md")), true);
-  assert.equal(fs.existsSync(path.join(skillDir, "references", "deep-search-integration.md")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "references", "deep-research-integration.md")), true);
   assert.equal(fs.existsSync(path.join(skillDir, "scripts", "init_paper_workspace.py")), true);
   assert.equal(fs.existsSync(path.join(skillDir, "scripts", "git_checkpoint.py")), true);
   assert.equal(fs.existsSync(path.join(skillDir, "scripts", "build_pdf.sh")), true);
@@ -39,6 +39,15 @@ test("repository ships the latex-paper-writer shared skill resources", () => {
   assert.equal(fs.existsSync(path.join(skillDir, "scripts", "make_results_table.py")), true);
   assert.equal(fs.existsSync(path.join(skillDir, "assets", "templates", "iclr", "main.tex")), true);
   assert.equal(fs.existsSync(path.join(skillDir, "assets", "templates", "generic-survey", "main.tex")), true);
+});
+
+test("repository ships renamed paper research shared skills", () => {
+  for (const skillId of ["fast-research", "pro-research", "deep-research"]) {
+    const skillDir = path.join(REPO_ROOT, "projects", "SKILLS", skillId);
+    const skillDoc = fs.readFileSync(path.join(skillDir, "SKILL.md"), "utf8");
+
+    assert.match(skillDoc, new RegExp(`name: ${skillId}`));
+  }
 });
 
 test("installer scripts expose the hacky clone flag and clone overrides", () => {

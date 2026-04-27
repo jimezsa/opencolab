@@ -1,5 +1,5 @@
 ---
-name: pro-search
+name: pro-research
 description: Professional paper research with papercli. Multi-pass search, PDF download and reading, math-aware synthesis, and a detailed referenced markdown findings report.
 homepage: https://github.com/jimezsa/papercli
 metadata:
@@ -30,7 +30,7 @@ metadata:
   }
 ---
 
-# Pro Search Skill
+# Pro Research Skill
 
 Use this skill when the user needs a serious literature synthesis, not a quick scan. This workflow prioritizes methodological depth, cross-paper comparison, and explicit evidence tracking.
 
@@ -43,8 +43,8 @@ Only do this if the user explicitly asks to update this skill from the GitHub re
 To refresh this skill directly from the GitHub repo:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jimezsa/papercli/main/SKILLS/pro-search/SKILL.md \
-  -o SKILLS/pro-search/SKILL.md
+curl -fsSL https://raw.githubusercontent.com/jimezsa/papercli/main/SKILLS/pro-research/SKILL.md \
+  -o SKILLS/pro-research/SKILL.md
 ```
 
 ## Mission

@@ -1,5 +1,5 @@
 ---
-name: fast-search
+name: fast-research
 description: Fast scientific paper scouting with papercli. Search, download, read, and produce a referenced markdown findings file with core ideas, concepts, and key math.
 homepage: https://github.com/jimezsa/papercli
 metadata:
@@ -30,7 +30,7 @@ metadata:
   }
 ---
 
-# Fast Search Skill
+# Fast Research Skill
 
 Use this skill for a rapid, evidence-grounded literature brief when the user needs quick scientific orientation without sacrificing traceability.
 
@@ -43,8 +43,8 @@ Only do this if the user explicitly asks to update this skill from the GitHub re
 To refresh this skill directly from the GitHub repo:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jimezsa/papercli/main/SKILLS/fast-search/SKILL.md \
-  -o SKILLS/fast-search/SKILL.md
+curl -fsSL https://raw.githubusercontent.com/jimezsa/papercli/main/SKILLS/fast-research/SKILL.md \
+  -o SKILLS/fast-research/SKILL.md
 ```
 
 ## Mission

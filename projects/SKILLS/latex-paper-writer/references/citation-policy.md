@@ -6,7 +6,7 @@ speculation.
 ## Rules
 
 - Preserve existing `references.bib` entries when editing an existing paper.
-- Cite every non-trivial technical claim in search-derived summaries.
+- Cite every non-trivial technical claim in research-derived summaries.
 - Prefer BibTeX from paper metadata files, publisher pages, arXiv, DOI records,
   or user-provided `.bib` files.
 - Do not fabricate titles, authors, venues, arXiv ids, DOIs, URLs, benchmark
@@ -41,4 +41,3 @@ Avoid unsupported phrasing:
 - "This proves..."
 - "The best method is..."
 - "The architecture uses..." when only a vague summary supports it
-

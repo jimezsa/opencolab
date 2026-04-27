@@ -39,24 +39,24 @@ Guidance:
 
 ## Selected Shared Skills
 
-- `fast-search`
+- `fast-research`
   Description: Fast scientific paper scouting with `papercli`.
   When to use: for a rapid, evidence-grounded literature brief or quick scientific orientation, with a concise user-facing summary, a PNG-first companion literature-map diagram showing how the main papers connect, and the detailed `findings.md` kept as the canonical report.
-- `pro-search`
+- `pro-research`
   Description: Professional paper research with `papercli`.
   When to use: for serious literature synthesis with stronger methodological depth, cross-paper comparison, explicit evidence tracking, a PNG-first companion paper-connection diagram, and a concise user-facing summary that points to the full `findings.md`.
-- `deep-search`
+- `deep-research`
   Description: Deep scientific investigation with `papercli`.
   When to use: for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support, while also producing a compact PNG-first literature-map diagram and keeping the chat reply concise and the detailed `findings.md` as the full deliverable.
 - `pageindex-grounded`
   Description: Local-first grounded QA over already-downloaded papers using cached PageIndex trees.
-  When to use: for precise follow-up questions, exact claim verification, or bounded cross-paper comparisons that need exact paper or page references from local PDFs after search or summary work is already done.
+  When to use: for precise follow-up questions, exact claim verification, or bounded cross-paper comparisons that need exact paper or page references from local PDFs after research or summary work is already done.
 - `pdf-figure-extract`
   Description: Local-first paper figure extraction with PyMuPDF, optional PageIndex-assisted page selection, and multimodal candidate verification before delivery.
   When to use: for architecture figures, pipeline overviews, system diagrams, tables-as-images, or other paper figures that should be extracted from an already-downloaded local PDF and returned as an image file.
 - `latex-paper-writer`
   Description: Scientific LaTeX paper and report production with venue-aware templates, Git-versioned workspaces, experiment tables, and local PDF compilation.
-  When to use: for creating or editing LaTeX papers, turning `deep-search`, `pro-search`, or `fast-search` findings into PDF summaries or survey reports, generating LaTeX experiment tables from CSV/JSON/markdown/log results, adding architecture figures or diagrams through existing figure/diagram skills, and compiling the final PDF with `latexmk` when available. Keep the paper folder under Git version control and never stage unrelated parent-repository files.
+  When to use: for creating or editing LaTeX papers, turning `deep-research`, `pro-research`, or `fast-research` findings into PDF summaries or survey reports, generating LaTeX experiment tables from CSV/JSON/markdown/log results, adding architecture figures or diagrams through existing figure/diagram skills, and compiling the final PDF with `latexmk` when available. Keep the paper folder under Git version control and never stage unrelated parent-repository files.
 - `autoresearch`
   Description: Iterative keep/discard experiment workflow over one explicitly configured repo, editable file, run command, and metric rule.
   When to use: for repeated training or evaluation loops where the experiment contract is explicit and the agent should make one narrow change, run one bounded experiment, extract the metric, and decide whether to keep or discard the change. Any agent may use it, but the `autoresearch` specialist is the default owner for sustained experiment-loop work. Do not assume the editable file is `train.py` or the run command is `uv run train.py`. Treat non-zero exit or missing metric as failure unless the repo contract says otherwise, and keep discard/rewind operations inside a dedicated disposable branch or worktree only. If remote GPU execution is needed, combine it with `runpod-job`.

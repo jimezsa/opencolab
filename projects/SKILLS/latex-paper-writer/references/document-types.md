@@ -17,7 +17,7 @@ Recommended sections:
 Use this when the user asks for a conference paper, arXiv-style paper, method
 paper, or experiment-backed manuscript.
 
-## Survey or Search Summary
+## Survey or Research Summary
 
 Recommended sections:
 
@@ -29,7 +29,7 @@ Recommended sections:
 - open problems
 - references
 
-Use this for `deep-search`, `pro-search`, or `fast-search` outputs.
+Use this for `deep-research`, `pro-research`, or `fast-research` outputs.
 
 ## Technical Report
 
@@ -79,4 +79,3 @@ On Windows, install MiKTeX or TeX Live, enable package installation, ensure the
 TeX binary directory is on `PATH`, and verify with `latexmk -v`.
 
 Do not run installation commands without explicit user approval.
-
