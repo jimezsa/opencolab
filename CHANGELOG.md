@@ -8,11 +8,12 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Added
 
-- Added the shared `latex-paper-writer` skill for creating, editing, Git-versioning, compiling, and returning scientific LaTeX papers, reports, and search-derived PDF summaries with venue-aware starter templates, experiment-result table generation, and PDF build validation.
+- Added the shared `latex-paper-writer` skill for creating, editing, Git-versioning, compiling, and returning scientific LaTeX papers, reports, and research-derived PDF summaries with venue-aware starter templates, experiment-result table generation, and PDF build validation.
 
 ### Changed
 
 - Built-in shared-skill guidance now includes `latex-paper-writer`, and the LaTeX PDF build path prefers `latexmk` while keeping a bounded `pdflatex` fallback and platform-specific install remediation.
+- Renamed the shared paper research skills from `fast-search`, `pro-search`, and `deep-search` to `fast-research`, `pro-research`, and `deep-research`, including their shared skill directories, prompt guidance, and LaTeX research-to-PDF integration reference.
 
 ## [0.1.8] - 2026-04-26
 
