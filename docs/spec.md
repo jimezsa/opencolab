@@ -948,6 +948,7 @@ The shared `block-diagram` skill must:
 - avoid generic edge labels such as `input`, `output`, `data`, or similar filler text,
 - prefer compact readable layouts with short connections and reduced whitespace when that does not hurt clarity,
 - prefer deterministic D2 rendering over free-form image generation for architecture block diagrams,
+- expose an optional ML/LLM architecture template under `projects/SKILLS/block-diagram/` for neural-network, transformer, training, and quantization diagrams without turning that template into a separate shared skill,
 - split large architectures into overview and detail diagrams when one dense diagram would reduce readability.
 
 Examples of acceptable progress text:

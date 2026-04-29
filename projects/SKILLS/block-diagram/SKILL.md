@@ -76,6 +76,7 @@ If the user does not provide a render style, use `sketch`.
 - Keep the first diagram readable and compact. If the architecture is too dense, split it into an overview diagram plus one focused detail diagram.
 - Use `references/style-guide.md` for layout, color semantics, naming, and grouping rules.
 - Use `references/patterns.md` when selecting the diagram structure.
+- Use `ml-llm-architecture-template.md` as an optional template for detailed ML, LLM, neural-network, transformer, training, or quantization architecture diagrams.
 - Use `references/validation.md` before returning the final result.
 - Use `scripts/render_d2_diagram.sh` to format, validate, and render the final diagram.
 - Default to sketch-style rendering. Only switch to clean rendering when the user explicitly asks for a polished, paper-ready, or non-sketch output.
@@ -191,4 +192,5 @@ If the request is for Telegram delivery, emit the raw `@telegram-file` directive
 - D2 quick reference: `projects/SKILLS/block-diagram/references/d2-quick-reference.md`
 - Style guide: `projects/SKILLS/block-diagram/references/style-guide.md`
 - Patterns: `projects/SKILLS/block-diagram/references/patterns.md`
+- ML/LLM architecture template: `projects/SKILLS/block-diagram/ml-llm-architecture-template.md`
 - Validation checklist: `projects/SKILLS/block-diagram/references/validation.md`
