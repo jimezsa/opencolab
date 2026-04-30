@@ -7,6 +7,7 @@ metadata:
       {
         "emoji": "🧪",
         "os": ["linux", "darwin"],
+        "requires": { "bins": ["python3"] },
       },
   }
 ---
@@ -126,3 +127,20 @@ When you report results, include:
 - recommended next action
 
 If this is sustained experiment-loop work, route ownership back to the `autoresearch` specialist when available.
+
+## Progress Graph
+
+When the repo contract includes a `results_file`, you may generate a progress plot with the bundled helper:
+
+```bash
+python3 projects/SKILLS/autoresearch/scripts/plot_progress.py \
+  --results results.tsv \
+  --metric-column val_bpb \
+  --direction lower \
+  --metric-label "Validation BPB" \
+  --output progress.png
+```
+
+Use the metric named by the repo's `metric_rule`. Set `--direction lower` or `--direction higher` to match the keep/discard rule. The input must be a delimited table with a header; the default columns are `status` and `description`, and the default output is `progress.png`.
+
+The plot shows experiment number on the x-axis, the key metric on the y-axis, green kept experiments with shortened descriptions, gray discarded or otherwise non-kept experiments, and a running-best line. It focuses the y-axis from the baseline to the best kept metric by default; pass `--include-all-y` when outliers or regressions should remain visible. The helper requires `matplotlib`; install it in the experiment environment with `python3 -m pip install matplotlib` if needed.

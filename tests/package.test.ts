@@ -50,6 +50,15 @@ test("repository ships renamed paper research shared skills", () => {
   }
 });
 
+test("repository ships the autoresearch progress graph helper", () => {
+  const skillDir = path.join(REPO_ROOT, "projects", "SKILLS", "autoresearch");
+  const skillDoc = fs.readFileSync(path.join(skillDir, "SKILL.md"), "utf8");
+
+  assert.match(skillDoc, /plot_progress\.py/);
+  assert.match(skillDoc, /--metric-column/);
+  assert.equal(fs.existsSync(path.join(skillDir, "scripts", "plot_progress.py")), true);
+});
+
 test("installer scripts expose the hacky clone flag and clone overrides", () => {
   const installSh = fs.readFileSync(path.join(REPO_ROOT, "install.sh"), "utf8");
   const installPs1 = fs.readFileSync(path.join(REPO_ROOT, "install.ps1"), "utf8");
