@@ -12,7 +12,7 @@
 
 _Accelerating Scientific Discovery_ — Turn your research into an always-on autonomous lab that investigates, builds, and discovers.
 
-## Features planned for first release
+## Features first release
 
 - ✅ Deep Research swarm skills for paper search, grounded QA (Reasoning-based RAG), figure extraction, parallel summaries, D2 block diagrams, and LaTeX paper/report generation.
 - ✅ Provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, xAI, OpenRouter, and Kimi.
