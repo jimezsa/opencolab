@@ -20,6 +20,16 @@ _Accelerating Scientific Discovery_ — Turn your research into an always-on aut
 - ✅ Run Experiment on external GPU servers(Runpod)
 - ✅ Git-versioned LaTeX paper workspaces with `latexmk` PDF builds.
 
+## Next feature direction
+
+- OpenColab Studio: clean local web interface for projects, agents, conversations, documents, artifacts, workflows, GPU runs, and gateway/provider health.
+- Workflow builder: reusable multi-agent workflow templates, custom agent handoffs, approval gates, and artifact-aware execution history.
+- Research asset library: first-class views for downloaded papers, figures, diagrams, LaTeX PDFs, experiment logs, metrics, and generated reports.
+- HuggingFace integration skill: future shared skill for discovering, downloading, pinning, and tracking models and datasets for reproducible experiments.
+- Knowledge map: project-level links between papers, methods, datasets, claims, experiments, metrics, citations, decisions, and open questions.
+
+See [docs/spec_2.md](docs/spec_2.md) for the expanded next-feature plan.
+
 **Note:** OpenColab is an early-stage, actively evolving project. Features and documentation are rapidly improving—feedback and contributions are welcome!
 
 It combines strategic guidance, parallel investigation, and rigorous synthesis so ideas can move from hypothesis to evidence faster.
