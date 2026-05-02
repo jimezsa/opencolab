@@ -514,6 +514,21 @@ pnpm run build
 pnpm test
 ```
 
+### OpenColab Studio (local web UI)
+
+The web client lives under `src/web/client/` (Vite + React + Tailwind v4 + shadcn/ui) and the API handlers live under `src/web/server/`. `pnpm run build` builds both and copies the static bundle to `dist/web/`, which the gateway serves automatically.
+
+```bash
+# Terminal 1 — gateway with read-only /api/web/* routes
+opencolab gateway start --foreground true --port 4646
+
+# Terminal 2 — Vite dev server with hot reload (proxies /api to :4646)
+pnpm run web:dev      # opens http://127.0.0.1:4647
+
+# In packaged mode the gateway alone serves the built UI
+opencolab gateway start --port 4646   # http://127.0.0.1:4646
+```
+
 ## Inspiration
 
 - openclaw: https://github.com/openclaw/openclaw

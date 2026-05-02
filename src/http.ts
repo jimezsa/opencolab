@@ -8,6 +8,7 @@ import { loadConfig } from "./config.js";
 import { resolveRuntimeRootDir } from "./install.js";
 import { createRuntime } from "./runtime.js";
 import { startTelegramPolling, type TelegramPollingHandle } from "./telegram-poller.js";
+import { handleWebRequest } from "./web/server/index.js";
 
 function sendJson(response: ServerResponse, status: number, data: unknown): void {
   response.writeHead(status, {
@@ -87,6 +88,11 @@ export function startHttpServer(
         const body = await readJson(request);
         const result = await runtime.handleTelegramWebhook(body);
         sendJson(response, 200, result);
+        return;
+      }
+
+      const handledByWeb = await handleWebRequest(runtime, request, response, url);
+      if (handledByWeb) {
         return;
       }
 

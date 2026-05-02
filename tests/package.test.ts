@@ -14,7 +14,7 @@ test("package metadata exposes the built CLI and required publish surface", () =
   };
 
   assert.equal(parsed.bin?.opencolab, "dist/src/cli.js");
-  assert.deepEqual(parsed.files, ["dist/src", "projects/SKILLS"]);
+  assert.deepEqual(parsed.files, ["dist/src", "dist/web", "projects/SKILLS"]);
   assert.equal(parsed.scripts?.prepack, "npm run build");
 });
 
