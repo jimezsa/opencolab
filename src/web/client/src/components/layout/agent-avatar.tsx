@@ -31,7 +31,7 @@ export function AgentAvatar({ providerName, className }: AgentAvatarProps) {
         className="h-full w-full object-contain [image-rendering:pixelated]"
       />
       {logo && (
-        <div className="bg-background ring-background absolute left-1/2 top-[18%] flex size-1/3 -translate-x-1/2 items-center justify-center overflow-hidden rounded-full ring-2">
+        <div className="bg-background ring-background absolute left-1/2 top-[6%] flex size-1/4 -translate-x-1/2 items-center justify-center overflow-hidden rounded-full ring-2">
           <img
             src={logo}
             alt={`${providerName} logo`}
