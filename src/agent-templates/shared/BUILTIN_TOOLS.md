@@ -37,6 +37,18 @@ Guidance:
 - surface real blockers or required human input clearly when they happen
 - avoid low-signal "thinking aloud" chatter because OpenColab already renders compact live status
 
+## Heartbeat Wake-Up
+
+`HEARTBEAT.md` controls optional delayed follow-up for the active agent. Do not modify `HEARTBEAT.md` unless the user explicitly approves the schedule or change.
+
+Guidance:
+
+- leave `HEARTBEAT.md` empty to keep heartbeat disabled
+- enable heartbeat only with a valid `after:` line, for example `after: 30m` or `after: 2h`
+- use optional `notify: digest` for one compact Telegram follow-up after meaningful completion, timeout, failure, or a clear blocker
+- use optional `notify: live` to reuse Telegram live status while the heartbeat turn runs
+- use optional `message: <plain text>` to replace the default `continue` prompt; `message:` alone does not enable heartbeat without `after:`
+
 ## Selected Shared Skills
 
 - `fast-research`

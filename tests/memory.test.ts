@@ -124,6 +124,8 @@ test("agent prompt excludes bootstrap scaffolding and includes structured memory
     assert.equal(prompt.includes("`opencolab setup model --agent-id <id> --provider <provider> --model <model> [--reasoning-effort <native_value>] ...`"), true);
     assert.equal(prompt.includes("creating an OpenColab agent is separate from creating a Telegram bot identity"), true);
     assert.equal(prompt.includes("OpenColab owns Telegram live status for routed runs"), true);
+    assert.equal(prompt.includes("## Heartbeat Wake-Up"), true);
+    assert.equal(prompt.includes("Do not modify `HEARTBEAT.md` unless the user explicitly approves the schedule or change."), true);
     assert.equal(prompt.includes("`fast-research`"), true);
     assert.equal(prompt.includes("`pro-research`"), true);
     assert.equal(prompt.includes("`deep-research`"), true);

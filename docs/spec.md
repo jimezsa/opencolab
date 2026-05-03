@@ -157,6 +157,7 @@ Initialization requirements:
 - seeded `HEARTBEAT.md` must keep heartbeat disabled by default until the user explicitly adds a valid `after: <duration>` line
 - `HEARTBEAT.md` may also include an optional `notify: digest` line to enable one compact paired-chat Telegram follow-up after a background heartbeat turn finishes, or `notify: live` to reuse the Telegram live-status surface while the heartbeat turn is running
 - `HEARTBEAT.md` may include an optional single-line `message: <plain text>` value to replace the default heartbeat prompt `continue`; `message:` alone must not enable heartbeat without a valid `after:` line
+- agent-facing instructions must require explicit user approval before an agent modifies `HEARTBEAT.md`
 - the default `professor` agent must seed from the built-in `src/agent-templates/professor/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
 - the built-in `beginner` agent id must seed from the built-in `src/agent-templates/beginner/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime
 - the built-in `autoresearch` agent id must seed from the built-in `src/agent-templates/autoresearch/` template folder in the source tree, and packaged installs must ship the equivalent built-in template assets required at runtime

@@ -698,6 +698,24 @@ test("init and agent create seed professor, beginner, autoresearch, and speciali
       true
     );
     assert.notEqual(specialistDoc, professorDoc);
+
+    for (const [label, doc] of [
+      ["professor", professorDoc],
+      ["beginner", beginnerDoc],
+      ["autoresearch", autoresearchDoc],
+      ["specialist", specialistDoc]
+    ] as const) {
+      assert.equal(
+        doc.includes("HEARTBEAT.md: optional user-approved delayed follow-up schedule; leave empty to keep disabled."),
+        true,
+        `${label} template should describe HEARTBEAT.md`
+      );
+      assert.equal(
+        doc.includes("Modify HEARTBEAT.md only with explicit human approval."),
+        true,
+        `${label} template should require approval before heartbeat edits`
+      );
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

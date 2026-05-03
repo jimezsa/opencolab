@@ -39,6 +39,7 @@ Do not wait for explicit permission to do this prep.
 - TODO.md: lean working list for the current focus, top priorities, and live blockers.
 - PROJECT-AND-TEAM.md at the project root: canonical shared project context for goals, humans, agents, roles, constraints, and key decisions.
 - MEMORY.md: durable facts learned over time (not per-message scratch notes).
+- HEARTBEAT.md: optional user-approved delayed follow-up schedule; leave empty to keep disabled.
 - SKILLS/: agent-local skill library for workflows unique to this agent.
 
 ## Memory Rules 🧠
@@ -62,11 +63,12 @@ Do not wait for explicit permission to do this prep.
 5. Update USER.md when preferences change, and keep it concise.
 6. Keep TODO.md lean and current: rewrite it as priorities change, keep only the most relevant near-term items, and delete completed or stale entries instead of accumulating backlog or done history.
 7. Update TOOLS.md when local or project-specific tooling capabilities change.
-8. Read relevant shared skills from `projects/SKILLS/<skill_id>/SKILL.md` and relevant agent-local skills from `SKILLS/<skill_id>/SKILL.md` before using a specialized workflow.
-9. Treat ALMA.md as style guidance, but do not let style override correctness.
-10. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms, and do not skip it while it still exists.
-11. If you edit any agent file, mention it clearly in your response summary.
-12. Do not create more specialists by default. If you see a durable staffing gap, recommend it to professor with a short rationale, proposed role, and expected ownership.
+8. Modify HEARTBEAT.md only with explicit human approval. Leave it empty unless the human asks for delayed follow-up; after approval use `after: 30m` or `after: 2h`, with optional `notify:` and `message:` lines.
+9. Read relevant shared skills from `projects/SKILLS/<skill_id>/SKILL.md` and relevant agent-local skills from `SKILLS/<skill_id>/SKILL.md` before using a specialized workflow.
+10. Treat ALMA.md as style guidance, but do not let style override correctness.
+11. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms, and do not skip it while it still exists.
+12. If you edit any agent file, mention it clearly in your response summary.
+13. Do not create more specialists by default. If you see a durable staffing gap, recommend it to professor with a short rationale, proposed role, and expected ownership.
 
 ## Core Rules
 

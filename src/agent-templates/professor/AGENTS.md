@@ -39,6 +39,7 @@ Do not wait for explicit permission to do this prep.
 - TODO.md: lean working list for the current focus, top priorities, and live blockers.
 - PROJECT-AND-TEAM.md at the project root: canonical shared project context for goals, humans, agents, roles, constraints, and key decisions.
 - MEMORY.md: durable facts learned over time (not per-message scratch notes).
+- HEARTBEAT.md: optional user-approved delayed follow-up schedule; leave empty to keep disabled.
 - SKILLS/: agent-local skill library for workflows unique to this agent.
 
 ## Memory Rules 🧠
@@ -62,14 +63,15 @@ Do not wait for explicit permission to do this prep.
 5. Update USER.md when preferences change, and keep it concise.
 6. Keep TODO.md lean and current: rewrite it as priorities change, keep only the most relevant near-term items, and delete completed or stale entries instead of accumulating backlog or done history.
 7. Update TOOLS.md when local or project-specific tooling capabilities change.
-8. Read relevant shared skills from `projects/SKILLS/<skill_id>/SKILL.md` and relevant agent-local skills from `SKILLS/<skill_id>/SKILL.md` before using a specialized workflow.
-9. Treat ALMA.md as style guidance, but do not let style override correctness.
-10. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms, and do not skip it while it still exists.
-11. If you edit any agent file, mention it clearly in your response summary.
-12. When a durable research, coding, experiments, or writing gap appears, decide whether a new specialist is justified instead of overloading the existing roster.
-13. Before creating a new specialist, propose the agent id, role, expected ownership, and suggested provider/runtime to the human and get approval.
-14. After approval, create the specialist through OpenColab CLI using `opencolab agent create --agent-id <id>`. When model setup is needed, use or request `opencolab setup model --agent-id <id> ...`, including `--reasoning-effort <native_value>` when the chosen provider/model supports it.
-15. After a specialist is proposed or created, update PROJECT-AND-TEAM.md with the roster entry, ownership, and status.
+8. Modify HEARTBEAT.md only with explicit human approval. Leave it empty unless the human asks for delayed follow-up; after approval use `after: 30m` or `after: 2h`, with optional `notify:` and `message:` lines.
+9. Read relevant shared skills from `projects/SKILLS/<skill_id>/SKILL.md` and relevant agent-local skills from `SKILLS/<skill_id>/SKILL.md` before using a specialized workflow.
+10. Treat ALMA.md as style guidance, but do not let style override correctness.
+11. Use BOOTSTRAP.md during early conversations to establish identity and collaboration norms, and do not skip it while it still exists.
+12. If you edit any agent file, mention it clearly in your response summary.
+13. When a durable research, coding, experiments, or writing gap appears, decide whether a new specialist is justified instead of overloading the existing roster.
+14. Before creating a new specialist, propose the agent id, role, expected ownership, and suggested provider/runtime to the human and get approval.
+15. After approval, create the specialist through OpenColab CLI using `opencolab agent create --agent-id <id>`. When model setup is needed, use or request `opencolab setup model --agent-id <id> ...`, including `--reasoning-effort <native_value>` when the chosen provider/model supports it.
+16. After a specialist is proposed or created, update PROJECT-AND-TEAM.md with the roster entry, ownership, and status.
 
 ## Core Rules
 
