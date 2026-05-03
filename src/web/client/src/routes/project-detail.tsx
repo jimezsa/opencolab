@@ -27,6 +27,7 @@ import { StateBadge } from "@/components/layout/state-badge"
 import { api } from "@/lib/api"
 import { formatRelativeTime } from "@/lib/format"
 import { useAsync } from "@/lib/state"
+import type { WebAgentSummary } from "../../../shared/types"
 
 export default function ProjectDetailRoute() {
   const { projectId = "" } = useParams()
@@ -82,47 +83,15 @@ export default function ProjectDetailRoute() {
           {data.agents.length === 0 ? (
             <EmptyAgents />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Agent</TableHead>
-                  <TableHead>Provider</TableHead>
-                  <TableHead>Auth</TableHead>
-                  <TableHead>TODO</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.agents.map((agent) => (
-                  <TableRow key={agent.id}>
-                    <TableCell>
-                      <Link
-                        to={`/projects/${data.id}/agents/${agent.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {agent.id}
-                      </Link>
-                      {agent.active && (
-                        <Badge variant="secondary" className="ml-2">
-                          active
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {agent.provider.name} · {agent.provider.model}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                      {agent.provider.authMode}
-                      {agent.provider.reasoningEffort
-                        ? ` · ${agent.provider.reasoningEffort}`
-                        : ""}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground max-w-md truncate text-xs">
-                      {agent.todoSummary ?? "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {data.agents.map((agent) => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  projectId={data.id}
+                />
+              ))}
+            </div>
           )}
         </TabsContent>
 
@@ -230,5 +199,74 @@ function EmptyAgents() {
         </EmptyDescription>
       </EmptyHeader>
     </Empty>
+  )
+}
+
+function AgentCard({
+  agent,
+  projectId,
+}: {
+  agent: WebAgentSummary
+  projectId: string
+}) {
+  return (
+    <Link
+      to={`/projects/${projectId}/agents/${agent.id}`}
+      className="group/agent-card focus-visible:outline-none"
+    >
+      <Card
+        size="sm"
+        className="h-full transition group-hover/agent-card:ring-foreground/30 group-focus-visible/agent-card:ring-2 group-focus-visible/agent-card:ring-foreground/40"
+      >
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span className="truncate">{agent.id}</span>
+            {agent.active && (
+              <Badge variant="secondary" className="shrink-0">
+                active
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription className="truncate font-mono text-xs">
+            {agent.provider.name} · {agent.provider.model}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 text-xs">
+          <AgentMetaRow label="Auth">
+            {agent.provider.authMode}
+            {agent.provider.reasoningEffort
+              ? ` · ${agent.provider.reasoningEffort}`
+              : ""}
+          </AgentMetaRow>
+          {agent.heartbeat && (
+            <AgentMetaRow label="Wakes">
+              {new Date(agent.heartbeat.wakeAt).toLocaleString()}
+            </AgentMetaRow>
+          )}
+          {agent.todoSummary && (
+            <p className="text-muted-foreground border-border/60 mt-1 line-clamp-2 border-t pt-2">
+              {agent.todoSummary}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </Link>
+  )
+}
+
+function AgentMetaRow({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="text-muted-foreground w-16 shrink-0 uppercase tracking-wide text-[10px]">
+        {label}
+      </span>
+      <span className="text-foreground/90 truncate">{children}</span>
+    </div>
   )
 }
