@@ -8,12 +8,16 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Added
 
+- Added OpenColab Studio, a local web interface served by the existing gateway that exposes a sidebar-driven dashboard for active project/agent, projects, agents, conversations, artifacts, GPU runs, and gateway/provider health.
+- Added a Vite + React + Tailwind v4 + shadcn/ui client under `src/web/client/`, read-only `/api/web/*` DTO handlers under `src/web/server/`, and shared DTOs under `src/web/shared/types.ts`.
+- Added `pnpm run web:dev` and `pnpm run web:build` scripts; `pnpm run build` now builds and copies the static client bundle into `dist/web/`, and the published package now ships `dist/web` alongside `dist/src`.
 - Added the shared `latex-paper-writer` skill for creating, editing, Git-versioning, compiling, and returning scientific LaTeX papers, reports, and research-derived PDF summaries with venue-aware starter templates, experiment-result table generation, and PDF build validation.
 - Added an optional ML/LLM architecture diagram template under the shared `block-diagram` skill for neural-network, transformer, training, and quantization diagrams.
 - Added an `autoresearch` progress graph helper that plots the configured key metric over experiment number with green kept experiments, gray discarded experiments, short kept-experiment labels, and a running-best line.
 
 ### Changed
 
+- The gateway HTTP server now delegates non-Telegram, non-`/api/state`, non-`/health` routes to the web layer, which serves `/api/web/*` JSON and the built client bundle from `dist/web/` (or `src/web/client/dist` in source mode), with credential values never exposed in health DTOs.
 - Built-in shared-skill guidance now includes `latex-paper-writer`, and the LaTeX PDF build path prefers `latexmk` while keeping a bounded `pdflatex` fallback and platform-specific install remediation.
 - Renamed the shared paper research skills from `fast-search`, `pro-search`, and `deep-search` to `fast-research`, `pro-research`, and `deep-research`, including their shared skill directories, prompt guidance, and LaTeX research-to-PDF integration reference.
 
