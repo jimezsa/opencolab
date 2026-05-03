@@ -514,9 +514,11 @@ pnpm run build
 pnpm test
 ```
 
+The root pnpm workspace installs both the CLI dependencies and the web client dependencies, so a fresh checkout should not require a separate install under `src/web/client/`.
+
 ### OpenColab Studio (local web UI)
 
-The web client lives under `src/web/client/` (Vite + React + Tailwind v4 + shadcn/ui) and the API handlers live under `src/web/server/`. `pnpm run build` builds both and copies the static bundle to `dist/web/`, which the gateway serves automatically.
+The web client lives under `src/web/client/` (Vite + React + Tailwind v4 + shadcn/ui) as a root pnpm workspace package, and the API handlers live under `src/web/server/`. `pnpm run build` builds both and copies the static bundle to `dist/web/`, which the gateway serves automatically.
 
 ```bash
 # Terminal 1 — gateway with read-only /api/web/* routes

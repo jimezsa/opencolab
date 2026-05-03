@@ -32,7 +32,7 @@
     "web:build": "pnpm --dir src/web/client build"
   },
   "devDependencies": {
-    "@types/node": "^24.10.0",
+    "@types/node": "^24.12.2",
     "typescript": "^5.9.3"
   }
 }

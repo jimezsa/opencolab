@@ -18,6 +18,15 @@ test("package metadata exposes the built CLI and required publish surface", () =
   assert.equal(parsed.scripts?.prepack, "npm run build");
 });
 
+test("workspace install includes the web client build dependencies", () => {
+  const workspace = fs.readFileSync(path.join(REPO_ROOT, "pnpm-workspace.yaml"), "utf8");
+  const lockfile = fs.readFileSync(path.join(REPO_ROOT, "pnpm-lock.yaml"), "utf8");
+
+  assert.match(workspace, /src\/web\/client/);
+  assert.match(lockfile, /\n  src\/web\/client:\n/);
+  assert.equal(fs.existsSync(path.join(REPO_ROOT, "src", "web", "client", "pnpm-lock.yaml")), false);
+});
+
 test("repository includes shell and PowerShell installer entrypoints", () => {
   assert.equal(fs.existsSync(path.join(REPO_ROOT, "install.sh")), true);
   assert.equal(fs.existsSync(path.join(REPO_ROOT, "install.ps1")), true);

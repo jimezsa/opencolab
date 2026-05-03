@@ -370,7 +370,8 @@ Responsibilities:
 - installer scripts should also support an explicit opt-in `--hacky` git-clone mode for one-link installs, intended as a hacky fallback when the desired npm package version is unavailable; clone mode should clone or update a repository checkout, build it locally, and expose the same `opencolab` command shim
 - one-link installer-managed package installs and one-link installer-managed clone installs must both be upgradeable through `opencolab upgrade`
 - npm package installs should also be supported for the `opencolab` CLI without requiring `dist/` to be tracked in git
-- the published npm package must include the built CLI entrypoint, built-in agent templates, and built-in shared skills required for runtime fallback behavior
+- source checkouts must model the web client as a root pnpm workspace package so `pnpm install --frozen-lockfile` installs the Vite/Tailwind client dependencies required by `pnpm run build`
+- the published npm package must include the built CLI entrypoint, built web assets, built-in agent templates, and built-in shared skills required for runtime fallback behavior
 - the npm package build artifacts may be generated at pack/publish time rather than committed to the repository
 
 ## 8. Telegram Commands

@@ -10,10 +10,12 @@ Top-level sources of truth:
 - `docs/VISION.md`: product direction and long-term intent.
 - `README.md`: quickstart, high-level overview, and condensed runtime/reference guide.
 - `package.json`: npm package metadata, published CLI surface, and pack/publish lifecycle hooks.
+- `pnpm-workspace.yaml`: root pnpm workspace definition; includes `src/web/client/` so one root install provisions the Vite web UI dependencies used by `pnpm run build`.
 - `install.sh`: package-first macOS/Linux installer, managed-install manifest writer, and command shim setup, with optional `--hacky` git-clone fallback.
 - `install.ps1`: package-first Windows PowerShell installer, managed-install manifest writer, and command shim setup, with optional `--hacky` git-clone fallback.
 - `projects/SKILLS/`: shared built-in skill library copied into agent prompts, not per-project duplicates, including search, summarization, grounded paper QA, scientific LaTeX paper/report writing, image, architecture-diagram, and iterative experiment-loop workflows. Packaged installs must ship this directory too.
 - `src/`: TypeScript implementation.
+- `src/web/`: OpenColab Studio implementation, with read-only gateway API handlers in `server/`, shared DTOs in `shared/`, and the Vite/React/Tailwind/shadcn client workspace in `client/`.
 - `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context, with shared files in `shared/` and role-specific folders such as `professor/`, `beginner/`, `autoresearch/`, and `specialist/`. Packaged installs must ship the runtime-accessible equivalents.
 - `tests/`: Node `node:test` suite.
 
@@ -39,6 +41,7 @@ Core implementation areas:
 - `src/project-config.ts`: `opencolab.json` defaults, normalization, migration including recognized stale Claude CLI arg upgrades, and project/agent path helpers.
 - `src/config.ts`: root config, runtime-root-aware path resolution, and local env loading.
 - `src/secrets.ts`: `.env.local` secret read/write helpers.
+- `src/web/server/`: OpenColab Studio HTTP handlers and static asset resolution for source and packaged installs.
 - `src/types.ts`: shared persisted-state and runtime interfaces.
 
 Agent contract details that matter for implementation:
