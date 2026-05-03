@@ -243,11 +243,6 @@ function AgentCard({
               {new Date(agent.heartbeat.wakeAt).toLocaleString()}
             </AgentMetaRow>
           )}
-          {agent.todoSummary && (
-            <p className="text-muted-foreground border-border/60 mt-1 line-clamp-2 border-t pt-2">
-              {agent.todoSummary}
-            </p>
-          )}
         </CardContent>
       </Card>
     </Link>
