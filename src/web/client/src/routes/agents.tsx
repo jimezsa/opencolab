@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { AgentAvatar } from "@/components/layout/agent-avatar"
 import { ErrorState, LoadingState } from "@/components/layout/page-state"
 import { api } from "@/lib/api"
 import { useAsync } from "@/lib/state"
@@ -65,6 +66,7 @@ function AgentCard({
         className="h-full transition group-hover/agent-card:ring-foreground/30 group-focus-visible/agent-card:ring-2 group-focus-visible/agent-card:ring-foreground/40"
       >
         <CardHeader>
+          <AgentAvatar providerName={agent.provider.name} />
           <CardTitle className="flex items-center justify-between gap-2">
             <span className="truncate">{agent.id}</span>
             {agent.active && (

@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { AgentAvatar } from "@/components/layout/agent-avatar"
 import { ErrorState, LoadingState } from "@/components/layout/page-state"
 import { StateBadge } from "@/components/layout/state-badge"
 import { api } from "@/lib/api"
@@ -219,6 +220,7 @@ function AgentCard({
         className="h-full transition group-hover/agent-card:ring-foreground/30 group-focus-visible/agent-card:ring-2 group-focus-visible/agent-card:ring-foreground/40"
       >
         <CardHeader>
+          <AgentAvatar providerName={agent.provider.name} />
           <CardTitle className="flex items-center justify-between gap-2">
             <span className="truncate">{agent.id}</span>
             {agent.active && (
