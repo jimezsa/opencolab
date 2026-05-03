@@ -18,6 +18,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Changed
 
 - The gateway HTTP server now delegates non-Telegram, non-`/api/state`, non-`/health` routes to the web layer, which serves `/api/web/*` JSON and the built client bundle from `dist/web/` (or `src/web/client/dist` in source mode), with credential values never exposed in health DTOs.
+- Seeded agent instructions and built-in prompt guidance now explain how to configure `HEARTBEAT.md` and require explicit user approval before agents modify heartbeat schedules.
 - Built-in shared-skill guidance now includes `latex-paper-writer`, and the LaTeX PDF build path prefers `latexmk` while keeping a bounded `pdflatex` fallback and platform-specific install remediation.
 - Renamed the shared paper research skills from `fast-search`, `pro-search`, and `deep-search` to `fast-research`, `pro-research`, and `deep-research`, including their shared skill directories, prompt guidance, and LaTeX research-to-PDF integration reference.
 
