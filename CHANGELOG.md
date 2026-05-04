@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- Windows `opencolab gateway start` now supports background mode through a per-user Task Scheduler task instead of failing with the macOS/Linux-only service error.
+
 ## [0.1.9] - 2026-05-03
 
 ### Added
