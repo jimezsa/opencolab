@@ -4,17 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## [Unreleased]
-
-### Fixed
-
-- Manual SSH live session state writes are now atomic, avoiding intermittent `Unknown manual SSH session` reads while the detached worker updates `session.json`.
-
 ## [0.1.10] - 2026-05-04
 
 ### Fixed
 
 - Windows `opencolab gateway start` now supports background mode through a per-user Task Scheduler task instead of failing with the macOS/Linux-only service error.
+- Manual SSH live session state writes are now atomic, avoiding intermittent `Unknown manual SSH session` reads while the detached worker updates `session.json`.
 
 ## [0.1.9] - 2026-05-03
 
