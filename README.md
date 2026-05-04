@@ -424,7 +424,7 @@ opencolab gateway restart --port 4646
 - generic npm/global installs without installer metadata should still be upgraded with the package manager, for example `npm install -g opencolab@latest`
 - Telegram webhook endpoint: `POST http://127.0.0.1:4646/api/telegram/webhook`
 - Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible
-- Agents can return files with raw `@telegram-file <json>` lines using relative or absolute local paths
+- Agents can return files with raw `@telegram-file <json>` lines using relative paths, absolute paths including Windows drive-letter or UNC paths, or `file://` URLs
 - Long-running work uses one bounded live status surface before the final answer instead of sending a stream of progress messages
 - OpenColab waits for real runtime progress before creating the live status surface; it does not send a generic placeholder status card
 - In paired private chats, OpenColab prefers Telegram `sendMessageDraft` and keeps the live status compact

@@ -180,7 +180,7 @@ Initialization requirements:
 - the built-in `autoresearch` agent guidance must orient the seeded agent around iterative experiment execution through the shared `autoresearch` skill, default ownership of sustained experiment-loop work, and explicit carry-forward of repo contract details, user corrections, rejected paths, and lessons from failed runs so the human does not need to repeat them
 - default `specialist` and `beginner` guidance must state that they do not create more specialists by default and should route staffing recommendations back through `professor`
 - default `AGENTS.md` must explain that OpenColab owns Telegram live status for routed runs, derives it from native runtime events instead of an agent-written progress file, and expects agents to avoid low-signal step-by-step chatter
-- default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences
+- default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences, and may reference relative paths, absolute paths including Windows drive-letter or UNC paths, or `file://` URLs
 - the default templates must keep only essential, role-appropriate instructions
 - `TODO.md` must be used as a lean current working list for active planning and task tracking based on interactions with the human and other agents
 
@@ -720,7 +720,7 @@ Requirements:
 - polling mode must not retry the same failed Telegram update indefinitely once the runtime has consumed it
 - agent responses may include `@telegram-file <json>` directives to send Telegram files:
   - example: `@telegram-file {"kind":"document","file":"<file_id_or_url>","caption":"optional"}`
-  - local file paths may be relative to the active agent working directory or absolute
+  - local file references may be relative to the active agent working directory, absolute including Windows drive-letter or UNC paths, or `file://` URLs
   - directive lines may be wrapped in a single pair of backticks and should still be accepted
 - `setup telegram` should register the supported Telegram commands via `setMyCommands` so `/projects`, `/agents`, `/session_reset`, and `/stop` appear in slash-menu suggestions
 

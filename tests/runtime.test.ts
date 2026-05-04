@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { defaultTelegramFileSender } from "../src/gateway.js";
 import type { RunpodExecutionService } from "../src/gpu-providers/runpod/index.js";
 import { createRuntime } from "../src/runtime.js";
 import type {
@@ -11,7 +13,8 @@ import type {
   ExperimentRunExecResult,
   ExperimentRunManifest,
   ExperimentRunStatus,
-  ExperimentRunSummary
+  ExperimentRunSummary,
+  OpenColabState
 } from "../src/types.js";
 
 function buildAgentDir(rootDir: string, projectId: string, agentId = "professor"): string {
@@ -3534,6 +3537,154 @@ test("agent response can send telegram files via @telegram-file directives", asy
     assert.deepEqual(sentFiles[1], { kind: "photo", file: "https://example.com/chart.png" });
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("default telegram file sender uploads local file URLs as multipart", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-url-"));
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+  const reportPath = path.join(tempDir, "report.txt");
+  process.env.TELEGRAM_BOT_TOKEN = "test_bot_token";
+  fs.writeFileSync(reportPath, "report-body", "utf8");
+
+  let requestUrl = "";
+
+  globalThis.fetch = async (input, init) => {
+    requestUrl = String(input);
+    assert.equal(init?.method, "POST");
+    assert.equal(init?.body instanceof FormData, true);
+
+    const form = init?.body as FormData;
+    assert.equal(form.get("chat_id"), "10001");
+    assert.equal(form.get("caption"), "report");
+
+    const uploaded = form.get("document") as { name?: string; text?: () => Promise<string> } | null;
+    assert.equal(uploaded?.name, "report.txt");
+    assert.equal(await uploaded?.text?.(), "report-body");
+
+    return new Response("{}", { status: 200 });
+  };
+
+  try {
+    const sent = await defaultTelegramFileSender(
+      "10001",
+      {
+        kind: "document",
+        file: pathToFileURL(reportPath).href,
+        caption: "report"
+      },
+      {} as OpenColabState
+    );
+
+    assert.equal(sent, true);
+    assert.equal(requestUrl, "https://api.telegram.org/bottest_bot_token/sendDocument");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    } else {
+      process.env.TELEGRAM_BOT_TOKEN = originalToken;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("default telegram file sender uploads Windows absolute paths as multipart", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+  const windowsPath = "C:\\Users\\dev\\Documents\\report.txt";
+  process.env.TELEGRAM_BOT_TOKEN = "test_bot_token";
+
+  t.mock.method(fs, "statSync", (candidate: fs.PathLike) => {
+    assert.equal(String(candidate), windowsPath);
+    return { isFile: () => true } as fs.Stats;
+  });
+  t.mock.method(fs, "readFileSync", (candidate: fs.PathOrFileDescriptor) => {
+    assert.equal(String(candidate), windowsPath);
+    return Buffer.from("windows-report");
+  });
+
+  let requestUrl = "";
+
+  globalThis.fetch = async (input, init) => {
+    requestUrl = String(input);
+    assert.equal(init?.method, "POST");
+    assert.equal(init?.body instanceof FormData, true);
+
+    const form = init?.body as FormData;
+    assert.equal(form.get("chat_id"), "10001");
+    assert.equal(form.get("caption"), "report");
+
+    const uploaded = form.get("document") as { name?: string; text?: () => Promise<string> } | null;
+    assert.equal(uploaded?.name, "report.txt");
+    assert.equal(await uploaded?.text?.(), "windows-report");
+
+    return new Response("{}", { status: 200 });
+  };
+
+  try {
+    const sent = await defaultTelegramFileSender(
+      "10001",
+      {
+        kind: "document",
+        file: windowsPath,
+        caption: "report"
+      },
+      {} as OpenColabState
+    );
+
+    assert.equal(sent, true);
+    assert.equal(requestUrl, "https://api.telegram.org/bottest_bot_token/sendDocument");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    } else {
+      process.env.TELEGRAM_BOT_TOKEN = originalToken;
+    }
+  }
+});
+
+test("default telegram file sender keeps remote URLs as JSON references", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+  process.env.TELEGRAM_BOT_TOKEN = "test_bot_token";
+
+  let payload: Record<string, unknown> | null = null;
+
+  globalThis.fetch = async (input, init) => {
+    assert.equal(String(input), "https://api.telegram.org/bottest_bot_token/sendPhoto");
+    assert.equal(init?.method, "POST");
+    assert.equal(init?.body instanceof FormData, false);
+    payload = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response("{}", { status: 200 });
+  };
+
+  try {
+    const sent = await defaultTelegramFileSender(
+      "10001",
+      {
+        kind: "photo",
+        file: "https://example.com/chart.png",
+        caption: "chart"
+      },
+      {} as OpenColabState
+    );
+
+    assert.equal(sent, true);
+    assert.deepEqual(payload, {
+      chat_id: "10001",
+      photo: "https://example.com/chart.png",
+      caption: "chart"
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    } else {
+      process.env.TELEGRAM_BOT_TOKEN = originalToken;
+    }
   }
 });
 

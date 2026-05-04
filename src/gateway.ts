@@ -4,6 +4,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ensureAgentFiles } from "./agent.js";
 import type { OpenColabConfig } from "./config.js";
 import type {
@@ -1706,20 +1707,17 @@ export async function defaultTelegramFileSender(
   const method = resolveTelegramFileMethod(file.kind);
   const fileField = resolveTelegramFileField(file.kind);
   const url = `https://api.telegram.org/bot${token}/${method}`;
-
-  const isLocalFile =
-    file.file.startsWith("/") && fs.existsSync(file.file);
+  const localUpload = resolveLocalTelegramUpload(file.file);
 
   try {
     let response: Response;
 
-    if (isLocalFile) {
-      const fileBytes = fs.readFileSync(file.file);
-      const fileName = path.basename(file.file);
+    if (localUpload) {
+      const fileBytes = fs.readFileSync(localUpload.filePath);
       const blob = new Blob([fileBytes]);
       const form = new FormData();
       form.append("chat_id", chatId);
-      form.append(fileField, blob, fileName);
+      form.append(fileField, blob, localUpload.fileName);
       if (file.caption && supportsCaption(file.kind)) {
         form.append("caption", file.caption);
       }
@@ -1743,6 +1741,60 @@ export async function defaultTelegramFileSender(
   } catch {
     return false;
   }
+}
+
+interface LocalTelegramUpload {
+  filePath: string;
+  fileName: string;
+}
+
+function resolveLocalTelegramUpload(reference: string): LocalTelegramUpload | null {
+  const trimmed = reference.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const filePath = resolveLocalTelegramUploadPath(trimmed);
+  if (!filePath) {
+    return null;
+  }
+
+  try {
+    if (!fs.statSync(filePath).isFile()) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return {
+    filePath,
+    fileName: resolveLocalTelegramUploadName(filePath, trimmed),
+  };
+}
+
+function resolveLocalTelegramUploadPath(reference: string): string | null {
+  if (reference.toLowerCase().startsWith("file:")) {
+    try {
+      return fileURLToPath(reference);
+    } catch {
+      return null;
+    }
+  }
+
+  if (path.isAbsolute(reference) || path.win32.isAbsolute(reference)) {
+    return reference;
+  }
+
+  return null;
+}
+
+function resolveLocalTelegramUploadName(filePath: string, originalReference: string): string {
+  if (!path.isAbsolute(originalReference) && path.win32.isAbsolute(originalReference)) {
+    return path.win32.basename(originalReference);
+  }
+
+  return path.basename(filePath);
 }
 
 function parseTelegramWebhookPayload(body: unknown): TelegramInbound | null {

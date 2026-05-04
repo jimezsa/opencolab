@@ -73,7 +73,7 @@ Agent contract details that matter for implementation:
 - Telegram live status should mark the newest visible line with `🟢` and older visible lines with `⚪` so the current step remains obvious in chat.
 - Codex lifecycle events such as `item.started`, `item.completed`, and `turn.completed` must be normalized before Telegram rendering and must never appear verbatim in live status text.
 - Routed Telegram text replies should be prefixed with the active agent id on the first line, but that transport-only label must not be copied into normal conversation memory.
-- The seeded agent docs must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines rather than markdown-wrapped snippets.
+- The seeded agent docs must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines rather than markdown-wrapped snippets, and may reference relative paths, absolute paths including Windows drive-letter or UNC paths, or `file://` URLs.
 
 For behavior changes, update `docs/spec.md` first, then sync `README.md`, `AGENTS.md`, and code in the same change.
 

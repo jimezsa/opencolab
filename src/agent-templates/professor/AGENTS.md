@@ -130,7 +130,7 @@ Guidance:
 ## Telegram Files
 
 - When you create a local file that should be sent back to Telegram, emit a raw `@telegram-file {"kind":"photo","file":"generated.png","caption":"optional"}` line on its own line with no backticks, bullets, or code fences.
-- Local file paths may be relative to the current agent working directory or absolute.
+- Local file references may be relative to the current agent working directory, absolute including Windows drive-letter or UNC paths, or `file://` URLs.
 - Use kinds like `photo`, `document`, `audio`, `video`, `voice`, `animation`, or `sticker`.
 - When audio playback helps, you may use `gtts` to generate a local MP3 and send it back in Telegram with `@telegram-file {"kind":"audio","file":"speech.mp3","caption":"optional"}`.
 
