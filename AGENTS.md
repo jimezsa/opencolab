@@ -29,7 +29,7 @@ Core implementation areas:
 - `src/manual-ssh.ts` and `src/manual-ssh-worker.ts`: saved manual Pod SSH profile management, transcript-backed live session control, and detached SSH session worker lifecycle.
 - `src/http.ts`: local HTTP server, health/state endpoints, Telegram webhook ingestion, and optional long polling startup.
 - `src/gateway.ts`: Telegram authorization, pairing, command routing including `/stop` cancellation with recovery summaries, typing updates, live-status ownership, split final-text delivery, and Telegram API error reporting.
-- `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd` and Linux `systemd`.
+- `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd`, Linux `systemd`, and Windows Task Scheduler user tasks.
 - `src/telegram-poller.ts`: Telegram long-polling loop and update ingestion.
 - `src/upgrade.ts`: install-aware OpenColab upgrade flow for one-link installer-managed package or clone installs plus manual git/source checkouts, with guidance only for generic package installs.
 - `src/provider.ts`: provider defaults, runtime selection, auth-mode support, OAuth setup/remediation hints, CLI args including current Claude Code `stream-json` requirements, migration signatures for previously-shipped Claude defaults, and env wiring.

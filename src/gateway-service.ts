@@ -1,6 +1,6 @@
 /**
  * Background gateway service management.
- * Handles user-level launchd/systemd setup for persistent gateway execution.
+ * Handles user-level launchd/systemd/Task Scheduler setup for persistent gateway execution.
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -10,8 +10,9 @@ import { ensureDir, safeReadJson, writeJson } from "./utils.js";
 
 const LAUNCHD_LABEL = "com.opencolab.gateway";
 const SYSTEMD_UNIT_NAME = "opencolab-gateway.service";
+const WINDOWS_TASK_NAME = "OpenColabGateway";
 
-export type GatewayServicePlatform = "darwin" | "linux";
+export type GatewayServicePlatform = "darwin" | "linux" | "win32";
 
 export interface GatewayServiceStartInput {
   rootDir: string;
@@ -49,13 +50,21 @@ export function detectGatewayServicePlatform(
   if (platform === "linux") {
     return "linux";
   }
+  if (platform === "win32") {
+    return "win32";
+  }
   return null;
 }
 
-export function resolveGatewayServiceFiles(rootDir: string): GatewayServiceFiles {
-  const platform = detectGatewayServicePlatform();
+export function resolveGatewayServiceFiles(
+  rootDir: string,
+  processPlatform = process.platform,
+): GatewayServiceFiles {
+  const platform = detectGatewayServicePlatform(processPlatform);
   if (!platform) {
-    throw new Error("Background gateway service is supported only on macOS and Linux.");
+    throw new Error(
+      "Background gateway service is supported only on macOS, Linux, and Windows.",
+    );
   }
 
   const stateDir = path.join(rootDir, ".opencolab");
@@ -72,6 +81,17 @@ export function resolveGatewayServiceFiles(rootDir: string): GatewayServiceFiles
         "LaunchAgents",
         `${LAUNCHD_LABEL}.plist`,
       ),
+      stdoutLogPath: path.join(logsDir, "gateway.stdout.log"),
+      stderrLogPath: path.join(logsDir, "gateway.stderr.log"),
+    };
+  }
+
+  if (platform === "win32") {
+    return {
+      platform,
+      launchdLabel: LAUNCHD_LABEL,
+      systemdUnitName: SYSTEMD_UNIT_NAME,
+      configPath: path.join(stateDir, "gateway-service.cmd"),
       stdoutLogPath: path.join(logsDir, "gateway.stdout.log"),
       stderrLogPath: path.join(logsDir, "gateway.stderr.log"),
     };
@@ -122,6 +142,40 @@ export function startGatewayBackgroundService(
     return files;
   }
 
+  if (files.platform === "win32") {
+    fs.writeFileSync(
+      files.configPath,
+      renderWindowsGatewayCommandScript({
+        nodePath: input.nodePath,
+        cliScriptPath: input.cliScriptPath,
+        rootDir: input.rootDir,
+        port: input.port,
+        telegramPolling: input.telegramPolling,
+        pathEnv: process.env.PATH ?? "",
+        stdoutLogPath: files.stdoutLogPath,
+        stderrLogPath: files.stderrLogPath,
+      }),
+      "utf8",
+    );
+    runCommand("schtasks", ["/End", "/TN", WINDOWS_TASK_NAME], {
+      allowFailure: true,
+    });
+    runCommand("schtasks", [
+      "/Create",
+      "/TN",
+      WINDOWS_TASK_NAME,
+      "/SC",
+      "ONLOGON",
+      "/TR",
+      quoteWindowsTaskCommand(files.configPath),
+      "/RL",
+      "LIMITED",
+      "/F",
+    ]);
+    runCommand("schtasks", ["/Run", "/TN", WINDOWS_TASK_NAME]);
+    return files;
+  }
+
   fs.writeFileSync(
     files.configPath,
     renderSystemdUnit({
@@ -150,6 +204,13 @@ export function stopGatewayBackgroundService(rootDir: string): GatewayServiceFil
     return files;
   }
 
+  if (files.platform === "win32") {
+    runCommand("schtasks", ["/End", "/TN", WINDOWS_TASK_NAME], {
+      allowFailure: true,
+    });
+    return files;
+  }
+
   runCommand("systemctl", ["--user", "stop", files.systemdUnitName], {
     allowFailure: true,
   });
@@ -162,6 +223,11 @@ export function restartGatewayBackgroundService(
   const files = resolveGatewayServiceFiles(input.rootDir);
   writeGatewayServiceRuntimeConfig(input.rootDir, input);
   if (files.platform === "darwin") {
+    return startGatewayBackgroundService(input);
+  }
+
+  if (files.platform === "win32") {
+    stopGatewayBackgroundService(input.rootDir);
     return startGatewayBackgroundService(input);
   }
 
@@ -206,6 +272,32 @@ export function getGatewayBackgroundServiceStatus(rootDir: string): {
     };
   }
 
+  if (files.platform === "win32") {
+    const result = runCommand(
+      "schtasks",
+      ["/Query", "/TN", WINDOWS_TASK_NAME, "/FO", "LIST", "/V"],
+      { allowFailure: true },
+    );
+    if (!result.ok) {
+      return {
+        files,
+        status: {
+          running: false,
+          statusText: "not installed",
+        },
+      };
+    }
+
+    const statusText = parseWindowsTaskStatus(result.stdout);
+    return {
+      files,
+      status: {
+        running: statusText.toLowerCase() === "running",
+        statusText,
+      },
+    };
+  }
+
   const result = runCommand(
     "systemctl",
     ["--user", "is-active", files.systemdUnitName],
@@ -230,6 +322,13 @@ export function getGatewayBackgroundLogCommand(rootDir: string): {
     return {
       files,
       command: `tail -f "${files.stdoutLogPath}" "${files.stderrLogPath}"`,
+    };
+  }
+
+  if (files.platform === "win32") {
+    return {
+      files,
+      command: `powershell -NoProfile -Command "Get-Content -Wait -Path ${quotePowerShellSingleQuotedString(files.stdoutLogPath)},${quotePowerShellSingleQuotedString(files.stderrLogPath)}"`,
     };
   }
 
@@ -259,6 +358,9 @@ export function readGatewayServiceRuntimeConfig(
   const raw = fs.readFileSync(files.configPath, "utf8");
   if (files.platform === "darwin") {
     return parseGatewayLaunchdRuntimeConfig(raw);
+  }
+  if (files.platform === "win32") {
+    return parseGatewayWindowsRuntimeConfig(raw);
   }
   return parseGatewaySystemdRuntimeConfig(raw);
 }
@@ -374,6 +476,33 @@ export function renderSystemdUnit(input: SystemdRenderInput): string {
   ].join("\n");
 }
 
+interface WindowsRenderInput {
+  nodePath: string;
+  cliScriptPath: string;
+  rootDir: string;
+  port: number;
+  telegramPolling: boolean;
+  pathEnv: string;
+  stdoutLogPath: string;
+  stderrLogPath: string;
+}
+
+export function renderWindowsGatewayCommandScript(input: WindowsRenderInput): string {
+  const pathLine = input.pathEnv
+    ? [`set "PATH=${escapeWindowsBatchSetValue(input.pathEnv)}"`]
+    : [];
+
+  return [
+    "@echo off",
+    "setlocal",
+    `set "OPENCOLAB_ROOT=${escapeWindowsBatchSetValue(input.rootDir)}"`,
+    ...pathLine,
+    `cd /d "${escapeWindowsBatchQuotedValue(input.rootDir)}"`,
+    `"${escapeWindowsBatchQuotedValue(input.nodePath)}" "${escapeWindowsBatchQuotedValue(input.cliScriptPath)}" gateway start --foreground --port ${String(input.port)} --telegram-polling ${input.telegramPolling ? "true" : "false"} >> "${escapeWindowsBatchQuotedValue(input.stdoutLogPath)}" 2>> "${escapeWindowsBatchQuotedValue(input.stderrLogPath)}"`,
+    "",
+  ].join("\r\n");
+}
+
 export function parseGatewayLaunchdRuntimeConfig(
   raw: string,
 ): GatewayServiceRuntimeConfig | null {
@@ -398,6 +527,21 @@ export function parseGatewaySystemdRuntimeConfig(
 ): GatewayServiceRuntimeConfig | null {
   const portMatch = raw.match(/"--port"\s+"(\d+)"/);
   const pollingMatch = raw.match(/"--telegram-polling"\s+"(true|false)"/);
+  if (!portMatch || !pollingMatch) {
+    return null;
+  }
+
+  return normalizeGatewayServiceRuntimeConfig({
+    port: Number(portMatch[1]),
+    telegramPolling: pollingMatch[1] === "true",
+  });
+}
+
+export function parseGatewayWindowsRuntimeConfig(
+  raw: string,
+): GatewayServiceRuntimeConfig | null {
+  const portMatch = raw.match(/--port\s+(\d+)/);
+  const pollingMatch = raw.match(/--telegram-polling\s+(true|false)/);
   if (!portMatch || !pollingMatch) {
     return null;
   }
@@ -441,6 +585,27 @@ function quoteSystemdValue(value: string): string {
 
 function escapeSystemdEnvironmentValue(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"");
+}
+
+function escapeWindowsBatchSetValue(value: string): string {
+  return value.replaceAll("^", "^^").replaceAll("\r", "").replaceAll("\n", "");
+}
+
+function escapeWindowsBatchQuotedValue(value: string): string {
+  return escapeWindowsBatchSetValue(value).replaceAll("\"", "");
+}
+
+function quoteWindowsTaskCommand(commandPath: string): string {
+  return `"${commandPath.replaceAll("\"", "")}"`;
+}
+
+function quotePowerShellSingleQuotedString(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function parseWindowsTaskStatus(raw: string): string {
+  const match = raw.match(/^Status:\s*(.+)$/im);
+  return match?.[1]?.trim() || "unknown";
 }
 
 function gatewayServiceRuntimeConfigPath(rootDir: string): string {

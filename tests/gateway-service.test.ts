@@ -7,15 +7,18 @@ import {
   detectGatewayServicePlatform,
   parseGatewayLaunchdRuntimeConfig,
   parseGatewaySystemdRuntimeConfig,
+  parseGatewayWindowsRuntimeConfig,
   readGatewayServiceRuntimeConfig,
   renderLaunchdPlist,
-  renderSystemdUnit
+  renderSystemdUnit,
+  renderWindowsGatewayCommandScript,
+  resolveGatewayServiceFiles
 } from "../src/gateway-service.js";
 
 test("detectGatewayServicePlatform maps supported process platforms", () => {
   assert.equal(detectGatewayServicePlatform("darwin"), "darwin");
   assert.equal(detectGatewayServicePlatform("linux"), "linux");
-  assert.equal(detectGatewayServicePlatform("win32"), null);
+  assert.equal(detectGatewayServicePlatform("win32"), "win32");
 });
 
 test("renderLaunchdPlist includes foreground gateway command and logs", () => {
@@ -65,6 +68,40 @@ test("renderSystemdUnit includes foreground gateway command and restart policy",
   assert.deepEqual(parseGatewaySystemdRuntimeConfig(output), {
     port: 4646,
     telegramPolling: false,
+  });
+});
+
+test("resolveGatewayServiceFiles maps Windows service files under runtime root", () => {
+  const files = resolveGatewayServiceFiles("C:\\Users\\dev\\AppData\\Local\\OpenColab\\root", "win32");
+
+  assert.equal(files.platform, "win32");
+  assert.equal(files.configPath.endsWith(path.join(".opencolab", "gateway-service.cmd")), true);
+  assert.equal(files.stdoutLogPath.endsWith(path.join(".opencolab", "logs", "gateway.stdout.log")), true);
+  assert.equal(files.stderrLogPath.endsWith(path.join(".opencolab", "logs", "gateway.stderr.log")), true);
+});
+
+test("renderWindowsGatewayCommandScript includes foreground gateway command and logs", () => {
+  const output = renderWindowsGatewayCommandScript({
+    nodePath: "C:\\Program Files\\nodejs\\node.exe",
+    cliScriptPath: "C:\\Users\\dev\\AppData\\Local\\OpenColab\\package\\node_modules\\opencolab\\dist\\src\\cli.js",
+    rootDir: "C:\\Users\\dev\\AppData\\Local\\OpenColab\\root",
+    port: 4646,
+    telegramPolling: true,
+    pathEnv: "C:\\Program Files\\nodejs;C:\\Windows\\System32",
+    stdoutLogPath: "C:\\Users\\dev\\AppData\\Local\\OpenColab\\root\\.opencolab\\logs\\gateway.stdout.log",
+    stderrLogPath: "C:\\Users\\dev\\AppData\\Local\\OpenColab\\root\\.opencolab\\logs\\gateway.stderr.log"
+  });
+
+  assert.equal(output.includes("@echo off"), true);
+  assert.equal(output.includes("OPENCOLAB_ROOT="), true);
+  assert.equal(output.includes("gateway start --foreground"), true);
+  assert.equal(output.includes("--port 4646"), true);
+  assert.equal(output.includes("--telegram-polling true"), true);
+  assert.equal(output.includes("gateway.stdout.log"), true);
+  assert.equal(output.includes("gateway.stderr.log"), true);
+  assert.deepEqual(parseGatewayWindowsRuntimeConfig(output), {
+    port: 4646,
+    telegramPolling: true,
   });
 });
 

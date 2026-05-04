@@ -161,7 +161,7 @@ Then start the local gateway:
 opencolab gateway start --port 4646
 ```
 
-`gateway start` runs as a background service by default on macOS/Linux. If you want to run it in the active terminal process, use:
+`gateway start` runs in the background by default on macOS, Linux, and Windows. If you want to run it in the active terminal process, use:
 
 ```bash
 opencolab gateway start --foreground true --port 4646
@@ -416,7 +416,8 @@ opencolab gateway stop
 opencolab gateway restart --port 4646
 ```
 
-- `gateway start` runs as a background service by default on macOS and Linux
+- `gateway start` runs in the background by default on macOS, Linux, and Windows
+- macOS uses a user `launchd` agent, Linux uses a user `systemd` service, and Windows uses a user Task Scheduler task with a command script under the runtime root
 - Use `opencolab gateway start --foreground true --port 4646` to keep it in the current terminal
 - `opencolab upgrade` upgrades one-link installer-managed package installs, one-link installer-managed hacky clone installs, and manual git/source installs
 - managed package and clone upgrades keep the installer-managed runtime root and restart a managed background gateway with its saved settings when one is running
