@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- Telegram file return directives now upload local `file://` URLs and Windows absolute paths as multipart files while keeping remote URLs as Bot API references.
+- Windows background gateway startup now uses a hidden noninteractive PowerShell Task Scheduler launcher instead of a closeable command window.
+
 ## [0.1.10] - 2026-05-04
 
 ### Fixed
