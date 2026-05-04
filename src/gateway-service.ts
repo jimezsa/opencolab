@@ -91,7 +91,7 @@ export function resolveGatewayServiceFiles(
       platform,
       launchdLabel: LAUNCHD_LABEL,
       systemdUnitName: SYSTEMD_UNIT_NAME,
-      configPath: path.join(stateDir, "gateway-service.cmd"),
+      configPath: path.join(stateDir, "gateway-service.ps1"),
       stdoutLogPath: path.join(logsDir, "gateway.stdout.log"),
       stderrLogPath: path.join(logsDir, "gateway.stderr.log"),
     };
@@ -167,7 +167,7 @@ export function startGatewayBackgroundService(
       "/SC",
       "ONLOGON",
       "/TR",
-      quoteWindowsTaskCommand(files.configPath),
+      renderWindowsGatewayTaskCommand(files.configPath),
       "/RL",
       "LIMITED",
       "/F",
@@ -489,18 +489,32 @@ interface WindowsRenderInput {
 
 export function renderWindowsGatewayCommandScript(input: WindowsRenderInput): string {
   const pathLine = input.pathEnv
-    ? [`set "PATH=${escapeWindowsBatchSetValue(input.pathEnv)}"`]
+    ? [`$env:PATH = ${quotePowerShellSingleQuotedString(input.pathEnv)}`]
     : [];
 
   return [
-    "@echo off",
-    "setlocal",
-    `set "OPENCOLAB_ROOT=${escapeWindowsBatchSetValue(input.rootDir)}"`,
+    "$ErrorActionPreference = 'Stop'",
+    `$env:OPENCOLAB_ROOT = ${quotePowerShellSingleQuotedString(input.rootDir)}`,
     ...pathLine,
-    `cd /d "${escapeWindowsBatchQuotedValue(input.rootDir)}"`,
-    `"${escapeWindowsBatchQuotedValue(input.nodePath)}" "${escapeWindowsBatchQuotedValue(input.cliScriptPath)}" gateway start --foreground --port ${String(input.port)} --telegram-polling ${input.telegramPolling ? "true" : "false"} >> "${escapeWindowsBatchQuotedValue(input.stdoutLogPath)}" 2>> "${escapeWindowsBatchQuotedValue(input.stderrLogPath)}"`,
+    `Set-Location -LiteralPath ${quotePowerShellSingleQuotedString(input.rootDir)}`,
+    `& ${quotePowerShellSingleQuotedString(input.nodePath)} ${quotePowerShellSingleQuotedString(input.cliScriptPath)} gateway start --foreground --port ${String(input.port)} --telegram-polling ${input.telegramPolling ? "true" : "false"} >> ${quotePowerShellSingleQuotedString(input.stdoutLogPath)} 2>> ${quotePowerShellSingleQuotedString(input.stderrLogPath)}`,
+    "exit $LASTEXITCODE",
     "",
   ].join("\r\n");
+}
+
+export function renderWindowsGatewayTaskCommand(scriptPath: string): string {
+  return [
+    "powershell.exe",
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-WindowStyle",
+    "Hidden",
+    "-File",
+    quoteWindowsTaskArgument(scriptPath),
+  ].join(" ");
 }
 
 export function parseGatewayLaunchdRuntimeConfig(
@@ -587,16 +601,8 @@ function escapeSystemdEnvironmentValue(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"");
 }
 
-function escapeWindowsBatchSetValue(value: string): string {
-  return value.replaceAll("^", "^^").replaceAll("\r", "").replaceAll("\n", "");
-}
-
-function escapeWindowsBatchQuotedValue(value: string): string {
-  return escapeWindowsBatchSetValue(value).replaceAll("\"", "");
-}
-
-function quoteWindowsTaskCommand(commandPath: string): string {
-  return `"${commandPath.replaceAll("\"", "")}"`;
+function quoteWindowsTaskArgument(value: string): string {
+  return `"${value.replaceAll("\"", "")}"`;
 }
 
 function quotePowerShellSingleQuotedString(value: string): string {

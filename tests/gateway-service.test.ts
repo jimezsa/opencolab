@@ -12,6 +12,7 @@ import {
   renderLaunchdPlist,
   renderSystemdUnit,
   renderWindowsGatewayCommandScript,
+  renderWindowsGatewayTaskCommand,
   resolveGatewayServiceFiles
 } from "../src/gateway-service.js";
 
@@ -75,12 +76,12 @@ test("resolveGatewayServiceFiles maps Windows service files under runtime root",
   const files = resolveGatewayServiceFiles("C:\\Users\\dev\\AppData\\Local\\OpenColab\\root", "win32");
 
   assert.equal(files.platform, "win32");
-  assert.equal(files.configPath.endsWith(path.join(".opencolab", "gateway-service.cmd")), true);
+  assert.equal(files.configPath.endsWith(path.join(".opencolab", "gateway-service.ps1")), true);
   assert.equal(files.stdoutLogPath.endsWith(path.join(".opencolab", "logs", "gateway.stdout.log")), true);
   assert.equal(files.stderrLogPath.endsWith(path.join(".opencolab", "logs", "gateway.stderr.log")), true);
 });
 
-test("renderWindowsGatewayCommandScript includes foreground gateway command and logs", () => {
+test("renderWindowsGatewayCommandScript includes hidden-safe foreground gateway command and logs", () => {
   const output = renderWindowsGatewayCommandScript({
     nodePath: "C:\\Program Files\\nodejs\\node.exe",
     cliScriptPath: "C:\\Users\\dev\\AppData\\Local\\OpenColab\\package\\node_modules\\opencolab\\dist\\src\\cli.js",
@@ -92,17 +93,30 @@ test("renderWindowsGatewayCommandScript includes foreground gateway command and 
     stderrLogPath: "C:\\Users\\dev\\AppData\\Local\\OpenColab\\root\\.opencolab\\logs\\gateway.stderr.log"
   });
 
-  assert.equal(output.includes("@echo off"), true);
-  assert.equal(output.includes("OPENCOLAB_ROOT="), true);
+  assert.equal(output.includes("$ErrorActionPreference = 'Stop'"), true);
+  assert.equal(output.includes("$env:OPENCOLAB_ROOT ="), true);
+  assert.equal(output.includes("Set-Location -LiteralPath"), true);
   assert.equal(output.includes("gateway start --foreground"), true);
   assert.equal(output.includes("--port 4646"), true);
   assert.equal(output.includes("--telegram-polling true"), true);
   assert.equal(output.includes("gateway.stdout.log"), true);
   assert.equal(output.includes("gateway.stderr.log"), true);
+  assert.equal(output.includes("@echo off"), false);
   assert.deepEqual(parseGatewayWindowsRuntimeConfig(output), {
     port: 4646,
     telegramPolling: true,
   });
+});
+
+test("renderWindowsGatewayTaskCommand runs PowerShell hidden", () => {
+  const output = renderWindowsGatewayTaskCommand(
+    "C:\\Users\\dev\\AppData\\Local\\OpenColab\\root\\.opencolab\\gateway-service.ps1",
+  );
+
+  assert.equal(output.includes("powershell.exe"), true);
+  assert.equal(output.includes("-NonInteractive"), true);
+  assert.equal(output.includes("-WindowStyle Hidden"), true);
+  assert.equal(output.includes("gateway-service.ps1"), true);
 });
 
 test("readGatewayServiceRuntimeConfig prefers saved runtime config when present", () => {
