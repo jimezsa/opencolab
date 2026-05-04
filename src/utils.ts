@@ -36,3 +36,19 @@ export function writeJson(filePath: string, value: unknown): void {
   ensureDir(path.dirname(filePath));
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
+
+export function writeJsonAtomic(filePath: string, value: unknown): void {
+  ensureDir(path.dirname(filePath));
+  const tempPath = `${filePath}.${process.pid}.${randomDigits(6)}.tmp`;
+  try {
+    fs.writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    fs.renameSync(tempPath, filePath);
+  } catch (error) {
+    try {
+      fs.rmSync(tempPath, { force: true });
+    } catch {
+      // Ignore cleanup failures and surface the original write error.
+    }
+    throw error;
+  }
+}

@@ -12,7 +12,14 @@ import type {
   ManualSshSession,
   ProjectState
 } from "./types.js";
-import { ensureDir, nowIso, randomDigits, safeReadJson, writeJson } from "./utils.js";
+import {
+  ensureDir,
+  nowIso,
+  randomDigits,
+  safeReadJson,
+  writeJson,
+  writeJsonAtomic
+} from "./utils.js";
 
 export function buildProjectExperimentsPath(rootDir: string, project: ProjectState): string {
   return path.join(rootDir, project.path, "experiments");
@@ -326,5 +333,5 @@ export function writeManualSshSession(
   session: ManualSshSession
 ): void {
   ensureManualSshSessionDir(rootDir, project, session.sessionId);
-  writeJson(buildManualSshSessionStatePath(rootDir, project, session.sessionId), session);
+  writeJsonAtomic(buildManualSshSessionStatePath(rootDir, project, session.sessionId), session);
 }
