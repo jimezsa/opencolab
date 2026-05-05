@@ -54,7 +54,7 @@ Deliver an institutional-grade `findings.md` by:
 1. Running iterative `papercli` retrieval across multiple query waves.
 2. Downloading and reading a broad, diverse paper corpus.
 3. Extracting core ideas, concepts, results, assumptions, and key mathematics.
-4. Producing a detailed markdown report where all claims are grounded by references.
+4. Producing a detailed markdown report inside a topic-scoped research run folder, where all claims are grounded by references.
 5. Producing a companion literature-map block diagram that shows how the main papers or paper families connect.
 
 ## Prerequisites
@@ -67,7 +67,9 @@ Deliver an institutional-grade `findings.md` by:
 - Read paper content from downloaded PDFs whenever possible.
 - Never present uncited factual claims.
 - Surface conflicts and uncertainty explicitly.
-- Final output must be a detailed markdown file named `findings.md`.
+- Final output must be a detailed markdown file named `findings.md` inside the active research run folder.
+- Each distinct topic must live in its own dated, topic-slugged folder under `research/`.
+- Maintain `research/INDEX.md` and the run-local `RUN.md` metadata file so later agents can recognize what each research folder contains.
 - After synthesis, produce a companion literature-map diagram through the shared `block-diagram` skill.
 - The literature map must only show evidence-backed relations such as method lineage, direct comparison, shared benchmark or dataset, critique, or common problem framing.
 - Do not invent paper-to-paper influence or citation edges that are not supported by the corpus.
@@ -96,6 +98,58 @@ emit_progress '{"kind":"progress","stage":"download","slot":"search","current":8
 
 Let the agent decide what is worth sending. Use `progress` for countable ongoing work, `milestone` for stage changes, `warning` for degraded runs, `needs_input` for blockers, and `completed` when an explicit completion event helps. Do not narrate every minor command.
 
+## Topic-Scoped Research Workspace
+
+Every run must use an active run root:
+
+- New topic: `research/<YYYY-MM-DD>-<topic-slug>/`.
+- Topic slug: lowercase ASCII, hyphenated, 3-8 meaningful words, and specific enough to distinguish the topic from nearby research.
+- Collision rule: if the folder exists for different work, append `-2`, `-3`, or another short disambiguator.
+- Continuation rule: reuse an existing folder only when the user asks to continue the same topic or the folder clearly matches the current request.
+- Root catalog: update `research/INDEX.md` when the run starts and again when it finishes, is blocked, or is left partial.
+- Run metadata: create and update `<RUN_ROOT>/RUN.md` with topic, question, skill, status, created/updated timestamps, corpus counts, generated artifact paths, and follow-up notes.
+
+Recommended `research/INDEX.md` columns:
+
+```markdown
+| Folder | Skill | Topic | Status | Created | Updated | Corpus | Deliverables | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+```
+
+Recommended `<RUN_ROOT>/RUN.md` headings:
+
+```markdown
+# Research Run: <topic>
+
+## Metadata
+
+- Skill: deep-research
+- Status: in-progress
+- Created:
+- Updated:
+- Topic slug:
+- Question:
+
+## Corpus
+
+- Candidate:
+- Deep-read:
+- Downloaded:
+- Summarized:
+- Failure events:
+
+## Artifacts
+
+- Findings:
+- Literature map:
+- Search files:
+- Metadata:
+- PDFs and summaries:
+- Tables:
+
+## Notes
+```
+
 ## Recommended Corpus Size
 
 - Candidate set: 50-100 papers.
@@ -118,11 +172,15 @@ Define:
 Create workspace:
 
 ```bash
-mkdir -p research/{search,meta,pdf,tables}
-printf "stage\tid\treason\n" > research/meta/failures.tsv
-: > research/meta/downloaded_ids.txt
-: > research/meta/summarized_ids.txt
+TOPIC_SLUG="<topic-slug>"
+RUN_ROOT="research/$(date +%F)-${TOPIC_SLUG}"
+mkdir -p "$RUN_ROOT"/{search,meta,pdf,tables,diagrams}
+printf "stage\tid\treason\n" > "$RUN_ROOT/meta/failures.tsv"
+: > "$RUN_ROOT/meta/downloaded_ids.txt"
+: > "$RUN_ROOT/meta/summarized_ids.txt"
 ```
+
+Before retrieval, add or update the row for `$RUN_ROOT` in `research/INDEX.md` with status `in-progress`, and create or update `$RUN_ROOT/RUN.md`.
 
 Run at least 4 waves:
 
@@ -132,23 +190,23 @@ Run at least 4 waves:
 4. Recent trend and benchmark-focused search.
 
 ```bash
-papercli search "<core query>" --provider all --sort relevance --limit 30 --format json --out research/search/w1_core.json
-papercli search "<adjacent query>" --provider all --sort relevance --limit 30 --format json --out research/search/w2_adjacent.json
-papercli search "<method family query>" --provider all --sort relevance --limit 30 --format json --out research/search/w3_methods.json
-papercli search "<benchmark/trend query>" --provider all --sort date --year-from <recent_year> --limit 30 --format json --out research/search/w4_recent.json
+papercli search "<core query>" --provider all --sort relevance --limit 30 --format json --out "$RUN_ROOT/search/w1_core.json"
+papercli search "<adjacent query>" --provider all --sort relevance --limit 30 --format json --out "$RUN_ROOT/search/w2_adjacent.json"
+papercli search "<method family query>" --provider all --sort relevance --limit 30 --format json --out "$RUN_ROOT/search/w3_methods.json"
+papercli search "<benchmark/trend query>" --provider all --sort date --year-from <recent_year> --limit 30 --format json --out "$RUN_ROOT/search/w4_recent.json"
 ```
 
 Optional citation-hub expansion through author trails:
 
 ```bash
-papercli author "<influential author>" --provider all --sort relevance --limit 20 --format json --out research/search/author_1.json
-papercli author "<contrasting author>" --provider all --sort relevance --limit 20 --format json --out research/search/author_2.json
+papercli author "<influential author>" --provider all --sort relevance --limit 20 --format json --out "$RUN_ROOT/search/author_1.json"
+papercli author "<contrasting author>" --provider all --sort relevance --limit 20 --format json --out "$RUN_ROOT/search/author_2.json"
 ```
 
 ### 3. Candidate consolidation and screening
 
 ```bash
-jq -r '.[].id' research/search/*.json | awk 'NF && !seen[$0]++' > research/meta/candidate_ids.txt
+jq -r '.[].id' "$RUN_ROOT"/search/*.json | awk 'NF && !seen[$0]++' > "$RUN_ROOT/meta/candidate_ids.txt"
 ```
 
 Screen candidates for:
@@ -158,7 +216,7 @@ Screen candidates for:
 - Dataset/benchmark coverage.
 - Publication-year balance.
 
-Write selected IDs to `research/meta/deep_read_ids.txt`.
+Write selected IDs to `$RUN_ROOT/meta/deep_read_ids.txt`.
 
 ### 4. Metadata enrichment and bulk download
 
@@ -166,16 +224,16 @@ Write selected IDs to `research/meta/deep_read_ids.txt`.
 while read -r id; do
   safe_id="$(echo "$id" | tr '/:' '__')"
 
-  if ! papercli info "$id" --provider all --format json --out "research/meta/${safe_id}.json"; then
-    printf "info\t%s\tmetadata lookup failed\n" "$id" >> research/meta/failures.tsv
+  if ! papercli info "$id" --provider all --format json --out "$RUN_ROOT/meta/${safe_id}.json"; then
+    printf "info\t%s\tmetadata lookup failed\n" "$id" >> "$RUN_ROOT/meta/failures.tsv"
   fi
 
-  if papercli download "$id" --provider all --out "research/pdf/${safe_id}.pdf"; then
-    printf "%s\n" "$id" >> research/meta/downloaded_ids.txt
+  if papercli download "$id" --provider all --out "$RUN_ROOT/pdf/${safe_id}.pdf"; then
+    printf "%s\n" "$id" >> "$RUN_ROOT/meta/downloaded_ids.txt"
   else
-    printf "download\t%s\tpdf download failed\n" "$id" >> research/meta/failures.tsv
+    printf "download\t%s\tpdf download failed\n" "$id" >> "$RUN_ROOT/meta/failures.tsv"
   fi
-done < research/meta/deep_read_ids.txt
+done < "$RUN_ROOT/meta/deep_read_ids.txt"
 ```
 
 ### 5. Create agent-ready paper summaries
@@ -186,10 +244,10 @@ Run it after the deep-read PDFs and metadata are ready:
 
 ```bash
 python3 SKILLS/paper-summary/scripts/gemini_parallel_summary.py \
-  --pdf-dir research/pdf \
-  --metadata-dir research/meta \
-  --summarized-ids research/meta/summarized_ids.txt \
-  --failures-tsv research/meta/failures.tsv \
+  --pdf-dir "$RUN_ROOT/pdf" \
+  --metadata-dir "$RUN_ROOT/meta" \
+  --summarized-ids "$RUN_ROOT/meta/summarized_ids.txt" \
+  --failures-tsv "$RUN_ROOT/meta/failures.tsv" \
   --concurrency 20
 ```
 
@@ -197,19 +255,19 @@ Retry one paper with:
 
 ```bash
 python3 SKILLS/paper-summary/scripts/gemini_parallel_summary.py \
-  --pdf research/pdf/<safe_id>.pdf \
-  --metadata-dir research/meta \
-  --summarized-ids research/meta/summarized_ids.txt \
-  --failures-tsv research/meta/failures.tsv
+  --pdf "$RUN_ROOT/pdf/<safe_id>.pdf" \
+  --metadata-dir "$RUN_ROOT/meta" \
+  --summarized-ids "$RUN_ROOT/meta/summarized_ids.txt" \
+  --failures-tsv "$RUN_ROOT/meta/failures.tsv"
 ```
 
 Summary requirements:
 
 - Use the canonical schema in `SKILLS/paper-summary/references/summary_schema.md`.
-- Write each summary to `research/pdf/<safe_id>.md`.
+- Write each summary to `$RUN_ROOT/pdf/<safe_id>.md`.
 - Treat figures, captions, tables, appendix visuals, equations, and page anchors as first-class evidence.
 - Mark metadata-only evidence explicitly when the PDF cannot be analyzed directly.
-- Record summary failures in `research/meta/failures.tsv` and keep the corpus moving.
+- Record summary failures in `$RUN_ROOT/meta/failures.tsv` and keep the corpus moving.
 
 ### 6. Cross-paper synthesis
 
@@ -226,7 +284,7 @@ Then analyze:
 - Contradictions and likely causes.
 - Gaps and open problems.
 - Most defensible practical recommendations.
-- Use the structured paper summaries in `research/pdf/` as the canonical source for cross-paper comparison.
+- Use the structured paper summaries in `$RUN_ROOT/pdf/` as the canonical source for cross-paper comparison.
 
 ### 7. Produce literature-map block diagram
 
@@ -237,7 +295,7 @@ Diagram requirements:
 - Base the diagram on the same corpus and `[R#]` references used in `findings.md`.
 - Show how the main papers, method families, benchmark clusters, or critique branches connect through evidence-backed relations only.
 - Prefer compact family clusters when a flat per-paper graph would be noisy.
-- Use a topic-derived slug such as `<topic-slug>-literature-map` under `diagrams/`.
+- Use a topic-derived slug such as `<topic-slug>-literature-map` under `$RUN_ROOT/diagrams/`.
 - Prefer `png` as the primary delivered literature-map artifact.
 - Keep `svg` as the editable or fallback artifact when PNG rendering is unavailable.
 
@@ -321,13 +379,13 @@ Interpretation and implications [R#].
 
 Companion literature-map artifacts:
 
-- `diagrams/<topic-slug>-literature-map.d2`
-- `diagrams/<topic-slug>-literature-map.png`
-- optional `diagrams/<topic-slug>-literature-map.svg`
+- `$RUN_ROOT/diagrams/<topic-slug>-literature-map.d2`
+- `$RUN_ROOT/diagrams/<topic-slug>-literature-map.png`
+- optional `$RUN_ROOT/diagrams/<topic-slug>-literature-map.svg`
 
 ## Final Chat Reply
 
-After writing `findings.md`, return a short, friendly summary for the user-facing chat reply. Keep `findings.md` as the full canonical report and do not change its structure.
+After writing `$RUN_ROOT/findings.md`, return a short, friendly summary for the user-facing chat reply. Keep `findings.md` as the full canonical report and do not change its structure.
 
 - Use an executive-summary tone that still reads well in chat.
 - Light emoji use is allowed when it makes the message easier to scan.
@@ -337,7 +395,7 @@ After writing `findings.md`, return a short, friendly summary for the user-facin
   - one short literature-map line explaining how the main papers or paper families connect
   - 3-5 cited takeaways covering the strongest findings and the main disagreements
   - one short uncertainty or risk line when it materially affects the recommendation
-  - one closing line that points to `findings.md` for the full evidence base
+  - one closing line that points to `$RUN_ROOT/findings.md` for the full evidence base
 - Do not paste the full literature map, quantitative tables, or long report sections into chat.
 - If the active channel supports returning files, return `findings.md` plus the PNG literature-map diagram after the summary. If PNG rendering is unavailable, return the SVG artifact instead.
 
@@ -357,6 +415,7 @@ Before finalizing `findings.md`, verify:
 3. Math section uses plain-text equations plus interpretation.
 4. Conflicting evidence is surfaced, not hidden.
 5. References map to real downloaded/local files.
-6. Each deep-read paper has an agent-ready summary in `research/pdf/` unless extraction failed.
-7. Downloaded and summarized counts reconcile with `research/meta/downloaded_ids.txt` and `research/meta/summarized_ids.txt`, and failure events reconcile with `research/meta/failures.tsv`.
+6. Each deep-read paper has an agent-ready summary in `$RUN_ROOT/pdf/` unless extraction failed.
+7. Downloaded and summarized counts reconcile with `$RUN_ROOT/meta/downloaded_ids.txt` and `$RUN_ROOT/meta/summarized_ids.txt`, and failure events reconcile with `$RUN_ROOT/meta/failures.tsv`.
 8. A PNG literature-map artifact exists, or an SVG fallback is returned when PNG rendering is unavailable, and the diagram only shows evidence-backed cross-paper connections.
+9. `research/INDEX.md` and `$RUN_ROOT/RUN.md` are updated with final status, corpus counts, artifact paths, and any limitations or next-step notes.

@@ -7,14 +7,20 @@ Use this reference when converting `fast-research`, `pro-research`, or
 
 Look for these artifacts in the active project:
 
-- `findings.md`
-- `research/search/*.json`
-- `research/meta/*.json`
-- `research/pdf/*.pdf`
-- `research/pdf/*.md`
-- `research/figures/`
-- `diagrams/`
+- `research/INDEX.md` to identify topic-scoped research folders
+- `research/<YYYY-MM-DD>-<topic-slug>/RUN.md`
+- `research/<YYYY-MM-DD>-<topic-slug>/findings.md`
+- `research/<YYYY-MM-DD>-<topic-slug>/search/*.json`
+- `research/<YYYY-MM-DD>-<topic-slug>/meta/*.json`
+- `research/<YYYY-MM-DD>-<topic-slug>/pdf/*.pdf`
+- `research/<YYYY-MM-DD>-<topic-slug>/pdf/*.md`
+- `research/<YYYY-MM-DD>-<topic-slug>/figures/`
+- `research/<YYYY-MM-DD>-<topic-slug>/diagrams/`
 - `references.bib` or BibTeX snippets inside findings
+
+Older projects may still use flat `findings.md`, `research/pdf/`, `research/meta/`,
+and `diagrams/` paths. Support them when present, but prefer the topic-scoped
+folder selected from `research/INDEX.md`.
 
 Do not block just because some artifacts are missing. State coverage limits in
 the report.

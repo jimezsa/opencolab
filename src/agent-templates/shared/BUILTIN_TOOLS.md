@@ -53,19 +53,19 @@ Guidance:
 
 - `fast-research`
   Description: Fast scientific paper scouting with `papercli`.
-  When to use: for a rapid, evidence-grounded literature brief or quick scientific orientation, with a concise user-facing summary, a PNG-first companion literature-map diagram showing how the main papers connect, and the detailed `findings.md` kept as the canonical report.
+  When to use: for a rapid, evidence-grounded literature brief or quick scientific orientation, with a topic-scoped folder under `research/`, a maintained `research/INDEX.md` entry, a concise user-facing summary, a PNG-first companion literature-map diagram showing how the main papers connect, and the detailed `findings.md` kept as the canonical report.
 - `pro-research`
   Description: Professional paper research with `papercli`.
-  When to use: for serious literature synthesis with stronger methodological depth, cross-paper comparison, explicit evidence tracking, a PNG-first companion paper-connection diagram, and a concise user-facing summary that points to the full `findings.md`.
+  When to use: for serious literature synthesis with stronger methodological depth, cross-paper comparison, explicit evidence tracking, a topic-scoped folder under `research/`, a maintained `research/INDEX.md` entry, a PNG-first companion paper-connection diagram, and a concise user-facing summary that points to the full `findings.md`.
 - `deep-research`
   Description: Deep scientific investigation with `papercli`.
-  When to use: for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support, while also producing a compact PNG-first literature-map diagram and keeping the chat reply concise and the detailed `findings.md` as the full deliverable.
+  When to use: for comprehensive state-of-the-art reviews, deep comparisons, research strategy, and evidence-heavy decision support, with each distinct topic saved in a dated `research/<YYYY-MM-DD>-<topic-slug>/` folder, root `research/INDEX.md` plus run-local `RUN.md` metadata updated when the work finishes, a compact PNG-first literature-map diagram, and a concise chat reply pointing to the detailed `findings.md`.
 - `pageindex-grounded`
   Description: Local-first grounded QA over already-downloaded papers using cached PageIndex trees.
-  When to use: for precise follow-up questions, exact claim verification, or bounded cross-paper comparisons that need exact paper or page references from local PDFs after research or summary work is already done.
+  When to use: for precise follow-up questions, exact claim verification, or bounded cross-paper comparisons that need exact paper or page references from local PDFs after research or summary work is already done. Prefer the active topic-scoped research folder selected from `research/INDEX.md`.
 - `pdf-figure-extract`
   Description: Local-first paper figure extraction with PyMuPDF, optional PageIndex-assisted page selection, and multimodal candidate verification before delivery.
-  When to use: for architecture figures, pipeline overviews, system diagrams, tables-as-images, or other paper figures that should be extracted from an already-downloaded local PDF and returned as an image file.
+  When to use: for architecture figures, pipeline overviews, system diagrams, tables-as-images, or other paper figures that should be extracted from an already-downloaded local PDF in the active topic-scoped research folder and returned as an image file.
 - `latex-paper-writer`
   Description: Scientific LaTeX paper and report production with venue-aware templates, Git-versioned workspaces, experiment tables, and local PDF compilation.
   When to use: for creating or editing LaTeX papers, turning `deep-research`, `pro-research`, or `fast-research` findings into PDF summaries or survey reports, generating LaTeX experiment tables from CSV/JSON/markdown/log results, adding architecture figures or diagrams through existing figure/diagram skills, and compiling the final PDF with `latexmk` when available. Keep the paper folder under Git version control and never stage unrelated parent-repository files.

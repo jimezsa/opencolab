@@ -15,7 +15,7 @@ metadata:
 
 # Paper Summary Skill
 
-Use this skill when PDFs have already been downloaded and the next step is to create deterministic `research/pdf/<safe_id>.md` summaries from those PDFs.
+Use this skill when PDFs have already been downloaded and the next step is to create deterministic `<run-folder>/pdf/<safe_id>.md` summaries from those PDFs.
 
 For precise follow-up QA after the summaries exist, switch to the shared `pageindex-grounded` skill instead of stretching this skill into ad hoc question answering.
 
@@ -47,7 +47,7 @@ Given one paper PDF or a directory of paper PDFs:
 1. Read the PDFs directly with Gemini.
 2. Produce one markdown summary per paper that follows the canonical schema in `references/summary_schema.md`.
 3. Write each summary as `<safe_id>.md`, next to `<safe_id>.pdf`, unless an explicit output directory is provided.
-4. Optionally append original paper IDs to `research/meta/summarized_ids.txt`.
+4. Optionally append original paper IDs to `<run-folder>/meta/summarized_ids.txt`.
 
 ## Prerequisites
 
@@ -56,7 +56,7 @@ Given one paper PDF or a directory of paper PDFs:
 - `GEMINI_API_KEY` is set in the environment.
 - Network access is available when running the Gemini script.
 - The PDFs already exist locally.
-- Optional metadata JSON files exist in `research/meta/<safe_id>.json`.
+- Optional metadata JSON files exist in `<run-folder>/meta/<safe_id>.json`.
 
 ## Required Inputs
 
@@ -64,6 +64,7 @@ Given one paper PDF or a directory of paper PDFs:
 - Optional `--metadata-dir` so the script can recover original paper IDs and metadata fallbacks.
 - Optional `--summarized-ids` file to append successful original paper IDs.
 - Optional `--failures-tsv` file to record summary failures in the same ledger used by the research skills.
+- The active research run folder, normally `research/<YYYY-MM-DD>-<topic-slug>/`, when this is called from `fast-research`, `pro-research`, or `deep-research`.
 
 ## Hard Requirements
 
@@ -80,28 +81,34 @@ Given one paper PDF or a directory of paper PDFs:
 
 - Verify the target PDF exists.
 - When possible, keep PDF names aligned with the `safe_id` convention already used by the research skills.
-- If metadata exists, keep the matching JSON at `research/meta/<safe_id>.json`.
+- If metadata exists, keep the matching JSON at `<run-folder>/meta/<safe_id>.json`.
 
 ### 2. Run the Gemini batch summarizer
+
+When this skill is called from a research run, set `RUN_ROOT` to the active run folder first:
+
+```bash
+RUN_ROOT="research/<YYYY-MM-DD>-<topic-slug>"
+```
 
 Single paper:
 
 ```bash
 python3 SKILLS/paper-summary/scripts/gemini_parallel_summary.py \
-  --pdf research/pdf/<safe_id>.pdf \
-  --metadata-dir research/meta \
-  --summarized-ids research/meta/summarized_ids.txt \
-  --failures-tsv research/meta/failures.tsv
+  --pdf "$RUN_ROOT/pdf/<safe_id>.pdf" \
+  --metadata-dir "$RUN_ROOT/meta" \
+  --summarized-ids "$RUN_ROOT/meta/summarized_ids.txt" \
+  --failures-tsv "$RUN_ROOT/meta/failures.tsv"
 ```
 
 Batch mode:
 
 ```bash
 python3 SKILLS/paper-summary/scripts/gemini_parallel_summary.py \
-  --pdf-dir research/pdf \
-  --metadata-dir research/meta \
-  --summarized-ids research/meta/summarized_ids.txt \
-  --failures-tsv research/meta/failures.tsv \
+  --pdf-dir "$RUN_ROOT/pdf" \
+  --metadata-dir "$RUN_ROOT/meta" \
+  --summarized-ids "$RUN_ROOT/meta/summarized_ids.txt" \
+  --failures-tsv "$RUN_ROOT/meta/failures.tsv" \
   --concurrency 4
 ```
 
@@ -114,15 +121,15 @@ Useful flags:
 
 ### 3. Review outputs
 
-- Each successful run should create `research/pdf/<safe_id>.md`.
+- Each successful run should create `<run-folder>/pdf/<safe_id>.md`.
 - Check that the output preserves the canonical headings and evidence anchors.
-- If a paper failed, inspect stderr, then rerun just that paper or keep the failure recorded in `research/meta/failures.tsv`.
+- If a paper failed, inspect stderr, then rerun just that paper or keep the failure recorded in `<run-folder>/meta/failures.tsv`.
 
 ## Output Contract
 
 - One markdown summary per processed PDF.
 - Each summary follows the canonical schema in `references/summary_schema.md`.
-- Successful runs may append the original paper ID to `research/meta/summarized_ids.txt` when metadata is available.
+- Successful runs may append the original paper ID to `<run-folder>/meta/summarized_ids.txt` when metadata is available.
 
 ## Canonical Assets
 

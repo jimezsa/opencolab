@@ -38,13 +38,13 @@ Given a precise question over already-downloaded local papers:
 3. Use the tree structure to retrieve the most relevant sections.
 4. Verify the answer against the tree output, the local PDF, and existing paper summaries when needed.
 5. Return a concise grounded answer with exact paper or page references and explicit limitations.
-6. Persist reusable artifacts under `research/pageindex/`.
+6. Persist reusable artifacts under the active research run folder, normally `<RUN_ROOT>/pageindex/`.
 
 ## Prerequisites
 
-- Local PDFs already exist under `research/pdf/`.
-- Optional metadata exists under `research/meta/`.
-- Optional paper summaries exist under `research/pdf/*.md`.
+- Local PDFs already exist under an active research run folder, normally `research/<YYYY-MM-DD>-<topic-slug>/pdf/`, or under the legacy flat `research/pdf/` layout.
+- Optional metadata exists under `<RUN_ROOT>/meta/` or legacy `research/meta/`.
+- Optional paper summaries exist under `<RUN_ROOT>/pdf/*.md` or legacy `research/pdf/*.md`.
 - `python3` is installed and available in `PATH`.
 - A local checkout of the open-source PageIndex repo exists. Recommended path: `tools/PageIndex`.
 - `GEMINI_API_KEY` is available for the local PageIndex runner.
@@ -61,11 +61,12 @@ python3 -m pip install -r tools/PageIndex/requirements.txt
 ## Hard Requirements
 
 - Operate only on already-downloaded local PDFs. Do not use this skill to search for new papers.
+- Prefer selecting the active research run folder from `research/INDEX.md` when it exists. If there is no index, infer the best run folder from the user's topic and existing `research/*/RUN.md` files; fall back to legacy `research/pdf/` only for older projects.
 - Keep paper selection bounded before retrieval. Default to:
   - 1 paper for a single-paper question
   - 2-5 papers for a cross-paper question
-- Persist PageIndex artifacts under `research/pageindex/`, not in the default `results/` directory.
-- Maintain `research/pageindex/manifest.json` so later runs can reuse existing tree artifacts.
+- Persist PageIndex artifacts under `<RUN_ROOT>/pageindex/`, not in the default `results/` directory.
+- Maintain `<RUN_ROOT>/pageindex/manifest.json` so later runs can reuse existing tree artifacts.
 - Prefer reusing an existing tree when the source PDF has not changed.
 - The local PageIndex runner must have `GEMINI_API_KEY` available in the environment.
 
@@ -110,10 +111,12 @@ Useful update categories for this skill:
 
 Use the question plus whatever local artifacts already exist:
 
-- `research/meta/*.json`
-- `research/pdf/*.md`
-- prior `findings.md`
-- prior `research/pageindex/answers/*.md`
+- `research/INDEX.md`
+- `<RUN_ROOT>/RUN.md`
+- `<RUN_ROOT>/meta/*.json`
+- `<RUN_ROOT>/pdf/*.md`
+- prior `<RUN_ROOT>/findings.md`
+- prior `<RUN_ROOT>/pageindex/answers/*.md`
 
 Selection guidance:
 
@@ -121,12 +124,13 @@ Selection guidance:
 - "compare these two papers": 2 papers
 - broader but still bounded comparison: 3-5 papers
 
-Record the selected papers in `research/pageindex/manifest.json`.
+Record the selected papers in `<RUN_ROOT>/pageindex/manifest.json`.
 
 ### 2. Prepare the PageIndex workspace
 
 ```bash
-mkdir -p research/pageindex/{trees,answers}
+RUN_ROOT="research/<YYYY-MM-DD>-<topic-slug>"
+mkdir -p "$RUN_ROOT/pageindex"/{trees,answers}
 ```
 
 Recommended manifest shape:
@@ -139,9 +143,9 @@ Recommended manifest shape:
       "safe_id": "arxiv__2501.01234",
       "paper_id": "arXiv:2501.01234",
       "title": "Example Paper",
-      "pdf_path": "research/pdf/arxiv__2501.01234.pdf",
-      "summary_path": "research/pdf/arxiv__2501.01234.md",
-      "tree_path": "research/pageindex/trees/arxiv__2501.01234.json",
+      "pdf_path": "research/2026-03-22-example-topic/pdf/arxiv__2501.01234.pdf",
+      "summary_path": "research/2026-03-22-example-topic/pdf/arxiv__2501.01234.md",
+      "tree_path": "research/2026-03-22-example-topic/pageindex/trees/arxiv__2501.01234.json",
       "status": "indexed"
     }
   ]
@@ -156,7 +160,7 @@ For each selected paper:
 
 ```bash
 python3 tools/PageIndex/run_pageindex.py \
-  --pdf_path research/pdf/<safe_id>.pdf \
+  --pdf_path "$RUN_ROOT/pdf/<safe_id>.pdf" \
   --model gemini/gemini-3.1-flash-lite-preview \
   --if-add-node-id yes \
   --if-add-node-summary yes \
@@ -166,7 +170,7 @@ python3 tools/PageIndex/run_pageindex.py \
 Then move or copy the generated artifact into the canonical cache path:
 
 - from: `results/<safe_id>_structure.json`
-- to: `research/pageindex/trees/<safe_id>.json`
+- to: `$RUN_ROOT/pageindex/trees/<safe_id>.json`
 
 If a cached tree already exists and the source PDF has not changed, reuse it.
 
@@ -174,7 +178,7 @@ If a cached tree already exists and the source PDF has not changed, reuse it.
 
 For each selected paper:
 
-1. Read `research/pageindex/trees/<safe_id>.json`.
+1. Read `$RUN_ROOT/pageindex/trees/<safe_id>.json`.
 2. Use node titles, node summaries, node ids, and page ranges to shortlist relevant sections.
 3. Use node text when available to narrow the answer.
 4. If the question depends on exact wording, a figure, a table, or an equation, verify the relevant page or anchor against the local PDF or the existing `paper-summary` output. If the user wants the figure artifact returned, pass the likely page(s) to `pdf-figure-extract` instead of trying to answer with text alone.
@@ -185,7 +189,7 @@ For cross-paper questions, do this per paper first, then synthesize. Do not merg
 
 When the question is non-trivial, write:
 
-- `research/pageindex/answers/<date>-<topic-slug>.md`
+- `$RUN_ROOT/pageindex/answers/<date>-<topic-slug>.md`
 
 Recommended structure:
 
@@ -225,9 +229,9 @@ The user-facing reply should:
 
 ## Output Contract
 
-- `research/pageindex/manifest.json`
-- `research/pageindex/trees/<safe_id>.json` for each indexed paper
-- optional `research/pageindex/answers/<date>-<topic-slug>.md`
+- `<RUN_ROOT>/pageindex/manifest.json`
+- `<RUN_ROOT>/pageindex/trees/<safe_id>.json` for each indexed paper
+- optional `<RUN_ROOT>/pageindex/answers/<date>-<topic-slug>.md`
 - a concise grounded final reply with exact paper or page references when supported by the local evidence
 
 ## Canonical Assets

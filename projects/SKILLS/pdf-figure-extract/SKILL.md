@@ -37,12 +37,12 @@ Given a request for a figure in an already-downloaded local PDF:
 2. Reuse PageIndex artifacts when available to narrow likely pages, otherwise shortlist pages directly from the PDF.
 3. Extract or render 1-3 figure candidates with PyMuPDF.
 4. Inspect those candidates with the agent's multimodal capability when available to confirm which image best matches the user's request.
-5. Save the exported artifacts and manifest data under `research/figures/`.
+5. Save the exported artifacts and manifest data under the active research run folder, normally `<RUN_ROOT>/figures/`.
 6. Return the best figure with paper and page context, plus explicit limitations when confidence is reduced.
 
 ## Prerequisites
 
-- Local PDFs already exist under `research/pdf/`.
+- Local PDFs already exist under an active research run folder, normally `research/<YYYY-MM-DD>-<topic-slug>/pdf/`, or under the legacy flat `research/pdf/` layout.
 - `python3` is installed and available in `PATH`.
 - PyMuPDF is installed:
 
@@ -52,14 +52,15 @@ python3 -m pip install PyMuPDF
 
 Optional but recommended:
 
-- `research/pageindex/manifest.json` and cached PageIndex trees already exist.
-- paper summaries exist under `research/pdf/*.md`.
+- `<RUN_ROOT>/pageindex/manifest.json` and cached PageIndex trees already exist.
+- paper summaries exist under `<RUN_ROOT>/pdf/*.md`.
 
 If PyMuPDF is missing, only install it when the user explicitly asks for installation or setup work.
 
 ## Hard Requirements
 
 - Operate only on already-downloaded local PDFs. Do not use this skill for paper discovery.
+- Prefer selecting the active research run folder from `research/INDEX.md` when it exists. If there is no index, infer the best run folder from the user's topic and existing `research/*/RUN.md` files; fall back to legacy `research/pdf/` only for older projects.
 - Use `projects/SKILLS/pdf-figure-extract/scripts/pdf_figure_extract.py` as the canonical local extractor.
 - Treat PageIndex as optional acceleration:
   - reuse it when available and relevant
@@ -68,7 +69,7 @@ If PyMuPDF is missing, only install it when the user explicitly asks for install
   - normally 1 paper for a single-paper request
   - normally 2-3 papers for a cross-paper figure request unless the user explicitly asks for broader coverage
   - normally 1-8 candidate pages per selected paper before exporting images
-- Persist artifacts under `research/figures/`, not under temporary ad hoc folders.
+- Persist artifacts under `<RUN_ROOT>/figures/`, not under temporary ad hoc folders.
 - Export a user-deliverable PNG even when the figure is vector-heavy or mixed-content.
 - Before returning the figure, inspect the shortlisted candidate images directly with the active agent's multimodal capability when the provider runtime supports local image inspection.
 - If multimodal inspection is unavailable, say so explicitly and fall back to caption, page, and layout heuristics instead of overstating certainty.
@@ -105,10 +106,12 @@ Useful update categories for this skill:
 
 Use the request plus whatever local artifacts already exist:
 
-- `research/meta/*.json`
-- `research/pdf/*.md`
-- `research/pageindex/manifest.json`
-- prior `findings.md`
+- `research/INDEX.md`
+- `<RUN_ROOT>/RUN.md`
+- `<RUN_ROOT>/meta/*.json`
+- `<RUN_ROOT>/pdf/*.md`
+- `<RUN_ROOT>/pageindex/manifest.json`
+- prior `<RUN_ROOT>/findings.md`
 
 Selection guidance:
 
@@ -119,7 +122,8 @@ Selection guidance:
 ### 2. Prepare the figure workspace
 
 ```bash
-mkdir -p research/figures/{exports,manifests,notes}
+RUN_ROOT="research/<YYYY-MM-DD>-<topic-slug>"
+mkdir -p "$RUN_ROOT/figures"/{exports,manifests,notes}
 ```
 
 ### 3. Run the extractor
@@ -128,9 +132,9 @@ Standalone or auto mode:
 
 ```bash
 python3 projects/SKILLS/pdf-figure-extract/scripts/pdf_figure_extract.py \
-  --pdf-path research/pdf/<safe_id>.pdf \
+  --pdf-path "$RUN_ROOT/pdf/<safe_id>.pdf" \
   --query "architecture figure" \
-  --output-root research/figures \
+  --output-root "$RUN_ROOT/figures" \
   --top-k 3
 ```
 
@@ -138,10 +142,10 @@ PageIndex-assisted mode when the cached tree is already known:
 
 ```bash
 python3 projects/SKILLS/pdf-figure-extract/scripts/pdf_figure_extract.py \
-  --pdf-path research/pdf/<safe_id>.pdf \
+  --pdf-path "$RUN_ROOT/pdf/<safe_id>.pdf" \
   --query "architecture figure" \
-  --pageindex-tree research/pageindex/trees/<safe_id>.json \
-  --output-root research/figures \
+  --pageindex-tree "$RUN_ROOT/pageindex/trees/<safe_id>.json" \
+  --output-root "$RUN_ROOT/figures" \
   --top-k 3
 ```
 
@@ -149,15 +153,15 @@ Direct figure or page hint mode:
 
 ```bash
 python3 projects/SKILLS/pdf-figure-extract/scripts/pdf_figure_extract.py \
-  --pdf-path research/pdf/<safe_id>.pdf \
+  --pdf-path "$RUN_ROOT/pdf/<safe_id>.pdf" \
   --query "Figure 3" \
   --figure-number 3 \
   --page-hint 5 \
-  --output-root research/figures \
+  --output-root "$RUN_ROOT/figures" \
   --top-k 2
 ```
 
-The script writes a per-run manifest under `research/figures/manifests/` and updates `research/figures/manifest.json` with the latest run summary.
+The script writes a per-run manifest under `$RUN_ROOT/figures/manifests/` and updates `$RUN_ROOT/figures/manifest.json` with the latest run summary.
 
 ### 4. Verify the candidates multimodally
 
@@ -178,7 +182,7 @@ If the provider runtime cannot inspect local images, say so explicitly and rely 
 
 For non-trivial figure retrieval, write:
 
-- `research/figures/notes/<date>-<topic-slug>.md`
+- `$RUN_ROOT/figures/notes/<date>-<topic-slug>.md`
 
 Recommended structure:
 
@@ -199,7 +203,7 @@ Recommended structure:
 
 ## Chosen Figure
 
-- file: `research/figures/exports/...`
+- file: `$RUN_ROOT/figures/exports/...`
 - page: ...
 - caption: ...
 
@@ -223,11 +227,11 @@ If returning the figure through Telegram, emit the raw `@telegram-file` line aft
 
 ## Output Contract
 
-- `research/figures/manifest.json` for the latest run summary
-- `research/figures/manifests/<slug>.json` for the per-run manifest
-- `research/figures/exports/<slug>__p<page>__cand<rank>.png` for shortlisted figure candidates
+- `<RUN_ROOT>/figures/manifest.json` for the latest run summary
+- `<RUN_ROOT>/figures/manifests/<slug>.json` for the per-run manifest
+- `<RUN_ROOT>/figures/exports/<slug>__p<page>__cand<rank>.png` for shortlisted figure candidates
 - optional raw extracted image files when the source figure was directly embedded
-- optional `research/figures/notes/<date>-<topic-slug>.md`
+- optional `<RUN_ROOT>/figures/notes/<date>-<topic-slug>.md`
 - a concise final reply with paper, page, and limitations
 
 ## Canonical Assets

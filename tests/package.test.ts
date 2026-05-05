@@ -56,6 +56,9 @@ test("repository ships renamed paper research shared skills", () => {
     const skillDoc = fs.readFileSync(path.join(skillDir, "SKILL.md"), "utf8");
 
     assert.match(skillDoc, new RegExp(`name: ${skillId}`));
+    assert.match(skillDoc, /research\/INDEX\.md/);
+    assert.match(skillDoc, /RUN\.md/);
+    assert.match(skillDoc, /RUN_ROOT/);
   }
 });
 

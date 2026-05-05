@@ -129,6 +129,7 @@ Shared project skills requirements:
 - agent instructions must tell agents to read relevant `SKILL.md` files from the shared `projects/SKILLS/` directory before using a specialized workflow
 - the shared `block-diagram` skill is the deterministic path for autonomous D2 block-diagram generation and defaults to sketch-style rendering unless the user asks for clean output
 - the shared `fast-research`, `pro-research`, and `deep-research` skills must use the shared `block-diagram` skill to render a companion literature-map overview that shows how the selected papers connect
+- the shared `fast-research`, `pro-research`, and `deep-research` skills must store each distinct research topic in its own dated, topic-slugged run folder under `research/`, must keep detailed deliverables inside that run folder, and must maintain a root `research/INDEX.md` catalog plus a per-run `RUN.md` metadata file so later agents can identify prior research without opening every artifact
 - the shared `pageindex-grounded` skill is the canonical path for grounded follow-up QA over already-downloaded local PDFs and must keep retrieval bounded to a selected subset of local papers before answering
 - the shared `pdf-figure-extract` skill is the canonical path for extracting and returning figures from already-downloaded local PDFs, optionally reusing PageIndex artifacts to narrow page selection before multimodal verification and delivery
 - the shared `latex-paper-writer` skill is the canonical path for creating, editing, versioning, compiling, and returning scientific LaTeX papers, reports, and research-derived PDF summaries; it must choose venue-aware templates when requested, keep each paper workspace under Git version control, use existing research and grounding artifacts for evidence, use `pdf-figure-extract` and `block-diagram` for figures or architecture visuals when appropriate, generate experiment-result tables, compile through `latexmk` when available with clear install remediation when missing, and return final PDFs through the active channel's file-delivery mechanism when requested
@@ -852,6 +853,15 @@ For paper research workflows, expected update categories include:
 
 The shared `fast-research`, `pro-research`, and `deep-research` skills must also generate a companion literature-map block diagram through the shared `block-diagram` skill.
 
+Each research run must use a topic-scoped workspace:
+
+- create or reuse an active run folder at `research/<YYYY-MM-DD>-<topic-slug>/`, where the slug is lowercase, ASCII, hyphenated, and specific enough to distinguish the topic from other work,
+- treat that run folder as the base for `findings.md`, `search/`, `meta/`, `pdf/`, `tables/`, `diagrams/`, and any downstream grounding or figure artifacts,
+- avoid writing new topic artifacts into the flat `research/` root except for shared indexes,
+- keep `research/INDEX.md` as the agent-readable catalog of research folders, with folder path, skill, topic, status, created/updated dates, corpus counts, main deliverables, and one-line notes,
+- create and update `<run-folder>/RUN.md` with the run-local metadata, scope, status, corpus counts, generated artifacts, and follow-up notes,
+- initialize or update the index when a run starts, and update both `research/INDEX.md` and `<run-folder>/RUN.md` after the research is complete, partial, or blocked.
+
 That companion diagram should:
 
 - show the selected papers or compact paper-family clusters as nodes,
@@ -879,8 +889,9 @@ Requirements:
 - it must operate on already-downloaded local PDFs, not on paper discovery
 - it must treat `fast-research`, `pro-research`, and `deep-research` as the retrieval path for finding papers and `paper-summary` as the canonical per-paper summary path
 - it must keep paper selection bounded before retrieval, normally searching 1 paper for a single-paper question and 2-5 papers for a cross-paper question unless the user explicitly asks for broader coverage
-- it must persist PageIndex artifacts under `research/pageindex/`, including `trees/` for cached per-paper tree JSON and `answers/` for optional grounded answer notes
-- it must maintain a machine-readable `research/pageindex/manifest.json` that records selected local papers, PDF paths, tree paths, and freshness or indexing status
+- it must prefer the active research run folder selected from `research/INDEX.md` when prior research used the topic-scoped layout, while still supporting older flat `research/pdf/` projects
+- it must persist PageIndex artifacts under the active run folder, normally `<run-folder>/pageindex/`, including `trees/` for cached per-paper tree JSON and `answers/` for optional grounded answer notes
+- it must maintain a machine-readable `<run-folder>/pageindex/manifest.json` that records selected local papers, PDF paths, tree paths, and freshness or indexing status
 - it must prefer reusing an existing cached tree when the source PDF has not changed
 - it must return answers with exact paper and page references for non-trivial claims whenever the evidence supports that level of grounding
 - if the answer relies only on paper summaries, metadata, or partial local evidence instead of a verified PageIndex tree plus PDF check, it must label that limitation explicitly instead of implying full grounding
@@ -893,7 +904,7 @@ The final user-facing reply from `pageindex-grounded` should:
 - state how many local papers were searched and which subset was selected when that matters to confidence
 - include exact paper and page citations inline or immediately after the supported claim
 - surface material uncertainty, stale indexes, or missing local PDFs when those limitations affect confidence
-- point the user to any persisted grounded answer note under `research/pageindex/answers/` when a longer artifact was written
+- point the user to any persisted grounded answer note under `<run-folder>/pageindex/answers/` when a longer artifact was written
 
 ### 13.6 PDF Figure Extract Skill Requirements
 
@@ -904,8 +915,9 @@ Requirements:
 - it must operate only on already-downloaded local PDFs, not on paper discovery
 - it must use PyMuPDF as the local extraction and rendering engine
 - it must support both direct hints such as paper id, page number, or figure number and ambiguous requests such as "send me the architecture figure"
-- it must reuse cached PageIndex artifacts under `research/pageindex/` when they are available and relevant, but PageIndex must remain optional and missing PageIndex must not block extraction
-- it must persist figure artifacts under `research/figures/`, including exported image files plus machine-readable manifest data that records paper id, PDF path, page, bounding box or region metadata, source mode, and confidence-relevant notes
+- it must prefer the active research run folder selected from `research/INDEX.md` when prior research used the topic-scoped layout, while still supporting older flat `research/pdf/` projects
+- it must reuse cached PageIndex artifacts under the active run folder, normally `<run-folder>/pageindex/`, when they are available and relevant, but PageIndex must remain optional and missing PageIndex must not block extraction
+- it must persist figure artifacts under the active run folder, normally `<run-folder>/figures/`, including exported image files plus machine-readable manifest data that records paper id, PDF path, page, bounding box or region metadata, source mode, and confidence-relevant notes
 - it must keep page inspection bounded, preferring grounded or heuristically shortlisted candidate pages instead of exhaustively rasterizing every page when a narrower search is available
 - it must export a user-deliverable image even when the source figure is vector-heavy or mixed-content, using clipped page rendering when a direct embedded-image extraction is not available
 - it must inspect the shortlisted candidate images with the agent's multimodal capability before choosing what to return when the active provider runtime supports local image inspection
