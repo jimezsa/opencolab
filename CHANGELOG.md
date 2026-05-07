@@ -12,7 +12,9 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
-- OpenColab Studio now renders the projects list as a card grid mirroring the agent roster, with id, active badge, path, agent/artifact/run counts, and last-activity per card; the web interface spec was updated to require card grids for both projects and agents while keeping tables for artifacts and runs.
+- OpenColab Studio now renders the projects list as a card grid with NotebookLM-style cards sourced from each project's `PROJECT-AND-TEAM.md` front matter (`project_name`, `project_description`, `project_emoji`), pastel tint hashed by project id, large emoji, 2-line clamped title, and a footer with relative activity time and agent count.
+- OpenColab Studio agent cards now share the project card layout — pastel tint hashed by agent id, provider avatar top-left, active badge, 2-line clamped agent id, and provider/heartbeat footer — and both grids use the same responsive breakpoints and inset horizontal padding.
+- The web interface spec was updated to require card grids for both projects and agents while keeping tables for artifacts and runs.
 
 ## [0.1.11] - 2026-05-04
 
