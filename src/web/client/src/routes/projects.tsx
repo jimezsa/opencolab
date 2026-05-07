@@ -7,6 +7,7 @@ import { ErrorState, LoadingState } from "@/components/layout/page-state"
 import { api } from "@/lib/api"
 import { formatRelativeTime } from "@/lib/format"
 import { useAsync } from "@/lib/state"
+import { tintFor } from "@/lib/tint"
 import type { WebProjectSummary } from "../../../shared/types"
 
 export default function ProjectsRoute() {
@@ -15,7 +16,7 @@ export default function ProjectsRoute() {
   if (projects.status === "error") return <ErrorState message={projects.error} />
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 px-2 md:px-6 xl:px-10">
       <div>
         <h2 className="font-heading text-lg font-medium">Projects</h2>
         <p className="text-muted-foreground text-sm">
@@ -32,7 +33,7 @@ export default function ProjectsRoute() {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {projects.data.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
@@ -40,23 +41,6 @@ export default function ProjectsRoute() {
       )}
     </div>
   )
-}
-
-const TINTS = [
-  "bg-sky-50 dark:bg-sky-950/30",
-  "bg-rose-50 dark:bg-rose-950/30",
-  "bg-violet-50 dark:bg-violet-950/30",
-  "bg-amber-50 dark:bg-amber-950/30",
-  "bg-emerald-50 dark:bg-emerald-950/30",
-  "bg-fuchsia-50 dark:bg-fuchsia-950/30",
-]
-
-function tintFor(id: string): string {
-  let hash = 0
-  for (let i = 0; i < id.length; i += 1) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  }
-  return TINTS[hash % TINTS.length]
 }
 
 function ProjectCard({ project }: { project: WebProjectSummary }) {
@@ -74,7 +58,7 @@ function ProjectCard({ project }: { project: WebProjectSummary }) {
         <div className="flex h-full flex-col justify-between px-5 py-5">
           <div className="flex items-start justify-between">
             {project.emoji ? (
-              <span className="text-3xl leading-none" aria-hidden="true">
+              <span className="text-5xl leading-none" aria-hidden="true">
                 {project.emoji}
               </span>
             ) : (
