@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Seeded `PROJECT-AND-TEAM.md` now includes front matter for a short project name, short description, and project emoji, and professor guidance now tells the lead agent to fill those fields once project identity is known.
+
+### Changed
+
+- OpenColab Studio now renders the projects list as a card grid mirroring the agent roster, with id, active badge, path, agent/artifact/run counts, and last-activity per card; the web interface spec was updated to require card grids for both projects and agents while keeping tables for artifacts and runs.
+
 ## [0.1.11] - 2026-05-04
 
 ### Fixed

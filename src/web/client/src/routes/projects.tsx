@@ -1,13 +1,5 @@
 import { Link } from "react-router-dom"
-import { Badge } from "@/components/ui/badge"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { FolderIcon } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -15,10 +7,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { ErrorState, LoadingState } from "@/components/layout/page-state"
 import { api } from "@/lib/api"
 import { formatRelativeTime } from "@/lib/format"
 import { useAsync } from "@/lib/state"
+import type { WebProjectSummary } from "../../../shared/types"
 
 export default function ProjectsRoute() {
   const projects = useAsync(() => api.projects(), [])
@@ -26,54 +21,77 @@ export default function ProjectsRoute() {
   if (projects.status === "error") return <ErrorState message={projects.error} />
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Projects</CardTitle>
-        <CardDescription>
+    <div className="flex flex-col gap-4">
+      <div>
+        <h2 className="font-heading text-lg font-medium">Projects</h2>
+        <p className="text-muted-foreground text-sm">
           All OpenColab projects discovered in this runtime.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Project</TableHead>
-              <TableHead>Agents</TableHead>
-              <TableHead>Artifacts</TableHead>
-              <TableHead>Runs</TableHead>
-              <TableHead className="text-right">Last activity</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {projects.data.map((project) => (
-              <TableRow key={project.id}>
-                <TableCell>
-                  <Link
-                    to={`/projects/${project.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {project.id}
-                  </Link>{" "}
-                  {project.active && (
-                    <Badge variant="secondary" className="ml-2">
-                      active
-                    </Badge>
-                  )}
-                  <div className="text-muted-foreground font-mono text-xs">
-                    {project.path}
-                  </div>
-                </TableCell>
-                <TableCell>{project.agentCount}</TableCell>
-                <TableCell>{project.artifactCount}</TableCell>
-                <TableCell>{project.runCount}</TableCell>
-                <TableCell className="text-muted-foreground text-right text-xs">
-                  {formatRelativeTime(project.recentActivityAt)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+        </p>
+      </div>
+      {projects.data.length === 0 ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>No projects found</EmptyTitle>
+            <EmptyDescription>
+              Use the CLI to create or import a project into this runtime.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {projects.data.map((project) => (
+            <ProjectCard key={project.id} project={project} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProjectCard({ project }: { project: WebProjectSummary }) {
+  return (
+    <Link
+      to={`/projects/${project.id}`}
+      className="group/project-card focus-visible:outline-none"
+    >
+      <Card
+        size="sm"
+        className="h-full transition group-hover/project-card:ring-foreground/30 group-focus-visible/project-card:ring-2 group-focus-visible/project-card:ring-foreground/40"
+      >
+        <CardHeader>
+          <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
+            <FolderIcon className="size-4" />
+          </div>
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span className="truncate">{project.id}</span>
+            {project.active && (
+              <Badge variant="secondary" className="shrink-0">
+                active
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription className="truncate font-mono text-xs">
+            {project.path}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 text-xs">
+          <Row label="Agents">{project.agentCount}</Row>
+          <Row label="Artifacts">{project.artifactCount}</Row>
+          <Row label="Runs">{project.runCount}</Row>
+          <Row label="Activity">{formatRelativeTime(project.recentActivityAt)}</Row>
+        </CardContent>
+      </Card>
+    </Link>
+  )
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="text-muted-foreground w-16 shrink-0 uppercase tracking-wide text-[10px]">
+        {label}
+      </span>
+      <span className="text-foreground/90 truncate">{children}</span>
+    </div>
   )
 }

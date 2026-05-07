@@ -281,7 +281,7 @@ Shows:
 
 ### Projects
 
-Shows:
+Render the project list as a grid of cards, mirroring the agent roster card layout. Each project card shows:
 
 - project id
 - active marker
@@ -289,6 +289,8 @@ Shows:
 - recent activity
 - artifact count when indexed
 - run count when available
+
+Cards should be uniform in size, support keyboard focus, and link to the project detail route on click.
 
 ### Project Detail
 
@@ -379,9 +381,10 @@ Prefer:
 
 - sidebar navigation
 - compact top bar
-- tables for projects, agents, artifacts, and runs
+- card grids for projects and agents
+- tables for artifacts and runs
 - detail panes for selected objects
-- cards only for summary widgets and repeated objects
+- cards for summary widgets and repeated objects
 - tabs for detail pages
 - badges for status
 - icon buttons for common actions
