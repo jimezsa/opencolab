@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import {
   Card,
   CardContent,
@@ -22,13 +22,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { AgentAvatar } from "@/components/layout/agent-avatar"
+import { AgentCard } from "@/components/layout/agent-card"
 import { ErrorState, LoadingState } from "@/components/layout/page-state"
 import { StateBadge } from "@/components/layout/state-badge"
 import { api } from "@/lib/api"
 import { formatRelativeTime } from "@/lib/format"
 import { useAsync } from "@/lib/state"
-import type { WebAgentSummary } from "../../../shared/types"
 
 export default function ProjectDetailRoute() {
   const { projectId = "" } = useParams()
@@ -39,7 +38,7 @@ export default function ProjectDetailRoute() {
   const data = project.data
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 px-2 md:px-6 xl:px-10">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -84,7 +83,7 @@ export default function ProjectDetailRoute() {
           {data.agents.length === 0 ? (
             <EmptyAgents />
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {data.agents.map((agent) => (
                 <AgentCard
                   key={agent.id}
@@ -203,67 +202,3 @@ function EmptyAgents() {
   )
 }
 
-function AgentCard({
-  agent,
-  projectId,
-}: {
-  agent: WebAgentSummary
-  projectId: string
-}) {
-  return (
-    <Link
-      to={`/projects/${projectId}/agents/${agent.id}`}
-      className="group/agent-card focus-visible:outline-none"
-    >
-      <Card
-        size="sm"
-        className="h-full transition group-hover/agent-card:ring-foreground/30 group-focus-visible/agent-card:ring-2 group-focus-visible/agent-card:ring-foreground/40"
-      >
-        <CardHeader>
-          <AgentAvatar providerName={agent.provider.name} />
-          <CardTitle className="flex items-center justify-between gap-2">
-            <span className="truncate">{agent.id}</span>
-            {agent.active && (
-              <Badge variant="secondary" className="shrink-0">
-                active
-              </Badge>
-            )}
-          </CardTitle>
-          <CardDescription className="truncate font-mono text-xs">
-            {agent.provider.name} · {agent.provider.model}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 text-xs">
-          <AgentMetaRow label="Auth">
-            {agent.provider.authMode}
-            {agent.provider.reasoningEffort
-              ? ` · ${agent.provider.reasoningEffort}`
-              : ""}
-          </AgentMetaRow>
-          {agent.heartbeat && (
-            <AgentMetaRow label="Wakes">
-              {new Date(agent.heartbeat.wakeAt).toLocaleString()}
-            </AgentMetaRow>
-          )}
-        </CardContent>
-      </Card>
-    </Link>
-  )
-}
-
-function AgentMetaRow({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <span className="text-muted-foreground w-16 shrink-0 uppercase tracking-wide text-[10px]">
-        {label}
-      </span>
-      <span className="text-foreground/90 truncate">{children}</span>
-    </div>
-  )
-}
