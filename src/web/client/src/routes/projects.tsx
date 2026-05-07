@@ -1,12 +1,6 @@
 import { Link } from "react-router-dom"
 import { FolderIcon } from "lucide-react"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { ErrorState, LoadingState } from "@/components/layout/page-state"
@@ -38,7 +32,7 @@ export default function ProjectsRoute() {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {projects.data.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
@@ -48,50 +42,64 @@ export default function ProjectsRoute() {
   )
 }
 
+const TINTS = [
+  "bg-sky-50 dark:bg-sky-950/30",
+  "bg-rose-50 dark:bg-rose-950/30",
+  "bg-violet-50 dark:bg-violet-950/30",
+  "bg-amber-50 dark:bg-amber-950/30",
+  "bg-emerald-50 dark:bg-emerald-950/30",
+  "bg-fuchsia-50 dark:bg-fuchsia-950/30",
+]
+
+function tintFor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  }
+  return TINTS[hash % TINTS.length]
+}
+
 function ProjectCard({ project }: { project: WebProjectSummary }) {
+  const title = project.name && project.name.length > 0 ? project.name : project.id
+  const tint = tintFor(project.id)
   return (
     <Link
       to={`/projects/${project.id}`}
       className="group/project-card focus-visible:outline-none"
+      title={project.description ?? undefined}
     >
       <Card
-        size="sm"
-        className="h-full transition group-hover/project-card:ring-foreground/30 group-focus-visible/project-card:ring-2 group-focus-visible/project-card:ring-foreground/40"
+        className={`h-44 ring-0 border-0 transition group-hover/project-card:shadow-md group-focus-visible/project-card:ring-2 group-focus-visible/project-card:ring-foreground/40 ${tint}`}
       >
-        <CardHeader>
-          <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
-            <FolderIcon className="size-4" />
-          </div>
-          <CardTitle className="flex items-center justify-between gap-2">
-            <span className="truncate">{project.id}</span>
+        <div className="flex h-full flex-col justify-between px-5 py-5">
+          <div className="flex items-start justify-between">
+            {project.emoji ? (
+              <span className="text-3xl leading-none" aria-hidden="true">
+                {project.emoji}
+              </span>
+            ) : (
+              <div className="bg-background/60 text-muted-foreground flex size-9 items-center justify-center rounded-md">
+                <FolderIcon className="size-4" />
+              </div>
+            )}
             {project.active && (
               <Badge variant="secondary" className="shrink-0">
                 active
               </Badge>
             )}
-          </CardTitle>
-          <CardDescription className="truncate font-mono text-xs">
-            {project.path}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 text-xs">
-          <Row label="Agents">{project.agentCount}</Row>
-          <Row label="Artifacts">{project.artifactCount}</Row>
-          <Row label="Runs">{project.runCount}</Row>
-          <Row label="Activity">{formatRelativeTime(project.recentActivityAt)}</Row>
-        </CardContent>
+          </div>
+          <div className="flex flex-col gap-2">
+            <h3 className="font-heading line-clamp-2 text-lg font-medium leading-snug">
+              {title}
+            </h3>
+            <p className="text-muted-foreground text-xs">
+              {formatRelativeTime(project.recentActivityAt)}
+              {" · "}
+              {project.agentCount} {project.agentCount === 1 ? "agent" : "agents"}
+            </p>
+          </div>
+        </div>
       </Card>
     </Link>
-  )
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <span className="text-muted-foreground w-16 shrink-0 uppercase tracking-wide text-[10px]">
-        {label}
-      </span>
-      <span className="text-foreground/90 truncate">{children}</span>
-    </div>
   )
 }

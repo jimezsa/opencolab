@@ -32,6 +32,7 @@ export function getProjectDetail(
   }
   const isActive = runtime.getState().activeProjectId === project.id;
   const projectAndTeam = readProjectAndTeam(runtime, project);
+  const identity = extractProjectIdentity(projectAndTeam);
   const focus = extractSection(projectAndTeam, "current focus") ?? extractSection(projectAndTeam, "focus");
   const goal = extractSection(projectAndTeam, "goal") ?? extractFirstParagraph(projectAndTeam);
 
@@ -39,6 +40,9 @@ export function getProjectDetail(
     id: project.id,
     path: project.path,
     active: isActive,
+    name: identity.name,
+    description: identity.description,
+    emoji: identity.emoji,
     goal,
     focus,
     projectAndTeam,
@@ -57,10 +61,14 @@ export function buildProjectSummary(
   const artifacts = listProjectArtifacts(runtime, project.id, { limit: 0 });
   const runs = listProjectGpuRuns(runtime, project.id, { limit: 0 });
   const conversations = listProjectConversations(runtime, project.id, { limit: 1 });
+  const identity = extractProjectIdentity(readProjectAndTeam(runtime, project));
   return {
     id: project.id,
     path: project.path,
     active,
+    name: identity.name,
+    description: identity.description,
+    emoji: identity.emoji,
     agentCount: Object.keys(project.agents).length,
     artifactCount: artifacts.length,
     runCount: runs.length,
@@ -106,6 +114,45 @@ function extractSection(content: string | null, heading: string): string | null 
   }
   const result = collected.join("\n").trim();
   return result || null;
+}
+
+interface ProjectIdentity {
+  name: string | null;
+  description: string | null;
+  emoji: string | null;
+}
+
+function extractProjectIdentity(content: string | null): ProjectIdentity {
+  const empty: ProjectIdentity = { name: null, description: null, emoji: null };
+  if (!content) {
+    return empty;
+  }
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/u.exec(content);
+  if (!match) {
+    return empty;
+  }
+  const fields: Record<string, string> = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const kv = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/u.exec(line);
+    if (!kv) continue;
+    let value = kv[2].trim();
+    if (
+      (value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    fields[kv[1]] = value;
+  }
+  const pick = (key: string): string | null => {
+    const value = fields[key];
+    return value && value.length > 0 ? value : null;
+  };
+  return {
+    name: pick("project_name"),
+    description: pick("project_description"),
+    emoji: pick("project_emoji")
+  };
 }
 
 function extractFirstParagraph(content: string | null): string | null {

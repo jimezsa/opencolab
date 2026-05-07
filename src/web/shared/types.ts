@@ -35,6 +35,9 @@ export interface WebProjectSummary {
   id: string;
   path: string;
   active: boolean;
+  name: string | null;
+  description: string | null;
+  emoji: string | null;
   agentCount: number;
   artifactCount: number;
   runCount: number;
@@ -45,6 +48,9 @@ export interface WebProjectDetail {
   id: string;
   path: string;
   active: boolean;
+  name: string | null;
+  description: string | null;
+  emoji: string | null;
   goal: string | null;
   focus: string | null;
   projectAndTeam: string | null;
