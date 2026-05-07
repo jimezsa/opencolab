@@ -1,10 +1,12 @@
 import { Link, useParams } from "react-router-dom"
+import { HeartIcon, HeartPulseIcon } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { AgentAvatar } from "@/components/layout/agent-avatar"
 import { ErrorState, LoadingState } from "@/components/layout/page-state"
 import { api } from "@/lib/api"
+import { formatTimeUntil } from "@/lib/format"
 import { useAsync } from "@/lib/state"
 import { tintFor } from "@/lib/tint"
 import type { WebAgentSummary } from "../../../shared/types"
@@ -52,9 +54,6 @@ function AgentCard({
   projectId: string
 }) {
   const tint = tintFor(agent.id)
-  const heartbeat = agent.heartbeat
-    ? `wakes ${new Date(agent.heartbeat.wakeAt).toLocaleString()}`
-    : "idle"
   return (
     <Link
       to={`/projects/${projectId}/agents/${agent.id}`}
@@ -75,14 +74,23 @@ function AgentCard({
               </Badge>
             )}
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
             <h3 className="font-heading line-clamp-2 text-lg font-medium leading-snug">
               {agent.id}
             </h3>
             <p className="text-muted-foreground truncate text-xs">
               {agent.provider.name} · {agent.provider.model}
             </p>
-            <p className="text-muted-foreground truncate text-xs">{heartbeat}</p>
+            <p className="text-muted-foreground flex items-center gap-1 truncate text-xs">
+              {agent.heartbeat ? (
+                <HeartPulseIcon className="size-3 text-rose-500" aria-hidden="true" />
+              ) : (
+                <HeartIcon className="size-3 opacity-60" aria-hidden="true" />
+              )}
+              <span className="truncate">
+                {agent.heartbeat ? formatTimeUntil(agent.heartbeat.wakeAt) : "idle"}
+              </span>
+            </p>
           </div>
         </div>
       </Card>

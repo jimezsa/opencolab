@@ -23,6 +23,19 @@ export function formatRelativeTime(isoTimestamp: string | null | undefined): str
   return new Date(isoTimestamp).toLocaleDateString()
 }
 
+export function formatTimeUntil(isoTimestamp: string | null | undefined): string {
+  if (!isoTimestamp) return "—"
+  const target = new Date(isoTimestamp).getTime()
+  if (!Number.isFinite(target)) return "—"
+  const diffSeconds = Math.round((target - Date.now()) / 1000)
+  if (diffSeconds <= 0) return "due"
+  if (diffSeconds < 60) return `in ${diffSeconds}s`
+  if (diffSeconds < 3600) return `in ${Math.round(diffSeconds / 60)}m`
+  if (diffSeconds < 86_400) return `in ${Math.round(diffSeconds / 3600)}h`
+  if (diffSeconds < 604_800) return `in ${Math.round(diffSeconds / 86_400)}d`
+  return `on ${new Date(isoTimestamp).toLocaleDateString()}`
+}
+
 export function formatDateTime(isoTimestamp: string | null | undefined): string {
   if (!isoTimestamp) return "—"
   const date = new Date(isoTimestamp)
