@@ -2491,6 +2491,90 @@ test("paired webhook renders one live status surface before the final answer wit
   }
 });
 
+test("private draft live preview streams the same activity feed as group chats", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-private-live-preview-"));
+  const sentTexts: string[] = [];
+  const draftTexts: string[] = [];
+  const statusCreates: string[] = [];
+  const statusEdits: string[] = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramDraftSender: async (_chatId, _draftId, text) => {
+      draftTexts.push(text);
+      return true;
+    },
+    telegramStatusMessageCreator: async (_chatId, text) => {
+      statusCreates.push(text);
+      return "status-1";
+    },
+    telegramMessageEditor: async (_chatId, _messageId, text) => {
+      statusEdits.push(text);
+      return true;
+    },
+    agentResponder: async ({ text }, options) => {
+      await options?.onProgress?.({
+        kind: "progress",
+        stage: "inspect",
+        slot: "inspect:read:README.md",
+        message: "Read README.md."
+      });
+      await options?.onProgress?.({
+        kind: "progress",
+        stage: "inspect",
+        slot: "inspect:read:package.json",
+        message: "Read package.json."
+      });
+      await options?.onProgress?.({
+        kind: "completed",
+        stage: "finalize",
+        slot: "finalize",
+        message: "Preparing the final answer."
+      });
+      return `research:${text}`;
+    }
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({
+      chatId: "10001"
+    });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "show me the private live preview",
+        chat: { id: "10001", type: "private" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.deepEqual(sentTexts, [
+      formatTelegramAgentReply("professor", "research:show me the private live preview")
+    ]);
+    assert.equal(statusCreates.length, 0);
+    assert.equal(statusEdits.length, 0);
+    assert.equal(draftTexts.length, 2);
+    assert.equal(draftTexts[0].startsWith("Agent activity"), true);
+    assert.equal(draftTexts[0].includes("🟢 Read README.md."), true);
+    assert.equal(draftTexts[1].startsWith("Finalizing"), true);
+    assert.equal(draftTexts[1].includes("⚪ Read README.md."), true);
+    assert.equal(draftTexts[1].includes("⚪ Read package.json."), true);
+    assert.equal(draftTexts[1].includes("🟢 Preparing the final answer."), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("group chats stream recent tool activity through one editable live status message", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-group-live-status-"));
   const sentTexts: string[] = [];

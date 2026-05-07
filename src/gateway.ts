@@ -111,8 +111,7 @@ const MAX_TELEGRAM_CALLBACK_TEXT_CHARS = 180;
 const MAX_TELEGRAM_TEXT_CHARS = 4_000;
 const EDITABLE_STATUS_THROTTLE_MS = 3_000;
 const DRAFT_STATUS_THROTTLE_MS = 1_200;
-const MAX_LIVE_STATUS_LINES = 4;
-const MAX_GROUP_LIVE_STATUS_LINES = 5;
+const MAX_LIVE_STATUS_LINES = 5;
 const SUPPORTED_TELEGRAM_COMMANDS_TEXT =
   "Supported commands: /projects | /agents | /session_reset | /stop";
 const STOPPED_TASK_CONFIRMATION_TEXT = [
@@ -279,9 +278,7 @@ class TelegramLiveStatusSession {
           ? "Need input"
           : latestKind === "completed"
             ? "Finalizing"
-            : this.showsActivityFeed()
-              ? "Agent activity"
-              : "Working on it";
+            : "Agent activity";
 
     return [
       heading,
@@ -352,28 +349,11 @@ class TelegramLiveStatusSession {
     return false;
   }
 
-  private showsActivityFeed(): boolean {
-    return (
-      this.inbound.chatType === "group" ||
-      this.inbound.chatType === "supergroup" ||
-      this.inbound.chatType === "channel"
-    );
-  }
-
   private maxLineCount(): number {
-    return this.showsActivityFeed()
-      ? MAX_GROUP_LIVE_STATUS_LINES
-      : MAX_LIVE_STATUS_LINES;
+    return MAX_LIVE_STATUS_LINES;
   }
 
   private resolveSlot(event: TaskProgressEvent): string {
-    if (!this.showsActivityFeed()) {
-      return (
-        normalizeProgressMessage(event.stage ?? "") ||
-        normalizeProgressMessage(event.kind === "completed" ? "finalize" : event.kind) ||
-        resolveProgressSlot(event)
-      );
-    }
     return resolveProgressSlot(event);
   }
 }

@@ -68,12 +68,12 @@ The live surface should feel like a compact status card, not a transcript.
 Example:
 
 ```text
-Working on it
+Agent activity
 
-- Inspecting the project
-- Reviewing the current Telegram flow
-- Comparing Telegram API options
-- Writing the integration plan
+⚪ Inspecting the project.
+⚪ Reviewing the current Telegram flow.
+⚪ Comparing Telegram API options.
+🟢 Writing the integration plan.
 ```
 
 Then, after completion, a second normal message:
