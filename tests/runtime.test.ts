@@ -617,6 +617,10 @@ test("init and agent create seed professor, beginner, autoresearch, and speciali
       true
     );
     assert.equal(
+      professorDoc.includes("fill PROJECT-AND-TEAM.md front matter with a short `project_name`, short `project_description`, and single `project_emoji`"),
+      true
+    );
+    assert.equal(
       professorDoc.includes("Before creating a new specialist, propose the agent id, role, expected ownership, and suggested provider/runtime to the human and get approval."),
       true
     );
@@ -884,8 +888,13 @@ test("init seeds PROJECT-AND-TEAM.md from built-in project template", () => {
 
     const projectContextPath = path.join(buildProjectDir(tempDir, "default"), "PROJECT-AND-TEAM.md");
     const projectContextDoc = fs.readFileSync(projectContextPath, "utf8");
+    assert.equal(projectContextDoc.startsWith("---\nproject_name: \"\"\nproject_description: \"\"\nproject_emoji: \"\"\n---"), true);
     assert.equal(projectContextDoc.includes("# PROJECT-AND-TEAM.md"), true);
     assert.equal(projectContextDoc.includes("This is the canonical shared project context for all agents in this project."), true);
+    assert.equal(
+      projectContextDoc.includes("Keep the front matter current with a short project name, short description, and project emoji once they are known."),
+      true
+    );
     assert.equal(projectContextDoc.includes("Professor is the default curator."), true);
     assert.equal(projectContextDoc.includes("Role: lead agent"), true);
     assert.equal(projectContextDoc.includes("Status: active"), true);

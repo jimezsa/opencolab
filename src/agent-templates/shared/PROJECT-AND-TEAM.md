@@ -1,8 +1,15 @@
+---
+project_name: ""
+project_description: ""
+project_emoji: ""
+---
+
 # PROJECT-AND-TEAM.md
 
 ## Maintenance Rules
 
 - This is the canonical shared project context for all agents in this project.
+- Keep the front matter current with a short project name, short description, and project emoji once they are known.
 - Keep it concise and curated.
 - Record stable project facts, roles, goals, constraints, and key decisions.
 - Do not store secrets, transcripts, scratch notes, or long reasoning dumps here.

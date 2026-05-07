@@ -485,8 +485,9 @@ Telegram slash-menu commands:
 - On first contact, agents must read `BOOTSTRAP.md` before `ALMA.md` whenever `BOOTSTRAP.md` still exists
 - The shared `ALMA.md` template sets a completeness-first bar: search before building, test before shipping, prefer permanent fixes over nearby workarounds, and finish the whole task when the real solution is within reach
 - `TODO.md` is a lean, actively maintained working list for current focus, top priorities, and live blockers only; agents should rewrite it as priorities change and delete completed or stale items instead of keeping backlog or done-history there
-- `PROJECT-AND-TEAM.md` is the canonical shared project context file for goal, scope, constraints, key decisions, humans, agents, and roles
+- `PROJECT-AND-TEAM.md` is the canonical shared project context file for goal, scope, constraints, key decisions, humans, agents, and roles; its front matter carries a short `project_name`, `project_description`, and `project_emoji`
 - Agents should treat `PROJECT-AND-TEAM.md` as curated shared context, not as transcript storage or scratch memory
+- `professor` should fill the `PROJECT-AND-TEAM.md` front matter once the project identity is known
 - `professor` is the lead agent and may propose or create durable specialist agents for research, coding, experiments, or writing after human approval
 - Professor-led creation uses the OpenColab CLI, for example `opencolab agent create --agent-id <id>`, with follow-up `opencolab setup model --agent-id <id> ...` when per-agent provider setup is needed
 - Creating an OpenColab agent is separate from creating a Telegram bot identity; BotFather and token binding remain operator-managed steps

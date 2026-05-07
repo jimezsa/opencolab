@@ -145,7 +145,7 @@ Agent-local skills requirements:
 
 Initialization requirements:
 
-- when a project is created, `PROJECT-AND-TEAM.md` must be seeded at the project root from an internal runtime template
+- when a project is created, `PROJECT-AND-TEAM.md` must be seeded at the project root from an internal runtime template with YAML front matter for short `project_name`, short `project_description`, and single `project_emoji`
 - when an agent directory is created, `AGENTS.md` must be seeded from an internal runtime template
 - when an agent directory is created, `BOOTSTRAP.md` must be seeded from an internal runtime template for first-run identity discovery
 - when an agent directory is created, `IDENTITY.md` must be seeded from an internal runtime template
@@ -175,6 +175,7 @@ Initialization requirements:
 - default `AGENTS.md` must require agents to read and follow `BOOTSTRAP.md` before `ALMA.md` whenever `BOOTSTRAP.md` still exists, so first-contact identity setup cannot be skipped
 - default `AGENTS.md` must explain that `PROJECT-AND-TEAM.md` is the canonical shared project context file, lives at project scope, and should be read after `TODO.md` and before `MEMORY.md`
 - default `AGENTS.md` must require agents to read and follow the maintenance rules inside `PROJECT-AND-TEAM.md` before editing it
+- default `professor` guidance must require filling the `PROJECT-AND-TEAM.md` front matter with a short project name, short project description, and single project emoji when the project identity is known
 - default `professor` guidance must treat specialist creation as a normal lead-agent responsibility, require human approval before creation, and teach the exact OpenColab CLI path for creation through `opencolab agent create --agent-id <id>`
 - default `professor` guidance must mention follow-up per-agent model setup through `opencolab setup model --agent-id <id> ...` when needed
 - default `professor` guidance must require updating `PROJECT-AND-TEAM.md` after a new specialist is created or approved in principle
@@ -220,6 +221,7 @@ Requirements for `TODO.md`:
 Requirements for `PROJECT-AND-TEAM.md`:
 
 - it must be concise, curated, and project-scoped
+- it must begin with YAML front matter containing `project_name`, `project_description`, and `project_emoji` fields for concise display identity
 - it must capture shared project facts such as goals, constraints, current direction, key decisions, humans, agents, role ownership, and agent lifecycle state when relevant
 - it must not store secrets, raw transcripts, scratch notes, or long reasoning dumps
 - it must contain its own short maintenance rules near the top so the file is self-describing when an agent is asked to edit it

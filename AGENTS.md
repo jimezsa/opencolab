@@ -46,7 +46,7 @@ Core implementation areas:
 
 Agent contract details that matter for implementation:
 
-- Each project must seed `projects/<project_id>/PROJECT-AND-TEAM.md` as the canonical shared project context file visible to all agents.
+- Each project must seed `projects/<project_id>/PROJECT-AND-TEAM.md` as the canonical shared project context file visible to all agents, with YAML front matter for short `project_name`, short `project_description`, and single `project_emoji`.
 - Agent directories live under `projects/<project_id>/AGENTS/<agent_id>/`.
 - Required agent files are `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `HEARTBEAT.md`, plus agent-local `SKILLS/`.
 - `HEARTBEAT.md` must be seeded as an empty file when an agent is created, stays disabled by default, and only enables delayed auto-wake behavior when the user adds a valid `after:` value; it may also include optional `notify: digest` for one compact paired-chat Telegram follow-up after a meaningful heartbeat run finishes, optional `notify: live` to reuse Telegram live status while the heartbeat turn runs, and optional `message: <plain text>` to replace the default `continue` heartbeat prompt.
@@ -66,6 +66,7 @@ Agent contract details that matter for implementation:
 - The seeded `TODO.md` contract must keep a lean working list with only the current focus, top priorities, and live blockers, defaulting to at most three open priority items unless the user explicitly asks for a broader plan.
 - The seeded `AGENTS.md` contract must require agents to continuously maintain `TODO.md`, rewriting it when priorities change and deleting completed or stale items instead of accumulating backlog or done-history there.
 - The seeded `AGENTS.md` contract must explain that `PROJECT-AND-TEAM.md` is the project-scoped shared context file, is read after `TODO.md` and before `MEMORY.md`, and must be consulted before agents edit it.
+- The seeded `professor` contract must require filling `PROJECT-AND-TEAM.md` front matter with a short project name, short project description, and single project emoji when the project identity is known.
 - The seeded `professor` contract must teach professor-led specialist creation through the OpenColab CLI, require human approval before creation, and require roster updates in `PROJECT-AND-TEAM.md`.
 - The seeded `autoresearch` contract must orient that agent around iterative experiment execution through the shared `autoresearch` skill, default ownership of sustained experiment-loop work, and explicit carry-forward of repo-contract details, user corrections, rejected paths, and lessons from failed runs.
 - The seeded `specialist` and `beginner` contracts must state that they do not create more specialists by default and should route staffing recommendations back through `professor`.
