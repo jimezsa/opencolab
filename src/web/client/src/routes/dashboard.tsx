@@ -22,6 +22,7 @@ import { StateBadge } from "@/components/layout/state-badge"
 import { api } from "@/lib/api"
 import { formatRelativeTime } from "@/lib/format"
 import { useAsync } from "@/lib/state"
+import { tintFor } from "@/lib/tint"
 
 export default function Dashboard() {
   const overview = useAsync(() => api.overview(), [])
@@ -31,7 +32,7 @@ export default function Dashboard() {
   const data = overview.data
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 px-2 md:px-6 xl:px-10">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Active project"
@@ -191,17 +192,22 @@ export default function Dashboard() {
 }
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  const tint = tintFor(label)
   return (
-    <Card>
-      <CardHeader>
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className="font-mono text-xl">{value}</CardTitle>
-      </CardHeader>
-      {hint && (
-        <CardContent>
-          <span className="text-muted-foreground text-xs">{hint}</span>
-        </CardContent>
-      )}
+    <Card className={`h-32 ring-0 border-0 ${tint}`}>
+      <div className="flex h-full flex-col justify-between px-5 py-5">
+        <span className="text-muted-foreground text-xs uppercase tracking-wide">
+          {label}
+        </span>
+        <div className="flex flex-col gap-1">
+          <span className="font-heading line-clamp-1 text-xl font-medium leading-tight">
+            {value}
+          </span>
+          {hint && (
+            <span className="text-muted-foreground truncate text-xs">{hint}</span>
+          )}
+        </div>
+      </div>
     </Card>
   )
 }

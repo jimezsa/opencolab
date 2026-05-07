@@ -66,7 +66,7 @@ function AgentCard({
           <div className="flex items-start justify-between">
             <AgentAvatar
               providerName={agent.provider.name}
-              className="mx-0 h-12 w-12"
+              className="mx-0 h-16 w-16"
             />
             {agent.active && (
               <Badge variant="secondary" className="shrink-0">
