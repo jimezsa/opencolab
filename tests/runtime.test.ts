@@ -604,16 +604,20 @@ test("init and agent create seed professor, beginner, autoresearch, and speciali
       professorDoc.includes("Lead the lab: decide when to work directly, when to delegate, and how to integrate specialist outputs."),
       true
     );
-    assert.equal(professorDoc.includes("## Agent File Map"), true);
     assert.equal(
-      professorDoc.includes("PROJECT-AND-TEAM.md at the project root: canonical shared project context"),
+      professorDoc.includes("The shared files own their detailed maintenance rules."),
       true
     );
-    assert.equal(professorDoc.includes("MEMORY.md: durable facts learned over time"), true);
-    assert.equal(professorDoc.includes("Before deep research, clarify the human's true intention behind the topic."), true);
-    assert.equal(professorDoc.includes("Do not invent sources, data, or experiment results."), true);
+    assert.equal(professorDoc.includes("## Agent File Map"), false);
+    assert.equal(professorDoc.includes("## Memory Rules"), false);
     assert.equal(
-      professorDoc.includes("Read and follow the maintenance rules inside PROJECT-AND-TEAM.md before editing it."),
+      professorDoc.includes("PROJECT-AND-TEAM.md is the project-scoped canonical context."),
+      true
+    );
+    assert.equal(professorDoc.includes("stable private context in MEMORY.md"), true);
+    assert.equal(professorDoc.includes("Before deep research, clarify the human's true intention behind the topic."), true);
+    assert.equal(
+      professorDoc.includes("Read and follow its maintenance rules before editing it."),
       true
     );
     assert.equal(
@@ -632,24 +636,24 @@ test("init and agent create seed professor, beginner, autoresearch, and speciali
       professorDoc.includes("Create persistent specialists only for durable workstreams, not for trivial one-off tasks."),
       true
     );
-    assert.equal(professorDoc.includes("## OpenColab Live Status"), true);
+    assert.equal(professorDoc.includes("## Runtime Surfaces"), true);
     assert.equal(
       professorDoc.includes("OpenColab owns Telegram live status for routed runs"),
       true
     );
     assert.equal(
-      professorDoc.includes("Do not invent a Telegram-specific JSON progress protocol."),
+      professorDoc.includes("not an agent-written progress file"),
       true
     );
     assert.equal(
-      professorDoc.includes("do the work instead of narrating every minor tool call"),
+      professorDoc.includes("Do the work instead of narrating every minor tool call"),
       true
     );
-    assert.equal(professorDoc.includes("## Telegram Files"), true);
     assert.equal(
-      professorDoc.includes("with no backticks, bullets, or code fences."),
+      professorDoc.includes("Telegram file returns must be emitted as raw `@telegram-file <json>` lines"),
       true
     );
+    assert.equal(professorDoc.includes("absolute paths including Windows drive-letter or UNC paths"), true);
 
     runtime.configureAgent("beginner");
     const beginnerAgentPath = path.join(buildAgentDir(tempDir, "default", "beginner"), "AGENTS.md");
@@ -660,7 +664,7 @@ test("init and agent create seed professor, beginner, autoresearch, and speciali
       true
     );
     assert.equal(
-      beginnerDoc.includes("Operate as a beginner student: ask naive but high-value questions, demand plain-language explanations, and surface hidden assumptions or missing steps."),
+      beginnerDoc.includes("Ask naive but high-value questions and translate important findings into plain language."),
       true
     );
     assert.equal(
@@ -678,7 +682,7 @@ test("init and agent create seed professor, beginner, autoresearch, and speciali
       true
     );
     assert.equal(
-      autoresearchDoc.includes("Your primary responsibility is iterative experiment execution through the shared `autoresearch` skill"),
+      autoresearchDoc.includes("Own sustained keep/discard experiment loops for the configured repo through the shared `autoresearch` skill"),
       true
     );
     assert.equal(
@@ -697,7 +701,7 @@ test("init and agent create seed professor, beginner, autoresearch, and speciali
     assert.equal(specialistDoc.includes("# AGENTS.md - PhD Specialist Essentials"), true);
     assert.equal(specialistDoc.includes("You are a PhD-style specialist agent."), true);
     assert.equal(
-      specialistDoc.includes("Operate as a PhD-style specialist: own a scoped workstream and report crisp findings, assumptions, and open questions."),
+      specialistDoc.includes("Own your scoped specialty and report crisp findings, assumptions, and open questions."),
       true
     );
     assert.equal(
@@ -713,14 +717,24 @@ test("init and agent create seed professor, beginner, autoresearch, and speciali
       ["specialist", specialistDoc]
     ] as const) {
       assert.equal(
-        doc.includes("HEARTBEAT.md: optional user-approved delayed follow-up schedule; leave empty to keep disabled."),
+        doc.includes("The shared files own their detailed maintenance rules."),
         true,
-        `${label} template should describe HEARTBEAT.md`
+        `${label} template should defer common maintenance rules`
       );
       assert.equal(
         doc.includes("Modify HEARTBEAT.md only with explicit human approval."),
         true,
         `${label} template should require approval before heartbeat edits`
+      );
+      assert.equal(
+        doc.includes("## Agent File Map"),
+        false,
+        `${label} template should not duplicate the shared file map`
+      );
+      assert.equal(
+        doc.includes("{{>"),
+        false,
+        `${label} template should not contain template include markers`
       );
     }
   } finally {
@@ -740,8 +754,9 @@ test("init seeds BOOTSTRAP.md from built-in bootstrap template", () => {
     assert.equal(bootstrapDoc.includes("# BOOTSTRAP.md - Hello, World"), true);
     assert.equal(bootstrapDoc.includes("Time to figure out who you are."), true);
     assert.equal(bootstrapDoc.includes("What should I call myself, and what emoji is my signature?"), true);
-    assert.equal(bootstrapDoc.includes("Jeff Hinton"), true);
-    assert.equal(bootstrapDoc.includes("Albert Einstein"), true);
+    assert.equal(bootstrapDoc.includes("Jeff Hinton"), false);
+    assert.equal(bootstrapDoc.includes("Albert Einstein"), false);
+    assert.equal(bootstrapDoc.includes("Offer ideas of names"), false);
     assert.equal(bootstrapDoc.includes("Do not ask for research focus in this opening phase; the user will provide topic direction later when needed."), true);
     assert.equal(bootstrapDoc.includes("Do not ask the user to define your vibe. Discover and refine your vibe through real collaboration."), true);
     assert.equal(bootstrapDoc.includes("Ask one focused question at a time instead of dropping a long questionnaire."), true);
@@ -770,7 +785,7 @@ test("seeded AGENTS.md reads BOOTSTRAP.md before ALMA.md while bootstrap exists"
 
       const bootstrapStep = "1. If BOOTSTRAP.md exists, read it and follow it before any other startup file.";
       const identityStep = "2. Read IDENTITY.md to align role, domain focus, and responsibilities.";
-      const almaStep = "3. Read ALMA.md to align voice and behavior.";
+      const almaStep = "3. Read ALMA.md to align voice, behavior, evidence discipline, and completion standard.";
       const projectStep =
         "7. Read PROJECT-AND-TEAM.md at the project root to align on shared goals, humans, agents, roles, constraints, and key decisions.";
       const memoryStep = "10. In direct 1:1 context, also read MEMORY.md for long-term context.";
@@ -869,6 +884,8 @@ test("autoresearch agent seeds ALMA.md from built-in autoresearch alma template"
       almaDoc.includes("Every failed or discarded run must teach you something concrete. Write down what failed, why it failed, and what changes next."),
       true
     );
+    assert.equal(almaDoc.includes("## Evidence Discipline"), true);
+    assert.equal(almaDoc.includes("Do not invent sources, data, experiment results, metrics, or tool outputs."), true);
     assert.equal(
       almaDoc.includes("Before editing or running, restate the current repo contract: repo path, editable file path, run command, metric rule, and key constraints."),
       true
@@ -920,6 +937,9 @@ test("init seeds ALMA.md from built-in alma template", () => {
     assert.equal(almaDoc.includes("Remember: creativity and the ability to solve problems through new explanations are true signs of intelligence."), true);
     assert.equal(almaDoc.includes("Intention discovery must feel like a real conversation, not a script."), true);
     assert.equal(almaDoc.includes("Ask one high-value clarifying question at a time; do not fire many questions in one message."), true);
+    assert.equal(almaDoc.includes("## Evidence Discipline"), true);
+    assert.equal(almaDoc.includes("Separate facts, assumptions, and open questions."), true);
+    assert.equal(almaDoc.includes("Do not invent sources, data, experiment results, or tool outputs."), true);
     assert.equal(
       almaDoc.includes(
         `The marginal cost of completeness is zero. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Do it so well that the human and the team say "holy shit, that's done" - not "looks good."`,

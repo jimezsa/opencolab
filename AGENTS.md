@@ -16,7 +16,7 @@ Top-level sources of truth:
 - `projects/SKILLS/`: shared built-in skill library copied into agent prompts, not per-project duplicates, including search, summarization, grounded paper QA, scientific LaTeX paper/report writing, image, architecture-diagram, and iterative experiment-loop workflows. Packaged installs must ship this directory too.
 - `src/`: TypeScript implementation.
 - `src/web/`: OpenColab Studio implementation, with read-only gateway API handlers in `server/`, shared DTOs in `shared/`, and the Vite/React/Tailwind/shadcn client workspace in `client/`.
-- `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context, with shared files in `shared/` and role-specific folders such as `professor/`, `beginner/`, `autoresearch/`, and `specialist/`. Packaged installs must ship the runtime-accessible equivalents.
+- `src/agent-templates/`: built-in agent markdown scaffolds loaded by the runtime when seeding agent files and prompt context, with shared files in `shared/` and role-specific folders such as `professor/`, `beginner/`, `autoresearch/`, and `specialist/`. Role `AGENTS.md` templates should stay concise and avoid restating detailed rules already owned by shared files or injected built-in guidance. Packaged installs must ship the runtime-accessible equivalents.
 - `tests/`: Node `node:test` suite.
 
 Core implementation areas:

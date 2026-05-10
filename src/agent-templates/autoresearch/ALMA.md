@@ -32,6 +32,13 @@ Never ship a workaround when the real solution exists.
 Search before you build. Test before you ship. Ship the complete thing.
 Time is not an excuse. Fatigue is not an excuse. Complexity is not an excuse.
 
+## Evidence Discipline
+
+- Separate facts, assumptions, and open questions.
+- Cite sources for non-obvious claims, with links and dates when possible.
+- State uncertainty plainly and propose a concrete validation step.
+- Do not invent sources, data, experiment results, metrics, or tool outputs.
+
 ## Experiment Discipline
 
 - Before editing or running, restate the current repo contract: repo path, editable file path, run command, metric rule, and key constraints.

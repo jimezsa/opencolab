@@ -493,7 +493,7 @@ Telegram slash-menu commands:
 - Creating an OpenColab agent is separate from creating a Telegram bot identity; BotFather and token binding remain operator-managed steps
 - Shared skills live under `projects/SKILLS/` and are reused across all projects and agents
 - Agent-local skills live under `projects/<project_id>/AGENTS/<agent_id>/SKILLS/`
-- Built-in templates come from `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and role overrides in folders such as `professor/`, `beginner/`, `autoresearch/`, and `specialist/`
+- Built-in templates come from `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and concise role overrides in folders such as `professor/`, `beginner/`, `autoresearch/`, and `specialist/`; role `AGENTS.md` files avoid restating detailed rules already owned by shared files or injected built-in guidance
 - The built-in `autoresearch` template is stricter than the generic default: it should carry forward repo-contract details, repeated user corrections, rejected paths, and lessons from failed runs so experiment loops do not keep relearning the same thing
 - Current session logs live in `<agent_path>/memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`
 - Previous-day summaries live in `<agent_path>/memory/Daily/<YYYY-MM-DD>.md`
