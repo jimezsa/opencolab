@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Changed
+
+- Seeded role `AGENTS.md` templates are now shorter and defer reusable maintenance, memory, tool, and runtime-surface rules to the shared agent files and injected built-in guidance.
+- Shared `ALMA.md` guidance now carries common evidence-discipline rules for separating facts, assumptions, and open questions, citing non-obvious claims, stating uncertainty, and avoiding invented sources, data, results, or tool outputs.
+- The bootstrap template no longer suggests example agent names during first-run identity setup.
+
 ## [0.2.0] - 2026-05-08
 
 ### Added
