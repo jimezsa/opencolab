@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   detectGatewayServicePlatform,
+  encodeWindowsGatewayTaskXml,
   parseGatewayLaunchdRuntimeConfig,
   parseGatewaySystemdRuntimeConfig,
   parseGatewayWindowsRuntimeConfig,
@@ -130,6 +131,7 @@ test("renderWindowsGatewayTaskXml configures hidden restart-on-failure task", ()
   );
 
   assert.equal(output.includes("<LogonTrigger>"), true);
+  assert.equal(output.includes("encoding=\"UTF-16\""), true);
   assert.equal(output.includes("<Hidden>true</Hidden>"), true);
   assert.equal(output.includes("<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>"), true);
   assert.equal(output.includes("<RestartOnFailure>"), true);
@@ -138,6 +140,18 @@ test("renderWindowsGatewayTaskXml configures hidden restart-on-failure task", ()
   assert.equal(output.includes("<Command>powershell.exe</Command>"), true);
   assert.equal(output.includes("-WindowStyle Hidden"), true);
   assert.equal(output.includes("gateway-service.ps1"), true);
+});
+
+test("encodeWindowsGatewayTaskXml writes UTF-16LE with BOM for schtasks", () => {
+  const output = renderWindowsGatewayTaskXml(
+    "C:\\Users\\dev\\AppData\\Local\\OpenColab\\root\\.opencolab\\gateway-service.ps1",
+  );
+  const encoded = encodeWindowsGatewayTaskXml(output);
+
+  assert.equal(encoded[0], 0xff);
+  assert.equal(encoded[1], 0xfe);
+  assert.equal(encoded.toString("utf16le").startsWith("\ufeff<?xml"), true);
+  assert.equal(encoded.toString("utf16le").includes("encoding=\"UTF-16\""), true);
 });
 
 test("readGatewayServiceRuntimeConfig prefers saved runtime config when present", () => {

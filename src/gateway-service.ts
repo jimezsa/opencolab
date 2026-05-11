@@ -160,8 +160,7 @@ export function startGatewayBackgroundService(
     const taskXmlPath = resolveWindowsGatewayTaskXmlPath(input.rootDir);
     fs.writeFileSync(
       taskXmlPath,
-      renderWindowsGatewayTaskXml(files.configPath),
-      "utf8",
+      encodeWindowsGatewayTaskXml(renderWindowsGatewayTaskXml(files.configPath)),
     );
     runCommand("schtasks", ["/End", "/TN", WINDOWS_TASK_NAME], {
       allowFailure: true,
@@ -533,7 +532,7 @@ export function renderWindowsGatewayTaskCommand(scriptPath: string): string {
 export function renderWindowsGatewayTaskXml(scriptPath: string): string {
   const argumentsValue = renderWindowsGatewayTaskArguments(scriptPath);
   return [
-    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+    "<?xml version=\"1.0\" encoding=\"UTF-16\"?>",
     "<Task version=\"1.3\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">",
     "  <RegistrationInfo>",
     "    <Description>OpenColab Gateway</Description>",
@@ -581,6 +580,10 @@ export function renderWindowsGatewayTaskXml(scriptPath: string): string {
     "</Task>",
     "",
   ].join("\n");
+}
+
+export function encodeWindowsGatewayTaskXml(xml: string): Buffer {
+  return Buffer.from(`\ufeff${xml}`, "utf16le");
 }
 
 export function parseGatewayLaunchdRuntimeConfig(
