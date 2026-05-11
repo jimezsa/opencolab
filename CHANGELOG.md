@@ -9,6 +9,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Fixed
 
 - Windows background gateway tasks now run through a hidden supervisor script that restarts the foreground gateway after any exit, with Task Scheduler restart-on-failure kept as an outer safety net.
+- Windows background gateway Task Scheduler XML is now written as UTF-16LE with a BOM, fixing `schtasks` startup failures that reported malformed XML or an encoding switch error.
 
 ### Changed
 
