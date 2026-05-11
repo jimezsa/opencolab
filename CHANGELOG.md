@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows background gateway tasks now run through a hidden supervisor script that restarts the foreground gateway after any exit, with Task Scheduler restart-on-failure kept as an outer safety net.
+
 ### Changed
 
 - Seeded role `AGENTS.md` templates are now shorter and defer reusable maintenance, memory, tool, and runtime-surface rules to the shared agent files and injected built-in guidance.
