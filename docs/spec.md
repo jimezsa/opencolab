@@ -340,7 +340,7 @@ Responsibilities:
 - `opencolab gateway` should support lifecycle commands: `start`, `stop`, `restart`, `status`, and `logs`
 - on macOS, gateway background mode should be managed via user `launchd` agent
 - on Linux, gateway background mode should be managed via user `systemd` service
-- on Windows, gateway background mode should be managed through a user Task Scheduler task that launches a hidden noninteractive PowerShell gateway script under the runtime root, without opening a closeable console window or requiring administrator service installation
+- on Windows, gateway background mode should be managed through a user Task Scheduler XML task that launches a hidden noninteractive PowerShell supervisor script under the runtime root, restarts the foreground gateway after any exit with a short delay, also configures Task Scheduler restart-on-failure as an outer safety net, avoids a finite execution time limit, and requires no administrator service installation or closeable console window
 - provide an interactive onboarding flow for first-time setup of project selection, provider/model, built-in shared-tool key setup, Telegram setup, and optional pairing
 - `ignite` onboarding should allow skipping the current step with `Esc` and continue to the next step
 - `ignite` onboarding should detect existing provider setup and allow keeping or updating it

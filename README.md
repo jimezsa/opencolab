@@ -417,7 +417,7 @@ opencolab gateway restart --port 4646
 ```
 
 - `gateway start` runs in the background by default on macOS, Linux, and Windows
-- macOS uses a user `launchd` agent, Linux uses a user `systemd` service, and Windows uses a user Task Scheduler task with a hidden noninteractive PowerShell script under the runtime root
+- macOS uses a user `launchd` agent, Linux uses a user `systemd` service with restart behavior, and Windows uses a user Task Scheduler XML task plus a hidden noninteractive PowerShell supervisor script that restarts the gateway after exits
 - Use `opencolab gateway start --foreground true --port 4646` to keep it in the current terminal
 - `opencolab upgrade` upgrades one-link installer-managed package installs, one-link installer-managed hacky clone installs, and manual git/source installs
 - managed package and clone upgrades keep the installer-managed runtime root and restart a managed background gateway with its saved settings when one is running

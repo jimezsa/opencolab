@@ -157,6 +157,12 @@ export function startGatewayBackgroundService(
       }),
       "utf8",
     );
+    const taskXmlPath = resolveWindowsGatewayTaskXmlPath(input.rootDir);
+    fs.writeFileSync(
+      taskXmlPath,
+      renderWindowsGatewayTaskXml(files.configPath),
+      "utf8",
+    );
     runCommand("schtasks", ["/End", "/TN", WINDOWS_TASK_NAME], {
       allowFailure: true,
     });
@@ -164,12 +170,8 @@ export function startGatewayBackgroundService(
       "/Create",
       "/TN",
       WINDOWS_TASK_NAME,
-      "/SC",
-      "ONLOGON",
-      "/TR",
-      renderWindowsGatewayTaskCommand(files.configPath),
-      "/RL",
-      "LIMITED",
+      "/XML",
+      taskXmlPath,
       "/F",
     ]);
     runCommand("schtasks", ["/Run", "/TN", WINDOWS_TASK_NAME]);
@@ -494,11 +496,22 @@ export function renderWindowsGatewayCommandScript(input: WindowsRenderInput): st
 
   return [
     "$ErrorActionPreference = 'Stop'",
+    "$RestartDelaySeconds = 2",
     `$env:OPENCOLAB_ROOT = ${quotePowerShellSingleQuotedString(input.rootDir)}`,
     ...pathLine,
     `Set-Location -LiteralPath ${quotePowerShellSingleQuotedString(input.rootDir)}`,
-    `& ${quotePowerShellSingleQuotedString(input.nodePath)} ${quotePowerShellSingleQuotedString(input.cliScriptPath)} gateway start --foreground --port ${String(input.port)} --telegram-polling ${input.telegramPolling ? "true" : "false"} >> ${quotePowerShellSingleQuotedString(input.stdoutLogPath)} 2>> ${quotePowerShellSingleQuotedString(input.stderrLogPath)}`,
-    "exit $LASTEXITCODE",
+    "while ($true) {",
+    "  try {",
+    `    & ${quotePowerShellSingleQuotedString(input.nodePath)} ${quotePowerShellSingleQuotedString(input.cliScriptPath)} gateway start --foreground --port ${String(input.port)} --telegram-polling ${input.telegramPolling ? "true" : "false"} >> ${quotePowerShellSingleQuotedString(input.stdoutLogPath)} 2>> ${quotePowerShellSingleQuotedString(input.stderrLogPath)}`,
+    "    $ExitCode = $LASTEXITCODE",
+    "    $Timestamp = (Get-Date).ToString('o')",
+    `    Add-Content -LiteralPath ${quotePowerShellSingleQuotedString(input.stderrLogPath)} -Value "[$Timestamp] gateway exited with code $ExitCode; restarting in $RestartDelaySeconds seconds"`,
+    "  } catch {",
+    "    $Timestamp = (Get-Date).ToString('o')",
+    `    Add-Content -LiteralPath ${quotePowerShellSingleQuotedString(input.stderrLogPath)} -Value "[$Timestamp] gateway supervisor error: $($_.Exception.Message); restarting in $RestartDelaySeconds seconds"`,
+    "  }",
+    "  Start-Sleep -Seconds $RestartDelaySeconds",
+    "}",
     "",
   ].join("\r\n");
 }
@@ -515,6 +528,59 @@ export function renderWindowsGatewayTaskCommand(scriptPath: string): string {
     "-File",
     quoteWindowsTaskArgument(scriptPath),
   ].join(" ");
+}
+
+export function renderWindowsGatewayTaskXml(scriptPath: string): string {
+  const argumentsValue = renderWindowsGatewayTaskArguments(scriptPath);
+  return [
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+    "<Task version=\"1.3\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">",
+    "  <RegistrationInfo>",
+    "    <Description>OpenColab Gateway</Description>",
+    "  </RegistrationInfo>",
+    "  <Triggers>",
+    "    <LogonTrigger>",
+    "      <Enabled>true</Enabled>",
+    "    </LogonTrigger>",
+    "  </Triggers>",
+    "  <Principals>",
+    "    <Principal id=\"Author\">",
+    "      <LogonType>InteractiveToken</LogonType>",
+    "      <RunLevel>LeastPrivilege</RunLevel>",
+    "    </Principal>",
+    "  </Principals>",
+    "  <Settings>",
+    "    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>",
+    "    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>",
+    "    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>",
+    "    <AllowHardTerminate>true</AllowHardTerminate>",
+    "    <StartWhenAvailable>true</StartWhenAvailable>",
+    "    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>",
+    "    <IdleSettings>",
+    "      <StopOnIdleEnd>false</StopOnIdleEnd>",
+    "      <RestartOnIdle>false</RestartOnIdle>",
+    "    </IdleSettings>",
+    "    <AllowStartOnDemand>true</AllowStartOnDemand>",
+    "    <Enabled>true</Enabled>",
+    "    <Hidden>true</Hidden>",
+    "    <RunOnlyIfIdle>false</RunOnlyIfIdle>",
+    "    <WakeToRun>false</WakeToRun>",
+    "    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>",
+    "    <Priority>7</Priority>",
+    "    <RestartOnFailure>",
+    "      <Interval>PT2M</Interval>",
+    "      <Count>255</Count>",
+    "    </RestartOnFailure>",
+    "  </Settings>",
+    "  <Actions Context=\"Author\">",
+    "    <Exec>",
+    "      <Command>powershell.exe</Command>",
+    `      <Arguments>${escapeXml(argumentsValue)}</Arguments>`,
+    "    </Exec>",
+    "  </Actions>",
+    "</Task>",
+    "",
+  ].join("\n");
 }
 
 export function parseGatewayLaunchdRuntimeConfig(
@@ -605,6 +671,19 @@ function quoteWindowsTaskArgument(value: string): string {
   return `"${value.replaceAll("\"", "")}"`;
 }
 
+function renderWindowsGatewayTaskArguments(scriptPath: string): string {
+  return [
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-WindowStyle",
+    "Hidden",
+    "-File",
+    quoteWindowsTaskArgument(scriptPath),
+  ].join(" ");
+}
+
 function quotePowerShellSingleQuotedString(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
@@ -616,6 +695,10 @@ function parseWindowsTaskStatus(raw: string): string {
 
 function gatewayServiceRuntimeConfigPath(rootDir: string): string {
   return path.join(rootDir, ".opencolab", "gateway-service.json");
+}
+
+function resolveWindowsGatewayTaskXmlPath(rootDir: string): string {
+  return path.join(rootDir, ".opencolab", "gateway-service.xml");
 }
 
 function writeGatewayServiceRuntimeConfig(
