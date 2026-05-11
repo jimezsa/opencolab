@@ -28,7 +28,7 @@ OpenColab agent creation is the canonical path for adding a new specialist to th
 
 ## OpenColab Live Status
 
-OpenColab owns Telegram live status for routed runs. It derives bounded status from native runtime events instead of an agent-written progress file.
+OpenColab owns Telegram live status for routed runs. It derives bounded status from native runtime events instead of an agent-written progress file and keeps the live status as a persistent Telegram message after the final answer.
 
 Guidance:
 

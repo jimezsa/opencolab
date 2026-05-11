@@ -1925,24 +1925,29 @@ test("heartbeat digest sends a blocker summary when the heartbeat run needs inpu
   }
 });
 
-test("heartbeat live status reuses private chat drafts and then sends a compact digest", async () => {
+test("heartbeat live status keeps a persistent private status message before the compact digest", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-heartbeat-live-private-"));
   const sentTexts: string[] = [];
-  const draftTexts: string[] = [];
   const statusCreates: string[] = [];
+  const statusEdits: string[] = [];
+  let draftCalls = 0;
 
   const runtime = createRuntime(tempDir, {
     telegramSender: async (_chatId, text) => {
       sentTexts.push(text);
       return true;
     },
-    telegramDraftSender: async (_chatId, _draftId, text) => {
-      draftTexts.push(text);
+    telegramDraftSender: async () => {
+      draftCalls += 1;
       return true;
     },
     telegramStatusMessageCreator: async (_chatId, text) => {
       statusCreates.push(text);
       return "status-1";
+    },
+    telegramMessageEditor: async (_chatId, _messageId, text) => {
+      statusEdits.push(text);
+      return true;
     },
     agentResponder: async ({ text }, options) => {
       if (text === "Check experiment status.") {
@@ -1987,15 +1992,18 @@ test("heartbeat live status reuses private chat drafts and then sends a compact 
     });
 
     sentTexts.length = 0;
-    draftTexts.length = 0;
+    statusCreates.length = 0;
+    statusEdits.length = 0;
+    draftCalls = 0;
     const pending = runtime.getState().projects.default.heartbeat.pending;
     await runtime.runHeartbeatTick(new Date(Date.parse(pending?.wakeAt ?? "") + 1_000));
 
-    assert.equal(statusCreates.length, 0);
-    assert.equal(draftTexts.length, 2);
-    assert.equal(draftTexts[0].includes("🟢 Checking experiment status."), true);
-    assert.equal(draftTexts[1].startsWith("Finalizing"), true);
-    assert.equal(draftTexts[1].includes("🟢 Experiment status checked. Writing summary."), true);
+    assert.equal(draftCalls, 0);
+    assert.equal(statusCreates.length, 1);
+    assert.equal(statusCreates[0].includes("🟢 Checking experiment status."), true);
+    assert.deepEqual(statusEdits.length, 1);
+    assert.equal(statusEdits[0].startsWith("Finalizing"), true);
+    assert.equal(statusEdits[0].includes("🟢 Experiment status checked. Writing summary."), true);
     assert.deepEqual(sentTexts, [
       "professor\n\nHeartbeat follow-up completed.\nFinished checking the experiment and updated TODO.md."
     ]);
@@ -2511,20 +2519,20 @@ test("paired webhook renders one live status surface before the final answer wit
   }
 });
 
-test("private draft live preview streams the same activity feed as group chats", async () => {
+test("private chats stream recent activity through one persistent editable live status message", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-private-live-preview-"));
   const sentTexts: string[] = [];
-  const draftTexts: string[] = [];
   const statusCreates: string[] = [];
   const statusEdits: string[] = [];
+  let draftCalls = 0;
 
   const runtime = createRuntime(tempDir, {
     telegramSender: async (_chatId, text) => {
       sentTexts.push(text);
       return true;
     },
-    telegramDraftSender: async (_chatId, _draftId, text) => {
-      draftTexts.push(text);
+    telegramDraftSender: async () => {
+      draftCalls += 1;
       return true;
     },
     telegramStatusMessageCreator: async (_chatId, text) => {
@@ -2581,15 +2589,15 @@ test("private draft live preview streams the same activity feed as group chats",
     assert.deepEqual(sentTexts, [
       formatTelegramAgentReply("professor", "research:show me the private live preview")
     ]);
-    assert.equal(statusCreates.length, 0);
-    assert.equal(statusEdits.length, 0);
-    assert.equal(draftTexts.length, 2);
-    assert.equal(draftTexts[0].startsWith("Agent activity"), true);
-    assert.equal(draftTexts[0].includes("🟢 Read README.md."), true);
-    assert.equal(draftTexts[1].startsWith("Finalizing"), true);
-    assert.equal(draftTexts[1].includes("⚪ Read README.md."), true);
-    assert.equal(draftTexts[1].includes("⚪ Read package.json."), true);
-    assert.equal(draftTexts[1].includes("🟢 Preparing the final answer."), true);
+    assert.equal(draftCalls, 0);
+    assert.equal(statusCreates.length, 1);
+    assert.equal(statusCreates[0].startsWith("Agent activity"), true);
+    assert.equal(statusCreates[0].includes("🟢 Read README.md."), true);
+    assert.deepEqual(statusEdits.length, 1);
+    assert.equal(statusEdits[0].startsWith("Finalizing"), true);
+    assert.equal(statusEdits[0].includes("⚪ Read README.md."), true);
+    assert.equal(statusEdits[0].includes("⚪ Read package.json."), true);
+    assert.equal(statusEdits[0].includes("🟢 Preparing the final answer."), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

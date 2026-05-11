@@ -100,6 +100,7 @@ interface GatewayDependencies {
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;
   telegramCallbackAnswerer?: TelegramCallbackAnswerer;
+  /** @deprecated live status now uses persistent editable messages in all chat types. */
   telegramDraftSender?: TelegramDraftSender;
   telegramStatusMessageCreator?: TelegramStatusMessageCreator;
   telegramMessageEditor?: TelegramMessageEditor;
@@ -110,7 +111,6 @@ const MAX_TELEGRAM_ERROR_CHARS = 1_500;
 const MAX_TELEGRAM_CALLBACK_TEXT_CHARS = 180;
 const MAX_TELEGRAM_TEXT_CHARS = 4_000;
 const EDITABLE_STATUS_THROTTLE_MS = 3_000;
-const DRAFT_STATUS_THROTTLE_MS = 1_200;
 const MAX_LIVE_STATUS_LINES = 5;
 const SUPPORTED_TELEGRAM_COMMANDS_TEXT =
   "Supported commands: /projects | /agents | /session_reset | /stop";
@@ -157,11 +157,10 @@ interface LiveStatusLine {
   updatedAt: number;
 }
 
-type LiveStatusTransport = "draft" | "editable" | "disabled";
+// Live status uses durable Telegram messages for every chat type so the history remains after completion.
+type LiveStatusTransport = "editable" | "disabled";
 
 class TelegramLiveStatusSession {
-  private readonly preferredTransport: LiveStatusTransport;
-  private readonly draftId: number;
   private readonly lines = new Map<string, LiveStatusLine>();
   private transport: LiveStatusTransport | null = null;
   private editableMessageId: string | null = null;
@@ -175,13 +174,9 @@ class TelegramLiveStatusSession {
     private readonly chatId: string,
     private readonly state: OpenColabState,
     private readonly inbound: TelegramInbound,
-    private readonly draftSender: TelegramDraftSender,
     private readonly statusMessageCreator: TelegramStatusMessageCreator,
     private readonly messageEditor: TelegramMessageEditor,
-  ) {
-    this.preferredTransport = inbound.chatType === "private" ? "draft" : "editable";
-    this.draftId = Math.max(1, Date.now() % 2_000_000_000);
-  }
+  ) {}
 
   push(event: TaskProgressEvent): Promise<void> {
     if (this.closed) {
@@ -245,11 +240,10 @@ class TelegramLiveStatusSession {
     }
 
     const now = Date.now();
-    const throttleMs = this.transport === "draft" ? DRAFT_STATUS_THROTTLE_MS : EDITABLE_STATUS_THROTTLE_MS;
     if (!force && rendered === this.lastRenderedText) {
       return;
     }
-    if (!force && this.activated && now - this.lastSentAt < throttleMs) {
+    if (!force && this.activated && now - this.lastSentAt < EDITABLE_STATUS_THROTTLE_MS) {
       return;
     }
 
@@ -292,17 +286,6 @@ class TelegramLiveStatusSession {
       ? { messageThreadId: this.inbound.messageThreadId }
       : undefined;
 
-    if (this.transport === "draft") {
-      return safeSendTelegramDraft(
-        this.draftSender,
-        this.chatId,
-        this.draftId,
-        text,
-        this.state,
-        options,
-      );
-    }
-
     if (this.transport === "editable") {
       if (!this.editableMessageId) {
         return false;
@@ -315,21 +298,6 @@ class TelegramLiveStatusSession {
         this.state,
         options,
       );
-    }
-
-    if (this.preferredTransport === "draft") {
-      const sentDraft = await safeSendTelegramDraft(
-        this.draftSender,
-        this.chatId,
-        this.draftId,
-        text,
-        this.state,
-        options,
-      );
-      if (sentDraft) {
-        this.transport = "draft";
-        return true;
-      }
     }
 
     const messageId = await safeCreateTelegramStatusMessage(
@@ -360,7 +328,6 @@ class TelegramLiveStatusSession {
 
 export class TelegramGateway {
   private readonly sender: TelegramSender;
-  private readonly draftSender: TelegramDraftSender;
   private readonly statusMessageCreator: TelegramStatusMessageCreator;
   private readonly messageEditor: TelegramMessageEditor;
   private readonly typingSender: TelegramTypingSender;
@@ -374,7 +341,6 @@ export class TelegramGateway {
     private readonly deps: GatewayDependencies,
   ) {
     this.sender = deps.telegramSender ?? defaultTelegramSender;
-    this.draftSender = deps.telegramDraftSender ?? defaultTelegramDraftSender;
     this.statusMessageCreator =
       deps.telegramStatusMessageCreator ?? defaultTelegramStatusMessageCreator;
     this.messageEditor = deps.telegramMessageEditor ?? defaultTelegramMessageEditor;
@@ -570,7 +536,6 @@ export class TelegramGateway {
       target.chatId,
       state,
       target,
-      this.draftSender,
       this.statusMessageCreator,
       this.messageEditor,
     );
@@ -646,7 +611,6 @@ export class TelegramGateway {
       inbound.chatId,
       state,
       inbound,
-      this.draftSender,
       this.statusMessageCreator,
       this.messageEditor,
     );
@@ -1245,21 +1209,6 @@ async function sendTelegramTextChunks(
   }
 
   return true;
-}
-
-async function safeSendTelegramDraft(
-  sender: TelegramDraftSender,
-  chatId: string,
-  draftId: number,
-  text: string,
-  state: OpenColabState,
-  options?: TelegramMessageOptions,
-): Promise<boolean> {
-  try {
-    return await sender(chatId, draftId, text, state, options);
-  } catch {
-    return false;
-  }
 }
 
 async function safeCreateTelegramStatusMessage(

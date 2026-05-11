@@ -427,8 +427,8 @@ opencolab gateway restart --port 4646
 - Agents can return files with raw `@telegram-file <json>` lines using relative paths, absolute paths including Windows drive-letter or UNC paths, or `file://` URLs
 - Long-running work uses one bounded live status surface before the final answer instead of sending a stream of progress messages
 - OpenColab waits for real runtime progress before creating the live status surface; it does not send a generic placeholder status card
-- In paired private chats, OpenColab prefers Telegram `sendMessageDraft`; in groups and other non-private chats, it uses one editable status message
-- Every live status surface streams the same bounded recent tool-activity list, including private-chat draft previews
+- In paired private chats, groups, and other chats, OpenColab uses one persistent editable status message that remains visible after the final answer
+- Every live status surface streams the same bounded recent tool-activity list
 - Live status marks the newest visible step with `🟢` and older visible steps with `⚪` so the current action is easy to spot
 - Routed Telegram text replies are prefixed with the active agent id on the first line so one chat can safely manage multiple agents
 - Final text replies are split into ordered chunks when needed so Telegram's text limit does not drop the answer

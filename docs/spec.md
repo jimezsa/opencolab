@@ -181,7 +181,7 @@ Initialization requirements:
 - default `professor` guidance must require updating `PROJECT-AND-TEAM.md` after a new specialist is created or approved in principle
 - the built-in `autoresearch` agent guidance must orient the seeded agent around iterative experiment execution through the shared `autoresearch` skill, default ownership of sustained experiment-loop work, and explicit carry-forward of repo contract details, user corrections, rejected paths, and lessons from failed runs so the human does not need to repeat them
 - default `specialist` and `beginner` guidance must state that they do not create more specialists by default and should route staffing recommendations back through `professor`
-- default `AGENTS.md` must explain that OpenColab owns Telegram live status for routed runs, derives it from native runtime events instead of an agent-written progress file, and expects agents to avoid low-signal step-by-step chatter
+- default `AGENTS.md` must explain that OpenColab owns Telegram live status for routed runs, derives it from native runtime events instead of an agent-written progress file, keeps it as a persistent Telegram message after the final answer, and expects agents to avoid low-signal step-by-step chatter
 - default `AGENTS.md` must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines, not wrapped in backticks or code fences, and may reference relative paths, absolute paths including Windows drive-letter or UNC paths, or `file://` URLs
 - the default templates must keep only essential, role-appropriate instructions and must avoid restating detailed rules already owned by shared files such as `ALMA.md`, `TODO.md`, `PROJECT-AND-TEAM.md`, `TOOLS.md`, or injected built-in tool guidance
 - `TODO.md` must be used as a lean current working list for active planning and task tracking based on interactions with the human and other agents
@@ -794,12 +794,10 @@ Requirements:
 - the gateway must not send a generic placeholder status message before meaningful runtime progress exists
 - the gateway must keep the final completion message distinct from the live status surface
 - when platform text limits would reject the final completion message, the gateway must split the final answer into multiple ordered messages instead of dropping it
-- paired private chats should prefer Telegram `sendMessageDraft`
-- group chats, supergroups, and channels must use one editable status message via `sendMessage` plus `editMessageText`
-- when draft mode is unavailable, ineligible, or fails, the gateway should fall back to one editable status message using `sendMessage` plus `editMessageText`
-- all live status surfaces, including private-chat draft previews, should render the same bounded recent tool-activity list derived from runtime events so users can see what the agent is actively doing
-- the gateway should throttle repetitive status updates so users see stage changes, not a token-by-token transcript
-- group chats must use a stricter throttle than one-to-one chats
+- paired private chats, group chats, supergroups, and channels must use one persistent editable status message via `sendMessage` plus `editMessageText`
+- the live status message must remain in the Telegram conversation after the final answer is sent so users can see what the agent did
+- all live status surfaces should render the same bounded recent tool-activity list derived from runtime events so users can see what the agent is actively doing
+- the gateway should throttle repetitive editable status updates so users see stage changes, not a token-by-token transcript
 - `warning` and `needs_input` events may bypass normal throttling when they materially affect the run
 - `sendChatAction` should only be used as short startup fallback feedback before the live status surface exists
 - if no status events are emitted, current `typing` behavior remains the fallback

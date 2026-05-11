@@ -115,6 +115,7 @@ export interface RuntimeOptions {
   telegramTypingSender?: TelegramTypingSender;
   telegramFileSender?: TelegramFileSender;
   telegramCallbackAnswerer?: TelegramCallbackAnswerer;
+  /** @deprecated Telegram live status now uses persistent editable messages in all chat types. */
   telegramDraftSender?: TelegramDraftSender;
   telegramStatusMessageCreator?: TelegramStatusMessageCreator;
   telegramMessageEditor?: TelegramMessageEditor;

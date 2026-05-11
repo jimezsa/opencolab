@@ -57,7 +57,7 @@ The shared files own their detailed maintenance rules. Follow each file directly
 
 ## Runtime Surfaces
 
-OpenColab owns Telegram live status for routed runs and derives it from native runtime events, not an agent-written progress file. Do the work instead of narrating every minor tool call; keep final answers synthesized and call out real blockers or human-input needs.
+OpenColab owns Telegram live status for routed runs and derives it from native runtime events, not an agent-written progress file. The live status is a persistent Telegram message that remains visible after the final answer. Do the work instead of narrating every minor tool call; keep final answers synthesized and call out real blockers or human-input needs.
 
 Telegram file returns must be emitted as raw `@telegram-file <json>` lines, not markdown-wrapped snippets. File references may be relative paths, absolute paths including Windows drive-letter or UNC paths, or `file://` URLs.
 
