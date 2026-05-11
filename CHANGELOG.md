@@ -4,12 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- Windows background gateway Task Scheduler XML is now written as UTF-16LE with a BOM, fixing `schtasks` startup failures that reported malformed XML or an encoding switch error.
+
 ## [0.2.1] - 2026-11-16
 
 ### Fixed
 
 - Windows background gateway tasks now run through a hidden supervisor script that restarts the foreground gateway after any exit, with Task Scheduler restart-on-failure kept as an outer safety net.
-- Windows background gateway Task Scheduler XML is now written as UTF-16LE with a BOM, fixing `schtasks` startup failures that reported malformed XML or an encoding switch error.
 
 ### Changed
 
