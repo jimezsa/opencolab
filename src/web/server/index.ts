@@ -16,6 +16,12 @@ import {
 import { listProjectGpuRuns } from "./gpu-runs.js";
 import { buildHealthStatus } from "./health.js";
 import { getProjectDetail, listProjectSummaries } from "./projects.js";
+import {
+  getResearchRunDetail,
+  listAgentResearch,
+  listProjectResearch,
+  streamResearchFile
+} from "./research.js";
 import { serveStaticAsset } from "./static.js";
 import { listProjectSummaries as _ } from "./projects.js";
 import type {
@@ -39,7 +45,7 @@ export async function handleWebRequest(
       sendJson(response, 405, { error: "method_not_allowed" });
       return true;
     }
-    return handleApi(runtime, response, pathname, url);
+    return handleApi(runtime, request, response, pathname, url);
   }
 
   if (pathname.startsWith("/api/")) {
@@ -55,6 +61,7 @@ export async function handleWebRequest(
 
 function handleApi(
   runtime: OpenColabRuntime,
+  request: IncomingMessage,
   response: ServerResponse,
   pathname: string,
   url: URL
@@ -76,7 +83,7 @@ function handleApi(
   if (projectMatch) {
     const projectId = decodeURIComponent(projectMatch[1]);
     const rest = projectMatch[2] ?? "";
-    return handleProjectRoute(runtime, response, projectId, rest, url);
+    return handleProjectRoute(runtime, request, response, projectId, rest, url);
   }
 
   sendJson(response, 404, { error: "not_found" });
@@ -85,6 +92,7 @@ function handleApi(
 
 function handleProjectRoute(
   runtime: OpenColabRuntime,
+  request: IncomingMessage,
   response: ServerResponse,
   projectId: string,
   rest: string,
@@ -102,6 +110,13 @@ function handleProjectRoute(
 
   if (rest === "/agents") {
     sendJson(response, 200, listAgentSummaries(runtime, projectId));
+    return true;
+  }
+
+  const agentResearchMatch = /^\/agents\/([^/]+)\/research$/u.exec(rest);
+  if (agentResearchMatch) {
+    const agentId = decodeURIComponent(agentResearchMatch[1]);
+    sendJson(response, 200, listAgentResearch(runtime, projectId, agentId));
     return true;
   }
 
@@ -147,6 +162,41 @@ function handleProjectRoute(
   if (rest === "/artifacts") {
     const limit = Number(url.searchParams.get("limit") ?? "0") || undefined;
     sendJson(response, 200, listProjectArtifacts(runtime, projectId, { limit }));
+    return true;
+  }
+
+  if (rest === "/research") {
+    sendJson(response, 200, listProjectResearch(runtime, projectId));
+    return true;
+  }
+
+  const researchFileMatch = /^\/research\/([^/]+)\/file$/u.exec(rest);
+  if (researchFileMatch) {
+    const runId = decodeURIComponent(researchFileMatch[1]);
+    const relativePath = url.searchParams.get("path") ?? "";
+    const ifNoneMatch = request.headers["if-none-match"];
+    const headerValue = Array.isArray(ifNoneMatch)
+      ? (ifNoneMatch[0] ?? null)
+      : (ifNoneMatch ?? null);
+    return streamResearchFile(
+      runtime,
+      response,
+      projectId,
+      runId,
+      relativePath,
+      headerValue
+    );
+  }
+
+  const researchDetailMatch = /^\/research\/([^/]+)$/u.exec(rest);
+  if (researchDetailMatch) {
+    const runId = decodeURIComponent(researchDetailMatch[1]);
+    const detail = getResearchRunDetail(runtime, projectId, runId);
+    if (!detail) {
+      sendJson(response, 404, { error: "unknown_run" });
+      return true;
+    }
+    sendJson(response, 200, detail);
     return true;
   }
 

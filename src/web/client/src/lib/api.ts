@@ -9,9 +9,20 @@ import type {
   WebOverview,
   WebProjectDetail,
   WebProjectSummary,
+  WebResearchRun,
+  WebResearchRunDetail,
 } from "@shared/types"
 
 const API_BASE = "/api/web"
+
+export function researchFileUrl(
+  projectId: string,
+  runId: string,
+  relativePath: string,
+): string {
+  const params = new URLSearchParams({ path: relativePath })
+  return `${API_BASE}/projects/${encodeURIComponent(projectId)}/research/${encodeURIComponent(runId)}/file?${params.toString()}`
+}
 
 async function request<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -73,6 +84,18 @@ export const api = {
       `/projects/${encodeURIComponent(projectId)}/gpu-runs${query}`,
     )
   },
+  research: (projectId: string) =>
+    request<WebResearchRun[]>(
+      `/projects/${encodeURIComponent(projectId)}/research`,
+    ),
+  agentResearch: (projectId: string, agentId: string) =>
+    request<WebResearchRun[]>(
+      `/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(agentId)}/research`,
+    ),
+  researchRun: (projectId: string, runId: string) =>
+    request<WebResearchRunDetail>(
+      `/projects/${encodeURIComponent(projectId)}/research/${encodeURIComponent(runId)}`,
+    ),
 }
 
 export type { WebOverview, WebProjectDetail, WebAgentDetail, WebHealthStatus }

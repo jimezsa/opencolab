@@ -15,6 +15,7 @@ import {
   BeakerIcon,
   CpuIcon,
   FileBoxIcon,
+  FlaskConicalIcon,
   GaugeIcon,
   GitBranchIcon,
   LayoutDashboardIcon,
@@ -45,6 +46,7 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
 const PROJECT_ITEMS = [
   { suffix: "/agents", label: "Agents", icon: UsersIcon },
   { suffix: "/conversations", label: "Conversations", icon: MessagesSquareIcon },
+  { suffix: "/research", label: "Research", icon: FlaskConicalIcon },
   { suffix: "/artifacts", label: "Artifacts", icon: FileBoxIcon },
   { suffix: "/workflows", label: "Workflows", icon: GitBranchIcon },
   { suffix: "/gpu-runs", label: "GPU Runs", icon: CpuIcon },

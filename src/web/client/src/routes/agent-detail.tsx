@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { ErrorState, LoadingState } from "@/components/layout/page-state"
+import { ResearchList } from "@/components/research/research-list"
 import { api } from "@/lib/api"
 import { formatRelativeTime } from "@/lib/format"
 import { useAsync } from "@/lib/state"
@@ -82,6 +83,7 @@ export default function AgentDetailRoute() {
           <TabsTrigger value="memory">Memory</TabsTrigger>
           <TabsTrigger value="heartbeat">Heartbeat</TabsTrigger>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
+          <TabsTrigger value="research">Research</TabsTrigger>
         </TabsList>
         <TabsContent value="todo">
           <MarkdownPanel
@@ -149,8 +151,33 @@ export default function AgentDetailRoute() {
             </Table>
           )}
         </TabsContent>
+        <TabsContent value="research">
+          <AgentResearchTab projectId={data.projectId} agentId={data.id} />
+        </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+function AgentResearchTab({
+  projectId,
+  agentId,
+}: {
+  projectId: string
+  agentId: string
+}) {
+  const runs = useAsync(
+    () => api.agentResearch(projectId, agentId),
+    [projectId, agentId],
+  )
+  if (runs.status === "loading") return <LoadingState rows={3} />
+  if (runs.status === "error") return <ErrorState message={runs.error} />
+  return (
+    <ResearchList
+      projectId={projectId}
+      runs={runs.data}
+      showScopeBadge={false}
+    />
   )
 }
 

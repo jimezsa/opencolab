@@ -349,6 +349,23 @@ Shows:
 - Runpod artifacts
 - future HuggingFace models and datasets
 
+### Research
+
+A dedicated surface for browsing research runs produced by research skills
+(`fast-research`, `pro-research`, `deep-research`, `paper-summary`,
+`pageindex-grounded`, …). See `docs/research_browser_spec.md` for full detail.
+
+Entry points:
+
+- `/projects/:projectId/research` — all runs in the project (project-scoped and
+  agent-scoped, with a scope filter)
+- `/projects/:projectId/agents/:agentId/research` — runs owned by one agent
+- Agent detail page gains a "Research" tab embedding the agent-scoped list
+
+A run detail view at `/projects/:projectId/research/:runId` provides a three-pane
+layout (file tree, viewer, metadata) with inline rendering of Markdown
+(`findings.md`, summaries) and PDFs (downloaded papers).
+
 ### GPU Runs
 
 Shows:

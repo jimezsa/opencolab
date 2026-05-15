@@ -167,3 +167,64 @@ export interface WebHealthStatus {
 export interface WebError {
   error: string;
 }
+
+export type WebResearchScope = "project" | "agent";
+
+export type WebResearchStatus =
+  | "running"
+  | "complete"
+  | "failed"
+  | "abandoned"
+  | "unknown";
+
+export interface WebResearchCorpus {
+  papers: number;
+  summaries: number;
+  diagrams: number;
+}
+
+export interface WebResearchRun {
+  id: string;
+  scope: WebResearchScope;
+  projectId: string;
+  agentId: string | null;
+  folder: string;
+  skill: string;
+  topic: string;
+  question: string | null;
+  status: WebResearchStatus;
+  created: string | null;
+  updated: string | null;
+  corpus: WebResearchCorpus;
+  deliverables: string[];
+  findingsPath: string | null;
+  hasRunMd: boolean;
+  warnings: string[];
+}
+
+export type WebResearchFileKind =
+  | "pdf"
+  | "markdown"
+  | "image-png"
+  | "image-svg"
+  | "image-other"
+  | "json"
+  | "text"
+  | "other";
+
+export interface WebResearchFile {
+  path: string;
+  name: string;
+  kind: WebResearchFileKind;
+  size: number;
+  modified: string;
+  pairedSummary: string | null;
+}
+
+export interface WebResearchRunDetail extends WebResearchRun {
+  tree: WebResearchFile[];
+  runMd: {
+    frontmatter: Record<string, unknown>;
+    body: string;
+  };
+}
