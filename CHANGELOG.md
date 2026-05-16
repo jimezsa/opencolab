@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- OpenColab Studio research browser PDF viewer no longer fails with an API/Worker version mismatch; `pdfjs-dist` is now pinned to the exact version `react-pdf` bundles so the worker and the API agree.
+
 ## [0.2.2] - 2026-11-16
 
 ### Fixed
