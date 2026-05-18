@@ -57,7 +57,7 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
 
 test("OpenAI setup defaults support OAuth and API key auth modes", () => {
   const defaults = getProviderSetupDefaults("openai");
-  assert.equal(defaults.model, "gpt-5.4");
+  assert.equal(defaults.model, "gpt-5.5");
   assert.equal(defaults.runtime, "codex");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
@@ -89,7 +89,7 @@ test("OpenAI setup defaults support OAuth and API key auth modes", () => {
 
 test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
   const defaults = getProviderSetupDefaults("anthropic");
-  assert.equal(defaults.model, "claude-opus-4-6");
+  assert.equal(defaults.model, "claude-opus-4-7");
   assert.equal(defaults.runtime, "claude");
   assert.equal(defaults.cliCommand, "claude");
   assert.equal(defaults.authMode, "api_key");

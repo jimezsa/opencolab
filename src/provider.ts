@@ -199,7 +199,7 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
 const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   anthropic: {
     runtime: "claude",
-    model: "claude-opus-4-6",
+    model: "claude-opus-4-7",
     cliCommand: "claude",
     cliArgs: [...CLAUDE_WORKSPACE_ARGS],
     authMode: "api_key",
@@ -278,7 +278,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   },
   openai: {
     runtime: "codex",
-    model: "gpt-5.4",
+    model: "gpt-5.5",
     cliCommand: "codex",
     cliArgs: [...CODEX_WORKSPACE_ARGS],
     authMode: "api_key",
