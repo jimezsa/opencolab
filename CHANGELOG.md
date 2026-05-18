@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## [Unreleased]
 
+### Changed
+
+- Default provider models bumped: Anthropic now defaults to `claude-opus-4-7` and OpenAI now defaults to `gpt-5.5`. Existing configured agents keep their saved model.
+
 ### Fixed
 
 - OpenColab Studio research browser PDF viewer no longer fails with an API/Worker version mismatch; `pdfjs-dist` is now pinned to the exact version `react-pdf` bundles so the worker and the API agree.
