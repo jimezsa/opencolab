@@ -232,7 +232,7 @@ opencolab setup model --provider anthropic --auth oauth --model claude-opus-4-6 
 
 # Gemini OAuth
 gemini
-opencolab setup model --provider gemini --auth oauth --model gemini-2.5-pro
+opencolab setup model --provider gemini --auth oauth --model gemini-3.5-flash
 
 # xAI
 opencolab setup model --provider xai --model grok-code-fast-1 --api-key <your_xai_key>

@@ -231,7 +231,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   },
   gemini: {
     runtime: "gemini",
-    model: "gemini-2.5-pro",
+    model: "gemini-3.5-flash",
     cliCommand: "gemini",
     cliArgs: [...GEMINI_WORKSPACE_ARGS],
     authMode: "api_key",

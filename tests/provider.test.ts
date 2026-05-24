@@ -126,7 +126,7 @@ test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
 
 test("Gemini setup defaults use concrete model names and support OAuth", () => {
   const defaults = getProviderSetupDefaults("gemini");
-  assert.equal(defaults.model, "gemini-2.5-pro");
+  assert.equal(defaults.model, "gemini-3.5-flash");
   assert.equal(defaults.runtime, "gemini");
   assert.equal(defaults.cliCommand, "gemini");
   assert.equal(defaults.authMode, "api_key");

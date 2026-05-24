@@ -612,7 +612,7 @@ test("ignite supports Gemini oauth mode without asking for API key", async () =>
   }
 });
 
-test("ignite exposes Gemini preview models in interactive chooser mode", async () => {
+test("ignite exposes curated Gemini models in interactive chooser mode", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-gemini-choose-"));
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
@@ -648,6 +648,7 @@ test("ignite exposes Gemini preview models in interactive chooser mode", async (
 
     assert.deepEqual(modelOptions, [
       "gemini-3.1-pro-preview",
+      "gemini-3.5-flash",
       "gemini-3-flash-preview",
       "gemini-2.5-pro",
       "gemini-2.5-flash",

@@ -32,7 +32,7 @@ Core implementation areas:
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd`, Linux `systemd`, and hidden always-restarting Windows Task Scheduler user tasks.
 - `src/telegram-poller.ts`: Telegram long-polling loop and update ingestion.
 - `src/upgrade.ts`: install-aware OpenColab upgrade flow for one-link installer-managed package or clone installs plus manual git/source checkouts, with guidance only for generic package installs.
-- `src/provider.ts`: provider defaults, runtime selection, auth-mode support, OAuth setup/remediation hints, CLI args including current Claude Code `stream-json` requirements, migration signatures for previously-shipped Claude defaults, and env wiring.
+- `src/provider.ts`: provider defaults including concrete model defaults, runtime selection, auth-mode support, OAuth setup/remediation hints, CLI args including current Claude Code `stream-json` requirements, migration signatures for previously-shipped Claude defaults, and env wiring.
 - `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling including OAuth session checks for supported runtimes, and provider-to-gateway progress-event forwarding.
 - `src/agent.ts`: agent file seeding, shared/agent-local skill discovery, and prompt assembly.
 - `src/agent-templates.ts`: built-in agent template loading and default-doc resolution.

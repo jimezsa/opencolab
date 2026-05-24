@@ -59,6 +59,7 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
   anthropic: ["claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-5"],
   gemini: [
     "gemini-3.1-pro-preview",
+    "gemini-3.5-flash",
     "gemini-3-flash-preview",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
