@@ -8,7 +8,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
-- Default provider models bumped: Anthropic now defaults to `claude-opus-4-7` and OpenAI now defaults to `gpt-5.5`. Existing configured agents keep their saved model.
+- Default provider models bumped: Anthropic now defaults to `claude-opus-4-7`, OpenAI now defaults to `gpt-5.5`, and Gemini now defaults to `gemini-3.5-flash`. Existing configured agents keep their saved model.
 
 ### Fixed
 
