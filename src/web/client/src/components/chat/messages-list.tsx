@@ -216,9 +216,6 @@ export function MessagesList({
             </li>
           ),
         )}
-        {pendingAssistant && (
-          <li className="text-muted-foreground w-full text-xs">thinking…</li>
-        )}
         </ul>
         <div ref={bottomRef} />
       </div>
