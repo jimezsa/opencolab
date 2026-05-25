@@ -469,12 +469,20 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
       </section>
       </div>
 
-      {selectedAttachment ? (
-        <aside className="hidden w-[28rem] shrink-0 lg:flex min-h-0 flex-col gap-2 rounded-lg bg-background p-3">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium">
+      <aside className="hidden w-72 shrink-0 lg:flex min-h-0 flex-col gap-2 rounded-lg bg-background p-3">
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-[10px] tracking-wider uppercase">
+            Preview
+          </span>
+          {selectedAttachment && (
+            <span
+              className="ml-1 min-w-0 truncate text-xs font-medium"
+              title={selectedAttachment.name}
+            >
               {selectedAttachment.name}
             </span>
+          )}
+          {selectedAttachment && (
             <Button
               size="icon"
               variant="ghost"
@@ -485,14 +493,18 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
             >
               <XIcon className="size-4" />
             </Button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto">
+          )}
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto">
+          {selectedAttachment ? (
             <AttachmentPreview attachment={selectedAttachment} />
-          </div>
-        </aside>
-      ) : (
-        <div aria-hidden className="hidden w-72 shrink-0 lg:block" />
-      )}
+          ) : (
+            <p className="text-muted-foreground px-1 py-2 text-xs">
+              Select a file from the left rail to preview it here.
+            </p>
+          )}
+        </div>
+      </aside>
     </div>
   )
 }

@@ -131,22 +131,41 @@ export function MessagesList({
 }: MessagesListProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
-  const [isAtBottom, setIsAtBottom] = useState(true)
+  const lastScrollTopRef = useRef(0)
+  // True whenever the composer should be visible: at the bottom of the transcript
+  // or any time the user is actively scrolling down.
+  const [composerVisible, setComposerVisible] = useState(true)
+  const [autoScroll, setAutoScroll] = useState(true)
 
   useEffect(() => {
-    onIsAtBottomChange?.(isAtBottom)
-  }, [isAtBottom, onIsAtBottomChange])
+    onIsAtBottomChange?.(composerVisible)
+  }, [composerVisible, onIsAtBottomChange])
 
   useEffect(() => {
-    if (isAtBottom) {
+    if (autoScroll) {
       bottomRef.current?.scrollIntoView({ block: "end" })
     }
-  }, [messages.length, pendingAssistant, isAtBottom])
+  }, [messages.length, pendingAssistant, autoScroll])
 
   const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget
-    const distance = target.scrollHeight - target.scrollTop - target.clientHeight
-    setIsAtBottom(distance < NEAR_BOTTOM_PX)
+    const scrollTop = target.scrollTop
+    const distance = target.scrollHeight - scrollTop - target.clientHeight
+    const isAtBottom = distance < NEAR_BOTTOM_PX
+    const previousScrollTop = lastScrollTopRef.current
+    lastScrollTopRef.current = scrollTop
+    setAutoScroll(isAtBottom)
+    if (isAtBottom) {
+      setComposerVisible(true)
+      return
+    }
+    if (scrollTop > previousScrollTop) {
+      // Scrolling toward the bottom — surface the composer immediately.
+      setComposerVisible(true)
+    } else if (scrollTop < previousScrollTop) {
+      // Scrolling up to review history — hide the composer.
+      setComposerVisible(false)
+    }
   }, [])
 
   const scrollToTop = useCallback(() => {

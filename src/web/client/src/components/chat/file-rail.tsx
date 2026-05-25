@@ -8,6 +8,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import {
+  BookOpenIcon,
+  BracesIcon,
   FileIcon,
   FileTextIcon,
   ImageIcon,
@@ -35,9 +37,14 @@ export function FileRail({
   selectedId,
   onSelect,
 }: FileRailProps) {
+  const sortedAttachments = [...attachments].sort(compareAttachments)
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1 text-xs">
-      <Accordion type="multiple" defaultValue={["returned"]} className="w-full">
+    <div className="flex h-full min-h-0 flex-col text-xs">
+      <Accordion
+        type="multiple"
+        defaultValue={["returned", "research"]}
+        className="w-full"
+      >
         <AccordionItem value="returned">
           <AccordionTrigger>
             <span className="flex items-center gap-2">
@@ -53,19 +60,21 @@ export function FileRail({
                 no files returned yet
               </p>
             ) : (
-              <ul className="flex flex-col gap-0.5">
-                {attachments.map((attachment) => (
-                  <li key={attachment.id}>
-                    <FileRow
-                      name={attachment.name}
-                      kind={attachment.kind}
-                      sizeBytes={attachment.sizeBytes}
-                      selected={selectedId === attachment.id}
-                      onClick={() => onSelect(attachment)}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <ScrollArea className="max-h-64 pr-1">
+                <ul className="flex flex-col gap-0.5">
+                  {sortedAttachments.map((attachment) => (
+                    <li key={attachment.id}>
+                      <FileRow
+                        name={attachment.name}
+                        kind={attachment.kind}
+                        sizeBytes={attachment.sizeBytes}
+                        selected={selectedId === attachment.id}
+                        onClick={() => onSelect(attachment)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
             )}
           </AccordionContent>
         </AccordionItem>
@@ -132,7 +141,7 @@ function ResearchSection({
     return <p className="text-muted-foreground px-1 py-1">no research runs</p>
   }
   return (
-    <ScrollArea className="max-h-[60vh]">
+    <ScrollArea className="max-h-[60vh] pr-1">
       <Accordion type="multiple" className="w-full">
         {runs.map((run) => (
           <ResearchRunSection
@@ -176,15 +185,43 @@ function ResearchRunSection({
       })
   }
 
+  const sortedFiles = detail
+    ? detail.tree
+        .filter(isPreviewableResearchFile)
+        .map((file) => ({
+          file,
+          attachment: researchFileToAttachment(projectId, run.id, file),
+        }))
+        .sort((a, b) => compareAttachments(a.attachment, b.attachment))
+    : []
   return (
     <AccordionItem value={run.id} onPointerDown={ensureLoaded}>
       <AccordionTrigger className="text-[12px]">
-        <span className="flex min-w-0 flex-col items-start">
+        <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
           <span className="truncate text-xs font-medium">
             {run.topic || run.folder}
           </span>
-          <span className="text-muted-foreground/80 truncate text-[10px]">
-            {run.skill} · {run.status}
+          <span className="text-muted-foreground/80 flex items-center gap-3 text-[10px]">
+            <span className="truncate">
+              {run.skill} · {run.status}
+            </span>
+          </span>
+          <span className="text-muted-foreground/80 flex items-center gap-2 text-[10px]">
+            <CorpusStat
+              icon={BookOpenIcon}
+              count={run.corpus.papers}
+              label="papers"
+            />
+            <CorpusStat
+              icon={FileTextIcon}
+              count={run.corpus.summaries}
+              label="summaries"
+            />
+            <CorpusStat
+              icon={ImageIcon}
+              count={run.corpus.diagrams}
+              label="diagrams"
+            />
           </span>
         </span>
       </AccordionTrigger>
@@ -193,36 +230,44 @@ function ResearchRunSection({
           <p className="text-destructive px-1 py-1 text-[11px]">{error}</p>
         ) : !detail ? (
           <p className="text-muted-foreground px-1 py-1 text-[11px]">loading…</p>
-        ) : detail.tree.length === 0 ? (
+        ) : sortedFiles.length === 0 ? (
           <p className="text-muted-foreground px-1 py-1 text-[11px]">
-            no files in this run
+            no previewable files
           </p>
         ) : (
-          <ul className="flex flex-col gap-0.5">
-            {detail.tree
-              .filter(isPreviewableResearchFile)
-              .map((file) => {
-                const attachment = researchFileToAttachment(
-                  projectId,
-                  run.id,
-                  file,
-                )
-                return (
-                  <li key={file.path}>
-                    <FileRow
-                      name={file.name}
-                      kind={attachment.kind}
-                      sizeBytes={file.size}
-                      selected={selectedId === attachment.id}
-                      onClick={() => onSelect(attachment)}
-                    />
-                  </li>
-                )
-              })}
-          </ul>
+          <ScrollArea className="max-h-56 pr-1">
+            <ul className="flex flex-col gap-0.5">
+              {sortedFiles.map(({ file, attachment }) => (
+                <li key={file.path}>
+                  <FileRow
+                    name={file.name}
+                    kind={attachment.kind}
+                    sizeBytes={file.size}
+                    selected={selectedId === attachment.id}
+                    onClick={() => onSelect(attachment)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </ScrollArea>
         )}
       </AccordionContent>
     </AccordionItem>
+  )
+}
+
+interface CorpusStatProps {
+  icon: typeof FileIcon
+  count: number
+  label: string
+}
+
+function CorpusStat({ icon: Icon, count, label }: CorpusStatProps) {
+  return (
+    <span className="flex items-center gap-1" title={label}>
+      <Icon className="size-3" />
+      {count}
+    </span>
   )
 }
 
@@ -235,8 +280,7 @@ interface FileRowProps {
 }
 
 function FileRow({ name, kind, sizeBytes, selected, onClick }: FileRowProps) {
-  const Icon =
-    kind === "image" ? ImageIcon : kind === "pdf" || kind === "markdown" || kind === "text" ? FileTextIcon : FileIcon
+  const Icon = iconForKind(kind, name)
   const sizeLabel = formatSize(sizeBytes)
   return (
     <button
@@ -254,6 +298,39 @@ function FileRow({ name, kind, sizeBytes, selected, onClick }: FileRowProps) {
       </span>
     </button>
   )
+}
+
+function iconForKind(
+  kind: WebChatAttachmentKind,
+  name: string,
+): typeof FileIcon {
+  if (kind === "image") return ImageIcon
+  if (kind === "pdf") return BookOpenIcon
+  if (kind === "markdown") return FileTextIcon
+  if (kind === "text") {
+    return name.toLowerCase().endsWith(".json") ? BracesIcon : FileTextIcon
+  }
+  return FileIcon
+}
+
+const KIND_ORDER: Record<WebChatAttachmentKind, number> = {
+  pdf: 0,
+  markdown: 1,
+  image: 2,
+  text: 3,
+  archive: 4,
+  audio: 5,
+  video: 6,
+  other: 7,
+}
+
+function compareAttachments(
+  a: WebChatAttachment,
+  b: WebChatAttachment,
+): number {
+  const orderDelta = KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
+  if (orderDelta !== 0) return orderDelta
+  return a.name.localeCompare(b.name)
 }
 
 function formatSize(bytes: number): string {
