@@ -31,9 +31,9 @@ export function LiveStatus({ agentId, turn }: LiveStatusProps) {
             : `${agentId} is working`
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">{heading}</h3>
+        <h3 className="text-muted-foreground text-xs font-medium">{heading}</h3>
         <Badge variant="outline" className="text-[10px] uppercase">
           {turn.status}
         </Badge>
@@ -49,7 +49,7 @@ export function LiveStatus({ agentId, turn }: LiveStatusProps) {
             ? "assertive"
             : "polite"
         }
-        className="flex-1 min-h-0 rounded-md border p-2 text-xs"
+        className="max-h-36 overflow-auto rounded-md border bg-muted/30 p-2 text-xs"
       >
         {events.length === 0 && (
           <p className="text-muted-foreground">no activity yet</p>

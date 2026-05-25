@@ -240,7 +240,12 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
           .chatSession(projectId, selectedAgentId, selectedSessionId)
           .then((detail) => {
             setSessionDetail(detail)
-            setActiveTurn(detail.runningTurn)
+            // Keep the terminal live-status summary visible until the user
+            // sends another message or switches sessions; only override when
+            // the server reports a fresh running turn.
+            if (detail.runningTurn) {
+              setActiveTurn(detail.runningTurn)
+            }
           })
           .catch(() => {
             /* swallow */
@@ -425,6 +430,9 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
               : "Choose an agent to start chatting."}
           </Empty>
         )}
+        {activeTurn && selectedAgentId && (
+          <LiveStatus agentId={selectedAgentId} turn={activeTurn} />
+        )}
         <Composer
           projectId={projectId}
           agentId={selectedAgentId}
@@ -437,15 +445,11 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
       </section>
 
       <aside className="flex min-h-0 flex-col gap-3 rounded-lg border bg-background p-3">
-        {running && activeTurn && selectedAgentId ? (
-          <LiveStatus agentId={selectedAgentId} turn={activeTurn} />
-        ) : (
-          <FileRail
-            attachments={lastAssistantAttachments}
-            selected={selectedAttachment}
-            onSelect={setSelectedAttachment}
-          />
-        )}
+        <FileRail
+          attachments={lastAssistantAttachments}
+          selected={selectedAttachment}
+          onSelect={setSelectedAttachment}
+        />
       </aside>
     </div>
   )
