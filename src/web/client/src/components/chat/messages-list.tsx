@@ -31,55 +31,38 @@ export function MessagesList({
             : "Choose an agent to start chatting."}
         </div>
       )}
-      <ul className="flex flex-col gap-3 py-2">
+      <ul className="flex flex-col gap-5 py-2">
         {messages.map((message) => (
-          <li
-            key={message.id}
-            className={
-              message.role === "user"
-                ? "flex justify-end"
-                : "flex justify-start"
-            }
-          >
-            <div
-              className={`max-w-[92%] rounded-lg border px-3 py-2 ${
-                message.role === "user"
-                  ? "bg-primary/5 border-primary/30"
-                  : "bg-background"
-              }`}
-            >
-              <div className="text-muted-foreground mb-1 text-[10px] tracking-wide uppercase">
-                {message.role === "user" ? "you" : (agentId ?? "agent")}
-              </div>
-              {message.content && (
-                <MarkdownMessage
-                  content={message.content}
-                  className="prose prose-sm max-w-none break-words dark:prose-invert"
-                />
-              )}
-              {message.attachments.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {message.attachments.map((attachment) => (
-                    <AttachmentChip
-                      key={attachment.id}
-                      attachment={attachment}
-                      onSelect={
-                        onSelectAttachment
-                          ? () => onSelectAttachment(attachment)
-                          : undefined
-                      }
-                    />
-                  ))}
-                </div>
-              )}
+          <li key={message.id} className="w-full">
+            <div className="text-muted-foreground mb-1 text-[10px] tracking-wide uppercase">
+              {message.role === "user" ? "you" : (agentId ?? "agent")}
             </div>
+            {message.content && (
+              <MarkdownMessage
+                content={message.content}
+                className="prose prose-sm max-w-none break-words dark:prose-invert"
+              />
+            )}
+            {message.attachments.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {message.attachments.map((attachment) => (
+                  <AttachmentChip
+                    key={attachment.id}
+                    attachment={attachment}
+                    onSelect={
+                      onSelectAttachment
+                        ? () => onSelectAttachment(attachment)
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            )}
           </li>
         ))}
         {pendingAssistant && (
-          <li className="flex justify-start">
-            <div className="bg-background border rounded-lg px-3 py-2 text-xs text-muted-foreground">
-              {agentId ?? "agent"} is thinking…
-            </div>
+          <li className="text-muted-foreground w-full text-xs">
+            {agentId ?? "agent"} is thinking…
           </li>
         )}
       </ul>
