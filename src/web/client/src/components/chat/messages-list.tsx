@@ -34,13 +34,19 @@ export function MessagesList({
       <ul className="flex flex-col gap-5 py-2">
         {messages.map((message) => (
           <li key={message.id} className="w-full">
-            <div className="text-muted-foreground mb-1 text-[10px] tracking-wide uppercase">
-              {message.role === "user" ? "you" : (agentId ?? "agent")}
-            </div>
+            {message.role === "user" && (
+              <div className="text-muted-foreground mb-1 text-[10px] tracking-wide uppercase">
+                you
+              </div>
+            )}
             {message.content && (
               <MarkdownMessage
                 content={message.content}
-                className="prose prose-sm max-w-none break-words dark:prose-invert"
+                className={
+                  message.role === "user"
+                    ? "prose prose-sm max-w-none break-words text-muted-foreground dark:prose-invert"
+                    : "prose prose-sm max-w-none break-words dark:prose-invert"
+                }
               />
             )}
             {message.attachments.length > 0 && (
@@ -61,9 +67,7 @@ export function MessagesList({
           </li>
         ))}
         {pendingAssistant && (
-          <li className="text-muted-foreground w-full text-xs">
-            {agentId ?? "agent"} is thinking…
-          </li>
+          <li className="text-muted-foreground w-full text-xs">thinking…</li>
         )}
       </ul>
       <div ref={bottomRef} />
