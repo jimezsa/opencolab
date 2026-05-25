@@ -408,6 +408,14 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
 
   return (
     <div className="flex min-h-0 w-full flex-1 gap-3">
+      <aside className="hidden w-72 shrink-0 lg:flex min-h-0 flex-col gap-3 rounded-lg bg-background p-3">
+        <FileRail
+          attachments={lastAssistantAttachments}
+          selected={selectedAttachment}
+          onSelect={setSelectedAttachment}
+        />
+      </aside>
+
       <div className="flex min-w-0 flex-1 justify-center">
         <section className="flex w-full max-w-4xl min-h-0 flex-col gap-2 rounded-lg bg-background p-3">
         {sessionDetail || optimisticMessages.length > 0 ? (
@@ -456,14 +464,6 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
         </div>
       </section>
       </div>
-
-      <aside className="hidden w-72 shrink-0 lg:flex min-h-0 flex-col gap-3 rounded-lg bg-background p-3">
-        <FileRail
-          attachments={lastAssistantAttachments}
-          selected={selectedAttachment}
-          onSelect={setSelectedAttachment}
-        />
-      </aside>
     </div>
   )
 }
