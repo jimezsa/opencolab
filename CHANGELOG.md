@@ -35,6 +35,11 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - The Studio web request handler now allows any HTTP method for the `/api/web/projects/:projectId/chat/*` namespace (previously the whole `/api/web/` surface was GET-only), while the rest of the read-only DTO API continues to reject non-GET methods with `405`.
 - The Studio client bundle now imports `katex/dist/katex.min.css` at the app entry so math rendering works in chat messages, returned Markdown previews, and any future Markdown viewer that opts into the shared component.
 - Added `katex`, `remark-math`, and `rehype-katex` as Studio client dependencies in `src/web/client/package.json`.
+- Studio chat transcript styling now drops the bordered message bubble for assistant turns so the agent's Markdown response spans the full transcript width without any framing. User turns render as a right-aligned, rounded (`rounded-2xl`) light-orange bubble (`bg-orange-100`, dark-mode tinted `bg-orange-500/15`) capped at 85% width with a small grey `you` label on top; assistant turns no longer carry a label. The "thinking…" pending indicator is now plain muted text instead of a bordered chip.
+
+### Removed
+
+- Removed the Studio Conversations page (`/projects/:projectId/conversations`), its sidebar entry, the project-detail "Conversations" tab, the matching `GET /api/web/projects/:projectId/conversations` and `GET /api/web/projects/:projectId/conversations/:sessionId` HTTP routes, the `api.conversations` / `api.conversation` client helpers, and the now-dead `getConversationDetail` / `isActiveSession` / `toWebMessage` server helpers. The new chat route supersedes the dedicated conversations browser; the `listProjectConversations` / `listAgentConversations` DTO builders stay because the dashboard, agent detail "recent sessions", and chat session list still consume them.
 
 ### Fixed
 
