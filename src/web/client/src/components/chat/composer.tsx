@@ -104,68 +104,69 @@ export function Composer({
       {blockedReason && (
         <p className="text-destructive text-xs">{blockedReason}</p>
       )}
-      <Textarea
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        placeholder={
-          agentId ? `Message ${agentId}…` : "Choose an agent to start"
-        }
-        rows={3}
-        disabled={disabled}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
-            event.preventDefault()
-            void handleSend()
-          } else if (event.key === "Escape" && attachments.length === 0) {
-            setDraft("")
+      <div className="flex items-end gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="sr-only"
+          onChange={(event) => void handleFiles(event.target.files)}
+        />
+        <Button
+          size="icon"
+          variant="ghost"
+          disabled={disabled || !agentId}
+          onClick={() => fileInputRef.current?.click()}
+          aria-label="Attach files"
+          title="Attach files"
+        >
+          <PaperclipIcon className="size-4" />
+        </Button>
+        <Textarea
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={
+            agentId ? `Message ${agentId}…` : "Choose an agent to start"
           }
-        }}
-        aria-label="Chat message"
-        className="border-0 bg-transparent px-1 shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
-      />
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="sr-only"
-            onChange={(event) => void handleFiles(event.target.files)}
-          />
+          rows={1}
+          disabled={disabled}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.metaKey &&
+              !event.ctrlKey
+            ) {
+              event.preventDefault()
+              void handleSend()
+            } else if (event.key === "Escape" && attachments.length === 0) {
+              setDraft("")
+            }
+          }}
+          aria-label="Chat message"
+          className="flex-1 min-h-0 max-h-48 resize-none border-0 bg-transparent px-1 py-2 shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+        />
+        {running ? (
           <Button
-            size="sm"
-            variant="ghost"
-            disabled={disabled || !agentId}
-            onClick={() => fileInputRef.current?.click()}
-            aria-label="Attach files"
+            size="icon"
+            variant="destructive"
+            onClick={onStop}
+            aria-label="Stop"
+            title="Stop"
           >
-            <PaperclipIcon className="size-4" />
-            <span className="hidden sm:inline">Attach</span>
+            <StopCircleIcon className="size-4" />
           </Button>
-        </div>
-        <div className="flex items-center gap-1">
-          {running ? (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={onStop}
-              aria-label="Stop"
-            >
-              <StopCircleIcon className="size-4" />
-              Stop
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => void handleSend()}
-              disabled={sendDisabled}
-              aria-label="Send"
-            >
-              <SendIcon className="size-4" />
-              Send
-            </Button>
-          )}
-        </div>
+        ) : (
+          <Button
+            size="icon"
+            onClick={() => void handleSend()}
+            disabled={sendDisabled}
+            aria-label="Send"
+            title="Send"
+          >
+            <SendIcon className="size-4" />
+          </Button>
+        )}
       </div>
     </div>
   )
