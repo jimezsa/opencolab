@@ -22,9 +22,9 @@ export function AppShell() {
       <SidebarProvider>
         <ChatSidebarHost>
           <AppSidebar active={active} status={overview.status} />
-          <SidebarInset>
+          <SidebarInset className="h-svh overflow-hidden">
             <TopBar title={title} subtitle={subtitle} health={health} />
-            <div className="flex flex-1 flex-col gap-4 p-4">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
               <Outlet />
             </div>
           </SidebarInset>

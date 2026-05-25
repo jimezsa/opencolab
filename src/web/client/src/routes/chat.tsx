@@ -410,7 +410,7 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
   useRegisterChatSidebar(sidebarValue)
 
   return (
-    <div className="flex min-h-0 w-full flex-1 gap-3">
+    <div className="flex min-h-0 w-full flex-1 gap-3 overflow-hidden">
       <aside className="hidden w-72 shrink-0 lg:flex min-h-0 flex-col gap-3 rounded-lg bg-background p-3">
         <FileRail
           projectId={projectId}
