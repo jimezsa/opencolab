@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Alert } from "@/components/ui/alert"
 import { Empty } from "@/components/ui/empty"
-import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import {
@@ -11,12 +10,11 @@ import {
   chatTurnEventsUrl,
 } from "@/lib/api"
 import { useAsync } from "@/lib/state"
-import { AgentPicker } from "@/components/chat/agent-picker"
-import { SessionList } from "@/components/chat/session-list"
 import { MessagesList } from "@/components/chat/messages-list"
 import { Composer } from "@/components/chat/composer"
 import { LiveStatus } from "@/components/chat/live-status"
 import { FileRail } from "@/components/chat/file-rail"
+import { useRegisterChatSidebar } from "@/components/chat/chat-sidebar-context"
 import type {
   WebChatAgentOption,
   WebChatAttachment,
@@ -364,35 +362,46 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
       ? `${selectedAgent.id} is busy elsewhere.`
       : null)
 
-  return (
-    <div className="grid h-full min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[18rem_minmax(0,1fr)_20rem]">
-      <aside className="flex min-h-0 flex-col gap-3 rounded-lg border bg-background p-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-muted-foreground text-[10px] tracking-wider uppercase">
-            Agent
-          </span>
-          <AgentPicker
-            agents={agents}
-            selectedId={selectedAgentId}
-            onSelect={(agentId) =>
-              updateQuery({ agent: agentId, session: null })
-            }
-            loading={agentsState.status === "loading"}
-          />
-        </div>
-        <Separator />
-        <div className="min-h-0 flex-1">
-          <SessionList
-            sessions={sessions}
-            selectedSessionId={selectedSessionId}
-            onSelect={(id) => updateQuery({ session: id })}
-            onCreateNew={() => void handleNewSession()}
-            loading={sessionsLoading}
-            disabled={!selectedAgentId}
-          />
-        </div>
-      </aside>
+  const onSelectAgent = useCallback(
+    (agentId: string) => updateQuery({ agent: agentId, session: null }),
+    [updateQuery],
+  )
+  const onSelectSession = useCallback(
+    (id: string) => updateQuery({ session: id }),
+    [updateQuery],
+  )
+  const onCreateNewSession = useCallback(() => {
+    void handleNewSession()
+  }, [handleNewSession])
 
+  const sidebarValue = useMemo(
+    () => ({
+      agents,
+      agentsLoading: agentsState.status === "loading",
+      selectedAgentId,
+      onSelectAgent,
+      sessions,
+      sessionsLoading,
+      selectedSessionId,
+      onSelectSession,
+      onCreateNewSession,
+    }),
+    [
+      agents,
+      agentsState.status,
+      selectedAgentId,
+      onSelectAgent,
+      sessions,
+      sessionsLoading,
+      selectedSessionId,
+      onSelectSession,
+      onCreateNewSession,
+    ],
+  )
+  useRegisterChatSidebar(sidebarValue)
+
+  return (
+    <div className="grid h-full min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="flex min-h-0 flex-col gap-2 rounded-lg border bg-background p-3">
         {sessionDetail || optimisticMessages.length > 0 ? (
           <MessagesList

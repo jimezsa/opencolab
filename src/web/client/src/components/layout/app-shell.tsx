@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import { AppSidebar } from "./app-sidebar"
 import { TopBar } from "./top-bar"
+import { ChatSidebarHost } from "@/components/chat/chat-sidebar-context"
 import { api } from "@/lib/api"
 import { useAsync } from "@/lib/state"
 
@@ -19,13 +20,15 @@ export function AppShell() {
   return (
     <TooltipProvider>
       <SidebarProvider>
-        <AppSidebar active={active} status={overview.status} />
-        <SidebarInset>
-          <TopBar title={title} subtitle={subtitle} health={health} />
-          <div className="flex flex-1 flex-col gap-4 p-4">
-            <Outlet />
-          </div>
-        </SidebarInset>
+        <ChatSidebarHost>
+          <AppSidebar active={active} status={overview.status} />
+          <SidebarInset>
+            <TopBar title={title} subtitle={subtitle} health={health} />
+            <div className="flex flex-1 flex-col gap-4 p-4">
+              <Outlet />
+            </div>
+          </SidebarInset>
+        </ChatSidebarHost>
       </SidebarProvider>
       <Toaster richColors position="bottom-right" />
     </TooltipProvider>

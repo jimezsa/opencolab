@@ -25,6 +25,10 @@ import {
 } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import type { WebActiveSelection } from "@shared/types"
+import { useChatSidebarValue } from "@/components/chat/chat-sidebar-context"
+import { AgentPicker } from "@/components/chat/agent-picker"
+import { SessionList } from "@/components/chat/session-list"
+import { Separator } from "@/components/ui/separator"
 
 interface AppSidebarProps {
   active: WebActiveSelection | null
@@ -55,6 +59,9 @@ const PROJECT_ITEMS = [
 export function AppSidebar({ active, status }: AppSidebarProps) {
   const location = useLocation()
   const projectBase = active ? `/projects/${active.projectId}` : null
+  const chatSidebar = useChatSidebarValue()
+  const showChatPanel =
+    !!chatSidebar && /\/projects\/[^/]+\/chat(?:$|\/)/.test(location.pathname)
 
   return (
     <Sidebar collapsible="icon">
@@ -136,6 +143,38 @@ export function AppSidebar({ active, status }: AppSidebarProps) {
                   )
                 })}
               </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {showChatPanel && chatSidebar && (
+          <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+            <SidebarGroupLabel>Chat</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <div className="flex flex-col gap-3 px-2 pb-2">
+                <div className="flex flex-col gap-1">
+                  <span className="text-muted-foreground text-[10px] tracking-wider uppercase">
+                    Agent
+                  </span>
+                  <AgentPicker
+                    agents={chatSidebar.agents}
+                    selectedId={chatSidebar.selectedAgentId}
+                    onSelect={chatSidebar.onSelectAgent}
+                    loading={chatSidebar.agentsLoading}
+                  />
+                </div>
+                <Separator />
+                <div className="min-h-[12rem]">
+                  <SessionList
+                    sessions={chatSidebar.sessions}
+                    selectedSessionId={chatSidebar.selectedSessionId}
+                    onSelect={chatSidebar.onSelectSession}
+                    onCreateNew={chatSidebar.onCreateNewSession}
+                    loading={chatSidebar.sessionsLoading}
+                    disabled={!chatSidebar.selectedAgentId}
+                  />
+                </div>
+              </div>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
