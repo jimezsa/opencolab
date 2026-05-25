@@ -80,7 +80,7 @@ export function Composer({
   }, [draft, attachments, sendDisabled, onSend])
 
   return (
-    <div className="border-input bg-background flex flex-col gap-2 rounded-lg border p-2">
+    <div className="border-input bg-background flex flex-col gap-2 rounded-lg border px-2 pb-2 pt-0">
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {attachments.map((attachment) => (
@@ -144,7 +144,7 @@ export function Composer({
             }
           }}
           aria-label="Chat message"
-          className="flex-1 min-h-0 max-h-48 resize-none border-0 bg-transparent px-1 py-2 shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+          className="flex-1 min-h-0 max-h-48 resize-none border-0 bg-transparent px-1 pb-2 pt-0 shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
         />
         {running ? (
           <Button

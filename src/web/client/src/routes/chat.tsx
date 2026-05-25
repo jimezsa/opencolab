@@ -446,11 +446,11 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
           </Empty>
         )}
         <div
-          className={`flex flex-col gap-2 transition-opacity duration-150 ${
+          className={
             transcriptAtBottom
-              ? "opacity-100"
-              : "pointer-events-none opacity-0"
-          }`}
+              ? "flex shrink-0 flex-col gap-2"
+              : "hidden"
+          }
           aria-hidden={!transcriptAtBottom}
         >
           {activeTurn && selectedAgentId && (
