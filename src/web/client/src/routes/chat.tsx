@@ -417,7 +417,7 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
       </aside>
 
       <div className="flex min-w-0 flex-1 justify-center">
-        <section className="flex w-full max-w-4xl min-h-0 flex-col gap-2 rounded-lg bg-background p-3">
+        <section className="flex w-full max-w-3xl min-h-0 flex-col gap-2 rounded-lg bg-background p-3">
         {sessionDetail || optimisticMessages.length > 0 ? (
           <MessagesList
             agentId={selectedAgentId}
@@ -464,6 +464,8 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
         </div>
       </section>
       </div>
+
+      <div aria-hidden className="hidden w-72 shrink-0 lg:block" />
     </div>
   )
 }
