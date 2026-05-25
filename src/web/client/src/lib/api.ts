@@ -131,10 +131,6 @@ export const api = {
     request<WebResearchRun[]>(
       `/projects/${encodeURIComponent(projectId)}/research`,
     ),
-  agentResearch: (projectId: string, agentId: string) =>
-    request<WebResearchRun[]>(
-      `/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(agentId)}/research`,
-    ),
   researchRun: (projectId: string, runId: string) =>
     request<WebResearchRunDetail>(
       `/projects/${encodeURIComponent(projectId)}/research/${encodeURIComponent(runId)}`,
