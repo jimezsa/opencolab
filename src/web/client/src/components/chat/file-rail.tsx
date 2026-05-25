@@ -5,7 +5,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import {
   BookOpenIcon,
@@ -60,7 +59,7 @@ export function FileRail({
                 no files returned yet
               </p>
             ) : (
-              <ScrollArea className="max-h-64 pr-1">
+              <div className="max-h-64 overflow-y-auto pr-1">
                 <ul className="flex flex-col gap-0.5">
                   {sortedAttachments.map((attachment) => (
                     <li key={attachment.id}>
@@ -74,7 +73,7 @@ export function FileRail({
                     </li>
                   ))}
                 </ul>
-              </ScrollArea>
+              </div>
             )}
           </AccordionContent>
         </AccordionItem>
@@ -141,7 +140,7 @@ function ResearchSection({
     return <p className="text-muted-foreground px-1 py-1">no research runs</p>
   }
   return (
-    <ScrollArea className="max-h-[60vh] pr-1">
+    <div className="max-h-[60vh] overflow-y-auto pr-1">
       <Accordion type="multiple" className="w-full">
         {runs.map((run) => (
           <ResearchRunSection
@@ -153,7 +152,7 @@ function ResearchSection({
           />
         ))}
       </Accordion>
-    </ScrollArea>
+    </div>
   )
 }
 
@@ -235,7 +234,7 @@ function ResearchRunSection({
             no previewable files
           </p>
         ) : (
-          <ScrollArea className="max-h-56 pr-1">
+          <div className="max-h-56 overflow-y-auto pr-1">
             <ul className="flex flex-col gap-0.5">
               {sortedFiles.map(({ file, attachment }) => (
                 <li key={file.path}>
@@ -249,7 +248,7 @@ function ResearchRunSection({
                 </li>
               ))}
             </ul>
-          </ScrollArea>
+          </div>
         )}
       </AccordionContent>
     </AccordionItem>
