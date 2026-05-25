@@ -104,7 +104,7 @@ export function Composer({
       {blockedReason && (
         <p className="text-destructive text-xs">{blockedReason}</p>
       )}
-      <div className="flex items-end gap-2">
+      <div className="flex items-center gap-2">
         <input
           ref={fileInputRef}
           type="file"
