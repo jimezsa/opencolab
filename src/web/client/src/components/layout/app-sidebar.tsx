@@ -13,7 +13,6 @@ import {
 import {
   BeakerIcon,
   CpuIcon,
-  FileBoxIcon,
   FlaskConicalIcon,
   GaugeIcon,
   GitBranchIcon,
@@ -50,7 +49,6 @@ const PROJECT_ITEMS = [
   { suffix: "/agents", label: "Agents", icon: UsersIcon },
   { suffix: "/chat", label: "Chat", icon: MessageSquareIcon },
   { suffix: "/research", label: "Research", icon: FlaskConicalIcon },
-  { suffix: "/artifacts", label: "Artifacts", icon: FileBoxIcon },
   { suffix: "/workflows", label: "Workflows", icon: GitBranchIcon },
   { suffix: "/gpu-runs", label: "GPU Runs", icon: CpuIcon },
 ] as const

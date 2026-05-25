@@ -74,7 +74,6 @@ export default function ProjectDetailRoute() {
       <Tabs defaultValue="agents">
         <TabsList>
           <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
           <TabsTrigger value="runs">GPU runs</TabsTrigger>
         </TabsList>
 
@@ -92,35 +91,6 @@ export default function ProjectDetailRoute() {
               ))}
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="artifacts">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Kind</TableHead>
-                <TableHead>Path</TableHead>
-                <TableHead className="text-right">Modified</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.recentArtifacts.map((artifact) => (
-                <TableRow key={artifact.id}>
-                  <TableCell className="font-medium">{artifact.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{artifact.kind}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground font-mono text-xs">
-                    {artifact.relativePath}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-right text-xs">
-                    {formatRelativeTime(artifact.modifiedAt)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         </TabsContent>
 
         <TabsContent value="runs">

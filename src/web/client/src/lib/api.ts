@@ -1,7 +1,6 @@
 import type {
   WebAgentDetail,
   WebAgentSummary,
-  WebArtifactSummary,
   WebChatAgentOption,
   WebChatNewSessionResponse,
   WebChatSendRequest,
@@ -122,12 +121,6 @@ export const api = {
     request<WebAgentDetail>(
       `/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(agentId)}`,
     ),
-  artifacts: (projectId: string, limit?: number) => {
-    const query = limit ? `?limit=${limit}` : ""
-    return request<WebArtifactSummary[]>(
-      `/projects/${encodeURIComponent(projectId)}/artifacts${query}`,
-    )
-  },
   gpuRuns: (projectId: string, limit?: number) => {
     const query = limit ? `?limit=${limit}` : ""
     return request<WebGpuRunSummary[]>(

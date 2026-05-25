@@ -139,12 +139,6 @@ function handleProjectRoute(
     return true;
   }
 
-  if (rest === "/artifacts") {
-    const limit = Number(url.searchParams.get("limit") ?? "0") || undefined;
-    sendJson(response, 200, listProjectArtifacts(runtime, projectId, { limit }));
-    return true;
-  }
-
   if (rest === "/research") {
     sendJson(response, 200, listProjectResearch(runtime, projectId));
     return true;
