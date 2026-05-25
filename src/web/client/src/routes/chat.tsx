@@ -406,8 +406,9 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
   useRegisterChatSidebar(sidebarValue)
 
   return (
-    <div className="mx-auto grid h-full min-h-0 w-full max-w-6xl flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <section className="flex min-h-0 flex-col gap-2 rounded-lg border bg-background p-3">
+    <div className="flex min-h-0 w-full flex-1 justify-center">
+      <div className="grid h-full min-h-0 w-full max-w-6xl flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <section className="flex min-h-0 flex-col gap-2 rounded-lg border bg-background p-3">
         {sessionDetail || optimisticMessages.length > 0 ? (
           <MessagesList
             agentId={selectedAgentId}
@@ -444,13 +445,14 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
         />
       </section>
 
-      <aside className="flex min-h-0 flex-col gap-3 rounded-lg border bg-background p-3">
-        <FileRail
-          attachments={lastAssistantAttachments}
-          selected={selectedAttachment}
-          onSelect={setSelectedAttachment}
-        />
-      </aside>
+        <aside className="flex min-h-0 flex-col gap-3 rounded-lg border bg-background p-3">
+          <FileRail
+            attachments={lastAssistantAttachments}
+            selected={selectedAttachment}
+            onSelect={setSelectedAttachment}
+          />
+        </aside>
+      </div>
     </div>
   )
 }
