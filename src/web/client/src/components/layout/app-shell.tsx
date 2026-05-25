@@ -1,5 +1,10 @@
 import { Outlet, useLocation, useParams } from "react-router-dom"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { useEffect } from "react"
+import {
+  SidebarInset,
+  SidebarProvider,
+  useSidebar,
+} from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import { AppSidebar } from "./app-sidebar"
@@ -19,8 +24,9 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={false}>
         <ChatSidebarHost>
+          <SidebarHoverGuard />
           <AppSidebar active={active} status={overview.status} />
           <SidebarInset className="h-svh overflow-hidden">
             <TopBar title={title} subtitle={subtitle} health={health} />
@@ -33,6 +39,34 @@ export function AppShell() {
       <Toaster richColors position="bottom-right" />
     </TooltipProvider>
   )
+}
+
+function SidebarHoverGuard() {
+  const { setOpen, isMobile } = useSidebar()
+
+  useEffect(() => {
+    if (isMobile) return
+    const SHOW_WITHIN = 12
+    const HIDE_AFTER = 320
+    let openState: boolean | null = null
+    const handler = (event: MouseEvent) => {
+      if (event.clientX <= SHOW_WITHIN) {
+        if (openState !== true) {
+          setOpen(true)
+          openState = true
+        }
+      } else if (event.clientX > HIDE_AFTER) {
+        if (openState !== false) {
+          setOpen(false)
+          openState = false
+        }
+      }
+    }
+    window.addEventListener("mousemove", handler, { passive: true })
+    return () => window.removeEventListener("mousemove", handler)
+  }, [setOpen, isMobile])
+
+  return null
 }
 
 function describeRoute(

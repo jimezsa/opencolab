@@ -59,7 +59,7 @@ export function AppSidebar({ active, status }: AppSidebarProps) {
     !!chatSidebar && /\/projects\/[^/]+\/chat(?:$|\/)/.test(location.pathname)
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="offcanvas">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
           <GaugeIcon className="size-4 text-primary" />
