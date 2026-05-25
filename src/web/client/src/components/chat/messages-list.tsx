@@ -32,40 +32,62 @@ export function MessagesList({
         </div>
       )}
       <ul className="flex flex-col gap-5 py-2">
-        {messages.map((message) => (
-          <li key={message.id} className="w-full">
-            {message.role === "user" && (
-              <div className="text-muted-foreground mb-1 text-[10px] tracking-wide uppercase">
-                you
-              </div>
-            )}
-            {message.content && (
-              <MarkdownMessage
-                content={message.content}
-                className={
-                  message.role === "user"
-                    ? "prose prose-sm max-w-none break-words text-muted-foreground dark:prose-invert"
-                    : "prose prose-sm max-w-none break-words dark:prose-invert"
-                }
-              />
-            )}
-            {message.attachments.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {message.attachments.map((attachment) => (
-                  <AttachmentChip
-                    key={attachment.id}
-                    attachment={attachment}
-                    onSelect={
-                      onSelectAttachment
-                        ? () => onSelectAttachment(attachment)
-                        : undefined
-                    }
+        {messages.map((message) =>
+          message.role === "user" ? (
+            <li key={message.id} className="flex justify-start">
+              <div className="max-w-[85%] rounded-2xl bg-orange-100 px-4 py-2 text-foreground dark:bg-orange-500/15">
+                <div className="text-muted-foreground mb-1 text-[10px] tracking-wide uppercase">
+                  you
+                </div>
+                {message.content && (
+                  <MarkdownMessage
+                    content={message.content}
+                    className="prose prose-sm max-w-none break-words dark:prose-invert"
                   />
-                ))}
+                )}
+                {message.attachments.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {message.attachments.map((attachment) => (
+                      <AttachmentChip
+                        key={attachment.id}
+                        attachment={attachment}
+                        onSelect={
+                          onSelectAttachment
+                            ? () => onSelectAttachment(attachment)
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </li>
-        ))}
+            </li>
+          ) : (
+            <li key={message.id} className="w-full">
+              {message.content && (
+                <MarkdownMessage
+                  content={message.content}
+                  className="prose prose-sm max-w-none break-words dark:prose-invert"
+                />
+              )}
+              {message.attachments.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {message.attachments.map((attachment) => (
+                    <AttachmentChip
+                      key={attachment.id}
+                      attachment={attachment}
+                      onSelect={
+                        onSelectAttachment
+                          ? () => onSelectAttachment(attachment)
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </li>
+          ),
+        )}
         {pendingAssistant && (
           <li className="text-muted-foreground w-full text-xs">thinking…</li>
         )}
