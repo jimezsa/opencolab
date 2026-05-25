@@ -433,10 +433,17 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
               : "Choose an agent to start chatting."}
           </Empty>
         )}
-        {activeTurn && selectedAgentId && transcriptAtBottom && (
-          <LiveStatus agentId={selectedAgentId} turn={activeTurn} />
-        )}
-        {transcriptAtBottom && (
+        <div
+          className={`flex flex-col gap-2 transition-opacity duration-150 ${
+            transcriptAtBottom
+              ? "opacity-100"
+              : "pointer-events-none opacity-0"
+          }`}
+          aria-hidden={!transcriptAtBottom}
+        >
+          {activeTurn && selectedAgentId && (
+            <LiveStatus agentId={selectedAgentId} turn={activeTurn} />
+          )}
           <Composer
             projectId={projectId}
             agentId={selectedAgentId}
@@ -446,7 +453,7 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
             onStop={() => void handleStop()}
             blockedReason={composerBlocker}
           />
-        )}
+        </div>
       </section>
 
         <aside className="flex min-h-0 flex-col gap-3 rounded-lg border bg-background p-3">

@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { MarkdownMessage } from "@/components/markdown/markdown-message"
 import { AttachmentChip } from "./attachment-chip"
 import type { WebChatAttachment, WebChatMessage } from "@shared/types"
-import { ArrowUpToLineIcon } from "lucide-react"
+import { ArrowUpToLineIcon, XIcon } from "lucide-react"
 import {
   useCallback,
   useEffect,
@@ -10,6 +10,7 @@ import {
   useState,
   type UIEvent,
 } from "react"
+import { createPortal } from "react-dom"
 
 interface MessagesListProps {
   agentId: string | null
@@ -26,36 +27,96 @@ interface AttachmentsRowProps {
   onSelect?: (attachment: WebChatAttachment) => void
 }
 
+interface ImageLightboxProps {
+  attachment: WebChatAttachment
+  onClose: () => void
+}
+
+function ImageLightbox({ attachment, onClose }: ImageLightboxProps) {
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", handler)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      window.removeEventListener("keydown", handler)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={attachment.name}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+    >
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          onClose()
+        }}
+        aria-label="Close image preview"
+        className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+      >
+        <XIcon className="size-5" />
+      </button>
+      <img
+        src={attachment.previewUrl}
+        alt={attachment.name}
+        onClick={(event) => event.stopPropagation()}
+        className="max-h-[92vh] max-w-[92vw] cursor-default rounded-md object-contain shadow-2xl"
+      />
+    </div>,
+    document.body,
+  )
+}
+
 function AttachmentsRow({ attachments, onSelect }: AttachmentsRowProps) {
+  const [lightbox, setLightbox] = useState<WebChatAttachment | null>(null)
   if (attachments.length === 0) return null
+  const images = attachments.filter((a) => a.kind === "image")
+  const others = attachments.filter((a) => a.kind !== "image")
   return (
-    <div className="mt-2 flex flex-wrap items-start gap-2">
-      {attachments.map((attachment) =>
-        attachment.kind === "image" ? (
-          <button
-            key={attachment.id}
-            type="button"
-            onClick={onSelect ? () => onSelect(attachment) : undefined}
-            disabled={!onSelect}
-            title={attachment.name}
-            className="block max-w-full overflow-hidden rounded-lg border bg-background transition-shadow hover:shadow-sm disabled:cursor-default"
-          >
-            <img
-              src={attachment.previewUrl}
-              alt={attachment.name}
-              loading="lazy"
-              className="max-h-72 max-w-xs object-contain"
-            />
-          </button>
-        ) : (
-          <AttachmentChip
-            key={attachment.id}
-            attachment={attachment}
-            onSelect={
-              onSelect ? () => onSelect(attachment) : undefined
-            }
+    <div className="mt-2 flex flex-col gap-2">
+      {images.map((attachment) => (
+        <button
+          key={attachment.id}
+          type="button"
+          onClick={() => setLightbox(attachment)}
+          title={attachment.name}
+          className="block w-full overflow-hidden rounded-lg bg-background transition-shadow hover:shadow-sm"
+        >
+          <img
+            src={attachment.previewUrl}
+            alt={attachment.name}
+            loading="lazy"
+            className="max-h-[28rem] w-full object-contain"
           />
-        ),
+        </button>
+      ))}
+      {others.length > 0 && (
+        <div className="flex flex-wrap items-start gap-2">
+          {others.map((attachment) => (
+            <AttachmentChip
+              key={attachment.id}
+              attachment={attachment}
+              onSelect={
+                onSelect ? () => onSelect(attachment) : undefined
+              }
+            />
+          ))}
+        </div>
+      )}
+      {lightbox && (
+        <ImageLightbox
+          attachment={lightbox}
+          onClose={() => setLightbox(null)}
+        />
       )}
     </div>
   )

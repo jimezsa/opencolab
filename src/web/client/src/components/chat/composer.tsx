@@ -80,7 +80,7 @@ export function Composer({
   }, [draft, attachments, sendDisabled, onSend])
 
   return (
-    <div className="border-input bg-background flex flex-col gap-2 rounded-lg border p-2">
+    <div className="bg-background flex flex-col gap-2 rounded-lg p-2">
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {attachments.map((attachment) => (
