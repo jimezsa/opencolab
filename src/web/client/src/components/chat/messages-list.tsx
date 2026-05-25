@@ -1,15 +1,25 @@
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
 import { MarkdownMessage } from "@/components/markdown/markdown-message"
 import { AttachmentChip } from "./attachment-chip"
 import type { WebChatAttachment, WebChatMessage } from "@shared/types"
-import { useEffect, useRef } from "react"
+import { ArrowUpToLineIcon } from "lucide-react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type UIEvent,
+} from "react"
 
 interface MessagesListProps {
   agentId: string | null
   messages: WebChatMessage[]
   onSelectAttachment?: (attachment: WebChatAttachment) => void
   pendingAssistant?: boolean
+  onIsAtBottomChange?: (isAtBottom: boolean) => void
 }
+
+const NEAR_BOTTOM_PX = 80
 
 interface AttachmentsRowProps {
   attachments: WebChatAttachment[]
@@ -56,22 +66,61 @@ export function MessagesList({
   messages,
   onSelectAttachment,
   pendingAssistant,
+  onIsAtBottomChange,
 }: MessagesListProps) {
+  const viewportRef = useRef<HTMLDivElement | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" })
-  }, [messages.length, pendingAssistant])
+    onIsAtBottomChange?.(isAtBottom)
+  }, [isAtBottom, onIsAtBottomChange])
+
+  useEffect(() => {
+    if (isAtBottom) {
+      bottomRef.current?.scrollIntoView({ block: "end" })
+    }
+  }, [messages.length, pendingAssistant, isAtBottom])
+
+  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget
+    const distance = target.scrollHeight - target.scrollTop - target.clientHeight
+    setIsAtBottom(distance < NEAR_BOTTOM_PX)
+  }, [])
+
+  const scrollToTop = useCallback(() => {
+    viewportRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
 
   return (
-    <ScrollArea className="flex-1 min-h-0 pr-2">
-      {messages.length === 0 && (
-        <div className="text-muted-foreground flex h-full items-center justify-center px-4 py-12 text-center text-sm">
-          {agentId
-            ? `Send a message to ${agentId} to start this session.`
-            : "Choose an agent to start chatting."}
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {messages.length > 0 && (
+        <div className="pointer-events-none absolute inset-x-0 top-1 z-10 flex justify-center">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={scrollToTop}
+            className="pointer-events-auto rounded-full shadow-sm"
+          >
+            <ArrowUpToLineIcon className="size-4" />
+            View full session
+          </Button>
         </div>
       )}
-      <ul className="flex flex-col gap-5 py-2">
+      <div
+        ref={viewportRef}
+        onScroll={handleScroll}
+        className="flex-1 min-h-0 overflow-y-auto pr-2"
+      >
+        {messages.length === 0 && (
+          <div className="text-muted-foreground flex h-full items-center justify-center px-4 py-12 text-center text-sm">
+            {agentId
+              ? `Send a message to ${agentId} to start this session.`
+              : "Choose an agent to start chatting."}
+          </div>
+        )}
+        <ul className="flex flex-col gap-5 py-2">
         {messages.map((message) =>
           message.role === "user" ? (
             <li key={message.id} className="flex justify-end">
@@ -109,8 +158,9 @@ export function MessagesList({
         {pendingAssistant && (
           <li className="text-muted-foreground w-full text-xs">thinking…</li>
         )}
-      </ul>
-      <div ref={bottomRef} />
-    </ScrollArea>
+        </ul>
+        <div ref={bottomRef} />
+      </div>
+    </div>
   )
 }

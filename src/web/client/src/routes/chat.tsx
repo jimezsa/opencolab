@@ -148,6 +148,7 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
   const [selectedAttachment, setSelectedAttachment] =
     useState<WebChatAttachment | null>(null)
   const [sendBlocker, setSendBlocker] = useState<SendBlocker>(null)
+  const [transcriptAtBottom, setTranscriptAtBottom] = useState(true)
   const messageRefreshKey = useRef(0)
 
   const selectedSessionId =
@@ -417,6 +418,7 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
               setSelectedAttachment(attachment)
             }
             pendingAssistant={running}
+            onIsAtBottomChange={setTranscriptAtBottom}
           />
         ) : agentsState.status === "loading" || sessionsLoading ? (
           <div className="flex flex-col gap-2 p-2">
@@ -431,18 +433,20 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
               : "Choose an agent to start chatting."}
           </Empty>
         )}
-        {activeTurn && selectedAgentId && (
+        {activeTurn && selectedAgentId && transcriptAtBottom && (
           <LiveStatus agentId={selectedAgentId} turn={activeTurn} />
         )}
-        <Composer
-          projectId={projectId}
-          agentId={selectedAgentId}
-          disabled={composerDisabled}
-          running={running}
-          onSend={handleSend}
-          onStop={() => void handleStop()}
-          blockedReason={composerBlocker}
-        />
+        {transcriptAtBottom && (
+          <Composer
+            projectId={projectId}
+            agentId={selectedAgentId}
+            disabled={composerDisabled}
+            running={running}
+            onSend={handleSend}
+            onStop={() => void handleStop()}
+            blockedReason={composerBlocker}
+          />
+        )}
       </section>
 
         <aside className="flex min-h-0 flex-col gap-3 rounded-lg border bg-background p-3">
