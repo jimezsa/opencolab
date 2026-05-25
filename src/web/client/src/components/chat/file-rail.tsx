@@ -38,7 +38,7 @@ export function FileRail({ attachments, selected, onSelect }: FileRailProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
       <h3 className="text-sm font-medium">Returned files</h3>
-      <ScrollArea className="flex-1 min-h-0 rounded-md border p-2 text-xs">
+      <ScrollArea className="flex-1 min-h-0 rounded-md p-2 text-xs">
         {attachments.length === 0 && (
           <p className="text-muted-foreground">
             no files returned yet

@@ -408,7 +408,7 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
   return (
     <div className="flex min-h-0 w-full flex-1 justify-center">
       <div className="grid h-full min-h-0 w-full max-w-6xl flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <section className="flex min-h-0 flex-col gap-2 rounded-lg border bg-background p-3">
+        <section className="flex min-h-0 flex-col gap-2 rounded-lg bg-background p-3">
         {sessionDetail || optimisticMessages.length > 0 ? (
           <MessagesList
             agentId={selectedAgentId}
