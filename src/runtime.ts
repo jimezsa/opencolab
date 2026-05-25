@@ -60,6 +60,7 @@ import { resolveRuntimeRootDir } from "./install.js";
 import type {
   AgentMemoryContext,
   AgentConfig,
+  ConversationMessage,
   ExecutionTargetAvailabilityResult,
   ExecutionTargetConfig,
   ExecutionTargetTestResult,
@@ -78,7 +79,9 @@ import type {
   ProviderAuthMode,
   ProviderName,
   ProviderReasoningEffort,
-  TaskProgressKind
+  TaskProgressEvent,
+  TaskProgressKind,
+  TelegramFilePayload
 } from "./types.js";
 import { ensureDir, nowIso } from "./utils.js";
 
@@ -203,6 +206,18 @@ export interface ManualSshSessionWriteInput {
   sessionId: string;
   input: string;
   appendNewline?: boolean;
+}
+
+export interface WebChatTurnInput {
+  projectId: string;
+  agentId: string;
+  text: string;
+  files: TelegramFilePayload[];
+}
+
+export interface WebChatTurnOptions {
+  signal: AbortSignal;
+  onProgress: (event: TaskProgressEvent) => void | Promise<void>;
 }
 
 export class OpenColabRuntime {
@@ -870,6 +885,87 @@ export class OpenColabRuntime {
 
   async handleTelegramWebhook(body: unknown): Promise<GatewayResult> {
     return this.gateway.handleWebhook(body);
+  }
+
+  resolveProjectAgentPair(projectId: string, agentId: string): { project: ProjectState; agent: AgentConfig } {
+    const project = this.state.projects[projectId];
+    if (!project) {
+      throw new Error(`Unknown project: ${projectId}`);
+    }
+    const agent = project.agents[agentId];
+    if (!agent) {
+      throw new Error(`Unknown agent in project '${projectId}': ${agentId}`);
+    }
+    return { project, agent };
+  }
+
+  isAgentBusyOnGateway(projectId: string, agentId: string): boolean {
+    return this.gateway.isAgentBusy(projectId, agentId);
+  }
+
+  webChatActiveSessionId(projectId: string, agentId: string): string {
+    const { agent } = this.resolveProjectAgentPair(projectId, agentId);
+    return this.conversations.getActiveSessionId(agent.path);
+  }
+
+  webChatListSessionIds(projectId: string, agentId: string): string[] {
+    const { agent } = this.resolveProjectAgentPair(projectId, agentId);
+    return this.conversations.listSessionIds(agent.path);
+  }
+
+  webChatReadSessionMessages(
+    projectId: string,
+    agentId: string,
+    sessionId: string
+  ): ConversationMessage[] {
+    const { agent } = this.resolveProjectAgentPair(projectId, agentId);
+    return this.conversations.readSessionMessages(agent.path, sessionId);
+  }
+
+  webChatActivateSession(projectId: string, agentId: string, sessionId: string): boolean {
+    const { agent } = this.resolveProjectAgentPair(projectId, agentId);
+    return this.conversations.activateSession(agent.path, sessionId);
+  }
+
+  webChatResetSession(projectId: string, agentId: string): string {
+    const { agent } = this.resolveProjectAgentPair(projectId, agentId);
+    ensureAgentFiles(this.config.rootDir, agent);
+    return this.conversations.resetSession(agent.path);
+  }
+
+  webChatAppend(
+    projectId: string,
+    agentId: string,
+    message: ConversationMessage
+  ): void {
+    const { agent } = this.resolveProjectAgentPair(projectId, agentId);
+    this.conversations.append(agent.path, message);
+  }
+
+  async runWebChatTurn(
+    input: WebChatTurnInput,
+    options: WebChatTurnOptions
+  ): Promise<string> {
+    const { project, agent } = this.resolveProjectAgentPair(input.projectId, input.agentId);
+    ensureAgentFiles(this.config.rootDir, agent);
+    const memory = this.conversations.readPromptMemory(agent.path, 8);
+    const responder = this.options.agentResponder
+      ? (req: ProviderAgentInput, opts?: ProviderRespondOptions) => this.options.agentResponder!(req, opts)
+      : (req: ProviderAgentInput, opts?: ProviderRespondOptions) =>
+          this.providerAgent.respondFor(project, agent, req, opts);
+    return responder(
+      {
+        chatId: "",
+        sender: "web-chat",
+        text: input.text,
+        files: input.files,
+        memory
+      },
+      {
+        signal: options.signal,
+        onProgress: options.onProgress
+      }
+    );
   }
 
   async runHeartbeatTick(now = new Date()): Promise<boolean> {

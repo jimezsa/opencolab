@@ -2,6 +2,14 @@ import type {
   WebAgentDetail,
   WebAgentSummary,
   WebArtifactSummary,
+  WebChatAgentOption,
+  WebChatNewSessionResponse,
+  WebChatSendRequest,
+  WebChatSendResponse,
+  WebChatSessionDetail,
+  WebChatSessionSummary,
+  WebChatTurn,
+  WebChatUploadResponse,
   WebConversationDetail,
   WebConversationSummary,
   WebGpuRunSummary,
@@ -24,17 +32,82 @@ export function researchFileUrl(
   return `${API_BASE}/projects/${encodeURIComponent(projectId)}/research/${encodeURIComponent(runId)}/file?${params.toString()}`
 }
 
+export class ApiError extends Error {
+  readonly status: number
+  readonly body: unknown
+  constructor(status: number, message: string, body: unknown) {
+    super(message)
+    this.status = status
+    this.body = body
+  }
+}
+
 async function request<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { Accept: "application/json" },
   })
   if (!response.ok) {
     const text = await response.text().catch(() => "")
-    throw new Error(
+    throw new ApiError(
+      response.status,
       `API ${response.status} ${response.statusText}: ${text || path}`,
+      tryParseJson(text),
     )
   }
   return (await response.json()) as T
+}
+
+async function postJson<T>(path: string, payload: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload ?? {}),
+  })
+  const text = await response.text().catch(() => "")
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      `API ${response.status} ${response.statusText}: ${text || path}`,
+      tryParseJson(text),
+    )
+  }
+  return (text ? (JSON.parse(text) as T) : (undefined as unknown as T))
+}
+
+async function postForm<T>(path: string, form: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    body: form,
+  })
+  const text = await response.text().catch(() => "")
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      `API ${response.status} ${response.statusText}: ${text || path}`,
+      tryParseJson(text),
+    )
+  }
+  return (text ? (JSON.parse(text) as T) : (undefined as unknown as T))
+}
+
+function tryParseJson(text: string): unknown {
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+export function chatFileUrl(projectId: string, fileId: string): string {
+  return `${API_BASE}/projects/${encodeURIComponent(projectId)}/chat/files/${encodeURIComponent(fileId)}`
+}
+
+export function chatTurnEventsUrl(projectId: string, turnId: string): string {
+  return `${API_BASE}/projects/${encodeURIComponent(projectId)}/chat/turns/${encodeURIComponent(turnId)}/events`
 }
 
 export const api = {
@@ -96,6 +169,48 @@ export const api = {
     request<WebResearchRunDetail>(
       `/projects/${encodeURIComponent(projectId)}/research/${encodeURIComponent(runId)}`,
     ),
+  chatAgents: (projectId: string) =>
+    request<WebChatAgentOption[]>(
+      `/projects/${encodeURIComponent(projectId)}/chat/agents`,
+    ),
+  chatSessions: (projectId: string, agentId: string) =>
+    request<WebChatSessionSummary[]>(
+      `/projects/${encodeURIComponent(projectId)}/chat/sessions?agentId=${encodeURIComponent(agentId)}`,
+    ),
+  chatSession: (projectId: string, agentId: string, sessionId: string) =>
+    request<WebChatSessionDetail>(
+      `/projects/${encodeURIComponent(projectId)}/chat/sessions/${encodeURIComponent(sessionId)}?agentId=${encodeURIComponent(agentId)}`,
+    ),
+  chatNewSession: (projectId: string, agentId: string) =>
+    postJson<WebChatNewSessionResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chat/sessions/new`,
+      { agentId },
+    ),
+  chatSend: (projectId: string, payload: WebChatSendRequest) =>
+    postJson<WebChatSendResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chat/send`,
+      payload,
+    ),
+  chatStop: (projectId: string, turnId: string) =>
+    postJson<WebChatTurn>(
+      `/projects/${encodeURIComponent(projectId)}/chat/turns/${encodeURIComponent(turnId)}/stop`,
+      {},
+    ),
+  chatTurn: (projectId: string, turnId: string) =>
+    request<WebChatTurn>(
+      `/projects/${encodeURIComponent(projectId)}/chat/turns/${encodeURIComponent(turnId)}`,
+    ),
+  chatUpload: (projectId: string, agentId: string, files: File[]) => {
+    const form = new FormData()
+    form.append("agentId", agentId)
+    for (const file of files) {
+      form.append("files", file, file.name)
+    }
+    return postForm<WebChatUploadResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chat/uploads`,
+      form,
+    )
+  },
 }
 
 export type { WebOverview, WebProjectDetail, WebAgentDetail, WebHealthStatus }

@@ -228,3 +228,124 @@ export interface WebResearchRunDetail extends WebResearchRun {
     body: string;
   };
 }
+
+export type WebChatTurnStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "stopped"
+  | "timed_out";
+
+export type WebChatAttachmentKind =
+  | "pdf"
+  | "markdown"
+  | "image"
+  | "text"
+  | "archive"
+  | "audio"
+  | "video"
+  | "other";
+
+export type WebChatProgressKind =
+  | "started"
+  | "milestone"
+  | "progress"
+  | "warning"
+  | "needs_input"
+  | "completed";
+
+export interface WebChatProgressEvent {
+  kind: WebChatProgressKind;
+  message: string;
+  stage?: string;
+  current?: number;
+  total?: number;
+  slot?: string;
+  at: string;
+}
+
+export interface WebChatAttachment {
+  id: string;
+  name: string;
+  kind: WebChatAttachmentKind;
+  mimeType: string | null;
+  sizeBytes: number;
+  relativePath: string;
+  previewUrl: string;
+  rawUrl: string;
+  source: "upload" | "returned";
+}
+
+export interface WebChatAgentOption {
+  id: string;
+  projectId: string;
+  active: boolean;
+  busy: boolean;
+  provider: WebProviderInfo;
+  todoSummary: string | null;
+}
+
+export interface WebChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  at: string;
+  attachments: WebChatAttachment[];
+}
+
+export interface WebChatTurn {
+  turnId: string;
+  projectId: string;
+  agentId: string;
+  sessionId: string;
+  status: WebChatTurnStatus;
+  startedAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  lastProgress: string | null;
+  progress: WebChatProgressEvent[];
+  returnedFiles: WebChatAttachment[];
+  error: string | null;
+  durationMs: number | null;
+}
+
+export interface WebChatSessionSummary {
+  sessionId: string;
+  projectId: string;
+  agentId: string;
+  active: boolean;
+  messageCount: number;
+  lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+}
+
+export interface WebChatSessionDetail {
+  projectId: string;
+  agentId: string;
+  sessionId: string;
+  active: boolean;
+  messages: WebChatMessage[];
+  runningTurn: WebChatTurn | null;
+}
+
+export interface WebChatSendRequest {
+  agentId: string;
+  sessionId?: string;
+  message: string;
+  uploadIds?: string[];
+}
+
+export interface WebChatSendResponse {
+  turnId: string;
+  sessionId: string;
+  status: WebChatTurnStatus;
+}
+
+export interface WebChatUploadResponse {
+  uploads: WebChatAttachment[];
+}
+
+export interface WebChatNewSessionResponse {
+  sessionId: string;
+}

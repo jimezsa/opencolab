@@ -8,6 +8,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { OpenColabRuntime } from "../../runtime.js";
 import { listAgentSummaries, getAgentDetail } from "./agents.js";
 import { listProjectArtifacts } from "./artifacts.js";
+import { handleChatRoute } from "./chat.js";
 import {
   getConversationDetail,
   listAgentConversations,
@@ -41,6 +42,17 @@ export async function handleWebRequest(
   const pathname = url.pathname;
 
   if (pathname.startsWith("/api/web/")) {
+    const chatMatch = /^\/api\/web\/projects\/([^/]+)\/chat(\/.*)?$/u.exec(pathname);
+    if (chatMatch) {
+      const projectId = decodeURIComponent(chatMatch[1]);
+      const rest = chatMatch[2] ?? "";
+      const handled = await handleChatRoute(runtime, request, response, url, projectId, rest);
+      if (handled) {
+        return true;
+      }
+      sendJson(response, 404, { error: "not_found" });
+      return true;
+    }
     if (method !== "GET") {
       sendJson(response, 405, { error: "method_not_allowed" });
       return true;

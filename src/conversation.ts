@@ -35,6 +35,56 @@ export class ConversationStore {
     return sessionId;
   }
 
+  getActiveSessionId(agentPath: string): string {
+    const sessionsDir = this.sessionsDir(agentPath);
+    ensureDir(sessionsDir);
+    const marker = this.readActiveSessionId(sessionsDir);
+    if (marker && fs.existsSync(path.join(sessionsDir, marker))) {
+      return marker;
+    }
+    const directories = this.listSessionDirectories(sessionsDir);
+    const latest = directories[directories.length - 1];
+    if (latest) {
+      this.writeActiveSessionId(sessionsDir, latest);
+      return latest;
+    }
+    return this.resetSession(agentPath);
+  }
+
+  listSessionIds(agentPath: string): string[] {
+    const sessionsDir = this.sessionsDir(agentPath);
+    if (!fs.existsSync(sessionsDir)) {
+      return [];
+    }
+    return this.listSessionDirectories(sessionsDir);
+  }
+
+  activateSession(agentPath: string, sessionId: string): boolean {
+    if (!sessionId) {
+      return false;
+    }
+    const sessionsDir = this.sessionsDir(agentPath);
+    const targetDir = path.join(sessionsDir, sessionId);
+    if (!fs.existsSync(targetDir)) {
+      return false;
+    }
+    this.writeActiveSessionId(sessionsDir, sessionId);
+    return true;
+  }
+
+  readSessionMessages(agentPath: string, sessionId: string): ConversationMessage[] {
+    const sessionsDir = this.sessionsDir(agentPath);
+    const sessionDir = path.join(sessionsDir, sessionId);
+    if (!fs.existsSync(sessionDir)) {
+      return [];
+    }
+    const collected: ConversationMessage[] = [];
+    for (const filePath of this.listSessionFiles(sessionDir)) {
+      collected.push(...this.readConversationFile(filePath));
+    }
+    return collected;
+  }
+
   private resolveCurrentSessionDir(agentPath: string): string {
     const sessionsDir = this.sessionsDir(agentPath);
     ensureDir(sessionsDir);

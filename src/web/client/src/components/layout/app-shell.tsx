@@ -52,6 +52,7 @@ function describeRoute(
     if (pathname.endsWith("/agents")) return { title: "Agents", subtitle }
     if (pathname.includes("/agents/"))
       return { title: "Agent", subtitle }
+    if (pathname.endsWith("/chat")) return { title: "Chat", subtitle }
     if (pathname.endsWith("/conversations"))
       return { title: "Conversations", subtitle }
     if (pathname.includes("/conversations/"))
