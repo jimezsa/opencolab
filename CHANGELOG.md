@@ -36,10 +36,12 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - The Studio client bundle now imports `katex/dist/katex.min.css` at the app entry so math rendering works in chat messages, returned Markdown previews, and any future Markdown viewer that opts into the shared component.
 - Added `katex`, `remark-math`, and `rehype-katex` as Studio client dependencies in `src/web/client/package.json`.
 - Studio chat transcript styling now drops the bordered message bubble for assistant turns so the agent's Markdown response spans the full transcript width without any framing. User turns render as a right-aligned, rounded (`rounded-2xl`) light-orange bubble (`bg-orange-100`, dark-mode tinted `bg-orange-500/15`) capped at 85% width with a small grey `you` label on top; assistant turns no longer carry a label. The "thinking…" pending indicator is now plain muted text instead of a bordered chip.
+- The Studio chat agent picker and session list have moved out of the chat route's left column into a new "Chat" sidebar group. A `ChatSidebarHost` context wraps the AppShell tree so the chat route registers its agents, sessions, selection callbacks, and loading flags through `useRegisterChatSidebar`, and the sidebar reads them via `useChatSidebarValue`. The chat route now renders a 2-column layout (transcript + right rail) capped at `max-w-6xl` with `mx-auto`, so the conversation stays centered when the sidebar collapses instead of stretching to fill the inset.
 
 ### Removed
 
 - Removed the Studio Conversations page (`/projects/:projectId/conversations`), its sidebar entry, the project-detail "Conversations" tab, the matching `GET /api/web/projects/:projectId/conversations` and `GET /api/web/projects/:projectId/conversations/:sessionId` HTTP routes, the `api.conversations` / `api.conversation` client helpers, and the now-dead `getConversationDetail` / `isActiveSession` / `toWebMessage` server helpers. The new chat route supersedes the dedicated conversations browser; the `listProjectConversations` / `listAgentConversations` DTO builders stay because the dashboard, agent detail "recent sessions", and chat session list still consume them.
+- Dropped the "Overview" entry (and its unused `Badge` import) from the Active Project sidebar group; the project overview is still reachable by clicking a project card on `/projects`.
 
 ### Fixed
 

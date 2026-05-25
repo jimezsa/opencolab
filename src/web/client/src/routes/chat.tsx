@@ -401,7 +401,7 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
   useRegisterChatSidebar(sidebarValue)
 
   return (
-    <div className="grid h-full min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="mx-auto grid h-full min-h-0 w-full max-w-6xl flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="flex min-h-0 flex-col gap-2 rounded-lg border bg-background p-3">
         {sessionDetail || optimisticMessages.length > 0 ? (
           <MessagesList

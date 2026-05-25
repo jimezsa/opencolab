@@ -10,7 +10,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Badge } from "@/components/ui/badge"
 import {
   BeakerIcon,
   CpuIcon,
@@ -110,21 +109,6 @@ export function AppSidebar({ active, status }: AppSidebarProps) {
             <SidebarGroupLabel>Active Project</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname === projectBase}
-                    tooltip="Overview"
-                  >
-                    <Link to={projectBase}>
-                      <BeakerIcon />
-                      <span>Overview</span>
-                      <Badge variant="secondary" className="ml-auto">
-                        {active?.projectId}
-                      </Badge>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
                 {PROJECT_ITEMS.map((item) => {
                   const to = `${projectBase}${item.suffix}`
                   return (
