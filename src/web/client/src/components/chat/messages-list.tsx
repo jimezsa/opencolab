@@ -11,6 +11,46 @@ interface MessagesListProps {
   pendingAssistant?: boolean
 }
 
+interface AttachmentsRowProps {
+  attachments: WebChatAttachment[]
+  onSelect?: (attachment: WebChatAttachment) => void
+}
+
+function AttachmentsRow({ attachments, onSelect }: AttachmentsRowProps) {
+  if (attachments.length === 0) return null
+  return (
+    <div className="mt-2 flex flex-wrap items-start gap-2">
+      {attachments.map((attachment) =>
+        attachment.kind === "image" ? (
+          <button
+            key={attachment.id}
+            type="button"
+            onClick={onSelect ? () => onSelect(attachment) : undefined}
+            disabled={!onSelect}
+            title={attachment.name}
+            className="block max-w-full overflow-hidden rounded-lg border bg-background transition-shadow hover:shadow-sm disabled:cursor-default"
+          >
+            <img
+              src={attachment.previewUrl}
+              alt={attachment.name}
+              loading="lazy"
+              className="max-h-72 max-w-xs object-contain"
+            />
+          </button>
+        ) : (
+          <AttachmentChip
+            key={attachment.id}
+            attachment={attachment}
+            onSelect={
+              onSelect ? () => onSelect(attachment) : undefined
+            }
+          />
+        ),
+      )}
+    </div>
+  )
+}
+
 export function MessagesList({
   agentId,
   messages,
@@ -45,21 +85,10 @@ export function MessagesList({
                     className="prose prose-sm max-w-none break-words dark:prose-invert"
                   />
                 )}
-                {message.attachments.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {message.attachments.map((attachment) => (
-                      <AttachmentChip
-                        key={attachment.id}
-                        attachment={attachment}
-                        onSelect={
-                          onSelectAttachment
-                            ? () => onSelectAttachment(attachment)
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
+                <AttachmentsRow
+                  attachments={message.attachments}
+                  onSelect={onSelectAttachment}
+                />
               </div>
             </li>
           ) : (
@@ -70,21 +99,10 @@ export function MessagesList({
                   className="prose prose-sm max-w-none break-words dark:prose-invert"
                 />
               )}
-              {message.attachments.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {message.attachments.map((attachment) => (
-                    <AttachmentChip
-                      key={attachment.id}
-                      attachment={attachment}
-                      onSelect={
-                        onSelectAttachment
-                          ? () => onSelectAttachment(attachment)
-                          : undefined
-                      }
-                    />
-                  ))}
-                </div>
-              )}
+              <AttachmentsRow
+                attachments={message.attachments}
+                onSelect={onSelectAttachment}
+              />
             </li>
           ),
         )}
