@@ -53,10 +53,6 @@ function describeRoute(
     if (pathname.includes("/agents/"))
       return { title: "Agent", subtitle }
     if (pathname.endsWith("/chat")) return { title: "Chat", subtitle }
-    if (pathname.endsWith("/conversations"))
-      return { title: "Conversations", subtitle }
-    if (pathname.includes("/conversations/"))
-      return { title: "Conversation", subtitle }
     if (pathname.endsWith("/artifacts")) return { title: "Artifacts", subtitle }
     if (pathname.endsWith("/workflows")) return { title: "Workflows", subtitle }
     if (pathname.endsWith("/gpu-runs")) return { title: "GPU Runs", subtitle }

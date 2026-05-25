@@ -6,7 +6,6 @@ import ProjectDetailRoute from "@/routes/project-detail"
 import AgentsRoute from "@/routes/agents"
 import AgentDetailRoute from "@/routes/agent-detail"
 import ChatRoute from "@/routes/chat"
-import ConversationsRoute from "@/routes/conversations"
 import ArtifactsRoute from "@/routes/artifacts"
 import GpuRunsRoute from "@/routes/gpu-runs"
 import ResearchRoute from "@/routes/research"
@@ -34,10 +33,6 @@ export function App() {
           <Route
             path="projects/:projectId/chat"
             element={<ChatRoute />}
-          />
-          <Route
-            path="projects/:projectId/conversations"
-            element={<ConversationsRoute />}
           />
           <Route
             path="projects/:projectId/artifacts"

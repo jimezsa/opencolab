@@ -20,7 +20,6 @@ import {
   GitBranchIcon,
   LayoutDashboardIcon,
   MessageSquareIcon,
-  MessagesSquareIcon,
   SettingsIcon,
   UsersIcon,
 } from "lucide-react"
@@ -47,7 +46,6 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
 const PROJECT_ITEMS = [
   { suffix: "/agents", label: "Agents", icon: UsersIcon },
   { suffix: "/chat", label: "Chat", icon: MessageSquareIcon },
-  { suffix: "/conversations", label: "Conversations", icon: MessagesSquareIcon },
   { suffix: "/research", label: "Research", icon: FlaskConicalIcon },
   { suffix: "/artifacts", label: "Artifacts", icon: FileBoxIcon },
   { suffix: "/workflows", label: "Workflows", icon: GitBranchIcon },

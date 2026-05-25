@@ -10,8 +10,6 @@ import type {
   WebChatSessionSummary,
   WebChatTurn,
   WebChatUploadResponse,
-  WebConversationDetail,
-  WebConversationSummary,
   WebGpuRunSummary,
   WebHealthStatus,
   WebOverview,
@@ -124,27 +122,6 @@ export const api = {
     request<WebAgentDetail>(
       `/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(agentId)}`,
     ),
-  conversations: (projectId: string, agentId?: string, limit?: number) => {
-    const params = new URLSearchParams()
-    if (agentId) params.set("agentId", agentId)
-    if (limit) params.set("limit", String(limit))
-    const query = params.toString() ? `?${params.toString()}` : ""
-    return request<WebConversationSummary[]>(
-      `/projects/${encodeURIComponent(projectId)}/conversations${query}`,
-    )
-  },
-  conversation: (
-    projectId: string,
-    sessionId: string,
-    agentId: string,
-    date?: string,
-  ) => {
-    const params = new URLSearchParams({ agentId })
-    if (date) params.set("date", date)
-    return request<WebConversationDetail>(
-      `/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(sessionId)}?${params.toString()}`,
-    )
-  },
   artifacts: (projectId: string, limit?: number) => {
     const query = limit ? `?limit=${limit}` : ""
     return request<WebArtifactSummary[]>(

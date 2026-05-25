@@ -74,7 +74,6 @@ export default function ProjectDetailRoute() {
       <Tabs defaultValue="agents">
         <TabsList>
           <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TabsTrigger value="conversations">Conversations</TabsTrigger>
           <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
           <TabsTrigger value="runs">GPU runs</TabsTrigger>
         </TabsList>
@@ -93,40 +92,6 @@ export default function ProjectDetailRoute() {
               ))}
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="conversations">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Agent</TableHead>
-                <TableHead>Session</TableHead>
-                <TableHead>Messages</TableHead>
-                <TableHead className="text-right">Last</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.recentSessions.map((session) => (
-                <TableRow key={`${session.agentId}-${session.sessionId}`}>
-                  <TableCell className="font-mono text-xs">
-                    {session.agentId}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {session.sessionId}
-                    {session.active && (
-                      <Badge variant="secondary" className="ml-2">
-                        active
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs">{session.messageCount}</TableCell>
-                  <TableCell className="text-muted-foreground text-right text-xs">
-                    {formatRelativeTime(session.lastMessageAt)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         </TabsContent>
 
         <TabsContent value="artifacts">

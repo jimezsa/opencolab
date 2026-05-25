@@ -6,11 +6,7 @@ import path from "node:path";
 import { resolveAgentDirectory } from "../../agent.js";
 import type { OpenColabRuntime } from "../../runtime.js";
 import type { AgentConfig, ConversationMessage, ProjectState } from "../../types.js";
-import type {
-  WebConversationDetail,
-  WebConversationMessage,
-  WebConversationSummary
-} from "../shared/types.js";
+import type { WebConversationSummary } from "../shared/types.js";
 
 interface ListOptions {
   limit?: number;
@@ -50,52 +46,6 @@ export function listAgentConversations(
     (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? "")
   );
   return options.limit && options.limit > 0 ? sessions.slice(0, options.limit) : sessions;
-}
-
-export function getConversationDetail(
-  runtime: OpenColabRuntime,
-  projectId: string,
-  agentId: string,
-  sessionId: string,
-  date: string | null
-): WebConversationDetail | null {
-  const project = runtime.getState().projects[projectId];
-  const agent = project?.agents[agentId];
-  if (!project || !agent) {
-    return null;
-  }
-  const sessionsDir = sessionsDirFor(runtime, agent);
-  const sessionDir = path.join(sessionsDir, sessionId);
-  if (!fs.existsSync(sessionDir)) {
-    return null;
-  }
-  const dayFiles = fs
-    .readdirSync(sessionDir)
-    .filter((name) => name.endsWith(".jsonl"))
-    .sort();
-  const targetFile = date
-    ? `${date}.jsonl`
-    : dayFiles[dayFiles.length - 1];
-  if (!targetFile) {
-    return {
-      sessionId,
-      projectId,
-      agentId,
-      date: date ?? "",
-      active: isActiveSession(sessionsDir, sessionId),
-      messages: []
-    };
-  }
-  const filePath = path.join(sessionDir, targetFile);
-  const messages = readMessages(filePath).map(toWebMessage);
-  return {
-    sessionId,
-    projectId,
-    agentId,
-    date: targetFile.replace(/\.jsonl$/u, ""),
-    active: isActiveSession(sessionsDir, sessionId),
-    messages
-  };
 }
 
 function collectAgentSessions(
@@ -157,10 +107,6 @@ function readActiveSessionId(sessionsDir: string): string | null {
   return value || null;
 }
 
-function isActiveSession(sessionsDir: string, sessionId: string): boolean {
-  return readActiveSessionId(sessionsDir) === sessionId;
-}
-
 function readMessages(filePath: string): ConversationMessage[] {
   if (!fs.existsSync(filePath)) {
     return [];
@@ -180,14 +126,6 @@ function readMessages(filePath: string): ConversationMessage[] {
     }
   }
   return out;
-}
-
-function toWebMessage(message: ConversationMessage): WebConversationMessage {
-  return {
-    role: message.role,
-    content: message.content,
-    at: message.at
-  };
 }
 
 function previewMessage(content: string): string {

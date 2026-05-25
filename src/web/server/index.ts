@@ -9,11 +9,7 @@ import type { OpenColabRuntime } from "../../runtime.js";
 import { listAgentSummaries, getAgentDetail } from "./agents.js";
 import { listProjectArtifacts } from "./artifacts.js";
 import { handleChatRoute } from "./chat.js";
-import {
-  getConversationDetail,
-  listAgentConversations,
-  listProjectConversations
-} from "./conversations.js";
+import { listProjectConversations } from "./conversations.js";
 import { listProjectGpuRuns } from "./gpu-runs.js";
 import { buildHealthStatus } from "./health.js";
 import { getProjectDetail, listProjectSummaries } from "./projects.js";
@@ -137,34 +133,6 @@ function handleProjectRoute(
     const detail = getAgentDetail(runtime, projectId, decodeURIComponent(agentMatch[1]));
     if (!detail) {
       sendJson(response, 404, { error: "unknown_agent" });
-      return true;
-    }
-    sendJson(response, 200, detail);
-    return true;
-  }
-
-  if (rest === "/conversations") {
-    const agentFilter = url.searchParams.get("agentId") ?? null;
-    const limit = Number(url.searchParams.get("limit") ?? "0") || undefined;
-    const summaries = agentFilter
-      ? listAgentConversations(runtime, projectId, agentFilter, { limit })
-      : listProjectConversations(runtime, projectId, { limit });
-    sendJson(response, 200, summaries);
-    return true;
-  }
-
-  const conversationMatch = /^\/conversations\/([^/]+)$/u.exec(rest);
-  if (conversationMatch) {
-    const sessionId = decodeURIComponent(conversationMatch[1]);
-    const agentId = url.searchParams.get("agentId");
-    const date = url.searchParams.get("date");
-    if (!agentId) {
-      sendJson(response, 400, { error: "missing_agent_id" });
-      return true;
-    }
-    const detail = getConversationDetail(runtime, projectId, agentId, sessionId, date);
-    if (!detail) {
-      sendJson(response, 404, { error: "unknown_session" });
       return true;
     }
     sendJson(response, 200, detail);
