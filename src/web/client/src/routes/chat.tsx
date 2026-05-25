@@ -14,6 +14,9 @@ import { MessagesList } from "@/components/chat/messages-list"
 import { Composer } from "@/components/chat/composer"
 import { LiveStatus } from "@/components/chat/live-status"
 import { FileRail } from "@/components/chat/file-rail"
+import { AttachmentPreview } from "@/components/chat/attachment-preview"
+import { Button } from "@/components/ui/button"
+import { XIcon } from "lucide-react"
 import { useRegisterChatSidebar } from "@/components/chat/chat-sidebar-context"
 import type {
   WebChatAgentOption,
@@ -410,8 +413,9 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
     <div className="flex min-h-0 w-full flex-1 gap-3">
       <aside className="hidden w-72 shrink-0 lg:flex min-h-0 flex-col gap-3 rounded-lg bg-background p-3">
         <FileRail
+          projectId={projectId}
           attachments={lastAssistantAttachments}
-          selected={selectedAttachment}
+          selectedId={selectedAttachment?.id ?? null}
           onSelect={setSelectedAttachment}
         />
       </aside>
@@ -465,7 +469,30 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
       </section>
       </div>
 
-      <div aria-hidden className="hidden w-72 shrink-0 lg:block" />
+      {selectedAttachment ? (
+        <aside className="hidden w-[28rem] shrink-0 lg:flex min-h-0 flex-col gap-2 rounded-lg bg-background p-3">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium">
+              {selectedAttachment.name}
+            </span>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="ml-auto size-7"
+              onClick={() => setSelectedAttachment(null)}
+              aria-label="Close preview"
+              title="Close preview"
+            >
+              <XIcon className="size-4" />
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto">
+            <AttachmentPreview attachment={selectedAttachment} />
+          </div>
+        </aside>
+      ) : (
+        <div aria-hidden className="hidden w-72 shrink-0 lg:block" />
+      )}
     </div>
   )
 }
