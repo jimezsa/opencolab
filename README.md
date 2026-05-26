@@ -207,7 +207,7 @@ OpenColab configures provider CLIs for non-interactive runs inside the active pr
 - `openrouter`: `api_key` with `OPENROUTER_API_KEY` through the `pi` runtime
 - `kimi`: `api_key` with `KIMI_API_KEY` through the `pi` runtime, mapped to the upstream `kimi-coding` provider id
 - `ignite` and `opencolab setup model` expose native reasoning-effort choices when the selected provider/model supports them
-- OpenAI `gpt-5.4`: `low`, `medium`, `high`, `xhigh`; default `high`
+- OpenAI `gpt-5.5`: `low`, `medium`, `high`, `xhigh`; default `high`
 - Anthropic Claude on the Claude runtime: `low`, `medium`, `high`, `xhigh`, `max`; default `high`
 - Gemini-based shared tools still require `GEMINI_API_KEY` even when the active agent runtime uses another provider or Gemini OAuth
 - `pageindex-grounded` uses `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini OAuth
@@ -224,7 +224,7 @@ opencolab setup api-key --provider gemini --api-key <your_gemini_key>
 
 # OpenAI OAuth
 codex login
-opencolab setup model --provider openai --auth oauth --model gpt-5.4 --reasoning-effort high
+opencolab setup model --provider openai --auth oauth --model gpt-5.5 --reasoning-effort high
 
 # Anthropic OAuth
 claude auth login
@@ -238,7 +238,7 @@ opencolab setup model --provider gemini --auth oauth --model gemini-3.5-flash
 opencolab setup model --provider xai --model grok-code-fast-1 --api-key <your_xai_key>
 
 # OpenRouter
-opencolab setup model --provider openrouter --model openai/gpt-5.4 --api-key <your_openrouter_key>
+opencolab setup model --provider openrouter --model openai/gpt-5.5 --api-key <your_openrouter_key>
 
 # Kimi
 opencolab setup model --provider kimi --model k2p5 --api-key <your_kimi_key>

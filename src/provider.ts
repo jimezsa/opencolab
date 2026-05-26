@@ -179,7 +179,7 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
   Record<ProviderName, Record<string, ProviderReasoningCapability>>
 > = {
   openai: {
-    "gpt-5.4": {
+    "gpt-5.5": {
       options: ["low", "medium", "high", "xhigh"],
       defaultEffort: "high",
     },
@@ -309,7 +309,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   },
   openrouter: {
     runtime: "pi",
-    model: "openai/gpt-5.4",
+    model: "openai/gpt-5.5",
     cliCommand: "pi",
     cliArgs: [...PI_WORKSPACE_ARGS],
     authMode: "api_key",

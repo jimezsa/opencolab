@@ -1069,7 +1069,7 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
     runtime.init();
     runtime.setupModel({
       providerName: "openai",
-      model: "gpt-5.4",
+      model: "gpt-5.5",
       authMode: "oauth"
     });
 
@@ -1146,7 +1146,7 @@ test("setupModel stores an explicit OpenAI reasoning effort", () => {
     runtime.init();
     runtime.setupModel({
       providerName: "openai",
-      model: "gpt-5.4",
+      model: "gpt-5.5",
       reasoningEffort: "xhigh"
     });
 
@@ -1217,7 +1217,7 @@ test("runtime persistence excludes secret references from opencolab.json", () =>
     runtime.init();
     runtime.setupModel({
       providerName: "openai",
-      model: "gpt-5.4"
+      model: "gpt-5.5"
     });
     runtime.setupTelegram({
       chatId: "10001"
@@ -1336,7 +1336,7 @@ test("setupModel stores OpenRouter on the pi runtime with non-interactive defaul
     runtime.init();
     runtime.setupModel({
       providerName: "openrouter",
-      model: "openai/gpt-5.4"
+      model: "openai/gpt-5.5"
     });
 
     const agent = runtime.getActiveAgent();
@@ -2812,7 +2812,7 @@ test("Codex item lifecycle events are normalized into user-facing Telegram activ
     runtime.init();
     runtime.setupModel({
       providerName: "openai",
-      model: "gpt-5.4",
+      model: "gpt-5.5",
       cliCommand: "node",
       cliArgs: [
         "-e",

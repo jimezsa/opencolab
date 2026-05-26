@@ -76,13 +76,13 @@ test("OpenAI setup defaults support OAuth and API key auth modes", () => {
     "-"
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("openai"), ["api_key", "oauth"]);
-  assert.deepEqual(getProviderReasoningEffortOptions("openai", "gpt-5.4"), [
+  assert.deepEqual(getProviderReasoningEffortOptions("openai", "gpt-5.5"), [
     "low",
     "medium",
     "high",
     "xhigh"
   ]);
-  assert.equal(getProviderDefaultReasoningEffort("openai", "gpt-5.4"), "high");
+  assert.equal(getProviderDefaultReasoningEffort("openai", "gpt-5.5"), "high");
   assert.equal(normalizeProviderAuthMode("api-key"), "api_key");
   assert.equal(normalizeProviderAuthMode("oauth"), "oauth");
 });
@@ -178,7 +178,7 @@ test("xAI setup defaults use the pi runtime", () => {
 
 test("OpenRouter setup defaults use the pi runtime", () => {
   const defaults = getProviderSetupDefaults("openrouter");
-  assert.equal(defaults.model, "openai/gpt-5.4");
+  assert.equal(defaults.model, "openai/gpt-5.5");
   assert.equal(defaults.runtime, "pi");
   assert.equal(defaults.cliCommand, "pi");
   assert.equal(defaults.authMode, "api_key");
@@ -237,12 +237,12 @@ test("Kimi setup defaults use the pi runtime and kimi-coding provider id", () =>
 });
 
 test("provider reasoning helpers validate only supported native values", () => {
-  assert.equal(normalizeProviderReasoningEffort("openai", "gpt-5.4", "high"), "high");
-  assert.equal(normalizeProviderReasoningEffort("openai", "gpt-5.4", "max"), null);
+  assert.equal(normalizeProviderReasoningEffort("openai", "gpt-5.5", "high"), "high");
+  assert.equal(normalizeProviderReasoningEffort("openai", "gpt-5.5", "max"), null);
   assert.equal(normalizeProviderReasoningEffort("anthropic", "claude-opus-4-6", "xhigh"), "xhigh");
   assert.equal(normalizeProviderReasoningEffort("anthropic", "claude-opus-4-6", "max"), "max");
   assert.equal(normalizeProviderReasoningEffort("gemini", "gemini-2.5-pro", "high"), null);
-  assert.equal(resolveProviderReasoningEffort("openai", "gpt-5.4", undefined, undefined), "high");
+  assert.equal(resolveProviderReasoningEffort("openai", "gpt-5.5", undefined, undefined), "high");
   assert.equal(resolveProviderReasoningEffort("anthropic", "claude-opus-4-6", "high"), "high");
   assert.equal(resolveProviderReasoningEffort("gemini", "gemini-2.5-pro", "high"), undefined);
 });
@@ -251,7 +251,7 @@ test("provider invocation args add native reasoning flags when configured", () =
   assert.deepEqual(
     buildProviderInvocationArgs({
       name: "openai",
-      model: "gpt-5.4",
+      model: "gpt-5.5",
       runtime: "codex",
       cliCommand: "codex",
       cliArgs: [
@@ -446,7 +446,7 @@ test("OpenAI OAuth runtime env clears OPENAI_API_KEY and injects no API key", ()
     "openai",
     "oauth",
     null,
-    "gpt-5.4"
+    "gpt-5.5"
   );
 
   assert.equal(env.OPENAI_API_KEY, undefined);
@@ -476,7 +476,7 @@ test("OpenRouter runtime env clears stale OPENROUTER_API_KEY values before injec
     "openrouter",
     "api_key",
     "openrouter_test_key",
-    "openai/gpt-5.4"
+    "openai/gpt-5.5"
   );
 
   assert.equal(env.OPENROUTER_API_KEY, "openrouter_test_key");

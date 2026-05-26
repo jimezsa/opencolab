@@ -161,8 +161,8 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
-- OpenAI defaults and onboarding examples now use `gpt-5.4`, and the OpenRouter OpenAI example now uses `openai/gpt-5.4`.
-- `ignite` onboarding and `opencolab setup model` now expose native reasoning-effort selection for supported models, currently including OpenAI `gpt-5.4` (`low`, `medium`, `high`, `xhigh`) and Anthropic Claude on the Claude runtime (`low`, `medium`, `high`, `max`).
+- OpenAI defaults and onboarding examples now use `gpt-5.5`, and the OpenRouter OpenAI example now uses `openai/gpt-5.5`.
+- `ignite` onboarding and `opencolab setup model` now expose native reasoning-effort selection for supported models, currently including OpenAI `gpt-5.5` (`low`, `medium`, `high`, `xhigh`) and Anthropic Claude on the Claude runtime (`low`, `medium`, `high`, `max`).
 - Shared workflow and template docs now mention `autoresearch` alongside the other built-in shared skills, and the README inspiration list now includes `karpathy/autoresearch`.
 - Professor-facing built-in staffing guidance now explicitly calls out `opencolab agent create --agent-id autoresearch` when a project needs a dedicated owner for sustained experiment-loop work.
 - The shared `runpod-job` guidance now defaults to a user-managed Runpod Pod workflow where the human creates the Pod, provides the `pod_id`, and the agent uses direct SSH, while keeping the OpenColab-managed `gpu server` and `gpu job` lifecycle as an explicit opt-in for `run_id`-tracked work.

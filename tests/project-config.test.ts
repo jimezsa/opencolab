@@ -666,7 +666,7 @@ test("project state persists agent provider updates in opencolab.json", () => {
                 ...agent,
                 provider: {
                   ...agent.provider,
-                  model: "gpt-5.4",
+                  model: "gpt-5.5",
                 },
               },
             },
@@ -688,7 +688,7 @@ test("project state persists agent provider updates in opencolab.json", () => {
     const project = loaded.projects[loaded.activeProjectId];
     const agent = project.agents[project.activeAgentId];
 
-    assert.equal(agent.provider.model, "gpt-5.4");
+    assert.equal(agent.provider.model, "gpt-5.5");
     assert.equal(loaded.telegram.chatId, "10001");
     assert.equal(loaded.telegram.paired, true);
     assert.equal(loaded.telegram.lastChatType, "supergroup");
@@ -725,7 +725,7 @@ test("project state migrates legacy single-agent shape", () => {
         },
         provider: {
           name: "codex",
-          model: "gpt-5.4",
+          model: "gpt-5.5",
         },
         telegram: {
           botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
@@ -1033,7 +1033,7 @@ test("project state leaves reasoning effort unset when it is absent", () => {
                 path: buildDefaultAgentPath("alpha"),
                 provider: {
                   name: "openai",
-                  model: "gpt-5.4",
+                  model: "gpt-5.5",
                   authMode: "oauth",
                 },
                 files: {
