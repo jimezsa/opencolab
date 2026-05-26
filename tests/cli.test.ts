@@ -17,7 +17,10 @@ const PACKAGE_VERSION = (() => {
     : "unknown";
 })();
 
-function runCli(rootDir: string, args: string[]): {
+function runCli(
+  rootDir: string,
+  args: string[],
+): {
   status: number | null;
   stdout: string;
   stderr: string;
@@ -27,20 +30,22 @@ function runCli(rootDir: string, args: string[]): {
     env: {
       ...process.env,
       NODE_NO_WARNINGS: "1",
-      OPENCOLAB_ROOT: rootDir
+      OPENCOLAB_ROOT: rootDir,
     },
-    encoding: "utf8"
+    encoding: "utf8",
   });
 
   return {
     status: result.status,
     stdout: result.stdout ?? "",
-    stderr: result.stderr ?? ""
+    stderr: result.stderr ?? "",
   };
 }
 
 test("setup api-key saves one provider key without changing the active agent runtime", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-api-key-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-api-key-"),
+  );
   const previousGeminiKey = process.env.GEMINI_API_KEY;
   delete process.env.GEMINI_API_KEY;
 
@@ -55,7 +60,7 @@ test("setup api-key saves one provider key without changing the active agent run
       "--provider",
       "gemini",
       "--api-key",
-      "gemini_cli_test_key"
+      "gemini_cli_test_key",
     ]);
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -71,7 +76,10 @@ test("setup api-key saves one provider key without changing the active agent run
     const reloadedAgent = reloadedRuntime.getActiveAgent();
     assert.equal(reloadedAgent.provider.name, initialAgent.provider.name);
     assert.equal(reloadedAgent.provider.model, initialAgent.provider.model);
-    assert.equal(reloadedAgent.provider.authMode, initialAgent.provider.authMode);
+    assert.equal(
+      reloadedAgent.provider.authMode,
+      initialAgent.provider.authMode,
+    );
   } finally {
     if (previousGeminiKey === undefined) {
       delete process.env.GEMINI_API_KEY;
@@ -83,7 +91,9 @@ test("setup api-key saves one provider key without changing the active agent run
 });
 
 test("setup model stores native reasoning effort for supported models", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-setup-model-effort-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-setup-model-effort-"),
+  );
 
   try {
     const runtime = createRuntime(tempDir);
@@ -97,14 +107,14 @@ test("setup model stores native reasoning effort for supported models", () => {
       "--auth",
       "oauth",
       "--model",
-      "gpt-5.4",
+      "gpt-5.5",
       "--reasoning-effort",
-      "xhigh"
+      "xhigh",
     ]);
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(result.stdout.includes("Provider configured: openai"), true);
-    assert.equal(result.stdout.includes("Model: gpt-5.4"), true);
+    assert.equal(result.stdout.includes("Model: gpt-5.5"), true);
     assert.equal(result.stdout.includes("Auth mode: oauth"), true);
     assert.equal(result.stdout.includes("Reasoning effort: xhigh"), true);
 
@@ -120,7 +130,9 @@ test("setup model stores native reasoning effort for supported models", () => {
 });
 
 test("bare CLI help shows the installed version immediately", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-version-help-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-version-help-"),
+  );
 
   try {
     const result = runCli(tempDir, []);
@@ -133,7 +145,9 @@ test("bare CLI help shows the installed version immediately", () => {
 });
 
 test("--version prints the installed CLI version", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-version-flag-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-version-flag-"),
+  );
 
   try {
     const result = runCli(tempDir, ["--version"]);
@@ -145,7 +159,9 @@ test("--version prints the installed CLI version", () => {
 });
 
 test("version command prints the installed CLI version", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-version-command-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-version-command-"),
+  );
 
   try {
     const result = runCli(tempDir, ["version"]);
@@ -157,7 +173,9 @@ test("version command prints the installed CLI version", () => {
 });
 
 test("gpu server add stores a Runpod target and gpu server list shows it", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-server-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-gpu-server-"),
+  );
 
   try {
     const runtime = createRuntime(tempDir);
@@ -180,16 +198,24 @@ test("gpu server add stores a Runpod target and gpu server list shows it", () =>
       "--volume-name",
       "default-runpod-a100",
       "--volume-size-gb",
-      "200"
+      "200",
     ]);
 
     assert.equal(addResult.status, 0, addResult.stderr || addResult.stdout);
-    assert.equal(addResult.stdout.includes("GPU server configured: runpod-a100"), true);
+    assert.equal(
+      addResult.stdout.includes("GPU server configured: runpod-a100"),
+      true,
+    );
     assert.equal(addResult.stdout.includes("Provider: runpod"), true);
 
     const listResult = runCli(tempDir, ["gpu", "server", "list"]);
     assert.equal(listResult.status, 0, listResult.stderr || listResult.stdout);
-    assert.equal(listResult.stdout.includes("runpod-a100 [runpod] 1x NVIDIA A100 80GB PCIe @ US-KS-2"), true);
+    assert.equal(
+      listResult.stdout.includes(
+        "runpod-a100 [runpod] 1x NVIDIA A100 80GB PCIe @ US-KS-2",
+      ),
+      true,
+    );
 
     const reloadedRuntime = createRuntime(tempDir);
     reloadedRuntime.init();
@@ -204,7 +230,9 @@ test("gpu server add stores a Runpod target and gpu server list shows it", () =>
 });
 
 test("gpu server add accepts ordered location and GPU candidates", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-server-candidates-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-gpu-server-candidates-"),
+  );
 
   try {
     const runtime = createRuntime(tempDir);
@@ -223,37 +251,54 @@ test("gpu server add accepts ordered location and GPU candidates", () => {
       "--gpu-type",
       "NVIDIA A100 80GB PCIe,NVIDIA RTX 4090",
       "--gpu-count",
-      "1"
+      "1",
     ]);
 
     assert.equal(addResult.status, 0, addResult.stderr || addResult.stdout);
-    assert.equal(addResult.stdout.includes("GPU candidates: NVIDIA A100 80GB PCIe, NVIDIA RTX 4090"), true);
-    assert.equal(addResult.stdout.includes("Location candidates: US-KS-2, CA-MTL-1"), true);
+    assert.equal(
+      addResult.stdout.includes(
+        "GPU candidates: NVIDIA A100 80GB PCIe, NVIDIA RTX 4090",
+      ),
+      true,
+    );
+    assert.equal(
+      addResult.stdout.includes("Location candidates: US-KS-2, CA-MTL-1"),
+      true,
+    );
 
     const reloadedRuntime = createRuntime(tempDir);
     reloadedRuntime.init();
     const target = reloadedRuntime.getExecutionTarget("runpod-flex");
     assert.deepEqual(target.preferredDatacenterIds, ["US-KS-2", "CA-MTL-1"]);
-    assert.deepEqual(target.preferredGpuTypes, ["NVIDIA A100 80GB PCIe", "NVIDIA RTX 4090"]);
+    assert.deepEqual(target.preferredGpuTypes, [
+      "NVIDIA A100 80GB PCIe",
+      "NVIDIA RTX 4090",
+    ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
 test("gpu server help describes the availability command", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-server-help-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-gpu-server-help-"),
+  );
 
   try {
     const result = runCli(tempDir, ["gpu", "server", "--help"]);
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(
-      result.stdout.includes("opencolab gpu server availability --server-id <id>"),
-      true
+      result.stdout.includes(
+        "opencolab gpu server availability --server-id <id>",
+      ),
+      true,
     );
     assert.equal(
-      result.stdout.includes("Check live Runpod datacenter and GPU availability for one target"),
-      true
+      result.stdout.includes(
+        "Check live Runpod datacenter and GPU availability for one target",
+      ),
+      true,
     );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -261,19 +306,25 @@ test("gpu server help describes the availability command", () => {
 });
 
 test("gpu job help describes the exec command", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-job-help-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-gpu-job-help-"),
+  );
 
   try {
     const result = runCli(tempDir, ["gpu", "job", "--help"]);
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(
-      result.stdout.includes("opencolab gpu job exec --run-id <id> --command <command>"),
-      true
+      result.stdout.includes(
+        "opencolab gpu job exec --run-id <id> --command <command>",
+      ),
+      true,
     );
     assert.equal(
-      result.stdout.includes("Run one bounded remote command over the launched Pod SSH path"),
-      true
+      result.stdout.includes(
+        "Run one bounded remote command over the launched Pod SSH path",
+      ),
+      true,
     );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -281,7 +332,9 @@ test("gpu job help describes the exec command", () => {
 });
 
 test("gpu ssh help describes profile and session commands", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-ssh-help-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-gpu-ssh-help-"),
+  );
 
   try {
     const result = runCli(tempDir, ["gpu", "ssh", "--help"]);
@@ -289,15 +342,17 @@ test("gpu ssh help describes profile and session commands", () => {
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(
       result.stdout.includes("opencolab gpu ssh profile [subcommand]"),
-      true
+      true,
     );
     assert.equal(
       result.stdout.includes("opencolab gpu ssh session [subcommand]"),
-      true
+      true,
     );
     assert.equal(
-      result.stdout.includes("opencolab gpu ssh session start --profile-id runpod-manual-a100"),
-      true
+      result.stdout.includes(
+        "opencolab gpu ssh session start --profile-id runpod-manual-a100",
+      ),
+      true,
     );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -305,31 +360,36 @@ test("gpu ssh help describes profile and session commands", () => {
 });
 
 test("gpu ssh session help shows live session examples and flags", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-ssh-session-help-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-gpu-ssh-session-help-"),
+  );
 
   try {
     const result = runCli(tempDir, ["gpu", "ssh", "session", "--help"]);
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(
-      result.stdout.includes("opencolab gpu ssh session read --session-id manual-ssh-session-123 --offset 0"),
-      true
+      result.stdout.includes(
+        "opencolab gpu ssh session read --session-id manual-ssh-session-123 --offset 0",
+      ),
+      true,
     );
     assert.equal(
-      result.stdout.includes("opencolab gpu ssh session write --session-id manual-ssh-session-123 --stdin \"nvidia-smi\""),
-      true
+      result.stdout.includes(
+        'opencolab gpu ssh session write --session-id manual-ssh-session-123 --stdin "nvidia-smi"',
+      ),
+      true,
     );
-    assert.equal(
-      result.stdout.includes("--append-newline true|false"),
-      true
-    );
+    assert.equal(result.stdout.includes("--append-newline true|false"), true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
 test("gpu ssh profile save persists a manual Pod SSH profile and default", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-gpu-ssh-profile-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-gpu-ssh-profile-"),
+  );
 
   try {
     const runtime = createRuntime(tempDir);
@@ -347,24 +407,33 @@ test("gpu ssh profile save persists a manual Pod SSH profile and default", () =>
       "--ssh-command",
       "ssh -p 21438 -i ~/.ssh/id_ed25519 root@203.0.113.10",
       "--set-default",
-      "true"
+      "true",
     ]);
 
     assert.equal(saveResult.status, 0, saveResult.stderr || saveResult.stdout);
-    assert.equal(saveResult.stdout.includes("Manual SSH profile saved: runpod-manual-a100"), true);
+    assert.equal(
+      saveResult.stdout.includes(
+        "Manual SSH profile saved: runpod-manual-a100",
+      ),
+      true,
+    );
     assert.equal(saveResult.stdout.includes("Runpod Pod: pod_123"), true);
 
     const listResult = runCli(tempDir, ["gpu", "ssh", "profile", "list"]);
     assert.equal(listResult.status, 0, listResult.stderr || listResult.stdout);
-    assert.equal(listResult.stdout.includes("* runpod-manual-a100 [runpod/manual_pod]"), true);
+    assert.equal(
+      listResult.stdout.includes("* runpod-manual-a100 [runpod/manual_pod]"),
+      true,
+    );
 
     const reloadedRuntime = createRuntime(tempDir);
     reloadedRuntime.init();
     const project = reloadedRuntime.getActiveProject();
     assert.equal(project.manualSshProfiles["runpod-manual-a100"]?.port, 21438);
     assert.equal(
-      project.agentRemoteDefaults[reloadedRuntime.getActiveAgent().id]?.manualSshProfileId,
-      "runpod-manual-a100"
+      project.agentRemoteDefaults[reloadedRuntime.getActiveAgent().id]
+        ?.manualSshProfileId,
+      "runpod-manual-a100",
     );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -372,25 +441,35 @@ test("gpu ssh profile save persists a manual Pod SSH profile and default", () =>
 });
 
 test("upgrade help describes git and packaged install flows", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-upgrade-help-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-cli-upgrade-help-"),
+  );
 
   try {
     const result = runCli(tempDir, ["upgrade", "--help"]);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(
-      result.stdout.includes("Upgrade an installer-managed OpenColab or a git/source checkout"),
+      result.stdout.includes(
+        "Upgrade an installer-managed OpenColab or a git/source checkout",
+      ),
       true,
     );
     assert.equal(
-      result.stdout.includes("Git/source installs switch to branch main and fast-forward to origin/main."),
+      result.stdout.includes(
+        "Git/source installs switch to branch main and fast-forward to origin/main.",
+      ),
       true,
     );
     assert.equal(
-      result.stdout.includes("One-link installer installs upgrade the managed package or managed clone behind the shim."),
+      result.stdout.includes(
+        "One-link installer installs upgrade the managed package or managed clone behind the shim.",
+      ),
       true,
     );
     assert.equal(
-      result.stdout.includes("Generic package installs without installer metadata print package-manager upgrade guidance instead."),
+      result.stdout.includes(
+        "Generic package installs without installer metadata print package-manager upgrade guidance instead.",
+      ),
       true,
     );
   } finally {

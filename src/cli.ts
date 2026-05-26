@@ -12,7 +12,7 @@ import {
   readGatewayServiceRuntimeConfig,
   restartGatewayBackgroundService,
   startGatewayBackgroundService,
-  stopGatewayBackgroundService
+  stopGatewayBackgroundService,
 } from "./gateway-service.js";
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
@@ -34,7 +34,7 @@ import {
   normalizeProviderAuthMode,
   normalizeProviderName,
   resolveProviderReasoningEffort,
-  resolveProviderAuthMode
+  resolveProviderAuthMode,
 } from "./provider.js";
 import { createRuntime } from "./runtime.js";
 import {
@@ -42,14 +42,14 @@ import {
   resolveProviderApiKey,
   resolveTelegramBotToken,
   TELEGRAM_BOT_TOKEN_ENV_VAR,
-  writeSecretToLocalEnv
+  writeSecretToLocalEnv,
 } from "./secrets.js";
 import { parseManualSshCommand } from "./manual-ssh.js";
 import type {
   OpenColabState,
   ProviderAuthMode,
   ProviderName,
-  ProviderReasoningEffort
+  ProviderReasoningEffort,
 } from "./types.js";
 import { upgradeOpenColab } from "./upgrade.js";
 
@@ -161,7 +161,10 @@ function styleCliText(value: string): string {
     .replace(/^(\s*)\|\s(.+)$/, (_match, lead: string, rest: string) => {
       return `${lead}${softWhite("|")} ${softWhite(rest)}`;
     })
-    .replace(/^(\s*)\|\s*$/, (_match, lead: string) => `${lead}${softWhite("|")}`)
+    .replace(
+      /^(\s*)\|\s*$/,
+      (_match, lead: string) => `${lead}${softWhite("|")}`,
+    )
     .replace(/^(\s*)\*\s(.+)$/, (_match, lead: string, rest: string) => {
       const [firstWord, ...tail] = rest.trim().split(/\s+/);
       const tailText = tail.join(" ");
@@ -241,13 +244,11 @@ async function chooseInteractive(
     throw new Error("Interactive onboarding requires a TTY terminal.");
   }
 
-  const normalizedOptions =
-    options.length > 0 ? options : [defaultValue];
+  const normalizedOptions = options.length > 0 ? options : [defaultValue];
   const selectedDefaultIndex = normalizedOptions.indexOf(defaultValue);
 
   return new Promise((resolve) => {
-    let selectedIndex =
-      selectedDefaultIndex >= 0 ? selectedDefaultIndex : 0;
+    let selectedIndex = selectedDefaultIndex >= 0 ? selectedDefaultIndex : 0;
     let renderedLines = 0;
 
     const clearRender = (): void => {
@@ -415,7 +416,10 @@ function usageMain(): string {
     "Top-level commands:",
     helpCommand("version", "Print the installed CLI version"),
     helpCommand("ignite", "Interactive first-run setup"),
-    helpCommand("upgrade", "Upgrade OpenColab or show package upgrade guidance"),
+    helpCommand(
+      "upgrade",
+      "Upgrade OpenColab or show package upgrade guidance",
+    ),
     helpCommand("setup", "Configure model/provider/api-key/telegram"),
     helpCommand("project", "Manage/create projects"),
     helpCommand("agent", "Manage/create agents"),
@@ -435,7 +439,11 @@ function usageMain(): string {
 
 function resolveVersionOutput(argv: string[]): string | null {
   const [command] = argv;
-  if (command === "version" || argv.includes("--version") || argv.includes("-v")) {
+  if (
+    command === "version" ||
+    argv.includes("--version") ||
+    argv.includes("-v")
+  ) {
     return `opencolab ${CLI_VERSION}`;
   }
   return null;
@@ -449,9 +457,15 @@ function usageGateway(): string {
       "Start gateway (background by default)",
     ),
     helpCommand("opencolab gateway stop", "Stop background gateway service"),
-    helpCommand("opencolab gateway restart [--port 4646]", "Restart background gateway service"),
+    helpCommand(
+      "opencolab gateway restart [--port 4646]",
+      "Restart background gateway service",
+    ),
     helpCommand("opencolab gateway status", "Show background gateway status"),
-    helpCommand("opencolab gateway logs", "Show log tail command and log paths"),
+    helpCommand(
+      "opencolab gateway logs",
+      "Show log tail command and log paths",
+    ),
     "",
     "Flags:",
     helpFlag("--port <number>", "Gateway port (default: 4646)"),
@@ -537,7 +551,10 @@ function usageSetupApiKey(): string {
     "",
     "Flags:",
     helpFlag(`--provider ${providerChoices}`, "Provider identifier"),
-    helpFlag("--api-key <value>", "Provider API key value (saved to .env.local)"),
+    helpFlag(
+      "--api-key <value>",
+      "Provider API key value (saved to .env.local)",
+    ),
   ]);
 }
 
@@ -554,13 +571,22 @@ function usageSetupModel(): string {
     helpFlag("--agent-id <id>", "Target agent id (default: active agent)"),
     helpFlag(`--provider ${providerChoices}`, "Provider identifier"),
     helpFlag("--model <model>", "Provider model name"),
-    helpFlag("--auth api-key|oauth", "Provider auth mode (OpenAI, Anthropic, and Gemini support oauth)"),
-    helpFlag("--reasoning-effort <value>", "Native provider reasoning effort when the model supports it"),
-    helpFlag("--api-key <value>", "Provider API key value (saved to .env.local)"),
+    helpFlag(
+      "--auth api-key|oauth",
+      "Provider auth mode (OpenAI, Anthropic, and Gemini support oauth)",
+    ),
+    helpFlag(
+      "--reasoning-effort <value>",
+      "Native provider reasoning effort when the model supports it",
+    ),
+    helpFlag(
+      "--api-key <value>",
+      "Provider API key value (saved to .env.local)",
+    ),
     "",
     "Notes:",
     `  - Use ${accent("opencolab setup api-key")} to save a provider key without changing model/auth.`,
-    "  - OpenAI gpt-5.4 supports low, medium, high, xhigh.",
+    "  - OpenAI models support low, medium, high, xhigh.",
     "  - Anthropic Claude models on the Claude runtime support low, medium, high, max.",
   ]);
 }
@@ -574,7 +600,10 @@ function usageSetupTelegram(): string {
     ),
     "",
     "Flags:",
-    helpFlag("--bot-token <value>", "Telegram bot token value (saved to .env.local)"),
+    helpFlag(
+      "--bot-token <value>",
+      "Telegram bot token value (saved to .env.local)",
+    ),
     helpFlag("--chat-id <id>", "Authorized Telegram chat id"),
   ]);
 }
@@ -641,14 +670,20 @@ function usageAgent(): string {
 function usageGpu(): string {
   return formatHelp([
     "Usage:",
-    helpCommand("opencolab gpu server [subcommand]", "Manage Runpod-backed GPU servers"),
+    helpCommand(
+      "opencolab gpu server [subcommand]",
+      "Manage Runpod-backed GPU servers",
+    ),
     helpCommand("opencolab gpu job [subcommand]", "Manage bounded GPU jobs"),
-    helpCommand("opencolab gpu ssh [subcommand]", "Manage saved manual SSH profiles and sessions"),
+    helpCommand(
+      "opencolab gpu ssh [subcommand]",
+      "Manage saved manual SSH profiles and sessions",
+    ),
     "",
     "Try:",
     helpCommand("gpu server --help", "Show gpu server flags"),
     helpCommand("gpu job --help", "Show gpu job flags"),
-    helpCommand("gpu ssh --help", "Show gpu ssh flags")
+    helpCommand("gpu ssh --help", "Show gpu ssh flags"),
   ]);
 }
 
@@ -657,23 +692,38 @@ function usageGpuServer(): string {
     "Usage:",
     helpCommand(
       "opencolab gpu server add --provider runpod --server-id <id> [flags]",
-      "Create or update a GPU server target"
+      "Create or update a GPU server target",
     ),
     helpCommand("opencolab gpu server list", "List GPU server targets"),
-    helpCommand("opencolab gpu server show --server-id <id>", "Print one GPU server target as JSON"),
+    helpCommand(
+      "opencolab gpu server show --server-id <id>",
+      "Print one GPU server target as JSON",
+    ),
     helpCommand(
       "opencolab gpu server availability --server-id <id>",
-      "Check live Runpod datacenter and GPU availability for one target"
+      "Check live Runpod datacenter and GPU availability for one target",
     ),
-    helpCommand("opencolab gpu server test --server-id <id>", "Validate local and Runpod prerequisites"),
-    helpCommand("opencolab gpu server remove --server-id <id>", "Remove a GPU server target"),
+    helpCommand(
+      "opencolab gpu server test --server-id <id>",
+      "Validate local and Runpod prerequisites",
+    ),
+    helpCommand(
+      "opencolab gpu server remove --server-id <id>",
+      "Remove a GPU server target",
+    ),
     "",
     "Flags:",
     helpFlag("--provider runpod", "Required backend identifier"),
     helpFlag("--server-id <id>", "Project-scoped GPU server id"),
-    helpFlag("--location <csv>", "Preferred Runpod data center ids in fallback order"),
+    helpFlag(
+      "--location <csv>",
+      "Preferred Runpod data center ids in fallback order",
+    ),
     helpFlag("--datacenter-id <csv>", "Legacy alias for --location"),
-    helpFlag("--gpu-type <csv>", "Accepted Runpod GPU types in preference order"),
+    helpFlag(
+      "--gpu-type <csv>",
+      "Accepted Runpod GPU types in preference order",
+    ),
     helpFlag("--gpu-count <n>", "GPU count"),
     helpFlag("--image-name <name>", "Container image name"),
     helpFlag("--template-id <id>", "Runpod template id"),
@@ -684,12 +734,18 @@ function usageGpuServer(): string {
     helpFlag("--ssh-user <user>", "SSH username (default: root)"),
     helpFlag("--ssh-port <n>", "Override SSH port when needed"),
     helpFlag("--ssh-key-path <path>", "SSH private key path"),
-    helpFlag("--bootstrap-profile python-ml|pytorch-cu12|minimal-shell", "Named bootstrap profile"),
+    helpFlag(
+      "--bootstrap-profile python-ml|pytorch-cu12|minimal-shell",
+      "Named bootstrap profile",
+    ),
     helpFlag("--max-runtime-minutes <n>", "Target max runtime"),
     helpFlag("--idle-stop-minutes <n>", "Idle stop budget for warm Pods"),
-    helpFlag("--auto-stop-policy stop_on_completion|keep_warm", "Pod cleanup policy"),
+    helpFlag(
+      "--auto-stop-policy stop_on_completion|keep_warm",
+      "Pod cleanup policy",
+    ),
     helpFlag("--max-estimated-cost-usd <n>", "Operator-visible budget hint"),
-    helpFlag("--enabled true|false", "Enable or disable the target")
+    helpFlag("--enabled true|false", "Enable or disable the target"),
   ]);
 }
 
@@ -698,38 +754,71 @@ function usageGpuJob(): string {
     "Usage:",
     helpCommand(
       "opencolab gpu job start --server-id <id> --command <command> [flags]",
-      "Launch a bounded remote GPU job"
+      "Launch a bounded remote GPU job",
     ),
-    helpCommand("opencolab gpu job status --run-id <id>", "Refresh and print one GPU run status as JSON"),
-    helpCommand("opencolab gpu job logs --run-id <id> [--stream stdout|stderr|bootstrap|poller]", "Print one local run log"),
+    helpCommand(
+      "opencolab gpu job status --run-id <id>",
+      "Refresh and print one GPU run status as JSON",
+    ),
+    helpCommand(
+      "opencolab gpu job logs --run-id <id> [--stream stdout|stderr|bootstrap|poller]",
+      "Print one local run log",
+    ),
     helpCommand(
       "opencolab gpu job exec --run-id <id> --command <command>",
-      "Run one bounded remote command over the launched Pod SSH path"
+      "Run one bounded remote command over the launched Pod SSH path",
     ),
-    helpCommand("opencolab gpu job fetch --run-id <id>", "Fetch remote logs and artifacts"),
-    helpCommand("opencolab gpu job cancel --run-id <id>", "Cancel a running GPU job"),
+    helpCommand(
+      "opencolab gpu job fetch --run-id <id>",
+      "Fetch remote logs and artifacts",
+    ),
+    helpCommand(
+      "opencolab gpu job cancel --run-id <id>",
+      "Cancel a running GPU job",
+    ),
     helpCommand("opencolab gpu job list", "List local GPU run records"),
     "",
     "Flags:",
     helpFlag("--server-id <id>", "Target GPU server id for job start"),
     helpFlag("--run-id <id>", "Existing local GPU run id"),
     helpFlag("--command <command>", "Remote shell command to launch"),
-    helpFlag("--include <csv>", "Comma-separated include paths relative to repo root"),
-    helpFlag("--exclude <csv>", "Comma-separated exclude paths relative to repo root"),
-    helpFlag("--artifact <csv>", "Comma-separated artifact paths relative to remote working dir"),
+    helpFlag(
+      "--include <csv>",
+      "Comma-separated include paths relative to repo root",
+    ),
+    helpFlag(
+      "--exclude <csv>",
+      "Comma-separated exclude paths relative to repo root",
+    ),
+    helpFlag(
+      "--artifact <csv>",
+      "Comma-separated artifact paths relative to remote working dir",
+    ),
     helpFlag("--env <csv>", "Comma-separated env var names to forward"),
     helpFlag("--max-runtime-minutes <n>", "Override target runtime cap"),
-    helpFlag("--strict-artifacts true|false", "Fail if declared artifacts are missing"),
-    helpFlag("--wait true|false", "Wait for terminal completion before returning"),
-    helpFlag("--stream stdout|stderr|bootstrap|poller", "Log stream to print")
+    helpFlag(
+      "--strict-artifacts true|false",
+      "Fail if declared artifacts are missing",
+    ),
+    helpFlag(
+      "--wait true|false",
+      "Wait for terminal completion before returning",
+    ),
+    helpFlag("--stream stdout|stderr|bootstrap|poller", "Log stream to print"),
   ]);
 }
 
 function usageGpuSsh(): string {
   return formatHelp([
     "Usage:",
-    helpCommand("opencolab gpu ssh profile [subcommand]", "Manage saved manual Pod SSH profiles"),
-    helpCommand("opencolab gpu ssh session [subcommand]", "Manage live manual SSH sessions"),
+    helpCommand(
+      "opencolab gpu ssh profile [subcommand]",
+      "Manage saved manual Pod SSH profiles",
+    ),
+    helpCommand(
+      "opencolab gpu ssh session [subcommand]",
+      "Manage live manual SSH sessions",
+    ),
     "",
     "Try:",
     helpCommand("gpu ssh profile --help", "Show manual SSH profile flags"),
@@ -737,13 +826,13 @@ function usageGpuSsh(): string {
     "",
     "Examples:",
     ...helpExample(
-      "opencolab gpu ssh profile save --profile-id runpod-manual-a100 --ssh-command \"ssh -p 21438 -i ~/.ssh/id_ed25519 root@203.0.113.10\"",
-      "Save one manual Pod SSH profile"
+      'opencolab gpu ssh profile save --profile-id runpod-manual-a100 --ssh-command "ssh -p 21438 -i ~/.ssh/id_ed25519 root@203.0.113.10"',
+      "Save one manual Pod SSH profile",
     ),
     ...helpExample(
       "opencolab gpu ssh session start --profile-id runpod-manual-a100",
-      "Start a live manual SSH session from a saved profile"
-    )
+      "Start a live manual SSH session from a saved profile",
+    ),
   ]);
 }
 
@@ -752,24 +841,27 @@ function usageGpuSshProfile(): string {
     "Usage:",
     helpCommand(
       "opencolab gpu ssh profile save --profile-id <id> [--pod-id <id>] [--ssh-command <command>] [flags]",
-      "Create or update a saved manual Pod SSH profile"
+      "Create or update a saved manual Pod SSH profile",
     ),
-    helpCommand("opencolab gpu ssh profile list", "List saved manual SSH profiles"),
+    helpCommand(
+      "opencolab gpu ssh profile list",
+      "List saved manual SSH profiles",
+    ),
     helpCommand(
       "opencolab gpu ssh profile show [--profile-id <id>]",
-      "Print one saved manual SSH profile as JSON"
+      "Print one saved manual SSH profile as JSON",
     ),
     helpCommand(
       "opencolab gpu ssh profile test [--profile-id <id>]",
-      "Validate one saved manual SSH profile"
+      "Validate one saved manual SSH profile",
     ),
     helpCommand(
       "opencolab gpu ssh profile remove --profile-id <id>",
-      "Remove one saved manual SSH profile"
+      "Remove one saved manual SSH profile",
     ),
     helpCommand(
       "opencolab gpu ssh profile set-default --profile-id <id> [--agent-id <id>]",
-      "Set the default manual SSH profile for an agent"
+      "Set the default manual SSH profile for an agent",
     ),
     "",
     "Flags:",
@@ -780,11 +872,23 @@ function usageGpuSshProfile(): string {
     helpFlag("--user <user>", "SSH username (default: root)"),
     helpFlag("--ssh-key-path <path>", "SSH private key path"),
     helpFlag("--ssh-config-host <name>", "SSH config host alias"),
-    helpFlag("--ssh-command <command>", "Parse and normalize an existing ssh command"),
-    helpFlag("--workspace-root <path>", "Remote workspace root (default: /workspace)"),
-    helpFlag("--interactive-access disabled|opt_in", "Interactive session policy"),
+    helpFlag(
+      "--ssh-command <command>",
+      "Parse and normalize an existing ssh command",
+    ),
+    helpFlag(
+      "--workspace-root <path>",
+      "Remote workspace root (default: /workspace)",
+    ),
+    helpFlag(
+      "--interactive-access disabled|opt_in",
+      "Interactive session policy",
+    ),
     helpFlag("--agent-id <id>", "Agent id when setting a default profile"),
-    helpFlag("--set-default true|false", "Set the saved profile as the active agent default")
+    helpFlag(
+      "--set-default true|false",
+      "Set the saved profile as the active agent default",
+    ),
   ]);
 }
 
@@ -793,47 +897,56 @@ function usageGpuSshSession(): string {
     "Usage:",
     helpCommand(
       "opencolab gpu ssh session start [--profile-id <id>] [--agent-id <id>]",
-      "Start a live manual SSH session from a saved profile"
+      "Start a live manual SSH session from a saved profile",
     ),
-    helpCommand("opencolab gpu ssh session list", "List saved manual SSH sessions"),
+    helpCommand(
+      "opencolab gpu ssh session list",
+      "List saved manual SSH sessions",
+    ),
     helpCommand(
       "opencolab gpu ssh session read --session-id <id> [--offset <n>]",
-      "Read transcript output from a live session"
+      "Read transcript output from a live session",
     ),
     helpCommand(
       "opencolab gpu ssh session write --session-id <id> --stdin <text> [--append-newline true|false]",
-      "Send one line of input to a live session"
+      "Send one line of input to a live session",
     ),
     helpCommand(
       "opencolab gpu ssh session stop --session-id <id>",
-      "Stop one live manual SSH session"
+      "Stop one live manual SSH session",
     ),
     "",
     "Flags:",
-    helpFlag("--profile-id <id>", "Saved manual SSH profile id (defaults when available)"),
+    helpFlag(
+      "--profile-id <id>",
+      "Saved manual SSH profile id (defaults when available)",
+    ),
     helpFlag("--agent-id <id>", "Agent id used for default profile resolution"),
     helpFlag("--session-id <id>", "Saved manual SSH session id"),
     helpFlag("--offset <n>", "Character offset for transcript reads"),
     helpFlag("--stdin <text>", "Input text to send to the live shell"),
-    helpFlag("--append-newline true|false", "Append a trailing newline when writing input"),
+    helpFlag(
+      "--append-newline true|false",
+      "Append a trailing newline when writing input",
+    ),
     "",
     "Examples:",
     ...helpExample(
       "opencolab gpu ssh session start --profile-id runpod-manual-a100",
-      "Start a session from a saved manual SSH profile"
+      "Start a session from a saved manual SSH profile",
     ),
     ...helpExample(
       "opencolab gpu ssh session read --session-id manual-ssh-session-123 --offset 0",
-      "Read the transcript from the beginning"
+      "Read the transcript from the beginning",
     ),
     ...helpExample(
-      "opencolab gpu ssh session write --session-id manual-ssh-session-123 --stdin \"nvidia-smi\"",
-      "Send one command to the remote shell"
+      'opencolab gpu ssh session write --session-id manual-ssh-session-123 --stdin "nvidia-smi"',
+      "Send one command to the remote shell",
     ),
     ...helpExample(
       "opencolab gpu ssh session stop --session-id manual-ssh-session-123",
-      "Stop a live manual SSH session"
-    )
+      "Stop a live manual SSH session",
+    ),
   ]);
 }
 
@@ -919,13 +1032,14 @@ function resolveHelp(argv: string[]): string | null {
   return usageMain();
 }
 
-function parseProviderName(value: string | undefined, fallback: ProviderName): ProviderName {
+function parseProviderName(
+  value: string | undefined,
+  fallback: ProviderName,
+): ProviderName {
   const parsed = normalizeProviderName(value ?? fallback);
   if (!parsed) {
     const supported = getSupportedProviderNames().join(", ");
-    throw new Error(
-      `Unsupported provider: ${value}. Use ${supported}.`,
-    );
+    throw new Error(`Unsupported provider: ${value}. Use ${supported}.`);
   }
   return parsed;
 }
@@ -941,7 +1055,7 @@ function displayProviderRuntime(value: string): string {
 function parseProviderAuthMode(
   value: string | undefined,
   providerName: ProviderName,
-  fallback: ProviderAuthMode
+  fallback: ProviderAuthMode,
 ): ProviderAuthMode {
   if (value === undefined) {
     return resolveProviderAuthMode(providerName, fallback, fallback);
@@ -952,7 +1066,7 @@ function parseProviderAuthMode(
   if (!parsed || !supportedModes.includes(parsed)) {
     const supported = supportedModes.map(displayProviderAuthMode).join(", ");
     throw new Error(
-      `Unsupported auth mode '${value}' for provider '${providerName}'. Use ${supported}.`
+      `Unsupported auth mode '${value}' for provider '${providerName}'. Use ${supported}.`,
     );
   }
 
@@ -963,10 +1077,15 @@ function parseProviderReasoningEffort(
   value: string | undefined,
   providerName: ProviderName,
   model: string,
-  fallback?: ProviderReasoningEffort
+  fallback?: ProviderReasoningEffort,
 ): ProviderReasoningEffort | undefined {
   if (value === undefined) {
-    return resolveProviderReasoningEffort(providerName, model, fallback, fallback);
+    return resolveProviderReasoningEffort(
+      providerName,
+      model,
+      fallback,
+      fallback,
+    );
   }
 
   const parsed = normalizeProviderReasoningEffort(providerName, model, value);
@@ -977,12 +1096,12 @@ function parseProviderReasoningEffort(
   const supported = getProviderReasoningEffortOptions(providerName, model);
   if (supported.length === 0) {
     throw new Error(
-      `Reasoning effort is not supported for provider '${providerName}' with model '${model}'.`
+      `Reasoning effort is not supported for provider '${providerName}' with model '${model}'.`,
     );
   }
 
   throw new Error(
-    `Unsupported reasoning effort '${value}' for provider '${providerName}' with model '${model}'. Use ${supported.join(", ")}.`
+    `Unsupported reasoning effort '${value}' for provider '${providerName}' with model '${model}'. Use ${supported.join(", ")}.`,
   );
 }
 
@@ -1005,7 +1124,9 @@ function parseBooleanFlag(
   return defaultValue;
 }
 
-function parseOptionalIntegerFlag(value: string | undefined): number | undefined {
+function parseOptionalIntegerFlag(
+  value: string | undefined,
+): number | undefined {
   if (value === undefined) {
     return undefined;
   }
@@ -1016,7 +1137,9 @@ function parseOptionalIntegerFlag(value: string | undefined): number | undefined
   return numeric;
 }
 
-function parseOptionalNumberFlag(value: string | undefined): number | undefined {
+function parseOptionalNumberFlag(
+  value: string | undefined,
+): number | undefined {
   if (value === undefined) {
     return undefined;
   }
@@ -1040,7 +1163,9 @@ function parseCsvFlag(value: string | undefined): string[] | undefined {
 
 function resolveCliScriptPath(runtimeRootDir: string): string {
   const manifest = readManagedInstallManifest(runtimeRootDir);
-  const managedCliScriptPath = manifest ? resolveManagedInstallCliScriptPath(manifest) : null;
+  const managedCliScriptPath = manifest
+    ? resolveManagedInstallCliScriptPath(manifest)
+    : null;
   if (managedCliScriptPath) {
     return path.resolve(managedCliScriptPath);
   }
@@ -1070,7 +1195,9 @@ async function startGatewayForeground(
 ): Promise<void> {
   const runtime = createRuntime(runtimeRootDir);
   runtime.init();
-  const autoSync = await autoSyncTelegramCommandsIfConfigured(runtime.getState());
+  const autoSync = await autoSyncTelegramCommandsIfConfigured(
+    runtime.getState(),
+  );
   if (autoSync.attempted) {
     if (autoSync.ok) {
       console.log("Telegram bot commands synced.");
@@ -1218,17 +1345,24 @@ async function autoSyncTelegramCommandsIfConfigured(
   };
 }
 
-function formatUpgradeDependencyInstallMode(value: "frozen_lockfile" | "fallback"): string {
+function formatUpgradeDependencyInstallMode(
+  value: "frozen_lockfile" | "fallback",
+): string {
   return value === "frozen_lockfile"
     ? "pnpm install --frozen-lockfile"
     : "pnpm install (fallback after frozen lockfile failure)";
 }
 
-function printUpgradeGatewayRestartSummary(runtimeRootDir: string, cliScriptPath: string): void {
+function printUpgradeGatewayRestartSummary(
+  runtimeRootDir: string,
+  cliScriptPath: string,
+): void {
   try {
     const { files, status } = getGatewayBackgroundServiceStatus(runtimeRootDir);
     if (!status.running) {
-      console.log("Gateway restart: skipped (managed background gateway not running).");
+      console.log(
+        "Gateway restart: skipped (managed background gateway not running).",
+      );
       return;
     }
 
@@ -1238,7 +1372,9 @@ function printUpgradeGatewayRestartSummary(runtimeRootDir: string, cliScriptPath
         "Gateway restart: skipped (could not resolve saved gateway settings safely).",
       );
       console.log(
-        styleCliText("Restart manually with 'opencolab gateway restart' if needed."),
+        styleCliText(
+          "Restart manually with 'opencolab gateway restart' if needed.",
+        ),
       );
       return;
     }
@@ -1276,15 +1412,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (
-    command === "gateway" || command === "getway" || command === "web"
-  ) {
+  if (command === "gateway" || command === "getway" || command === "web") {
     const runtimeRootDir = resolveRuntimeRootDir();
     const cliScriptPath = resolveCliScriptPath(runtimeRootDir);
     const gatewayAction = subcommand ?? "start";
 
     if (gatewayAction === "start") {
-      const options = parseGatewayStartOptions([action, ...rest].filter(Boolean));
+      const options = parseGatewayStartOptions(
+        [action, ...rest].filter(Boolean),
+      );
       if (options.foreground) {
         await startGatewayForeground(
           runtimeRootDir,
@@ -1301,9 +1437,7 @@ async function main(): Promise<void> {
         port: options.port,
         telegramPolling: options.telegramPolling,
       });
-      console.log(
-        `Gateway service started in background (${files.platform}).`,
-      );
+      console.log(`Gateway service started in background (${files.platform}).`);
       console.log(`Service config: ${files.configPath}`);
       console.log(`Stdout log: ${files.stdoutLogPath}`);
       console.log(`Stderr log: ${files.stderrLogPath}`);
@@ -1312,7 +1446,9 @@ async function main(): Promise<void> {
     }
 
     if (gatewayAction === "restart") {
-      const options = parseGatewayStartOptions([action, ...rest].filter(Boolean));
+      const options = parseGatewayStartOptions(
+        [action, ...rest].filter(Boolean),
+      );
       const files = restartGatewayBackgroundService({
         rootDir: runtimeRootDir,
         cliScriptPath,
@@ -1332,7 +1468,8 @@ async function main(): Promise<void> {
     }
 
     if (gatewayAction === "status") {
-      const { files, status } = getGatewayBackgroundServiceStatus(runtimeRootDir);
+      const { files, status } =
+        getGatewayBackgroundServiceStatus(runtimeRootDir);
       console.log(
         `Gateway service status (${files.platform}): ${status.statusText}`,
       );
@@ -1343,9 +1480,8 @@ async function main(): Promise<void> {
     }
 
     if (gatewayAction === "logs") {
-      const { files, command: tailCommand } = getGatewayBackgroundLogCommand(
-        runtimeRootDir,
-      );
+      const { files, command: tailCommand } =
+        getGatewayBackgroundLogCommand(runtimeRootDir);
       console.log(`Gateway logs (${files.platform}).`);
       console.log(`Tail command: ${tailCommand}`);
       console.log(`Stdout log: ${files.stdoutLogPath}`);
@@ -1380,14 +1516,19 @@ async function main(): Promise<void> {
       console.log(`Managed package spec: ${result.packageSpec}`);
     } else {
       console.log("Target branch: main");
-      console.log(`Previous branch: ${result.previousBranch || "(detached HEAD)"}`);
+      console.log(
+        `Previous branch: ${result.previousBranch || "(detached HEAD)"}`,
+      );
       console.log(`Previous revision: ${result.previousRevision}`);
       console.log(`Current revision: ${result.currentRevision}`);
       console.log(
         `Dependency install: ${formatUpgradeDependencyInstallMode(result.dependencyInstallMode)}`,
       );
     }
-    printUpgradeGatewayRestartSummary(result.runtimeRootDir, result.cliScriptPath);
+    printUpgradeGatewayRestartSummary(
+      result.runtimeRootDir,
+      result.cliScriptPath,
+    );
     return;
   }
 
@@ -1435,26 +1576,40 @@ async function main(): Promise<void> {
     const targetAgentId = values["agent-id"]?.trim() || project.activeAgentId;
     const targetAgent = project.agents[targetAgentId];
     if (!targetAgent) {
-      throw new Error(`Unknown agent in project '${project.id}': ${targetAgentId}`);
+      throw new Error(
+        `Unknown agent in project '${project.id}': ${targetAgentId}`,
+      );
     }
 
-    const providerName = parseProviderName(values.provider, targetAgent.provider.name);
+    const providerName = parseProviderName(
+      values.provider,
+      targetAgent.provider.name,
+    );
     const providerDefaults = getProviderSetupDefaults(providerName);
     const model = values.model ?? providerDefaults.model;
     const defaultAuthMode =
       providerName === targetAgent.provider.name
-        ? resolveProviderAuthMode(providerName, targetAgent.provider.authMode, providerDefaults.authMode)
+        ? resolveProviderAuthMode(
+            providerName,
+            targetAgent.provider.authMode,
+            providerDefaults.authMode,
+          )
         : providerDefaults.authMode;
-    const authMode = parseProviderAuthMode(values.auth, providerName, defaultAuthMode);
+    const authMode = parseProviderAuthMode(
+      values.auth,
+      providerName,
+      defaultAuthMode,
+    );
     const defaultReasoningEffort =
-      providerName === targetAgent.provider.name && model === targetAgent.provider.model
+      providerName === targetAgent.provider.name &&
+      model === targetAgent.provider.model
         ? targetAgent.provider.reasoningEffort
-        : getProviderDefaultReasoningEffort(providerName, model) ?? undefined;
+        : (getProviderDefaultReasoningEffort(providerName, model) ?? undefined);
     const reasoningEffort = parseProviderReasoningEffort(
       values["reasoning-effort"],
       providerName,
       model,
-      defaultReasoningEffort
+      defaultReasoningEffort,
     );
     const keyEnvVar = getProviderApiKeyEnvVar(providerName);
     const apiKey = values["api-key"]?.trim() ?? "";
@@ -1467,7 +1622,9 @@ async function main(): Promise<void> {
         );
       }
     } else if (apiKey) {
-      throw new Error(`${accent("--api-key")} cannot be used with ${accent("--auth oauth")}.`);
+      throw new Error(
+        `${accent("--api-key")} cannot be used with ${accent("--auth oauth")}.`,
+      );
     }
 
     runtime.setupModel({
@@ -1475,7 +1632,7 @@ async function main(): Promise<void> {
       providerName,
       model,
       authMode,
-      reasoningEffort
+      reasoningEffort,
     });
 
     const configuredProject = runtime.getActiveProject();
@@ -1484,19 +1641,25 @@ async function main(): Promise<void> {
     console.log(`Agent: ${configuredAgent.id}`);
     console.log(`Provider configured: ${configuredAgent.provider.name}`);
     console.log(`Model: ${configuredAgent.provider.model}`);
-    console.log(`Auth mode: ${displayProviderAuthMode(configuredAgent.provider.authMode)}`);
+    console.log(
+      `Auth mode: ${displayProviderAuthMode(configuredAgent.provider.authMode)}`,
+    );
     if (configuredAgent.provider.reasoningEffort) {
-      console.log(`Reasoning effort: ${configuredAgent.provider.reasoningEffort}`);
+      console.log(
+        `Reasoning effort: ${configuredAgent.provider.reasoningEffort}`,
+      );
     }
-    console.log(`Runtime: ${displayProviderRuntime(configuredAgent.provider.runtime)}`);
+    console.log(
+      `Runtime: ${displayProviderRuntime(configuredAgent.provider.runtime)}`,
+    );
     if (configuredAgent.provider.authMode === "api_key") {
       console.log(`API key env var: ${keyEnvVar}`);
     } else {
       console.log(
         `OAuth session: ${getProviderOauthSetupHint(
           configuredAgent.provider.name,
-          configuredAgent.provider.cliCommand
-        )}`
+          configuredAgent.provider.cliCommand,
+        )}`,
       );
     }
     console.log(
@@ -1734,7 +1897,7 @@ async function main(): Promise<void> {
       for (const agent of agents) {
         const marker = agent.id === project.activeAgentId ? "*" : "-";
         console.log(
-          `${marker} ${agent.id} (${agent.path}) [${agent.provider.name}:${agent.provider.model} via ${agent.provider.runtime}]`
+          `${marker} ${agent.id} (${agent.path}) [${agent.provider.name}:${agent.provider.model} via ${agent.provider.runtime}]`,
         );
       }
       return;
@@ -1753,7 +1916,9 @@ async function main(): Promise<void> {
       if (action === "add") {
         const provider = values.provider?.trim();
         if (provider !== "runpod") {
-          throw new Error(`${accent("--provider")} must be ${accent("runpod")}`);
+          throw new Error(
+            `${accent("--provider")} must be ${accent("runpod")}`,
+          );
         }
         const serverId = values["server-id"]?.trim();
         if (!serverId) {
@@ -1782,9 +1947,13 @@ async function main(): Promise<void> {
         runtime.setupExecutionTarget({
           id: serverId,
           enabled:
-            values.enabled === undefined ? undefined : parseBooleanFlag(values.enabled, true),
+            values.enabled === undefined
+              ? undefined
+              : parseBooleanFlag(values.enabled, true),
           datacenterId: values.location ?? values["datacenter-id"],
-          preferredDatacenterIds: parseCsvFlag(values.location ?? values["datacenter-id"]),
+          preferredDatacenterIds: parseCsvFlag(
+            values.location ?? values["datacenter-id"],
+          ),
           gpuType: parseCsvFlag(values["gpu-type"])?.[0],
           preferredGpuTypes: parseCsvFlag(values["gpu-type"]),
           gpuCount: parseOptionalIntegerFlag(values["gpu-count"]),
@@ -1797,15 +1966,25 @@ async function main(): Promise<void> {
           sshUser: values["ssh-user"] ?? undefined,
           sshPort: parseOptionalIntegerFlag(values["ssh-port"]),
           sshPrivateKeyPath: values["ssh-key-path"] ?? undefined,
-          bootstrapProfile: bootstrapProfile as "python-ml" | "pytorch-cu12" | "minimal-shell" | undefined,
-          maxRuntimeMinutes: parseOptionalIntegerFlag(values["max-runtime-minutes"]),
+          bootstrapProfile: bootstrapProfile as
+            | "python-ml"
+            | "pytorch-cu12"
+            | "minimal-shell"
+            | undefined,
+          maxRuntimeMinutes: parseOptionalIntegerFlag(
+            values["max-runtime-minutes"],
+          ),
           idleStopMinutes:
             values["idle-stop-minutes"] === undefined
               ? undefined
-              : parseOptionalIntegerFlag(values["idle-stop-minutes"]) ?? null,
-          autoStopPolicy:
-            autoStopPolicy as "stop_on_completion" | "keep_warm" | undefined,
-          maxEstimatedCostUsd: parseOptionalNumberFlag(values["max-estimated-cost-usd"])
+              : (parseOptionalIntegerFlag(values["idle-stop-minutes"]) ?? null),
+          autoStopPolicy: autoStopPolicy as
+            | "stop_on_completion"
+            | "keep_warm"
+            | undefined,
+          maxEstimatedCostUsd: parseOptionalNumberFlag(
+            values["max-estimated-cost-usd"],
+          ),
         });
 
         const target = runtime.getExecutionTarget(serverId);
@@ -1818,7 +1997,9 @@ async function main(): Promise<void> {
           console.log(`GPU candidates: ${target.preferredGpuTypes.join(", ")}`);
         }
         if (target.preferredDatacenterIds.length > 1) {
-          console.log(`Location candidates: ${target.preferredDatacenterIds.join(", ")}`);
+          console.log(
+            `Location candidates: ${target.preferredDatacenterIds.join(", ")}`,
+          );
         }
         console.log(`Workspace root: ${target.workspaceRoot}`);
         console.log(`Bootstrap profile: ${target.bootstrapProfile}`);
@@ -1838,7 +2019,7 @@ async function main(): Promise<void> {
               ? `${target.datacenterId} (+${String(target.preferredDatacenterIds.length - 1)})`
               : target.datacenterId;
           console.log(
-            `${marker} ${target.id} [${target.backend}] ${target.gpuCount}x ${gpuLabel} @ ${datacenterLabel}`
+            `${marker} ${target.id} [${target.backend}] ${target.gpuCount}x ${gpuLabel} @ ${datacenterLabel}`,
           );
         }
         return;
@@ -1849,7 +2030,9 @@ async function main(): Promise<void> {
         if (!serverId) {
           throw new Error(`${accent("--server-id")} is required`);
         }
-        console.log(JSON.stringify(runtime.getExecutionTarget(serverId), null, 2));
+        console.log(
+          JSON.stringify(runtime.getExecutionTarget(serverId), null, 2),
+        );
         return;
       }
 
@@ -1866,18 +2049,26 @@ async function main(): Promise<void> {
         if (result.bestCandidate) {
           const datacenterLabel =
             result.bestCandidate.datacenterLocation &&
-            result.bestCandidate.datacenterLocation !== result.bestCandidate.datacenterId
+            result.bestCandidate.datacenterLocation !==
+              result.bestCandidate.datacenterId
               ? `${result.bestCandidate.datacenterId} (${result.bestCandidate.datacenterLocation})`
               : result.bestCandidate.datacenterId;
-          const stockLabel = result.bestCandidate.stockStatus ? ` [${result.bestCandidate.stockStatus}]` : "";
-          console.log(`Best match now: ${datacenterLabel} / ${result.bestCandidate.gpuType}${stockLabel}`);
+          const stockLabel = result.bestCandidate.stockStatus
+            ? ` [${result.bestCandidate.stockStatus}]`
+            : "";
+          console.log(
+            `Best match now: ${datacenterLabel} / ${result.bestCandidate.gpuType}${stockLabel}`,
+          );
         }
         for (const candidate of result.candidates) {
           const datacenterLabel =
-            candidate.datacenterLocation && candidate.datacenterLocation !== candidate.datacenterId
+            candidate.datacenterLocation &&
+            candidate.datacenterLocation !== candidate.datacenterId
               ? `${candidate.datacenterId} (${candidate.datacenterLocation})`
               : candidate.datacenterId;
-          const stockLabel = candidate.available ? candidate.stockStatus ?? "available" : "unavailable";
+          const stockLabel = candidate.available
+            ? (candidate.stockStatus ?? "available")
+            : "unavailable";
           const compatibilityHints: string[] = [];
           if (!candidate.podApiCompatible) {
             compatibilityHints.push("pod-api incompatible");
@@ -1886,8 +2077,12 @@ async function main(): Promise<void> {
             compatibilityHints.push("storage failed");
           }
           const hintLabel =
-            compatibilityHints.length > 0 ? ` | ${compatibilityHints.join(", ")}` : "";
-          console.log(`- ${datacenterLabel} | ${candidate.gpuType} | ${stockLabel}${hintLabel}`);
+            compatibilityHints.length > 0
+              ? ` | ${compatibilityHints.join(", ")}`
+              : "";
+          console.log(
+            `- ${datacenterLabel} | ${candidate.gpuType} | ${stockLabel}${hintLabel}`,
+          );
         }
         for (const warning of result.warnings) {
           console.log(`Warning: ${warning}`);
@@ -1947,8 +2142,10 @@ async function main(): Promise<void> {
           expectedArtifacts: parseCsvFlag(values.artifact),
           envVarNames: parseCsvFlag(values.env),
           strictArtifacts: parseBooleanFlag(values["strict-artifacts"], false),
-          maxRuntimeMinutes: parseOptionalIntegerFlag(values["max-runtime-minutes"]),
-          wait: parseBooleanFlag(values.wait, true)
+          maxRuntimeMinutes: parseOptionalIntegerFlag(
+            values["max-runtime-minutes"],
+          ),
+          wait: parseBooleanFlag(values.wait, true),
         });
 
         console.log(`Run ID: ${status.runId}`);
@@ -1974,13 +2171,20 @@ async function main(): Promise<void> {
           throw new Error(`${accent("--run-id")} is required`);
         }
         const stream = values.stream?.trim() || "stdout";
-        if (stream !== "stdout" && stream !== "stderr" && stream !== "bootstrap" && stream !== "poller") {
+        if (
+          stream !== "stdout" &&
+          stream !== "stderr" &&
+          stream !== "bootstrap" &&
+          stream !== "poller"
+        ) {
           throw new Error("Unsupported log stream.");
         }
         const status = await runtime.reconcileGpuJob(runId);
         const logPath = status.logs[stream as keyof typeof status.logs];
         if (!logPath || !fs.existsSync(logPath)) {
-          throw new Error(`No local ${stream} log is available for run '${runId}'.`);
+          throw new Error(
+            `No local ${stream} log is available for run '${runId}'.`,
+          );
         }
         process.stdout.write(fs.readFileSync(logPath, "utf8"));
         return;
@@ -1997,7 +2201,7 @@ async function main(): Promise<void> {
         }
         const result = await runtime.execGpuJobCommand({
           runId,
-          command: commandValue
+          command: commandValue,
         });
         console.log(JSON.stringify(result, null, 2));
         return;
@@ -2031,7 +2235,9 @@ async function main(): Promise<void> {
       if (action === "list") {
         const runs = runtime.listGpuJobs();
         for (const run of runs) {
-          console.log(`${run.runId} [${run.state}] target=${run.targetId} created=${run.createdAt}`);
+          console.log(
+            `${run.runId} [${run.state}] target=${run.targetId} created=${run.createdAt}`,
+          );
         }
         return;
       }
@@ -2053,7 +2259,9 @@ async function main(): Promise<void> {
           }
 
           const rawSshCommand = values["ssh-command"]?.trim();
-          const parsedCommand = rawSshCommand ? parseManualSshCommand(rawSshCommand) : null;
+          const parsedCommand = rawSshCommand
+            ? parseManualSshCommand(rawSshCommand)
+            : null;
           const interactiveAccess = values["interactive-access"]?.trim();
           if (
             interactiveAccess &&
@@ -2067,13 +2275,24 @@ async function main(): Promise<void> {
             id: profileId,
             podId: values["pod-id"] ?? undefined,
             host: values.host ?? parsedCommand?.host ?? undefined,
-            port: parseOptionalIntegerFlag(values.port) ?? parsedCommand?.port ?? undefined,
+            port:
+              parseOptionalIntegerFlag(values.port) ??
+              parsedCommand?.port ??
+              undefined,
             user: values.user ?? parsedCommand?.user ?? undefined,
-            privateKeyPath: values["ssh-key-path"] ?? parsedCommand?.privateKeyPath ?? undefined,
-            sshConfigHost: values["ssh-config-host"] ?? parsedCommand?.sshConfigHost ?? undefined,
+            privateKeyPath:
+              values["ssh-key-path"] ??
+              parsedCommand?.privateKeyPath ??
+              undefined,
+            sshConfigHost:
+              values["ssh-config-host"] ??
+              parsedCommand?.sshConfigHost ??
+              undefined,
             workspaceRoot: values["workspace-root"] ?? undefined,
-            interactiveAccess:
-              interactiveAccess as "disabled" | "opt_in" | undefined
+            interactiveAccess: interactiveAccess as
+              | "disabled"
+              | "opt_in"
+              | undefined,
           });
 
           if (parseBooleanFlag(values["set-default"], false)) {
@@ -2101,7 +2320,8 @@ async function main(): Promise<void> {
         if (sshSubaction === "list") {
           const project = runtime.getActiveProject();
           const activeAgentId = runtime.getActiveAgent().id;
-          const defaultProfileId = project.agentRemoteDefaults[activeAgentId]?.manualSshProfileId;
+          const defaultProfileId =
+            project.agentRemoteDefaults[activeAgentId]?.manualSshProfileId;
           for (const profile of runtime.listManualSshProfiles()) {
             const marker = profile.id === defaultProfileId ? "*" : "-";
             const destination = profile.sshConfigHost
@@ -2116,7 +2336,9 @@ async function main(): Promise<void> {
         }
 
         if (sshSubaction === "show") {
-          console.log(JSON.stringify(runtime.getManualSshProfile(profileId), null, 2));
+          console.log(
+            JSON.stringify(runtime.getManualSshProfile(profileId), null, 2),
+          );
           return;
         }
 
@@ -2160,7 +2382,8 @@ async function main(): Promise<void> {
             throw new Error(`${accent("--profile-id")} is required`);
           }
           runtime.setManualSshProfileDefault(profileId, values["agent-id"]);
-          const targetAgentId = values["agent-id"]?.trim() || runtime.getActiveAgent().id;
+          const targetAgentId =
+            values["agent-id"]?.trim() || runtime.getActiveAgent().id;
           console.log(`Manual SSH profile default set: ${profileId}`);
           console.log(`Agent: ${targetAgentId}`);
           return;
@@ -2175,7 +2398,7 @@ async function main(): Promise<void> {
         if (sshSubaction === "start") {
           const session = await runtime.startManualSshSession({
             profileId: values["profile-id"],
-            agentId: values["agent-id"]
+            agentId: values["agent-id"],
           });
           console.log(`Session ID: ${session.sessionId}`);
           console.log(`Profile: ${session.profileId}`);
@@ -2199,7 +2422,13 @@ async function main(): Promise<void> {
             throw new Error(`${accent("--session-id")} is required`);
           }
           const offset = parseOptionalIntegerFlag(values.offset);
-          console.log(JSON.stringify(runtime.readManualSshSession(sessionId, offset), null, 2));
+          console.log(
+            JSON.stringify(
+              runtime.readManualSshSession(sessionId, offset),
+              null,
+              2,
+            ),
+          );
           return;
         }
 
@@ -2215,7 +2444,7 @@ async function main(): Promise<void> {
           const session = runtime.writeManualSshSession({
             sessionId,
             input: inputValue,
-            appendNewline: parseBooleanFlag(values["append-newline"], true)
+            appendNewline: parseBooleanFlag(values["append-newline"], true),
           });
           console.log(JSON.stringify(session, null, 2));
           return;
@@ -2226,7 +2455,13 @@ async function main(): Promise<void> {
           if (!sessionId) {
             throw new Error(`${accent("--session-id")} is required`);
           }
-          console.log(JSON.stringify(await runtime.stopManualSshSession(sessionId), null, 2));
+          console.log(
+            JSON.stringify(
+              await runtime.stopManualSshSession(sessionId),
+              null,
+              2,
+            ),
+          );
           return;
         }
 

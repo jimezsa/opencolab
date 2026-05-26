@@ -469,7 +469,7 @@ function ChatPage({ projectId, searchParams, setSearchParams }: ChatPageProps) {
       </section>
       </div>
 
-      <aside className="hidden w-72 shrink-0 lg:flex min-h-0 flex-col gap-2 rounded-lg bg-background p-3">
+      <aside className="hidden w-96 xl:w-md 2xl:w-lg shrink-0 lg:flex min-h-0 flex-col gap-2 rounded-lg bg-background p-3">
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground text-[10px] tracking-wider uppercase">
             Preview

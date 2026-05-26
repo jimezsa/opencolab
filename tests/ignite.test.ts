@@ -18,7 +18,7 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     KIMI_API_KEY: process.env.KIMI_API_KEY,
     RUNPOD_API_KEY: process.env.RUNPOD_API_KEY,
-    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   };
   delete process.env.OPENAI_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
@@ -32,7 +32,9 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
   return previous;
 }
 
-function restoreSecretEnvVars(previous: Record<string, string | undefined>): void {
+function restoreSecretEnvVars(
+  previous: Record<string, string | undefined>,
+): void {
   for (const [key, value] of Object.entries(previous)) {
     if (value === undefined) {
       delete process.env[key];
@@ -60,7 +62,7 @@ test("ignite configures project, provider, and telegram", async () => {
     "y",
     "123456:telegram_bot_token",
     "10001",
-    "n"
+    "n",
   ];
   const prompts: string[] = [];
   const outputs: string[] = [];
@@ -76,17 +78,21 @@ test("ignite configures project, provider, and telegram", async () => {
         },
         write: (line) => {
           outputs.push(line);
-        }
+        },
       },
       {
         syncTelegramCommands: async () => {
           syncCalls += 1;
           return { ok: true };
-        }
-      }
+        },
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
     assert.equal(syncCalls, 1);
 
     const state = runtime.getState();
@@ -113,7 +119,7 @@ test("ignite configures project, provider, and telegram", async () => {
       "{project_dir}",
       "--add-dir",
       "{shared_skills_dir}",
-      "-"
+      "-",
     ]);
 
     assert.equal(state.telegram.chatId, "10001");
@@ -123,26 +129,42 @@ test("ignite configures project, provider, and telegram", async () => {
     assert.equal(process.env.TELEGRAM_BOT_TOKEN, "123456:telegram_bot_token");
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
     assert.equal(envLocal.includes("OPENAI_API_KEY=openai_test_key_123"), true);
-    assert.equal(envLocal.includes("GEMINI_API_KEY=gemini_tools_key_123"), true);
-    assert.equal(envLocal.includes("TELEGRAM_BOT_TOKEN=123456:telegram_bot_token"), true);
+    assert.equal(
+      envLocal.includes("GEMINI_API_KEY=gemini_tools_key_123"),
+      true,
+    );
+    assert.equal(
+      envLocal.includes("TELEGRAM_BOT_TOKEN=123456:telegram_bot_token"),
+      true,
+    );
 
     assert.equal(agent.id, "professor");
     assert.equal(agent.path, "projects/science/AGENTS/professor");
 
     assert.equal(prompts.length > 0, true);
     assert.equal(
-      outputs.some((line) => line.includes("Set OPENAI_API_KEY here: https://platform.openai.com/api-keys")),
-      true
-    );
-    assert.equal(
-      outputs.some((line) => line.includes("Set GEMINI_API_KEY here: https://aistudio.google.com/app/apikey")),
-      true
+      outputs.some((line) =>
+        line.includes(
+          "Set OPENAI_API_KEY here: https://platform.openai.com/api-keys",
+        ),
+      ),
+      true,
     );
     assert.equal(
       outputs.some((line) =>
-        line.includes("Create a Telegram bot token with BotFather: open https://t.me/BotFather and run /newbot."),
+        line.includes(
+          "Set GEMINI_API_KEY here: https://aistudio.google.com/app/apikey",
+        ),
       ),
-      true
+      true,
+    );
+    assert.equal(
+      outputs.some((line) =>
+        line.includes(
+          "Create a Telegram bot token with BotFather: open https://t.me/BotFather and run /newbot.",
+        ),
+      ),
+      true,
     );
     assert.equal(outputs.includes("Onboarding complete."), true);
   } finally {
@@ -152,7 +174,9 @@ test("ignite configures project, provider, and telegram", async () => {
 });
 
 test("ignite lets Esc skip a step and continue", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-esc-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-esc-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -166,7 +190,7 @@ test("ignite lets Esc skip a step and continue", async () => {
     "openai_test_key_esc",
     "n",
     "n",
-    ESC_INPUT
+    ESC_INPUT,
   ];
   const outputs: string[] = [];
   let syncCalls = 0;
@@ -178,14 +202,14 @@ test("ignite lets Esc skip a step and continue", async () => {
         ask: async () => answers.shift() ?? "",
         write: (line) => {
           outputs.push(line);
-        }
+        },
       },
       {
         syncTelegramCommands: async () => {
           syncCalls += 1;
           return { ok: true };
-        }
-      }
+        },
+      },
     );
 
     const state = runtime.getState();
@@ -202,7 +226,10 @@ test("ignite lets Esc skip a step and continue", async () => {
     assert.equal(agent.id, "professor");
     assert.equal(syncCalls, 0);
     assert.equal(process.env.OPENAI_API_KEY, "openai_test_key_esc");
-    assert.equal(outputs.some((line) => line.includes("Step skipped.")), true);
+    assert.equal(
+      outputs.some((line) => line.includes("Step skipped.")),
+      true,
+    );
     assert.equal(outputs.includes("Onboarding complete."), true);
   } finally {
     restoreSecretEnvVars(previousEnv);
@@ -211,14 +238,16 @@ test("ignite lets Esc skip a step and continue", async () => {
 });
 
 test("ignite detects existing provider setup and allows keeping it", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-provider-detect-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-provider-detect-"),
+  );
   const previousEnv = clearSecretEnvVars();
   process.env.OPENAI_API_KEY = "existing_openai_key";
   const runtime = createRuntime(tempDir);
   runtime.init();
   runtime.setupModel({
     providerName: "openai",
-    model: "gpt-5.4"
+    model: "gpt-5.4",
   });
 
   const answers = ["", "y", "n", "n", "n"];
@@ -232,11 +261,11 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
           prompts.push(prompt);
           return answers.shift() ?? "";
         },
-        write: () => undefined
+        write: () => undefined,
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
     const agent = runtime.getActiveAgent();
@@ -245,7 +274,10 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
     assert.equal(agent.provider.authMode, "api_key");
     assert.equal(agent.provider.reasoningEffort, "high");
     assert.equal(agent.provider.runtime, "codex");
-    assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
+    assert.equal(
+      prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")),
+      false,
+    );
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -253,7 +285,9 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
 });
 
 test("ignite supports configuring the minimax provider", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-minimax-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-minimax-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -265,7 +299,7 @@ test("ignite supports configuring the minimax provider", async () => {
     "minimax_test_key_123",
     "n",
     "n",
-    "n"
+    "n",
   ];
 
   try {
@@ -273,14 +307,18 @@ test("ignite supports configuring the minimax provider", async () => {
       runtime,
       {
         ask: async () => answers.shift() ?? "",
-        write: () => undefined
+        write: () => undefined,
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "minimax");
@@ -302,12 +340,15 @@ test("ignite supports configuring the minimax provider", async () => {
       "--add-dir",
       "{shared_skills_dir}",
       "--",
-      "{prompt}"
+      "{prompt}",
     ]);
 
     assert.equal(process.env.MINIMAX_API_KEY, "minimax_test_key_123");
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
-    assert.equal(envLocal.includes("MINIMAX_API_KEY=minimax_test_key_123"), true);
+    assert.equal(
+      envLocal.includes("MINIMAX_API_KEY=minimax_test_key_123"),
+      true,
+    );
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -315,7 +356,9 @@ test("ignite supports configuring the minimax provider", async () => {
 });
 
 test("ignite exposes MiniMax-M2.7 in interactive chooser mode", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-minimax-choose-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-minimax-choose-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -338,11 +381,11 @@ test("ignite exposes MiniMax-M2.7 in interactive chooser mode", async () => {
           }
           return options[0] ?? "";
         },
-        write: () => undefined
+        write: () => undefined,
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
     assert.deepEqual(modelOptions, ["MiniMax-M2.7", "MiniMax-M2.5"]);
@@ -352,7 +395,11 @@ test("ignite exposes MiniMax-M2.7 in interactive chooser mode", async () => {
     assert.equal(agent.provider.model, "MiniMax-M2.7");
     assert.equal(agent.provider.runtime, "claude");
     assert.equal(process.env.MINIMAX_API_KEY, "minimax_test_key_choose");
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -360,21 +407,14 @@ test("ignite exposes MiniMax-M2.7 in interactive chooser mode", async () => {
 });
 
 test("ignite supports OpenAI oauth mode without asking for API key", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-openai-oauth-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-openai-oauth-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = [
-    "",
-    "openai",
-    "oauth",
-    "gpt-5.4",
-    "",
-    "n",
-    "n",
-    "n"
-  ];
+  const answers = ["", "openai", "oauth", "gpt-5.4", "", "n", "n", "n"];
   const prompts: string[] = [];
 
   try {
@@ -385,21 +425,28 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
           prompts.push(prompt);
           return answers.shift() ?? "";
         },
-        write: () => undefined
+        write: () => undefined,
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openai");
     assert.equal(agent.provider.authMode, "oauth");
     assert.equal(agent.provider.reasoningEffort, "high");
     assert.equal(agent.provider.runtime, "codex");
-    assert.equal(prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")), false);
+    assert.equal(
+      prompts.some((prompt) => prompt.includes("OPENAI_API_KEY value")),
+      false,
+    );
     assert.equal(process.env.OPENAI_API_KEY, undefined);
   } finally {
     restoreSecretEnvVars(previousEnv);
@@ -408,7 +455,9 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
 });
 
 test("ignite exposes native OpenAI reasoning effort options in chooser mode", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-openai-choose-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-openai-choose-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -429,7 +478,7 @@ test("ignite exposes native OpenAI reasoning effort options in chooser mode", as
             return "oauth";
           }
           if (prompt === "| Model:") {
-            return "gpt-5.4";
+            return "gpt-5.5";
           }
           if (prompt === "| Reasoning effort:") {
             reasoningOptions = [...options];
@@ -437,16 +486,20 @@ test("ignite exposes native OpenAI reasoning effort options in chooser mode", as
           }
           return options[0] ?? "";
         },
-        write: () => undefined
+        write: () => undefined,
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
     assert.deepEqual(reasoningOptions, ["low", "medium", "high", "xhigh"]);
     assert.equal(runtime.getActiveAgent().provider.reasoningEffort, "xhigh");
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -454,7 +507,9 @@ test("ignite exposes native OpenAI reasoning effort options in chooser mode", as
 });
 
 test("ignite supports Anthropic oauth mode without asking for API key", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-anthropic-oauth-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-anthropic-oauth-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -467,7 +522,7 @@ test("ignite supports Anthropic oauth mode without asking for API key", async ()
     "max",
     "n",
     "n",
-    "n"
+    "n",
   ];
   const prompts: string[] = [];
   const outputs: string[] = [];
@@ -482,14 +537,18 @@ test("ignite supports Anthropic oauth mode without asking for API key", async ()
         },
         write: (line) => {
           outputs.push(line);
-        }
+        },
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "anthropic");
@@ -497,8 +556,14 @@ test("ignite supports Anthropic oauth mode without asking for API key", async ()
     assert.equal(agent.provider.runtime, "claude");
     assert.equal(agent.provider.model, "claude-opus-4-6");
     assert.equal(agent.provider.reasoningEffort, "max");
-    assert.equal(prompts.some((prompt) => prompt.includes("ANTHROPIC_API_KEY value")), false);
-    assert.equal(outputs.some((line) => line.includes("claude auth login")), true);
+    assert.equal(
+      prompts.some((prompt) => prompt.includes("ANTHROPIC_API_KEY value")),
+      false,
+    );
+    assert.equal(
+      outputs.some((line) => line.includes("claude auth login")),
+      true,
+    );
     assert.equal(process.env.ANTHROPIC_API_KEY, undefined);
   } finally {
     restoreSecretEnvVars(previousEnv);
@@ -507,7 +572,9 @@ test("ignite supports Anthropic oauth mode without asking for API key", async ()
 });
 
 test("ignite supports configuring the Gemini provider with a concrete model name", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-gemini-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-gemini-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -519,7 +586,7 @@ test("ignite supports configuring the Gemini provider with a concrete model name
     "gemini-2.5-pro",
     "gemini_test_key_123",
     "n",
-    "n"
+    "n",
   ];
 
   try {
@@ -527,14 +594,18 @@ test("ignite supports configuring the Gemini provider with a concrete model name
       runtime,
       {
         ask: async () => answers.shift() ?? "",
-        write: () => undefined
+        write: () => undefined,
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "gemini");
@@ -549,7 +620,7 @@ test("ignite supports configuring the Gemini provider with a concrete model name
       "stream-json",
       "--model",
       "{model}",
-      "--yolo"
+      "--yolo",
     ]);
 
     assert.equal(process.env.GEMINI_API_KEY, "gemini_test_key_123");
@@ -562,20 +633,14 @@ test("ignite supports configuring the Gemini provider with a concrete model name
 });
 
 test("ignite supports Gemini oauth mode without asking for API key", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-gemini-oauth-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-gemini-oauth-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = [
-    "",
-    "gemini",
-    "oauth",
-    "gemini-2.5-pro",
-    "n",
-    "n",
-    "n"
-  ];
+  const answers = ["", "gemini", "oauth", "gemini-2.5-pro", "n", "n", "n"];
   const prompts: string[] = [];
   const outputs: string[] = [];
 
@@ -589,22 +654,32 @@ test("ignite supports Gemini oauth mode without asking for API key", async () =>
         },
         write: (line) => {
           outputs.push(line);
-        }
+        },
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "gemini");
     assert.equal(agent.provider.authMode, "oauth");
     assert.equal(agent.provider.runtime, "gemini");
     assert.equal(agent.provider.model, "gemini-2.5-pro");
-    assert.equal(prompts.some((prompt) => prompt.includes("GEMINI_API_KEY value")), false);
-    assert.equal(outputs.some((line) => line.includes("Login with Google")), true);
+    assert.equal(
+      prompts.some((prompt) => prompt.includes("GEMINI_API_KEY value")),
+      false,
+    );
+    assert.equal(
+      outputs.some((line) => line.includes("Login with Google")),
+      true,
+    );
     assert.equal(process.env.GEMINI_API_KEY, undefined);
   } finally {
     restoreSecretEnvVars(previousEnv);
@@ -613,7 +688,9 @@ test("ignite supports Gemini oauth mode without asking for API key", async () =>
 });
 
 test("ignite exposes curated Gemini models in interactive chooser mode", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-gemini-choose-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-gemini-choose-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -639,11 +716,11 @@ test("ignite exposes curated Gemini models in interactive chooser mode", async (
           }
           return options[0] ?? "";
         },
-        write: () => undefined
+        write: () => undefined,
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
     assert.deepEqual(modelOptions, [
@@ -659,7 +736,11 @@ test("ignite exposes curated Gemini models in interactive chooser mode", async (
     assert.equal(agent.provider.authMode, "oauth");
     assert.equal(agent.provider.runtime, "gemini");
     assert.equal(agent.provider.model, "gemini-3.1-pro-preview");
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -667,7 +748,9 @@ test("ignite exposes curated Gemini models in interactive chooser mode", async (
 });
 
 test("ignite supports configuring xAI on the pi runtime", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-xai-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-xai-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -679,7 +762,7 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
     "xai_test_key_123",
     "n",
     "n",
-    "n"
+    "n",
   ];
 
   try {
@@ -687,14 +770,18 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
       runtime,
       {
         ask: async () => answers.shift() ?? "",
-        write: () => undefined
+        write: () => undefined,
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "xai");
@@ -719,7 +806,7 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
       "--no-themes",
       "--tools",
       "read,bash,edit,write,grep,find,ls",
-      "{user_message}"
+      "{user_message}",
     ]);
 
     assert.equal(process.env.XAI_API_KEY, "xai_test_key_123");
@@ -732,7 +819,9 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
 });
 
 test("ignite supports configuring OpenRouter on the pi runtime", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-openrouter-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-openrouter-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -744,7 +833,7 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
     "openrouter_test_key_123",
     "n",
     "n",
-    "n"
+    "n",
   ];
 
   try {
@@ -752,14 +841,18 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
       runtime,
       {
         ask: async () => answers.shift() ?? "",
-        write: () => undefined
+        write: () => undefined,
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openrouter");
@@ -784,12 +877,15 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
       "--no-themes",
       "--tools",
       "read,bash,edit,write,grep,find,ls",
-      "{user_message}"
+      "{user_message}",
     ]);
 
     assert.equal(process.env.OPENROUTER_API_KEY, "openrouter_test_key_123");
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
-    assert.equal(envLocal.includes("OPENROUTER_API_KEY=openrouter_test_key_123"), true);
+    assert.equal(
+      envLocal.includes("OPENROUTER_API_KEY=openrouter_test_key_123"),
+      true,
+    );
   } finally {
     restoreSecretEnvVars(previousEnv);
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -797,34 +893,32 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
 });
 
 test("ignite supports configuring Kimi on the pi runtime", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-kimi-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-kimi-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = [
-    "",
-    "kimi",
-    "k2p5",
-    "kimi_test_key_123",
-    "n",
-    "n",
-    "n"
-  ];
+  const answers = ["", "kimi", "k2p5", "kimi_test_key_123", "n", "n", "n"];
 
   try {
     await runIgnite(
       runtime,
       {
         ask: async () => answers.shift() ?? "",
-        write: () => undefined
+        write: () => undefined,
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "kimi");
@@ -849,7 +943,7 @@ test("ignite supports configuring Kimi on the pi runtime", async () => {
       "--no-themes",
       "--tools",
       "read,bash,edit,write,grep,find,ls",
-      "{user_message}"
+      "{user_message}",
     ]);
 
     assert.equal(process.env.KIMI_API_KEY, "kimi_test_key_123");
@@ -862,7 +956,9 @@ test("ignite supports configuring Kimi on the pi runtime", async () => {
 });
 
 test("ignite can save the Gemini built-in tools key without changing the active provider", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-built-in-tools-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-built-in-tools-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -876,7 +972,7 @@ test("ignite can save the Gemini built-in tools key without changing the active 
     "y",
     "gemini_built_in_key_123",
     "n",
-    "n"
+    "n",
   ];
   const outputs: string[] = [];
 
@@ -887,14 +983,18 @@ test("ignite can save the Gemini built-in tools key without changing the active 
         ask: async () => answers.shift() ?? "",
         write: (line) => {
           outputs.push(line);
-        }
+        },
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "openai");
@@ -904,7 +1004,10 @@ test("ignite can save the Gemini built-in tools key without changing the active 
     assert.equal(process.env.GEMINI_API_KEY, "gemini_built_in_key_123");
 
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
-    assert.equal(envLocal.includes("GEMINI_API_KEY=gemini_built_in_key_123"), true);
+    assert.equal(
+      envLocal.includes("GEMINI_API_KEY=gemini_built_in_key_123"),
+      true,
+    );
     assert.equal(
       outputs.some((line) =>
         line.includes("Saved GEMINI_API_KEY in .env.local for shared tools."),
@@ -926,7 +1029,9 @@ test("ignite can save the Gemini built-in tools key without changing the active 
 });
 
 test("ignite can save the Gemini key for pageindex-grounded without changing the active provider", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-pageindex-grounded-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-pageindex-grounded-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -939,7 +1044,7 @@ test("ignite can save the Gemini key for pageindex-grounded without changing the
     "n",
     "y",
     "pageindex_gemini_key_123",
-    "n"
+    "n",
   ];
   const outputs: string[] = [];
 
@@ -950,14 +1055,18 @@ test("ignite can save the Gemini key for pageindex-grounded without changing the
         ask: async () => answers.shift() ?? "",
         write: (line) => {
           outputs.push(line);
-        }
+        },
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
 
     const agent = runtime.getActiveAgent();
     assert.equal(agent.provider.name, "gemini");
@@ -966,10 +1075,15 @@ test("ignite can save the Gemini key for pageindex-grounded without changing the
     assert.equal(process.env.GEMINI_API_KEY, "pageindex_gemini_key_123");
 
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
-    assert.equal(envLocal.includes("GEMINI_API_KEY=pageindex_gemini_key_123"), true);
+    assert.equal(
+      envLocal.includes("GEMINI_API_KEY=pageindex_gemini_key_123"),
+      true,
+    );
     assert.equal(
       outputs.some((line) =>
-        line.includes("Saved GEMINI_API_KEY in .env.local for pageindex-grounded."),
+        line.includes(
+          "Saved GEMINI_API_KEY in .env.local for pageindex-grounded.",
+        ),
       ),
       true,
     );
@@ -980,7 +1094,9 @@ test("ignite can save the Gemini key for pageindex-grounded without changing the
 });
 
 test("ignite can configure an optional Runpod GPU server", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-runpod-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-runpod-"),
+  );
   const previousEnv = clearSecretEnvVars();
   const runtime = createRuntime(tempDir);
   runtime.init();
@@ -1000,7 +1116,7 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     "runpod_test_key_123",
     "y",
     "runpod-a100",
-    "n"
+    "n",
   ];
   const outputs: string[] = [];
 
@@ -1011,14 +1127,18 @@ test("ignite can configure an optional Runpod GPU server", async () => {
         ask: async () => answers.shift() ?? "",
         write: (line) => {
           outputs.push(line);
-        }
+        },
       },
       {
-        syncTelegramCommands: async () => ({ ok: true })
-      }
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
     );
 
-    assert.equal(answers.length, 0, "all scripted onboarding answers should be consumed");
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
     assert.equal(process.env.RUNPOD_API_KEY, "runpod_test_key_123");
     const target = runtime.getExecutionTarget("runpod-a100");
     assert.equal(target.backend, "runpod");
@@ -1033,13 +1153,17 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     assert.equal(envLocal.includes("RUNPOD_API_KEY=runpod_test_key_123"), true);
     assert.equal(
       outputs.some((line) =>
-        line.includes("Set RUNPOD_API_KEY here: https://www.runpod.io/console/user/settings"),
+        line.includes(
+          "Set RUNPOD_API_KEY here: https://www.runpod.io/console/user/settings",
+        ),
       ),
-      true
+      true,
     );
     assert.equal(
-      outputs.some((line) => line.includes("Configured Runpod GPU server 'runpod-a100'")),
-      true
+      outputs.some((line) =>
+        line.includes("Configured Runpod GPU server 'runpod-a100'"),
+      ),
+      true,
     );
   } finally {
     restoreSecretEnvVars(previousEnv);

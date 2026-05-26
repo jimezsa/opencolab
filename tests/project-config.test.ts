@@ -7,7 +7,7 @@ import { loadConfig } from "../src/config.js";
 import {
   createDefaultExecutionTargetConfig,
   readProjectState,
-  updateProjectState
+  updateProjectState,
 } from "../src/project-config.js";
 
 const DEFAULT_AGENT_ID = "professor";
@@ -17,7 +17,9 @@ function buildDefaultAgentPath(projectId: string): string {
 }
 
 test("project state defaults to a default project and agent", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-default-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-default-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -60,7 +62,9 @@ test("default Runpod execution targets use the pytorch-cu12 bootstrap profile an
 });
 
 test("project state normalizes project-scoped execution targets", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-execution-targets-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-execution-targets-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -88,18 +92,18 @@ test("project state normalizes project-scoped execution targets", () => {
                   mode: "network_volume",
                   id: "vol_123",
                   name: "alpha-runpod-a100",
-                  sizeGb: 200
+                  sizeGb: 200,
                 },
                 ssh: {
                   mode: "public_ip",
                   user: "root",
-                  privateKeyPath: "~/.ssh/id_ed25519"
+                  privateKeyPath: "~/.ssh/id_ed25519",
                 },
                 workspaceRoot: "/workspace",
                 bootstrapProfile: "python-ml",
                 maxRuntimeMinutes: 360,
-                autoStopPolicy: "stop_on_completion"
-              }
+                autoStopPolicy: "stop_on_completion",
+              },
             },
             agents: {
               [DEFAULT_AGENT_ID]: {
@@ -113,14 +117,14 @@ test("project state normalizes project-scoped execution targets", () => {
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
@@ -131,7 +135,10 @@ test("project state normalizes project-scoped execution targets", () => {
     assert.deepEqual(target.preferredDatacenterIds, ["US-KS-2", "CA-MTL-1"]);
     assert.equal(target.cloudType, "secure");
     assert.equal(target.gpuType, "NVIDIA A100 80GB PCIe");
-    assert.deepEqual(target.preferredGpuTypes, ["NVIDIA A100 80GB PCIe", "NVIDIA RTX 4090"]);
+    assert.deepEqual(target.preferredGpuTypes, [
+      "NVIDIA A100 80GB PCIe",
+      "NVIDIA RTX 4090",
+    ]);
     assert.equal(target.volume.id, "vol_123");
     assert.equal(target.volume.name, "alpha-runpod-a100");
     assert.equal(target.ssh.user, "root");
@@ -144,7 +151,9 @@ test("project state normalizes project-scoped execution targets", () => {
 });
 
 test("project state infers fallback candidate lists from legacy fixed Runpod fields", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-execution-target-legacy-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-execution-target-legacy-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -162,8 +171,8 @@ test("project state infers fallback candidate lists from legacy fixed Runpod fie
                 id: "runpod-a100",
                 backend: "runpod",
                 datacenterId: "US-KS-2",
-                gpuType: "NVIDIA A100 80GB PCIe"
-              }
+                gpuType: "NVIDIA A100 80GB PCIe",
+              },
             },
             agents: {
               [DEFAULT_AGENT_ID]: {
@@ -177,14 +186,14 @@ test("project state infers fallback candidate lists from legacy fixed Runpod fie
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
@@ -197,7 +206,9 @@ test("project state infers fallback candidate lists from legacy fixed Runpod fie
 });
 
 test("project state normalizes saved manual SSH profiles and agent defaults", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-manual-ssh-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-manual-ssh-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -221,13 +232,13 @@ test("project state normalizes saved manual SSH profiles and agent defaults", ()
                 user: "root",
                 privateKeyPath: "~/.ssh/id_ed25519",
                 workspaceRoot: "/workspace",
-                interactiveAccess: "opt_in"
-              }
+                interactiveAccess: "opt_in",
+              },
             },
             agentRemoteDefaults: {
               [DEFAULT_AGENT_ID]: {
-                manualSshProfileId: "runpod-manual-a100"
-              }
+                manualSshProfileId: "runpod-manual-a100",
+              },
             },
             agents: {
               [DEFAULT_AGENT_ID]: {
@@ -241,18 +252,19 @@ test("project state normalizes saved manual SSH profiles and agent defaults", ()
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
-    const profile = loaded.projects.alpha.manualSshProfiles["runpod-manual-a100"];
+    const profile =
+      loaded.projects.alpha.manualSshProfiles["runpod-manual-a100"];
     assert.equal(profile.backend, "runpod");
     assert.equal(profile.mode, "manual_pod");
     assert.equal(profile.podId, "pod_123");
@@ -262,8 +274,9 @@ test("project state normalizes saved manual SSH profiles and agent defaults", ()
     assert.equal(profile.workspaceRoot, "/workspace");
     assert.equal(profile.interactiveAccess, "opt_in");
     assert.equal(
-      loaded.projects.alpha.agentRemoteDefaults[DEFAULT_AGENT_ID]?.manualSshProfileId,
-      "runpod-manual-a100"
+      loaded.projects.alpha.agentRemoteDefaults[DEFAULT_AGENT_ID]
+        ?.manualSshProfileId,
+      "runpod-manual-a100",
     );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -271,7 +284,9 @@ test("project state normalizes saved manual SSH profiles and agent defaults", ()
 });
 
 test("project state migrates legacy project provider into agent config", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-provider-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -294,22 +309,22 @@ test("project state migrates legacy project provider into agent config", () => {
                   alma: "ALMA.md",
                   tools: "TOOLS.md",
                   user: "USER.md",
-                  memory: "MEMORY.md"
-                }
-              }
+                  memory: "MEMORY.md",
+                },
+              },
             },
             provider: {
-              name: "claude_code"
-            }
-          }
+              name: "claude_code",
+            },
+          },
         },
         telegram: {
           botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
           chatId: "10001",
-          paired: true
-        }
+          paired: true,
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
@@ -333,7 +348,7 @@ test("project state migrates legacy project provider into agent config", () => {
       "--add-dir",
       "{shared_skills_dir}",
       "--",
-      "{prompt}"
+      "{prompt}",
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -341,7 +356,9 @@ test("project state migrates legacy project provider into agent config", () => {
 });
 
 test("project state prefers explicit agent provider over legacy project provider", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-agent-provider-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-agent-provider-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -360,7 +377,7 @@ test("project state prefers explicit agent provider over legacy project provider
                 path: buildDefaultAgentPath("alpha"),
                 provider: {
                   name: "minimax",
-                  model: "MiniMax-M2.5"
+                  model: "MiniMax-M2.5",
                 },
                 files: {
                   agents: "AGENTS.md",
@@ -370,17 +387,17 @@ test("project state prefers explicit agent provider over legacy project provider
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
+                  memory: "MEMORY.md",
+                },
+              },
             },
             provider: {
-              name: "openai"
-            }
-          }
-        }
+              name: "openai",
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
@@ -395,7 +412,9 @@ test("project state prefers explicit agent provider over legacy project provider
 });
 
 test("project state migrates previously shipped Claude workspace args to the current streaming defaults", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-claude-stream-migrate-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-claude-stream-migrate-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -419,7 +438,7 @@ test("project state migrates previously shipped Claude workspace args to the cur
                   alma: "ALMA.md",
                   tools: "TOOLS.md",
                   user: "USER.md",
-                  memory: "MEMORY.md"
+                  memory: "MEMORY.md",
                 },
                 provider: {
                   name: "anthropic",
@@ -438,16 +457,16 @@ test("project state migrates previously shipped Claude workspace args to the cur
                     "--add-dir",
                     "{project_dir}",
                     "--add-dir",
-                    "{shared_skills_dir}"
+                    "{shared_skills_dir}",
                   ],
-                  authMode: "oauth"
-                }
-              }
-            }
-          }
-        }
+                  authMode: "oauth",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
@@ -471,7 +490,7 @@ test("project state migrates previously shipped Claude workspace args to the cur
       "--add-dir",
       "{shared_skills_dir}",
       "--",
-      "{prompt}"
+      "{prompt}",
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -479,7 +498,9 @@ test("project state migrates previously shipped Claude workspace args to the cur
 });
 
 test("project state migrates older Claude workspace args without stream-json to the current defaults", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-claude-workspace-migrate-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-claude-workspace-migrate-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -503,7 +524,7 @@ test("project state migrates older Claude workspace args without stream-json to 
                   alma: "ALMA.md",
                   tools: "TOOLS.md",
                   user: "USER.md",
-                  memory: "MEMORY.md"
+                  memory: "MEMORY.md",
                 },
                 provider: {
                   name: "anthropic",
@@ -520,16 +541,16 @@ test("project state migrates older Claude workspace args without stream-json to 
                     "--add-dir",
                     "{project_dir}",
                     "--add-dir",
-                    "{shared_skills_dir}"
+                    "{shared_skills_dir}",
                   ],
-                  authMode: "api_key"
-                }
-              }
-            }
-          }
-        }
+                  authMode: "api_key",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
@@ -553,7 +574,7 @@ test("project state migrates older Claude workspace args without stream-json to 
       "--add-dir",
       "{shared_skills_dir}",
       "--",
-      "{prompt}"
+      "{prompt}",
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -561,7 +582,9 @@ test("project state migrates older Claude workspace args without stream-json to 
 });
 
 test("project state preserves custom provider CLI defaults on the agent", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-provider-cli-custom-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-provider-cli-custom-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -581,7 +604,7 @@ test("project state preserves custom provider CLI defaults on the agent", () => 
                 provider: {
                   name: "openai",
                   cliCommand: "codex",
-                  cliArgs: ["exec", "--sandbox", "danger-full-access", "-"]
+                  cliArgs: ["exec", "--sandbox", "danger-full-access", "-"],
                 },
                 files: {
                   agents: "AGENTS.md",
@@ -591,32 +614,38 @@ test("project state preserves custom provider CLI defaults on the agent", () => 
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "api_key");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "codex");
-    assert.deepEqual(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliArgs, [
-      "exec",
-      "--sandbox",
-      "danger-full-access",
-      "-"
-    ]);
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode,
+      "api_key",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime,
+      "codex",
+    );
+    assert.deepEqual(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliArgs,
+      ["exec", "--sandbox", "danger-full-access", "-"],
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
 test("project state persists agent provider updates in opencolab.json", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-persist-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-persist-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -637,11 +666,11 @@ test("project state persists agent provider updates in opencolab.json", () => {
                 ...agent,
                 provider: {
                   ...agent.provider,
-                  model: "gpt-5.4"
-                }
-              }
-            }
-          }
+                  model: "gpt-5.4",
+                },
+              },
+            },
+          },
         },
         telegram: {
           ...current.telegram,
@@ -650,8 +679,8 @@ test("project state persists agent provider updates in opencolab.json", () => {
           pairedAt: "2026-02-27T00:00:00.000Z",
           lastChatType: "supergroup",
           lastMessageThreadId: "77",
-          lastInteractionAt: "2026-02-27T00:05:00.000Z"
-        }
+          lastInteractionAt: "2026-02-27T00:05:00.000Z",
+        },
       };
     });
 
@@ -672,7 +701,9 @@ test("project state persists agent provider updates in opencolab.json", () => {
 });
 
 test("project state migrates legacy single-agent shape", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-legacy-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-legacy-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -689,20 +720,20 @@ test("project state migrates legacy single-agent shape", () => {
             alma: "ALMA.md",
             tools: "TOOLS.md",
             user: "USER.md",
-            memory: "MEMORY.md"
-          }
+            memory: "MEMORY.md",
+          },
         },
         provider: {
           name: "codex",
-          model: "gpt-5.4"
+          model: "gpt-5.4",
         },
         telegram: {
           botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
           chatId: "10001",
-          paired: true
-        }
+          paired: true,
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
@@ -721,7 +752,9 @@ test("project state migrates legacy single-agent shape", () => {
 });
 
 test("project state migrates legacy per-project telegram shape", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-legacy-project-telegram-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-legacy-project-telegram-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -745,30 +778,39 @@ test("project state migrates legacy per-project telegram shape", () => {
                   alma: "ALMA.md",
                   tools: "TOOLS.md",
                   user: "USER.md",
-                  memory: "MEMORY.md"
-                }
-              }
+                  memory: "MEMORY.md",
+                },
+              },
             },
             provider: {
-              name: "codex"
+              name: "codex",
             },
             telegram: {
               botTokenEnvVar: "TELEGRAM_BOT_TOKEN",
               chatId: "55555",
               paired: true,
-              pairedAt: "2026-02-27T00:00:00.000Z"
-            }
-          }
-        }
+              pairedAt: "2026-02-27T00:00:00.000Z",
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
     assert.equal(loaded.activeProjectId, "alpha");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.name, "openai");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.runtime, "codex");
-    assert.equal(loaded.projects.alpha.agents.researcher_agent.provider.authMode, "api_key");
+    assert.equal(
+      loaded.projects.alpha.agents.researcher_agent.provider.name,
+      "openai",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents.researcher_agent.provider.runtime,
+      "codex",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents.researcher_agent.provider.authMode,
+      "api_key",
+    );
     assert.equal(loaded.telegram.chatId, "55555");
     assert.equal(loaded.telegram.paired, true);
   } finally {
@@ -777,7 +819,9 @@ test("project state migrates legacy per-project telegram shape", () => {
 });
 
 test("project state clears stale pending heartbeat when the active agent changes", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-heartbeat-stale-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-heartbeat-stale-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -793,8 +837,8 @@ test("project state clears stale pending heartbeat when the active agent changes
             heartbeat: {
               pending: {
                 agentId: DEFAULT_AGENT_ID,
-                wakeAt: "2026-04-13T12:30:00.000Z"
-              }
+                wakeAt: "2026-04-13T12:30:00.000Z",
+              },
             },
             agents: {
               [DEFAULT_AGENT_ID]: {
@@ -808,8 +852,8 @@ test("project state clears stale pending heartbeat when the active agent changes
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
+                  memory: "MEMORY.md",
+                },
               },
               reviewer: {
                 id: "reviewer",
@@ -822,14 +866,14 @@ test("project state clears stale pending heartbeat when the active agent changes
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
@@ -840,7 +884,9 @@ test("project state clears stale pending heartbeat when the active agent changes
 });
 
 test("project state preserves OpenAI oauth auth mode", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-openai-oauth-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-openai-oauth-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -859,9 +905,9 @@ test("project state preserves OpenAI oauth auth mode", () => {
                 path: buildDefaultAgentPath("alpha"),
                 provider: {
                   name: "openai",
-                  model: "gpt-5.4",
+                  model: "gpt-5.5",
                   authMode: "oauth",
-                  reasoningEffort: "xhigh"
+                  reasoningEffort: "xhigh",
                 },
                 files: {
                   agents: "AGENTS.md",
@@ -871,27 +917,38 @@ test("project state preserves OpenAI oauth auth mode", () => {
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "codex");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "oauth");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.reasoningEffort, "xhigh");
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime,
+      "codex",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode,
+      "oauth",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.reasoningEffort,
+      "xhigh",
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
 test("project state preserves Anthropic oauth auth mode", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-anthropic-oauth-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-anthropic-oauth-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -912,7 +969,7 @@ test("project state preserves Anthropic oauth auth mode", () => {
                   name: "anthropic",
                   model: "claude-opus-4-6",
                   authMode: "oauth",
-                  reasoningEffort: "max"
+                  reasoningEffort: "max",
                 },
                 files: {
                   agents: "AGENTS.md",
@@ -922,28 +979,42 @@ test("project state preserves Anthropic oauth auth mode", () => {
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name, "anthropic");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "claude");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "oauth");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.reasoningEffort, "max");
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name,
+      "anthropic",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime,
+      "claude",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode,
+      "oauth",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.reasoningEffort,
+      "max",
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
 test("project state leaves reasoning effort unset when it is absent", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-openai-no-effort-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-openai-no-effort-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -963,7 +1034,7 @@ test("project state leaves reasoning effort unset when it is absent", () => {
                 provider: {
                   name: "openai",
                   model: "gpt-5.4",
-                  authMode: "oauth"
+                  authMode: "oauth",
                 },
                 files: {
                   agents: "AGENTS.md",
@@ -973,25 +1044,30 @@ test("project state leaves reasoning effort unset when it is absent", () => {
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.reasoningEffort, undefined);
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.reasoningEffort,
+      undefined,
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
 test("project state preserves Gemini oauth auth mode and concrete model name", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-gemini-oauth-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-gemini-oauth-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -1011,7 +1087,7 @@ test("project state preserves Gemini oauth auth mode and concrete model name", (
                 provider: {
                   name: "gemini",
                   model: "gemini-2.5-pro",
-                  authMode: "oauth"
+                  authMode: "oauth",
                 },
                 files: {
                   agents: "AGENTS.md",
@@ -1021,28 +1097,42 @@ test("project state preserves Gemini oauth auth mode and concrete model name", (
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name, "gemini");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "gemini");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.model, "gemini-2.5-pro");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode, "oauth");
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name,
+      "gemini",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime,
+      "gemini",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.model,
+      "gemini-2.5-pro",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.authMode,
+      "oauth",
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
 test("project state preserves xAI provider runtime and model", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-xai-pi-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-xai-pi-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -1061,7 +1151,7 @@ test("project state preserves xAI provider runtime and model", () => {
                 path: buildDefaultAgentPath("alpha"),
                 provider: {
                   name: "xai",
-                  model: "grok-code-fast-1"
+                  model: "grok-code-fast-1",
                 },
                 files: {
                   agents: "AGENTS.md",
@@ -1071,28 +1161,42 @@ test("project state preserves xAI provider runtime and model", () => {
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name, "xai");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "pi");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.model, "grok-code-fast-1");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliCommand, "pi");
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name,
+      "xai",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime,
+      "pi",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.model,
+      "grok-code-fast-1",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliCommand,
+      "pi",
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
 test("project state preserves Kimi provider runtime and model", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-state-kimi-pi-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-kimi-pi-"),
+  );
 
   try {
     const config = loadConfig(tempDir);
@@ -1111,7 +1215,7 @@ test("project state preserves Kimi provider runtime and model", () => {
                 path: buildDefaultAgentPath("alpha"),
                 provider: {
                   name: "kimi",
-                  model: "k2p5"
+                  model: "k2p5",
                 },
                 files: {
                   agents: "AGENTS.md",
@@ -1121,21 +1225,33 @@ test("project state preserves Kimi provider runtime and model", () => {
                   tools: "TOOLS.md",
                   user: "USER.md",
                   todo: "TODO.md",
-                  memory: "MEMORY.md"
-                }
-              }
-            }
-          }
-        }
+                  memory: "MEMORY.md",
+                },
+              },
+            },
+          },
+        },
       }),
-      "utf8"
+      "utf8",
     );
 
     const loaded = readProjectState(config);
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name, "kimi");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime, "pi");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.model, "k2p5");
-    assert.equal(loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliCommand, "pi");
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.name,
+      "kimi",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.runtime,
+      "pi",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.model,
+      "k2p5",
+    );
+    assert.equal(
+      loaded.projects.alpha.agents[DEFAULT_AGENT_ID].provider.cliCommand,
+      "pi",
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
