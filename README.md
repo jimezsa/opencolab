@@ -22,9 +22,9 @@ _Accelerating Scientific Discovery_ — Turn your research into an always-on aut
 
 ## Next feature direction
 
-- OpenColab Studio: clean local web interface for projects, agents, conversations, documents, artifacts, workflows, GPU runs, and gateway/provider health.
+- ✅ OpenColab Studio: clean local web interface for projects, agents, conversations, documents, artifacts, workflows, GPU runs, and gateway/provider health.
 - Workflow builder: reusable multi-agent workflow templates, custom agent handoffs, approval gates, and artifact-aware execution history.
-- Research asset library: first-class views for downloaded papers, figures, diagrams, LaTeX PDFs, experiment logs, metrics, and generated reports.
+- ✅ Research asset library: first-class views for downloaded papers, figures, diagrams, LaTeX PDFs, experiment logs, metrics, and generated reports.
 - HuggingFace integration skill: future shared skill for discovering, downloading, pinning, and tracking models and datasets for reproducible experiments.
 - Knowledge map: project-level links between papers, methods, datasets, claims, experiments, metrics, citations, decisions, and open questions.
 
