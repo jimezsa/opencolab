@@ -34,6 +34,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
+- Routed Codex defaults now include `--skip-git-repo-check` so OpenColab-managed Codex runs can start in non-git workspaces.
 - Default provider models bumped: Anthropic now defaults to `claude-opus-4-7`, OpenAI now defaults to `gpt-5.5`, and Gemini now defaults to `gemini-3.5-flash`. Existing configured agents keep their saved model.
 - The research PDF viewer is now a thin adapter over the generic `components/pdf/pdf-viewer.tsx`, so the chat artifact rail can preview returned PDFs without duplicating the `react-pdf` worker setup.
 - The Studio web request handler now allows any HTTP method for the `/api/web/projects/:projectId/chat/*` namespace (previously the whole `/api/web/` surface was GET-only), while the rest of the read-only DTO API continues to reject non-GET methods with `405`.

@@ -95,6 +95,7 @@ const CODEX_WORKSPACE_ARGS = [
   "-a",
   "never",
   "exec",
+  "--skip-git-repo-check",
   "--json",
   "--output-last-message",
   "{output_file}",

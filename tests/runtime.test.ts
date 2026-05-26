@@ -1083,6 +1083,7 @@ test("setupModel stores OpenAI oauth auth mode on the agent", () => {
       "-a",
       "never",
       "exec",
+      "--skip-git-repo-check",
       "--json",
       "--output-last-message",
       "{output_file}",

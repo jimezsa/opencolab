@@ -110,6 +110,7 @@ test("ignite configures project, provider, and telegram", async () => {
       "-a",
       "never",
       "exec",
+      "--skip-git-repo-check",
       "--json",
       "--output-last-message",
       "{output_file}",
