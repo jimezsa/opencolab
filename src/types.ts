@@ -459,3 +459,276 @@ export interface ManualSshSessionReadResult {
   output: string;
   transcriptPath: string;
 }
+
+export type WorkflowStepKind =
+  | "agent"
+  | "decision"
+  | "human_gate"
+  | "merge"
+  | "terminate";
+
+export type WorkflowDecisionAction =
+  | "continue"
+  | "stop"
+  | "branch"
+  | "needs_human"
+  | "fail";
+
+export type WorkflowTerminateStatus = "success" | "failed" | "stopped";
+
+export interface WorkflowStepBase {
+  id: string;
+  kind: WorkflowStepKind;
+  loopId: string | null;
+}
+
+export interface WorkflowAgentStep extends WorkflowStepBase {
+  kind: "agent";
+  agentId: string;
+  prompt: string;
+  outputName: string | null;
+}
+
+export interface WorkflowDecisionChoice {
+  name: string;
+  next: string | null;
+  terminate: WorkflowTerminateStatus | null;
+  gate: "human" | null;
+}
+
+export interface WorkflowDecisionStep extends WorkflowStepBase {
+  kind: "decision";
+  agentId: string;
+  prompt: string;
+  outputName: string | null;
+  choices: WorkflowDecisionChoice[];
+  onInvalid: "pause" | "fail";
+}
+
+export interface WorkflowHumanGateStep extends WorkflowStepBase {
+  kind: "human_gate";
+  prompt: string;
+  allow: Array<"approve" | "stop" | "retry" | "edit" | "branch">;
+}
+
+export interface WorkflowMergeStep extends WorkflowStepBase {
+  kind: "merge";
+  inputs: string[];
+  outputName: string;
+  separator: string;
+}
+
+export interface WorkflowTerminateStep extends WorkflowStepBase {
+  kind: "terminate";
+  status: WorkflowTerminateStatus;
+  message: string | null;
+}
+
+export type WorkflowStep =
+  | WorkflowAgentStep
+  | WorkflowDecisionStep
+  | WorkflowHumanGateStep
+  | WorkflowMergeStep
+  | WorkflowTerminateStep;
+
+export interface WorkflowLoop {
+  id: string;
+  parentLoopId: string | null;
+  maxIterations: number | null;
+  maxSteps: number | null;
+  maxRuntimeMinutes: number | null;
+  startStepId: string;
+  endStepId: string;
+  childStepIds: string[];
+}
+
+export interface WorkflowInputDefinition {
+  name: string;
+  description: string | null;
+  required: boolean;
+}
+
+export interface WorkflowDefinition {
+  id: string;
+  version: string;
+  description: string | null;
+  inputs: WorkflowInputDefinition[];
+  loops: Record<string, WorkflowLoop>;
+  steps: Record<string, WorkflowStep>;
+  stepOrder: string[];
+  entryStepId: string;
+}
+
+export interface WorkflowValidationIssue {
+  severity: "error" | "warning";
+  message: string;
+  stepId?: string;
+  loopId?: string;
+}
+
+export interface WorkflowValidationResult {
+  ok: boolean;
+  definition: WorkflowDefinition | null;
+  issues: WorkflowValidationIssue[];
+}
+
+export interface WorkflowSummary {
+  id: string;
+  projectId: string;
+  version: string;
+  description: string | null;
+  path: string;
+  updatedAt: string | null;
+  inputs: WorkflowInputDefinition[];
+  stepCount: number;
+}
+
+export type WorkflowRunStatusKind =
+  | "queued"
+  | "running"
+  | "paused"
+  | "complete"
+  | "failed"
+  | "stopped";
+
+export type WorkflowRunPhase =
+  | "validating"
+  | "preparing_input"
+  | "running_agent"
+  | "parsing_decision"
+  | "waiting_for_human"
+  | "writing_outputs"
+  | "choosing_next_step"
+  | "completed";
+
+export interface WorkflowRunProgress {
+  current: number;
+  total: number | null;
+}
+
+export interface WorkflowRunStatus {
+  runId: string;
+  workflowId: string;
+  projectId: string;
+  status: WorkflowRunStatusKind;
+  currentStepId: string | null;
+  currentStepType: WorkflowStepKind | null;
+  currentAgentId: string | null;
+  currentAgentLabel?: string;
+  currentPhase: WorkflowRunPhase;
+  iteration: number;
+  maxIterations?: number;
+  startedAt: string;
+  updatedAt: string;
+  lastEventMessage: string | null;
+  progress: WorkflowRunProgress;
+  pendingGate: {
+    stepId: string;
+    prompt: string;
+    allow: Array<"approve" | "stop" | "retry" | "edit" | "branch">;
+  } | null;
+  error: string | null;
+}
+
+export type WorkflowEventKind =
+  | "validation_started"
+  | "validation_failed"
+  | "run_started"
+  | "step_started"
+  | "step_completed"
+  | "agent_started"
+  | "agent_completed"
+  | "decision_parsing"
+  | "decision_chosen"
+  | "loop_iteration"
+  | "human_gate_paused"
+  | "human_gate_resumed"
+  | "merge_completed"
+  | "stop_requested"
+  | "resume_requested"
+  | "approval_recorded"
+  | "run_completed"
+  | "run_failed"
+  | "run_stopped";
+
+export interface WorkflowEvent {
+  at: string;
+  kind: WorkflowEventKind;
+  message: string;
+  stepId?: string;
+  agentId?: string;
+  iteration?: number;
+  data?: Record<string, unknown>;
+}
+
+export interface WorkflowStepRecord {
+  stepId: string;
+  kind: WorkflowStepKind;
+  agentId: string | null;
+  iteration: number;
+  startedAt: string;
+  finishedAt: string | null;
+  outputName: string | null;
+  promptPath: string | null;
+  outputPath: string | null;
+  decisionPath: string | null;
+  metaPath: string | null;
+  decisionAction: WorkflowDecisionAction | null;
+  decisionChoice: string | null;
+  durationMs: number | null;
+}
+
+export interface WorkflowRunState {
+  runId: string;
+  workflowId: string;
+  projectId: string;
+  status: WorkflowRunStatusKind;
+  initiator: string;
+  initialInputs: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  currentStepId: string | null;
+  nextStepId: string | null;
+  iteration: number;
+  loopIterations: Record<string, number>;
+  values: Record<string, string>;
+  stepHistory: WorkflowStepRecord[];
+  stopRequested: boolean;
+  pendingGate: {
+    stepId: string;
+    prompt: string;
+    allow: Array<"approve" | "stop" | "retry" | "edit" | "branch">;
+    pausedAt: string;
+  } | null;
+  error: string | null;
+}
+
+export interface WorkflowRunSummary {
+  runId: string;
+  workflowId: string;
+  projectId: string;
+  status: WorkflowRunStatusKind;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  initiator: string;
+  currentStepId: string | null;
+  iteration: number;
+  lastEventMessage: string | null;
+}
+
+export interface WorkflowStartInput {
+  workflowId: string;
+  input: Record<string, string>;
+  initiator?: string;
+}
+
+export type WorkflowApprovalDecision =
+  | { kind: "continue" }
+  | { kind: "stop" }
+  | { kind: "retry" }
+  | { kind: "edit"; values: Record<string, string> }
+  | { kind: "branch"; next: string };

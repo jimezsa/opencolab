@@ -21,6 +21,10 @@ import {
 } from "./research.js";
 import { serveStaticAsset } from "./static.js";
 import { listProjectSummaries as _ } from "./projects.js";
+import {
+  handleWorkflowRunRoute,
+  handleWorkflowsRoute
+} from "./workflows.js";
 import type {
   WebActiveSelection,
   WebOverview
@@ -48,6 +52,22 @@ export async function handleWebRequest(
       }
       sendJson(response, 404, { error: "not_found" });
       return true;
+    }
+    const workflowsMatch = /^\/api\/web\/projects\/([^/]+)\/workflows(\/.*)?$/u.exec(
+      pathname
+    );
+    if (workflowsMatch) {
+      const projectId = decodeURIComponent(workflowsMatch[1]);
+      const rest = workflowsMatch[2] ?? "";
+      return handleWorkflowsRoute(runtime, request, response, url, projectId, rest);
+    }
+    const workflowRunsMatch = /^\/api\/web\/projects\/([^/]+)\/workflow-runs(\/.*)?$/u.exec(
+      pathname
+    );
+    if (workflowRunsMatch) {
+      const projectId = decodeURIComponent(workflowRunsMatch[1]);
+      const rest = workflowRunsMatch[2] ?? "";
+      return handleWorkflowRunRoute(runtime, request, response, url, projectId, rest);
     }
     if (method !== "GET") {
       sendJson(response, 405, { error: "method_not_allowed" });

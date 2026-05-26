@@ -24,6 +24,7 @@ Core implementation areas:
 - `src/cli.ts`: CLI entrypoint, top-level help/version output, interactive prompts, setup flows including standalone provider-key writes, and gateway lifecycle commands.
 - `src/ignite.ts`: first-run onboarding for project selection, curated provider model/auth/reasoning setup including OAuth-capable provider flows, direct API-key setup links, BotFather token guidance, built-in shared-tool key setup including `GEMINI_API_KEY` prerequisites for Gemini shared tools and `pageindex-grounded`, Telegram setup, and pairing.
 - `src/runtime.ts`: stateful orchestration across config, project state, gateway routing, memory, and provider execution.
+- `src/workflows/`: project-scoped workflow XML parser/validator, sequential runner, in-process live registry, and `WorkflowService` facade consumed by the CLI, runtime, and web layers.
 - `src/experiments.ts`: local experiment bookkeeping helpers for target snapshots, run manifests, status files, logs, artifacts, and sync metadata.
 - `src/gpu-providers/runpod/index.ts`: Runpod-backed execution-target validation, availability-aware location/GPU selection, Pod lifecycle, SSH sync/bootstrap/launch, and run reconciliation.
 - `src/manual-ssh.ts` and `src/manual-ssh-worker.ts`: saved manual Pod SSH profile management, transcript-backed live session control, and detached SSH session worker lifecycle.
@@ -81,6 +82,7 @@ Agent contract details that matter for implementation:
 - Codex lifecycle events such as `item.started`, `item.completed`, and `turn.completed` must be normalized before Telegram rendering and must never appear verbatim in live status text.
 - Routed Telegram text replies should be prefixed with the active agent id on the first line, but that transport-only label must not be copied into normal conversation memory.
 - The seeded agent docs must explain that Telegram file return directives must be emitted as raw `@telegram-file <json>` lines rather than markdown-wrapped snippets, and may reference relative paths, absolute paths including Windows drive-letter or UNC paths, or `file://` URLs.
+- The shared `workflow-builder` skill is the canonical path for authoring and operating project workflows. Workflows live under `projects/<project_id>/workflows/<workflow_id>/workflow.xml`, runs persist to `projects/<project_id>/workflows/<workflow_id>/runs/<run_id>/` (`RUN.md`, `state.json`, `status.json`, `events.jsonl`, `inputs/`, `steps/`), and execution is driven through the CLI (`opencolab workflow ...`) or the runtime API; the skill must not pretend to be the workflow engine.
 
 For behavior changes, update `docs/spec.md` first, then sync `README.md`, `AGENTS.md`, and code in the same change.
 

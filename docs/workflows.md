@@ -1,7 +1,10 @@
 # Project Workflows Plan
 
-This document is a design plan for project-scoped multi-agent workflows. It is
-not yet an implemented runtime contract.
+This document is the design and contract for project-scoped multi-agent
+workflows. Phases 1-6 are implemented today (`src/workflows/`, `opencolab
+workflow ...` CLI commands, runtime API, `/api/web/projects/<id>/workflows/*`
+endpoints, and the shared `workflow-builder` skill). Phase 7 is still a
+future-work backlog.
 
 ## Goal
 

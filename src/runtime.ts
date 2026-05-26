@@ -81,9 +81,23 @@ import type {
   ProviderReasoningEffort,
   TaskProgressEvent,
   TaskProgressKind,
-  TelegramFilePayload
+  TelegramFilePayload,
+  WorkflowApprovalDecision,
+  WorkflowEvent,
+  WorkflowRunStatus,
+  WorkflowRunState,
+  WorkflowRunSummary,
+  WorkflowSummary,
+  WorkflowValidationResult
 } from "./types.js";
 import { ensureDir, nowIso } from "./utils.js";
+import {
+  WorkflowService,
+  type WorkflowDetail,
+  type WorkflowStartRunInput,
+  type WorkflowStartRunResult,
+  type WorkflowTemplateId
+} from "./workflows/index.js";
 
 type HeartbeatNotifyMode = "quiet" | "digest" | "live";
 
@@ -230,6 +244,7 @@ export class OpenColabRuntime {
   private readonly runpodExecutionService: RunpodExecutionService;
   private readonly manualSshService: ManualSshService;
   private readonly gateway: TelegramGateway;
+  private readonly workflowServices = new Map<string, WorkflowService>();
 
   constructor(cwd = resolveRuntimeRootDir(), private readonly options: RuntimeOptions = {}) {
     this.config = loadConfig(cwd);
@@ -966,6 +981,131 @@ export class OpenColabRuntime {
         onProgress: options.onProgress
       }
     );
+  }
+
+  listWorkflows(projectId = this.state.activeProjectId): WorkflowSummary[] {
+    return this.workflowServiceFor(projectId).listWorkflows();
+  }
+
+  getWorkflowDetail(
+    workflowId: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowDetail | null {
+    return this.workflowServiceFor(projectId).getWorkflowDetail(workflowId);
+  }
+
+  validateWorkflow(
+    workflowId: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowValidationResult {
+    return this.workflowServiceFor(projectId).validateWorkflow(workflowId);
+  }
+
+  createWorkflow(
+    input: {
+      workflowId: string;
+      template?: WorkflowTemplateId;
+      xml?: string;
+    },
+    projectId = this.state.activeProjectId
+  ): { workflowId: string; xmlPath: string } {
+    return this.workflowServiceFor(projectId).createWorkflow(input);
+  }
+
+  startWorkflowRun(
+    input: WorkflowStartRunInput,
+    projectId = this.state.activeProjectId
+  ): WorkflowStartRunResult {
+    return this.workflowServiceFor(projectId).startRun(input);
+  }
+
+  stopWorkflowRun(
+    runId: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowRunStatus | null {
+    return this.workflowServiceFor(projectId).stopRun(runId);
+  }
+
+  resumeWorkflowRun(
+    runId: string,
+    projectId = this.state.activeProjectId
+  ): { runId: string; status: WorkflowRunState["status"] } {
+    return this.workflowServiceFor(projectId).resumeRun(runId);
+  }
+
+  approveWorkflowGate(
+    runId: string,
+    decision: WorkflowApprovalDecision,
+    projectId = this.state.activeProjectId
+  ): { runId: string; status: WorkflowRunState["status"] } {
+    return this.workflowServiceFor(projectId).approveRun(runId, decision);
+  }
+
+  getWorkflowRun(
+    workflowId: string,
+    runId: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowRunState | null {
+    return this.workflowServiceFor(projectId).getRunState(workflowId, runId);
+  }
+
+  getWorkflowRunStatus(
+    workflowId: string,
+    runId: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowRunStatus | null {
+    return this.workflowServiceFor(projectId).getRunStatus(workflowId, runId);
+  }
+
+  resolveWorkflowRun(
+    runId: string,
+    projectId = this.state.activeProjectId
+  ): { workflowId: string; runState: WorkflowRunState } | null {
+    return this.workflowServiceFor(projectId).resolveRun(runId);
+  }
+
+  listWorkflowRuns(
+    workflowId?: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowRunSummary[] {
+    return this.workflowServiceFor(projectId).listRunSummaries(workflowId);
+  }
+
+  listWorkflowRunEvents(
+    workflowId: string,
+    runId: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowEvent[] {
+    return this.workflowServiceFor(projectId).listRunEvents(workflowId, runId);
+  }
+
+  private workflowServiceFor(projectId: string): WorkflowService {
+    const project = this.state.projects[projectId];
+    if (!project) {
+      throw new Error(`Unknown project: ${projectId}`);
+    }
+    const existing = this.workflowServices.get(projectId);
+    if (existing) {
+      return existing;
+    }
+    const service = new WorkflowService(
+      this.config,
+      () => {
+        const refreshed = this.state.projects[projectId];
+        if (!refreshed) {
+          throw new Error(`Project '${projectId}' is no longer available.`);
+        }
+        return refreshed;
+      },
+      async (project, agent, input, options) => {
+        if (this.options.agentResponder) {
+          return this.options.agentResponder(input, options);
+        }
+        return this.providerAgent.respondFor(project, agent, input, options);
+      }
+    );
+    this.workflowServices.set(projectId, service);
+    return service;
   }
 
   async runHeartbeatTick(now = new Date()): Promise<boolean> {

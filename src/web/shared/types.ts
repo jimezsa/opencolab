@@ -349,3 +349,174 @@ export interface WebChatUploadResponse {
 export interface WebChatNewSessionResponse {
   sessionId: string;
 }
+
+export type WebWorkflowStepKind =
+  | "agent"
+  | "decision"
+  | "human_gate"
+  | "merge"
+  | "terminate";
+
+export type WebWorkflowRunStatus =
+  | "queued"
+  | "running"
+  | "paused"
+  | "complete"
+  | "failed"
+  | "stopped";
+
+export type WebWorkflowRunPhase =
+  | "validating"
+  | "preparing_input"
+  | "running_agent"
+  | "parsing_decision"
+  | "waiting_for_human"
+  | "writing_outputs"
+  | "choosing_next_step"
+  | "completed";
+
+export interface WebWorkflowInput {
+  name: string;
+  description: string | null;
+  required: boolean;
+}
+
+export interface WebWorkflowSummary {
+  id: string;
+  projectId: string;
+  version: string;
+  description: string | null;
+  updatedAt: string | null;
+  stepCount: number;
+  inputs: WebWorkflowInput[];
+}
+
+export interface WebWorkflowStepSummary {
+  id: string;
+  kind: WebWorkflowStepKind;
+  agentId: string | null;
+  loopId: string | null;
+}
+
+export interface WebWorkflowLoopSummary {
+  id: string;
+  parentLoopId: string | null;
+  maxIterations: number | null;
+  maxSteps: number | null;
+  maxRuntimeMinutes: number | null;
+}
+
+export interface WebWorkflowDetail extends WebWorkflowSummary {
+  steps: WebWorkflowStepSummary[];
+  loops: WebWorkflowLoopSummary[];
+  xmlPath: string;
+  runs: WebWorkflowRunSummary[];
+}
+
+export interface WebWorkflowRunSummary {
+  runId: string;
+  workflowId: string;
+  projectId: string;
+  status: WebWorkflowRunStatus;
+  initiator: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  currentStepId: string | null;
+  iteration: number;
+  lastEventMessage: string | null;
+}
+
+export interface WebWorkflowRunProgress {
+  current: number;
+  total: number | null;
+}
+
+export interface WebWorkflowPendingGate {
+  stepId: string;
+  prompt: string;
+  allow: Array<"approve" | "stop" | "retry" | "edit" | "branch">;
+}
+
+export interface WebWorkflowRunStatusDto {
+  runId: string;
+  workflowId: string;
+  projectId: string;
+  status: WebWorkflowRunStatus;
+  currentStepId: string | null;
+  currentStepType: WebWorkflowStepKind | null;
+  currentAgentId: string | null;
+  currentAgentLabel: string | null;
+  currentPhase: WebWorkflowRunPhase;
+  iteration: number;
+  maxIterations: number | null;
+  startedAt: string;
+  updatedAt: string;
+  lastEventMessage: string | null;
+  progress: WebWorkflowRunProgress;
+  pendingGate: WebWorkflowPendingGate | null;
+  error: string | null;
+}
+
+export interface WebWorkflowStepRecord {
+  stepId: string;
+  kind: WebWorkflowStepKind;
+  agentId: string | null;
+  iteration: number;
+  startedAt: string;
+  finishedAt: string | null;
+  outputName: string | null;
+  decisionAction: string | null;
+  decisionChoice: string | null;
+  durationMs: number | null;
+}
+
+export interface WebWorkflowRunDetail {
+  runId: string;
+  workflowId: string;
+  projectId: string;
+  status: WebWorkflowRunStatus;
+  initiator: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  initialInputs: Record<string, string>;
+  values: Record<string, string>;
+  stepHistory: WebWorkflowStepRecord[];
+  pendingGate: WebWorkflowPendingGate | null;
+  error: string | null;
+}
+
+export interface WebWorkflowEvent {
+  at: string;
+  kind: string;
+  message: string;
+  stepId: string | null;
+  agentId: string | null;
+  iteration: number | null;
+}
+
+export interface WebWorkflowStartRequest {
+  input?: Record<string, string>;
+  inputText?: string;
+  initiator?: string;
+}
+
+export interface WebWorkflowStartResponse {
+  runId: string;
+  workflowId: string;
+  status: WebWorkflowRunStatus;
+}
+
+export interface WebWorkflowStopResponse {
+  runId: string;
+  status: WebWorkflowRunStatus;
+}
+
+export interface WebWorkflowApprovalRequest {
+  decision: "continue" | "stop" | "retry" | "edit" | "branch";
+  next?: string;
+  values?: Record<string, string>;
+}

@@ -23,7 +23,7 @@ _Accelerating Scientific Discovery_ — Turn your research into an always-on aut
 ## Next feature direction
 
 - ✅ OpenColab Studio: clean local web interface for projects, agents, conversations, documents, artifacts, workflows, GPU runs, and gateway/provider health.
-- Workflow builder: reusable multi-agent workflow templates, custom agent handoffs, approval gates, and artifact-aware execution history.
+- ✅ Workflow runtime: project-scoped XML workflows with bounded loops, decision steps, human gates, and CLI/runtime/web control surfaces (see [docs/workflows.md](docs/workflows.md)).
 - ✅ Research asset library: first-class views for downloaded papers, figures, diagrams, LaTeX PDFs, experiment logs, metrics, and generated reports.
 - HuggingFace integration skill: future shared skill for discovering, downloading, pinning, and tracking models and datasets for reproducible experiments.
 - Knowledge map: project-level links between papers, methods, datasets, claims, experiments, metrics, citations, decisions, and open questions.
@@ -451,6 +451,10 @@ opencolab agent list
 opencolab agent show
 opencolab gpu server list
 opencolab gpu job list
+opencolab workflow list
+opencolab workflow create --workflow-id <id> --from review-loop
+opencolab workflow run --workflow-id <id> --input "<task text>"
+opencolab workflow status --run-id <id>
 ```
 
 Telegram:

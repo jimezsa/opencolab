@@ -424,6 +424,7 @@ function usageMain(): string {
     helpCommand("project", "Manage/create projects"),
     helpCommand("agent", "Manage/create agents"),
     helpCommand("gpu", "Manage remote GPU servers and jobs"),
+    helpCommand("workflow", "Author and run project workflows"),
     helpCommand("gateway", "Manage local gateway service"),
     "",
     "Examples:",
@@ -1029,7 +1030,73 @@ function resolveHelp(argv: string[]): string | null {
     return usageGpu();
   }
 
+  if (command === "workflow") {
+    return usageWorkflow();
+  }
+
   return usageMain();
+}
+
+function usageWorkflow(): string {
+  return formatHelp([
+    "Usage:",
+    helpCommand("opencolab workflow list", "List workflows in the active project"),
+    helpCommand(
+      "opencolab workflow show --workflow-id <id>",
+      "Show a workflow definition summary",
+    ),
+    helpCommand(
+      "opencolab workflow validate --workflow-id <id>",
+      "Validate a workflow XML without running it",
+    ),
+    helpCommand(
+      "opencolab workflow create --workflow-id <id> [--from blank|review-loop|judge-and-retry]",
+      "Create a new workflow from a template",
+    ),
+    helpCommand(
+      "opencolab workflow run --workflow-id <id> --input <text> [--wait true|false]",
+      "Start a workflow run with a single text input named 'task'",
+    ),
+    helpCommand(
+      "opencolab workflow run --workflow-id <id> --input-file <path> [--wait true|false]",
+      "Start a workflow run with inputs read from a JSON file",
+    ),
+    helpCommand(
+      "opencolab workflow status --run-id <id>",
+      "Show the latest durable status for a workflow run",
+    ),
+    helpCommand(
+      "opencolab workflow logs --run-id <id> [--follow]",
+      "Print recent workflow events from events.jsonl",
+    ),
+    helpCommand(
+      "opencolab workflow stop --run-id <id>",
+      "Request stop on a workflow run",
+    ),
+    helpCommand(
+      "opencolab workflow resume --run-id <id>",
+      "Resume a paused workflow run",
+    ),
+    helpCommand(
+      "opencolab workflow approve --run-id <id> --decision continue|stop|retry|branch:<step>|edit",
+      "Record a human gate decision",
+    ),
+    helpCommand(
+      "opencolab workflow runs [--workflow-id <id>]",
+      "List recent runs (optionally filtered by workflow)",
+    ),
+    "",
+    "Flags:",
+    helpFlag("--workflow-id <id>", "Workflow id (folder name under projects/<id>/workflows/)"),
+    helpFlag("--input <text>", "Convenience input forwarded as 'task'"),
+    helpFlag("--input-file <path>", "JSON file with inputs keyed by name"),
+    helpFlag("--input-json <json>", "Inline JSON object with inputs keyed by name"),
+    helpFlag("--from blank|review-loop|judge-and-retry", "Workflow template id"),
+    helpFlag("--wait true|false", "Wait for terminal status before returning"),
+    helpFlag("--follow", "Tail events.jsonl until the run finishes"),
+    helpFlag("--decision continue|stop|retry|branch:<step>|edit", "Approval decision"),
+    helpFlag("--values-json <json>", "Inline JSON for --decision edit"),
+  ]);
 }
 
 function parseProviderName(
@@ -2474,7 +2541,327 @@ async function main(): Promise<void> {
     throw new Error("Unknown gpu command. Use 'server', 'job', or 'ssh'.");
   }
 
+  if (command === "workflow") {
+    await runWorkflowCommand(
+      runtime,
+      subcommand,
+      [action, ...rest].filter(Boolean),
+    );
+    return;
+  }
+
   throw new Error(`Unknown command: ${argv.join(" ")}`);
+}
+
+async function runWorkflowCommand(
+  runtime: ReturnType<typeof createRuntime>,
+  subcommand: string | undefined,
+  remaining: string[],
+): Promise<void> {
+  const { values, positionals } = parseFlags(remaining);
+  const action = (subcommand ?? "").trim();
+
+  if (!action || action === "help") {
+    console.log(usageWorkflow());
+    return;
+  }
+
+  if (action === "list") {
+    const summaries = runtime.listWorkflows();
+    if (summaries.length === 0) {
+      console.log("No workflows found in this project.");
+      return;
+    }
+    for (const summary of summaries) {
+      const desc = summary.description ? ` - ${summary.description}` : "";
+      console.log(`- ${summary.id} (v${summary.version}, ${summary.stepCount} steps)${desc}`);
+    }
+    return;
+  }
+
+  if (action === "show") {
+    const workflowId = requireFlag(values, "workflow-id");
+    const detail = runtime.getWorkflowDetail(workflowId);
+    if (!detail) {
+      throw new Error(`Workflow '${workflowId}' was not found or failed to validate.`);
+    }
+    console.log(JSON.stringify(detail, null, 2));
+    return;
+  }
+
+  if (action === "validate") {
+    const workflowId = requireFlag(values, "workflow-id");
+    const result = runtime.validateWorkflow(workflowId);
+    if (result.ok) {
+      console.log(`Workflow '${workflowId}' is valid.`);
+    } else {
+      console.log(`Workflow '${workflowId}' has validation errors.`);
+    }
+    for (const issue of result.issues) {
+      const tag = issue.severity === "error" ? "ERROR" : "warn";
+      console.log(`  [${tag}] ${issue.message}`);
+    }
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (action === "create") {
+    const workflowId = requireFlag(values, "workflow-id");
+    const template = (values.from ?? "blank").trim();
+    if (template !== "blank" && template !== "review-loop" && template !== "judge-and-retry") {
+      throw new Error("--from must be blank, review-loop, or judge-and-retry");
+    }
+    const result = runtime.createWorkflow({
+      workflowId,
+      template,
+    });
+    console.log(`Workflow created: ${result.workflowId}`);
+    console.log(`File: ${result.xmlPath}`);
+    return;
+  }
+
+  if (action === "run") {
+    const workflowId = requireFlag(values, "workflow-id");
+    const input = resolveWorkflowInputs(values);
+    const result = runtime.startWorkflowRun({
+      workflowId,
+      input,
+      initiator: "cli",
+    });
+    console.log(`Workflow run started: ${result.runId}`);
+    console.log(`Workflow: ${result.workflowId}`);
+    const wait = parseBooleanFlag(values.wait, false);
+    if (!wait) {
+      console.log("Use 'opencolab workflow status --run-id ${runId}' to check progress.");
+      return;
+    }
+    await waitForWorkflowRun(runtime, result.runId);
+    return;
+  }
+
+  if (action === "status") {
+    const runId = requireFlag(values, "run-id");
+    const status = runtime.resolveWorkflowRun(runId);
+    if (!status) {
+      throw new Error(`Unknown workflow run: ${runId}`);
+    }
+    const fullStatus = runtime.getWorkflowRunStatus(status.workflowId, runId);
+    console.log(JSON.stringify(fullStatus ?? status.runState, null, 2));
+    return;
+  }
+
+  if (action === "logs") {
+    const runId = requireFlag(values, "run-id");
+    const resolved = runtime.resolveWorkflowRun(runId);
+    if (!resolved) {
+      throw new Error(`Unknown workflow run: ${runId}`);
+    }
+    const events = runtime.listWorkflowRunEvents(resolved.workflowId, runId);
+    for (const event of events) {
+      console.log(`[${event.at}] ${event.kind} ${event.message}`);
+    }
+    if (parseBooleanFlag(values.follow, false)) {
+      await tailWorkflowEvents(runtime, resolved.workflowId, runId, events.length);
+    }
+    return;
+  }
+
+  if (action === "stop") {
+    const runId = requireFlag(values, "run-id");
+    const status = runtime.stopWorkflowRun(runId);
+    if (!status) {
+      throw new Error(`Unknown workflow run: ${runId}`);
+    }
+    console.log(`Stop requested for run ${runId}. Current status: ${status.status}`);
+    return;
+  }
+
+  if (action === "resume") {
+    const runId = requireFlag(values, "run-id");
+    const status = runtime.resumeWorkflowRun(runId);
+    console.log(`Workflow run resumed: ${status.runId} (status: ${status.status})`);
+    return;
+  }
+
+  if (action === "approve") {
+    const runId = requireFlag(values, "run-id");
+    const decisionRaw = requireFlag(values, "decision").trim();
+    if (decisionRaw === "continue") {
+      const status = runtime.approveWorkflowGate(runId, { kind: "continue" });
+      console.log(`Approval recorded: continue -> ${status.status}`);
+      return;
+    }
+    if (decisionRaw === "stop") {
+      const status = runtime.approveWorkflowGate(runId, { kind: "stop" });
+      console.log(`Approval recorded: stop -> ${status.status}`);
+      return;
+    }
+    if (decisionRaw === "retry") {
+      const status = runtime.approveWorkflowGate(runId, { kind: "retry" });
+      console.log(`Approval recorded: retry -> ${status.status}`);
+      return;
+    }
+    if (decisionRaw.startsWith("branch:")) {
+      const next = decisionRaw.slice("branch:".length).trim();
+      if (!next) {
+        throw new Error("--decision branch:<step> requires a step id");
+      }
+      const status = runtime.approveWorkflowGate(runId, { kind: "branch", next });
+      console.log(`Approval recorded: branch -> ${status.status}`);
+      return;
+    }
+    if (decisionRaw === "edit") {
+      const valuesJson = values["values-json"];
+      let parsed: Record<string, string> = {};
+      if (valuesJson) {
+        try {
+          const obj = JSON.parse(valuesJson);
+          if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+            parsed = Object.fromEntries(
+              Object.entries(obj as Record<string, unknown>).map(([key, value]) => [
+                key,
+                String(value),
+              ]),
+            );
+          }
+        } catch {
+          throw new Error("--values-json must be a JSON object of string values");
+        }
+      }
+      const status = runtime.approveWorkflowGate(runId, {
+        kind: "edit",
+        values: parsed,
+      });
+      console.log(`Approval recorded: edit -> ${status.status}`);
+      return;
+    }
+    throw new Error(
+      "--decision must be one of continue, stop, retry, branch:<step>, or edit",
+    );
+  }
+
+  if (action === "runs") {
+    const workflowId = values["workflow-id"];
+    const runs = runtime.listWorkflowRuns(workflowId);
+    if (runs.length === 0) {
+      console.log("No workflow runs found.");
+      return;
+    }
+    for (const run of runs) {
+      console.log(
+        `${run.runId} workflow=${run.workflowId} status=${run.status} updated=${run.updatedAt}`,
+      );
+    }
+    return;
+  }
+
+  void positionals;
+  throw new Error(`Unknown workflow command: ${action}. Try 'opencolab workflow --help'.`);
+}
+
+function requireFlag(values: Record<string, string>, name: string): string {
+  const value = values[name]?.trim();
+  if (!value) {
+    throw new Error(`${accent(`--${name}`)} is required`);
+  }
+  return value;
+}
+
+function resolveWorkflowInputs(values: Record<string, string>): Record<string, string> {
+  const fromFile = values["input-file"];
+  if (fromFile) {
+    const raw = fs.readFileSync(fromFile, "utf8");
+    return parseInputsJson(raw, `--input-file ${fromFile}`);
+  }
+  const fromJson = values["input-json"];
+  if (fromJson) {
+    return parseInputsJson(fromJson, "--input-json");
+  }
+  const inputText = values.input;
+  if (inputText !== undefined) {
+    return { task: inputText };
+  }
+  return {};
+}
+
+function parseInputsJson(raw: string, source: string): Record<string, string> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`Could not parse ${source} as JSON: ${(error as Error).message}`);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${source} must be a JSON object of string values.`);
+  }
+  const inputs: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    inputs[key] = typeof value === "string" ? value : JSON.stringify(value);
+  }
+  return inputs;
+}
+
+async function waitForWorkflowRun(
+  runtime: ReturnType<typeof createRuntime>,
+  runId: string,
+): Promise<void> {
+  let lastSeen = 0;
+  while (true) {
+    const resolved = runtime.resolveWorkflowRun(runId);
+    if (!resolved) {
+      throw new Error(`Workflow run ${runId} disappeared before completion.`);
+    }
+    const status = resolved.runState.status;
+    const events = runtime.listWorkflowRunEvents(resolved.workflowId, runId);
+    for (let i = lastSeen; i < events.length; i += 1) {
+      const event = events[i]!;
+      console.log(`[${event.at}] ${event.kind} ${event.message}`);
+    }
+    lastSeen = events.length;
+    if (
+      status === "complete" ||
+      status === "failed" ||
+      status === "stopped" ||
+      status === "paused"
+    ) {
+      return;
+    }
+    await delay(1000);
+  }
+}
+
+async function tailWorkflowEvents(
+  runtime: ReturnType<typeof createRuntime>,
+  workflowId: string,
+  runId: string,
+  startIndex: number,
+): Promise<void> {
+  let lastSeen = startIndex;
+  while (true) {
+    const events = runtime.listWorkflowRunEvents(workflowId, runId);
+    for (let i = lastSeen; i < events.length; i += 1) {
+      const event = events[i]!;
+      console.log(`[${event.at}] ${event.kind} ${event.message}`);
+    }
+    lastSeen = events.length;
+    const state = runtime.getWorkflowRun(workflowId, runId);
+    if (
+      state &&
+      (state.status === "complete" ||
+        state.status === "failed" ||
+        state.status === "stopped" ||
+        state.status === "paused")
+    ) {
+      return;
+    }
+    await delay(1000);
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 main().catch((error) => {
