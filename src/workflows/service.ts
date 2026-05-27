@@ -9,6 +9,7 @@ import path from "node:path";
 import type { OpenColabConfig } from "../config.js";
 import type {
   ProjectState,
+  TaskProgressEvent,
   WorkflowApprovalDecision,
   WorkflowDefinition,
   WorkflowEvent,
@@ -33,6 +34,10 @@ import {
   removeRun,
   updateRunStatus
 } from "./registry.js";
+import type {
+  WorkflowRunNotifier,
+  WorkflowRunNotifierFactory
+} from "./notifier.js";
 import {
   type WorkflowAgentResponder,
   type WorkflowRunCallbacks,
@@ -161,11 +166,17 @@ export interface WorkflowApprovalResult {
   status: WorkflowRunStatusKind;
 }
 
+interface NotifierHandle {
+  notifier: WorkflowRunNotifier;
+  detach: () => void;
+}
+
 export class WorkflowService {
   constructor(
     private readonly config: OpenColabConfig,
     private readonly projectAccessor: () => ProjectState,
-    private readonly agentResponder: WorkflowAgentResponder
+    private readonly agentResponder: WorkflowAgentResponder,
+    private readonly notifierFactory?: WorkflowRunNotifierFactory
   ) {}
 
   listWorkflows(): WorkflowSummary[] {
@@ -399,7 +410,16 @@ export class WorkflowService {
         pushRunProgress(entry.runId, event);
       }
     };
-    void this.executeRun(runner, state, definition, entry, controller, callbacks);
+    const notifierHandlePromise = this.attachNotifier(entry);
+    void this.executeRun(
+      runner,
+      state,
+      definition,
+      entry,
+      controller,
+      callbacks,
+      notifierHandlePromise
+    );
     return {
       runId: state.runId,
       workflowId: input.workflowId,
@@ -546,15 +566,68 @@ export class WorkflowService {
       kind: "resume_requested",
       message: `Resume requested for run ${runId}.`
     });
+    const notifierHandlePromise = this.attachNotifier(entry);
     void this.executeRun(
       runner,
       state,
       validation.definition,
       entry,
       controller,
-      callbacks
+      callbacks,
+      notifierHandlePromise
     );
     return { runId, status: "running" };
+  }
+
+  private async attachNotifier(entry: ActiveRunEntry): Promise<NotifierHandle | null> {
+    if (!this.notifierFactory) {
+      return null;
+    }
+    let notifier: WorkflowRunNotifier | null = null;
+    try {
+      notifier = await this.notifierFactory({
+        runId: entry.runId,
+        workflowId: entry.workflowId,
+        projectId: entry.projectId
+      });
+    } catch {
+      notifier = null;
+    }
+    if (!notifier) {
+      return null;
+    }
+    const eventListener = notifier.onEvent
+      ? (event: WorkflowEvent) => notifier!.onEvent!(event)
+      : null;
+    const progressListener = notifier.onProgress
+      ? (event: TaskProgressEvent) => notifier!.onProgress!(event)
+      : null;
+    const statusListener = notifier.onStatus
+      ? (status: WorkflowRunStatus) => notifier!.onStatus!(status)
+      : null;
+    if (eventListener) {
+      entry.eventListeners.add(eventListener);
+    }
+    if (progressListener) {
+      entry.progressListeners.add(progressListener);
+    }
+    if (statusListener) {
+      entry.statusListeners.add(statusListener);
+    }
+    return {
+      notifier,
+      detach: () => {
+        if (eventListener) {
+          entry.eventListeners.delete(eventListener);
+        }
+        if (progressListener) {
+          entry.progressListeners.delete(progressListener);
+        }
+        if (statusListener) {
+          entry.statusListeners.delete(statusListener);
+        }
+      }
+    };
   }
 
   private async executeRun(
@@ -563,7 +636,8 @@ export class WorkflowService {
     definition: WorkflowDefinition,
     entry: ActiveRunEntry,
     controller: AbortController,
-    callbacks: WorkflowRunCallbacks
+    callbacks: WorkflowRunCallbacks,
+    notifierHandlePromise?: Promise<NotifierHandle | null>
   ): Promise<void> {
     try {
       const finalState = await runner.execute(state, definition, {
@@ -589,6 +663,22 @@ export class WorkflowService {
         }
       );
     } finally {
+      if (notifierHandlePromise) {
+        let handle: NotifierHandle | null = null;
+        try {
+          handle = await notifierHandlePromise;
+        } catch {
+          handle = null;
+        }
+        if (handle) {
+          handle.detach();
+          try {
+            await handle.notifier.close();
+          } catch {
+            // notifier shutdown failures should not break workflow teardown
+          }
+        }
+      }
       if (entry.completed && entry.eventListeners.size === 0 && entry.statusListeners.size === 0) {
         removeRun(entry.runId);
       }

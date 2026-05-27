@@ -131,6 +131,7 @@ export interface TelegramConfig {
   lastChatType: TelegramChatType | null;
   lastMessageThreadId: string | null;
   lastInteractionAt: string | null;
+  notifyWorkflowProgress: boolean;
 }
 
 export interface ProjectState {

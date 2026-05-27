@@ -4193,7 +4193,10 @@ test("removed Telegram command families fall back to the supported picker comman
 
       assert.equal(result.ok, true);
       assert.equal(result.action, "management_command");
-      assert.equal(result.response, "Supported commands: /projects | /agents | /session_reset | /stop");
+      assert.equal(
+        result.response,
+        "Supported commands: /projects | /agents | /session_reset | /stop | /workflow_notifications on|off|status"
+      );
       assert.equal(JSON.stringify(runtime.getState()), initialState);
     }
   } finally {

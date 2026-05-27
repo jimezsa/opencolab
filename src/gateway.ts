@@ -113,7 +113,7 @@ const MAX_TELEGRAM_TEXT_CHARS = 4_000;
 const EDITABLE_STATUS_THROTTLE_MS = 3_000;
 const MAX_LIVE_STATUS_LINES = 5;
 const SUPPORTED_TELEGRAM_COMMANDS_TEXT =
-  "Supported commands: /projects | /agents | /session_reset | /stop";
+  "Supported commands: /projects | /agents | /session_reset | /stop | /workflow_notifications on|off|status";
 const STOPPED_TASK_CONFIRMATION_TEXT = [
   "Stopped the current task.",
   "Saved the latest progress so you can ask me to continue later.",
@@ -160,7 +160,13 @@ interface LiveStatusLine {
 // Live status uses durable Telegram messages for every chat type so the history remains after completion.
 type LiveStatusTransport = "editable" | "disabled";
 
-class TelegramLiveStatusSession {
+export interface TelegramLiveStatusContext {
+  messageThreadId?: string;
+  /** Optional override for the heading; defaults to the activity-kind based heading. */
+  heading?: string;
+}
+
+export class TelegramLiveStatusSession {
   private readonly lines = new Map<string, LiveStatusLine>();
   private transport: LiveStatusTransport | null = null;
   private editableMessageId: string | null = null;
@@ -173,7 +179,7 @@ class TelegramLiveStatusSession {
   constructor(
     private readonly chatId: string,
     private readonly state: OpenColabState,
-    private readonly inbound: TelegramInbound,
+    private readonly inbound: TelegramLiveStatusContext,
     private readonly statusMessageCreator: TelegramStatusMessageCreator,
     private readonly messageEditor: TelegramMessageEditor,
   ) {}
@@ -266,13 +272,14 @@ class TelegramLiveStatusSession {
     const latestIndex = visibleLines.length - 1;
     const latestKind = visibleLines[visibleLines.length - 1]?.kind ?? "started";
     const heading =
-      latestKind === "warning"
+      this.inbound.heading ??
+      (latestKind === "warning"
         ? "Attention needed"
         : latestKind === "needs_input"
           ? "Need input"
           : latestKind === "completed"
             ? "Finalizing"
-            : "Agent activity";
+            : "Agent activity");
 
     return [
       heading,
@@ -956,8 +963,56 @@ export class TelegramGateway {
       };
     }
 
+    if (scope === "/workflow_notifications" || scope === "/workflow_notify") {
+      return this.handleWorkflowNotificationsCommand(state, tokens.slice(1));
+    }
+
     return {
       response: SUPPORTED_TELEGRAM_COMMANDS_TEXT,
+    };
+  }
+
+  private handleWorkflowNotificationsCommand(
+    state: OpenColabState,
+    args: string[],
+  ): ManagementCommandResult {
+    const mode = (args[0] ?? "status").trim().toLowerCase();
+    if (mode === "status" || mode === "") {
+      const enabled = state.telegram.notifyWorkflowProgress;
+      return {
+        response: enabled
+          ? "Workflow live updates: ON. You'll get step boundaries + agent milestones for every run."
+          : "Workflow live updates: OFF. Send /workflow_notifications on to enable.",
+      };
+    }
+    if (mode === "on" || mode === "enable" || mode === "true") {
+      if (state.telegram.notifyWorkflowProgress) {
+        return { response: "Workflow live updates are already ON." };
+      }
+      const nextState: OpenColabState = {
+        ...state,
+        telegram: { ...state.telegram, notifyWorkflowProgress: true },
+      };
+      return {
+        nextState,
+        response: "Workflow live updates: ON. You'll see step boundaries + agent milestones here.",
+      };
+    }
+    if (mode === "off" || mode === "disable" || mode === "false") {
+      if (!state.telegram.notifyWorkflowProgress) {
+        return { response: "Workflow live updates are already OFF." };
+      }
+      const nextState: OpenColabState = {
+        ...state,
+        telegram: { ...state.telegram, notifyWorkflowProgress: false },
+      };
+      return {
+        nextState,
+        response: "Workflow live updates: OFF.",
+      };
+    }
+    return {
+      response: "Usage: /workflow_notifications on|off|status",
     };
   }
 

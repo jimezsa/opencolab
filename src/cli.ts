@@ -90,6 +90,10 @@ const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
   { command: "agents", description: "Pick active agent" },
   { command: "session_reset", description: "Reset active session" },
   { command: "stop", description: "Stop active task" },
+  {
+    command: "workflow_notifications",
+    description: "Toggle live workflow updates (on|off|status)",
+  },
 ];
 
 function supportsColor(): boolean {
@@ -530,6 +534,10 @@ function usageSetup(): string {
     helpCommand(
       "opencolab setup telegram pair complete --code <pairing_code>",
       "Complete Telegram pairing",
+    ),
+    helpCommand(
+      "opencolab setup telegram workflow-notifications <on|off|status>",
+      "Toggle live workflow updates in Telegram",
     ),
     "",
     "Try:",
@@ -1832,6 +1840,39 @@ async function main(): Promise<void> {
       ),
     );
     return;
+  }
+
+  if (
+    command === "setup" &&
+    subcommand === "telegram" &&
+    action === "workflow-notifications"
+  ) {
+    const mode = (rest[0] ?? "status").trim().toLowerCase();
+    if (mode === "on" || mode === "enable" || mode === "true") {
+      runtime.setTelegramWorkflowNotifications(true);
+      console.log("Telegram workflow live updates: enabled.");
+      console.log(
+        styleCliText(
+          "Live status will appear in the paired Telegram chat for every workflow run.",
+        ),
+      );
+      return;
+    }
+    if (mode === "off" || mode === "disable" || mode === "false") {
+      runtime.setTelegramWorkflowNotifications(false);
+      console.log("Telegram workflow live updates: disabled.");
+      return;
+    }
+    if (mode === "status") {
+      const enabled = runtime.getState().telegram.notifyWorkflowProgress;
+      console.log(
+        `Telegram workflow live updates: ${enabled ? "enabled" : "disabled"}.`,
+      );
+      return;
+    }
+    throw new Error(
+      "Usage: opencolab setup telegram workflow-notifications <on|off|status>",
+    );
   }
 
   if (command === "setup" && subcommand === "telegram" && action === "pair") {

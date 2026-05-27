@@ -316,6 +316,115 @@ test("decision step parses workflow-decision tag and pauses when invalid", async
   }
 });
 
+test("workflow run skips Telegram updates when notifyWorkflowProgress is off", async () => {
+  const { tempDir } = freshRuntime("notif-off");
+  try {
+    process.env.OPENCOLAB_FORCE_MOCK_CLI = "1";
+    const createCalls: string[] = [];
+    const editCalls: string[] = [];
+    const runtime = createRuntime(tempDir, {
+      agentResponder: async (input) => `Mocked: ${input.text}`,
+      telegramStatusMessageCreator: async (_chatId, text) => {
+        createCalls.push(text);
+        return "999";
+      },
+      telegramMessageEditor: async (_chatId, _messageId, text) => {
+        editCalls.push(text);
+        return true;
+      }
+    });
+    runtime.init();
+    runtime.setupTelegram({ chatId: "12345" });
+    // Pairing is intentionally NOT completed, so notifier should stay quiet even if the flag were on.
+
+    runtime.createWorkflow({ workflowId: "demo", template: "blank" });
+    const result = runtime.startWorkflowRun({
+      workflowId: "demo",
+      input: { task: "Anything" }
+    });
+    await waitFor(() => {
+      const candidate = runtime.getWorkflowRun("demo", result.runId);
+      if (!candidate) return null;
+      return candidate.status === "complete" ? candidate : null;
+    });
+    assert.equal(createCalls.length, 0, "should not send any Telegram messages when flag is off");
+    assert.equal(editCalls.length, 0);
+  } finally {
+    delete process.env.OPENCOLAB_FORCE_MOCK_CLI;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("workflow run streams step boundaries to Telegram when notifyWorkflowProgress is on and paired", async () => {
+  const { tempDir } = freshRuntime("notif-on");
+  try {
+    process.env.OPENCOLAB_FORCE_MOCK_CLI = "1";
+    const createCalls: string[] = [];
+    const editCalls: string[] = [];
+
+    // Pre-pair the chat by writing state, then load a fresh runtime.
+    const statePath = path.join(tempDir, "opencolab.json");
+    const stateOnDisk = JSON.parse(fs.readFileSync(statePath, "utf8")) as Record<string, unknown>;
+    stateOnDisk.telegram = {
+      ...(stateOnDisk.telegram as Record<string, unknown>),
+      chatId: "12345",
+      paired: true,
+      notifyWorkflowProgress: true
+    };
+    fs.writeFileSync(statePath, JSON.stringify(stateOnDisk, null, 2), "utf8");
+
+    const runtime = createRuntime(tempDir, {
+      agentResponder: async (input) => `Mocked: ${input.text}`,
+      telegramStatusMessageCreator: async (_chatId, text) => {
+        createCalls.push(text);
+        return "10";
+      },
+      telegramMessageEditor: async (_chatId, _messageId, text) => {
+        editCalls.push(text);
+        return true;
+      }
+    });
+    runtime.init();
+    assert.equal(runtime.getState().telegram.paired, true);
+    assert.equal(runtime.getState().telegram.notifyWorkflowProgress, true);
+
+    runtime.createWorkflow({ workflowId: "demo", template: "blank" });
+    const result = runtime.startWorkflowRun({
+      workflowId: "demo",
+      input: { task: "Stream me" }
+    });
+    await waitFor(() => {
+      const candidate = runtime.getWorkflowRun("demo", result.runId);
+      if (!candidate) return null;
+      return candidate.status === "complete" ? candidate : null;
+    });
+    // The notifier may need a tick after run_completed to flush; allow one more poll.
+    await waitFor(() => (createCalls.length > 0 ? true : null));
+    const allMessages = [...createCalls, ...editCalls].join("\n");
+    assert.match(allMessages, /draft/, "message should reference the workflow step id");
+    assert.match(allMessages, /Workflow demo/, "heading should mention the workflow id");
+  } finally {
+    delete process.env.OPENCOLAB_FORCE_MOCK_CLI;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("setTelegramWorkflowNotifications persists the toggle", () => {
+  const { runtime, tempDir } = freshRuntime("notif-toggle");
+  try {
+    assert.equal(runtime.getState().telegram.notifyWorkflowProgress, false);
+    runtime.setTelegramWorkflowNotifications(true);
+    assert.equal(runtime.getState().telegram.notifyWorkflowProgress, true);
+    const reloaded = createRuntime(tempDir);
+    reloaded.init();
+    assert.equal(reloaded.getState().telegram.notifyWorkflowProgress, true);
+    reloaded.setTelegramWorkflowNotifications(false);
+    assert.equal(reloaded.getState().telegram.notifyWorkflowProgress, false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("stopWorkflowRun aborts an active workflow", async () => {
   const { tempDir } = freshRuntime("stop");
   try {

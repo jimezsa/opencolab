@@ -36,3 +36,8 @@ export {
   resolveWorkflowDir,
   resolveWorkflowXmlPath
 } from "./storage.js";
+export type {
+  WorkflowRunNotifier,
+  WorkflowRunNotifierContext,
+  WorkflowRunNotifierFactory
+} from "./notifier.js";

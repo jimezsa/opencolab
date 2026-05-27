@@ -46,6 +46,8 @@ import { ManualSshService } from "./manual-ssh.js";
 import {
   buildAgentFailureMessage,
   buildAssistantRecoveryLog,
+  defaultTelegramMessageEditor,
+  defaultTelegramStatusMessageCreator,
   type TelegramCallbackAnswerer,
   type TelegramDraftSender,
   type TelegramMessageEditor,
@@ -56,6 +58,7 @@ import {
   type TelegramTypingSender,
   isProviderTimeoutError
 } from "./gateway.js";
+import { createTelegramWorkflowNotifierFactory } from "./telegram-workflow-notifier.js";
 import { resolveRuntimeRootDir } from "./install.js";
 import type {
   AgentMemoryContext,
@@ -480,6 +483,18 @@ export class OpenColabRuntime {
       }
     };
 
+    this.persist();
+    return this.state;
+  }
+
+  setTelegramWorkflowNotifications(enabled: boolean): OpenColabState {
+    this.state = {
+      ...this.state,
+      telegram: {
+        ...this.state.telegram,
+        notifyWorkflowProgress: enabled
+      }
+    };
     this.persist();
     return this.state;
   }
@@ -1088,6 +1103,14 @@ export class OpenColabRuntime {
     if (existing) {
       return existing;
     }
+    const notifierFactory = createTelegramWorkflowNotifierFactory({
+      getState: () => this.state,
+      statusMessageCreator:
+        this.options.telegramStatusMessageCreator ??
+        defaultTelegramStatusMessageCreator,
+      messageEditor:
+        this.options.telegramMessageEditor ?? defaultTelegramMessageEditor
+    });
     const service = new WorkflowService(
       this.config,
       () => {
@@ -1102,7 +1125,8 @@ export class OpenColabRuntime {
           return this.options.agentResponder(input, options);
         }
         return this.providerAgent.respondFor(project, agent, input, options);
-      }
+      },
+      notifierFactory
     );
     this.workflowServices.set(projectId, service);
     return service;

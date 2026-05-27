@@ -226,7 +226,8 @@ export function createDefaultTelegramConfig(): TelegramConfig {
     pendingPairingExpiresAt: null,
     lastChatType: null,
     lastMessageThreadId: null,
-    lastInteractionAt: null
+    lastInteractionAt: null,
+    notifyWorkflowProgress: false
   };
 }
 
@@ -822,7 +823,11 @@ function normalizeTelegram(
     pendingPairingExpiresAt: asNullableString(sourceTelegram?.pendingPairingExpiresAt),
     lastChatType: asTelegramChatType(sourceTelegram?.lastChatType, defaults.lastChatType),
     lastMessageThreadId: asNullableString(sourceTelegram?.lastMessageThreadId),
-    lastInteractionAt: asNullableString(sourceTelegram?.lastInteractionAt)
+    lastInteractionAt: asNullableString(sourceTelegram?.lastInteractionAt),
+    notifyWorkflowProgress:
+      sourceTelegram?.notifyWorkflowProgress === undefined
+        ? defaults.notifyWorkflowProgress
+        : Boolean(sourceTelegram.notifyWorkflowProgress)
   };
 }
 
