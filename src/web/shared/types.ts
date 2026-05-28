@@ -658,3 +658,15 @@ export interface WebWorkflowPauseResponse {
   status: WebWorkflowRunStatus;
   pauseRequested: boolean;
 }
+
+export interface WebWorkflowInputPatch {
+  name: string;
+  description?: string | null;
+  required?: boolean;
+}
+
+export interface WebWorkflowMetadataPatchRequest {
+  description?: string | null;
+  version?: string;
+  inputs?: WebWorkflowInputPatch[];
+}

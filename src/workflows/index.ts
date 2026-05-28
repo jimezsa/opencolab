@@ -11,6 +11,7 @@ export {
   INPUT_NODE_ID,
   type GraphExtractionOptions
 } from "./graph.js";
+export { serializeWorkflow } from "./serializer.js";
 export {
   WorkflowRunner,
   type WorkflowAgentResponder,
@@ -25,6 +26,8 @@ export {
   WORKFLOW_TEMPLATE_JUDGE_AND_RETRY,
   type WorkflowDeleteResult,
   type WorkflowDetail,
+  type WorkflowMetadataPatch,
+  type WorkflowMetadataPatchInput,
   type WorkflowStartRunInput,
   type WorkflowStartRunResult,
   type WorkflowTemplateDescriptor,

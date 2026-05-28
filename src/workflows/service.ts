@@ -13,6 +13,7 @@ import type {
   WorkflowApprovalDecision,
   WorkflowDefinition,
   WorkflowEvent,
+  WorkflowInputDefinition,
   WorkflowRunState,
   WorkflowRunStatus,
   WorkflowRunStatusKind,
@@ -39,6 +40,7 @@ import {
 import {
   extractWorkflowGraph
 } from "./graph.js";
+import { serializeWorkflow } from "./serializer.js";
 import type {
   WorkflowRunNotifier,
   WorkflowRunNotifierFactory
@@ -173,6 +175,18 @@ export interface WorkflowXmlDocument {
 export interface WorkflowDeleteResult {
   workflowId: string;
   runsRemoved: number;
+}
+
+export interface WorkflowMetadataPatchInput {
+  name: string;
+  description?: string | null;
+  required?: boolean;
+}
+
+export interface WorkflowMetadataPatch {
+  description?: string | null;
+  version?: string;
+  inputs?: WorkflowMetadataPatchInput[];
 }
 
 const WORKFLOW_XML_MAX_BYTES = 256 * 1024;
@@ -405,6 +419,57 @@ export class WorkflowService {
   validateXml(xml: string): WorkflowValidationResult {
     enforceXmlSize(xml);
     return parseAndValidateWorkflow(xml);
+  }
+
+  applyMetadataPatch(
+    workflowId: string,
+    patch: WorkflowMetadataPatch
+  ): WorkflowXmlDocument {
+    const project = this.projectAccessor();
+    const existing = readWorkflowXml(this.config, project, workflowId);
+    if (!existing) {
+      throw new Error(
+        `Workflow '${workflowId}' does not exist in project '${project.id}'.`
+      );
+    }
+    this.assertNoActiveRun(workflowId);
+    const parsed = parseAndValidateWorkflow(existing.xml);
+    if (!parsed.definition) {
+      const messages = parsed.issues
+        .filter((issue) => issue.severity === "error")
+        .map((issue) => issue.message)
+        .join("; ");
+      throw new Error(
+        `Cannot patch workflow '${workflowId}': existing XML is invalid (${messages || "validation failed."}).`
+      );
+    }
+    const nextDefinition: WorkflowDefinition = {
+      ...parsed.definition,
+      version: patch.version !== undefined ? patch.version : parsed.definition.version,
+      description:
+        patch.description !== undefined
+          ? patch.description
+          : parsed.definition.description,
+      inputs: patch.inputs ? normalizePatchInputs(patch.inputs) : parsed.definition.inputs
+    };
+    const nextXml = serializeWorkflow(nextDefinition);
+    const validation = parseAndValidateWorkflow(nextXml);
+    if (!validation.ok || !validation.definition) {
+      const messages = validation.issues
+        .filter((issue) => issue.severity === "error")
+        .map((issue) => issue.message)
+        .join("; ");
+      throw new Error(
+        `Patch produced invalid workflow XML: ${messages || "validation failed."}`
+      );
+    }
+    const xmlPath = writeWorkflowXml(this.config, project, workflowId, nextXml);
+    return {
+      workflowId,
+      xml: nextXml,
+      path: xmlPath,
+      updatedAt: nowIso()
+    };
   }
 
   duplicateWorkflow(sourceWorkflowId: string, newWorkflowId: string): {
@@ -1016,6 +1081,19 @@ function nextStepInOrder(
 
 function isValidWorkflowId(value: string): boolean {
   return /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(value);
+}
+
+function normalizePatchInputs(
+  inputs: WorkflowMetadataPatchInput[]
+): WorkflowInputDefinition[] {
+  return inputs.map((input) => ({
+    name: input.name,
+    description:
+      input.description === undefined || input.description === ""
+        ? null
+        : input.description,
+    required: input.required !== false
+  }));
 }
 
 function enforceXmlSize(xml: string): void {

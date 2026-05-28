@@ -98,6 +98,7 @@ import {
   WorkflowService,
   type WorkflowDeleteResult,
   type WorkflowDetail,
+  type WorkflowMetadataPatch,
   type WorkflowStartRunInput,
   type WorkflowStartRunResult,
   type WorkflowTemplateDescriptor,
@@ -1057,6 +1058,17 @@ export class OpenColabRuntime {
     projectId = this.state.activeProjectId
   ): WorkflowValidationResult {
     return this.workflowServiceFor(projectId).validateXml(xml);
+  }
+
+  patchWorkflowMetadata(
+    workflowId: string,
+    patch: WorkflowMetadataPatch,
+    projectId = this.state.activeProjectId
+  ): WorkflowXmlDocument {
+    return this.workflowServiceFor(projectId).applyMetadataPatch(
+      workflowId,
+      patch
+    );
   }
 
   duplicateWorkflow(

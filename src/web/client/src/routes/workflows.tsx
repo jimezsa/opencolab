@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { useParams, useSearchParams } from "react-router-dom"
 import {
   AlertTriangleIcon,
@@ -33,17 +33,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ErrorState, LoadingState } from "@/components/layout/page-state"
 import { StartWorkflowDialog } from "@/components/workflows/start-workflow-dialog"
 import { WorkflowGraph } from "@/components/workflows/workflow-graph"
+import { WorkflowMetadataEditor } from "@/components/workflows/workflow-metadata-editor"
 import { WorkflowRunPanel } from "@/components/workflows/workflow-run-panel"
-import { api, ApiError } from "@/lib/api"
+import { WorkflowXmlEditor } from "@/components/workflows/workflow-xml-editor"
+import { api } from "@/lib/api"
 import { useAsync } from "@/lib/state"
 import { formatRelativeTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type {
-  WebWorkflowDetail,
   WebWorkflowRunSummary,
   WebWorkflowSummary,
   WebWorkflowValidationIssue,
-  WebWorkflowXmlResponse,
 } from "@shared/types"
 
 export default function WorkflowsRoute() {
@@ -330,10 +330,12 @@ function WorkflowWorkspace({
           </TabsList>
 
           <TabsContent value="definition" className="pt-3">
-            <div className="flex flex-col gap-3">
-              {detailData.inputs.length > 0 && (
-                <InputList inputs={detailData.inputs} />
-              )}
+            <div className="flex flex-col gap-4">
+              <WorkflowMetadataEditor
+                projectId={projectId}
+                workflow={detailData}
+                onSaved={() => setRefreshKey((value) => value + 1)}
+              />
               <WorkflowGraph
                 graph={graphData}
                 activeStepId={null}
@@ -352,43 +354,15 @@ function WorkflowWorkspace({
           </TabsContent>
 
           <TabsContent value="xml" className="pt-3">
-            <XmlTab projectId={projectId} workflowId={detailData.id} />
+            <WorkflowXmlEditor
+              projectId={projectId}
+              workflowId={detailData.id}
+              onSaved={() => setRefreshKey((value) => value + 1)}
+            />
           </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
-  )
-}
-
-function InputList({
-  inputs,
-}: {
-  inputs: WebWorkflowDetail["inputs"]
-}) {
-  return (
-    <div className="border-muted-foreground/30 rounded-md border p-3">
-      <h4 className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
-        Inputs
-      </h4>
-      <ul className="flex flex-col gap-1 text-xs">
-        {inputs.map((input) => (
-          <li key={input.name} className="flex items-center gap-2">
-            <span className="font-mono">{input.name}</span>
-            <Badge
-              variant={input.required ? "default" : "outline"}
-              className="text-[10px]"
-            >
-              {input.required ? "required" : "optional"}
-            </Badge>
-            {input.description && (
-              <span className="text-muted-foreground truncate">
-                {input.description}
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
   )
 }
 
@@ -502,64 +476,6 @@ function RunsList({
             </li>
           ))}
         </ul>
-      </ScrollArea>
-    </div>
-  )
-}
-
-function XmlTab({
-  projectId,
-  workflowId,
-}: {
-  projectId: string
-  workflowId: string
-}) {
-  const [data, setData] = useState<WebWorkflowXmlResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    api
-      .workflowXml(projectId, workflowId)
-      .then((next) => {
-        if (cancelled) return
-        setData(next)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setError(
-          err instanceof ApiError
-            ? `${err.status} · ${err.message}`
-            : err instanceof Error
-              ? err.message
-              : String(err),
-        )
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [projectId, workflowId])
-
-  if (loading) return <Skeleton className="h-72 w-full" />
-  if (error) return <ErrorState message={error} />
-  if (!data) return null
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="text-muted-foreground flex items-center justify-between text-xs">
-        <span className="font-mono">{data.path}</span>
-        <span>Updated {formatRelativeTime(data.updatedAt)}</span>
-      </div>
-      <ScrollArea className="bg-muted/30 max-h-96 rounded-md border">
-        <pre className="overflow-x-auto p-3 text-xs leading-relaxed">
-          <code>{data.xml}</code>
-        </pre>
       </ScrollArea>
     </div>
   )

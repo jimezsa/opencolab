@@ -28,6 +28,7 @@ import type {
   WebWorkflowDetail,
   WebWorkflowDuplicateRequest,
   WebWorkflowEvent,
+  WebWorkflowMetadataPatchRequest,
   WebWorkflowPauseResponse,
   WebWorkflowRunDetail,
   WebWorkflowRunStatusDto,
@@ -44,7 +45,11 @@ import type {
   WebWorkflowXmlResponse
 } from "../shared/types.js";
 import type { WorkflowValidationResult } from "../../types.js";
-import type { WorkflowTemplateId } from "../../workflows/index.js";
+import type {
+  WorkflowMetadataPatch,
+  WorkflowMetadataPatchInput,
+  WorkflowTemplateId
+} from "../../workflows/index.js";
 
 const SSE_KEEPALIVE_MS = 15_000;
 
@@ -223,6 +228,56 @@ export async function handleWorkflowsRoute(
       return true;
     }
     sendJson(response, 200, graph);
+    return true;
+  }
+
+  const patchMatch = /^\/([^/]+)$/.exec(rest);
+  if (method === "PATCH" && patchMatch) {
+    const workflowId = decodeURIComponent(patchMatch[1]!);
+    let body: WebWorkflowMetadataPatchRequest;
+    try {
+      body = await readJsonBody<WebWorkflowMetadataPatchRequest>(request);
+    } catch (error) {
+      sendError(response, 400, (error as Error).message);
+      return true;
+    }
+    const patch: WorkflowMetadataPatch = {};
+    if (body.description !== undefined) patch.description = body.description;
+    if (typeof body.version === "string" && body.version.trim()) {
+      patch.version = body.version.trim();
+    }
+    if (Array.isArray(body.inputs)) {
+      const inputs: WorkflowMetadataPatchInput[] = [];
+      for (const input of body.inputs) {
+        if (!input || typeof input.name !== "string" || !input.name.trim()) {
+          sendError(response, 400, "invalid_input_name");
+          return true;
+        }
+        inputs.push({
+          name: input.name.trim(),
+          description:
+            input.description === undefined
+              ? undefined
+              : input.description === null
+                ? null
+                : String(input.description),
+          required: input.required !== false
+        });
+      }
+      patch.inputs = inputs;
+    }
+    try {
+      const result = runtime.patchWorkflowMetadata(workflowId, patch, projectId);
+      const dto: WebWorkflowXmlResponse = {
+        workflowId: result.workflowId,
+        xml: result.xml,
+        updatedAt: result.updatedAt,
+        path: result.path
+      };
+      sendJson(response, 200, dto);
+    } catch (error) {
+      sendError(response, 400, (error as Error).message);
+    }
     return true;
   }
 

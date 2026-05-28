@@ -5,7 +5,14 @@ import os from "node:os";
 import path from "node:path";
 import { createRuntime } from "../src/runtime.js";
 import { parseAndValidateWorkflow } from "../src/workflows/parser.js";
+import { serializeWorkflow } from "../src/workflows/serializer.js";
+import {
+  WORKFLOW_TEMPLATE_BLANK,
+  WORKFLOW_TEMPLATE_JUDGE_AND_RETRY,
+  WORKFLOW_TEMPLATE_REVIEW_LOOP
+} from "../src/workflows/service.js";
 import { parseXml, XmlSyntaxError } from "../src/workflows/xml.js";
+import type { WorkflowDefinition, WorkflowLoop } from "../src/types.js";
 
 function freshRuntime(label: string) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `opencolab-workflows-${label}-`));
@@ -420,6 +427,89 @@ test("setTelegramWorkflowNotifications persists the toggle", () => {
     assert.equal(reloaded.getState().telegram.notifyWorkflowProgress, true);
     reloaded.setTelegramWorkflowNotifications(false);
     assert.equal(reloaded.getState().telegram.notifyWorkflowProgress, false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("serializeWorkflow round-trips the built-in templates", () => {
+  for (const template of [
+    WORKFLOW_TEMPLATE_BLANK,
+    WORKFLOW_TEMPLATE_REVIEW_LOOP,
+    WORKFLOW_TEMPLATE_JUDGE_AND_RETRY
+  ]) {
+    const first = parseAndValidateWorkflow(template);
+    assert.equal(first.ok, true, JSON.stringify(first.issues));
+    const firstDef = first.definition as WorkflowDefinition;
+    assert.ok(firstDef);
+    const xml = serializeWorkflow(firstDef);
+    const second = parseAndValidateWorkflow(xml);
+    assert.equal(second.ok, true, JSON.stringify(second.issues));
+    const secondDef = second.definition as WorkflowDefinition;
+    assert.ok(secondDef);
+    assert.equal(secondDef.id, firstDef.id);
+    assert.equal(secondDef.version, firstDef.version);
+    assert.equal(secondDef.stepOrder.length, firstDef.stepOrder.length);
+    for (const stepId of firstDef.stepOrder) {
+      assert.ok(
+        secondDef.steps[stepId],
+        `step ${stepId} should round-trip through the serializer`
+      );
+    }
+    for (const loopId of Object.keys(firstDef.loops)) {
+      const original: WorkflowLoop | undefined = firstDef.loops[loopId];
+      const reparsed: WorkflowLoop | undefined = secondDef.loops[loopId];
+      assert.ok(original);
+      assert.ok(reparsed, `loop ${loopId} should round-trip`);
+      assert.equal(reparsed.maxIterations, original.maxIterations);
+      assert.equal(reparsed.maxSteps, original.maxSteps);
+      assert.equal(reparsed.maxRuntimeMinutes, original.maxRuntimeMinutes);
+      assert.deepEqual(reparsed.childStepIds, original.childStepIds);
+    }
+  }
+});
+
+test("patchWorkflowMetadata updates description, version, and inputs", () => {
+  const { runtime, tempDir } = freshRuntime("patch-metadata");
+  try {
+    runtime.createWorkflow({ workflowId: "demo", template: "blank" });
+    const updated = runtime.patchWorkflowMetadata("demo", {
+      description: "A demo workflow.",
+      version: "2",
+      inputs: [
+        { name: "task", description: "Main task", required: true },
+        { name: "context", description: "Optional context", required: false }
+      ]
+    });
+    assert.match(updated.xml, /<workflow id="demo" version="2"/);
+    assert.match(updated.xml, /<description>A demo workflow\.<\/description>/);
+    assert.match(updated.xml, /<input name="task" description="Main task"/);
+    assert.match(
+      updated.xml,
+      /<input name="context" description="Optional context" optional="true"/
+    );
+    const detail = runtime.getWorkflowDetail("demo");
+    assert.ok(detail);
+    assert.equal(detail!.version, "2");
+    assert.equal(detail!.description, "A demo workflow.");
+    assert.equal(detail!.inputs.length, 2);
+    assert.equal(detail!.inputs[1]!.required, false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("patchWorkflowMetadata rejects invalid input names", () => {
+  const { runtime, tempDir } = freshRuntime("patch-invalid");
+  try {
+    runtime.createWorkflow({ workflowId: "demo", template: "blank" });
+    assert.throws(
+      () =>
+        runtime.patchWorkflowMetadata("demo", {
+          inputs: [{ name: "1bad", required: true }]
+        }),
+      /invalid/i
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

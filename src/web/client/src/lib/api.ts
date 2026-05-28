@@ -24,6 +24,7 @@ import type {
   WebWorkflowDetail,
   WebWorkflowDuplicateRequest,
   WebWorkflowGraph,
+  WebWorkflowMetadataPatchRequest,
   WebWorkflowPauseResponse,
   WebWorkflowRunDetail,
   WebWorkflowRunStatusDto,
@@ -82,12 +83,16 @@ async function putJson<T>(path: string, payload: unknown): Promise<T> {
   return sendJson<T>("PUT", path, payload)
 }
 
+async function patchJson<T>(path: string, payload: unknown): Promise<T> {
+  return sendJson<T>("PATCH", path, payload)
+}
+
 async function deleteJson<T>(path: string, payload: unknown): Promise<T> {
   return sendJson<T>("DELETE", path, payload)
 }
 
 async function sendJson<T>(
-  method: "POST" | "PUT" | "DELETE",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   payload: unknown,
 ): Promise<T> {
@@ -249,6 +254,15 @@ export const api = {
   ) =>
     putJson<WebWorkflowXmlResponse>(
       `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/xml`,
+      payload,
+    ),
+  patchWorkflowMetadata: (
+    projectId: string,
+    workflowId: string,
+    payload: WebWorkflowMetadataPatchRequest,
+  ) =>
+    patchJson<WebWorkflowXmlResponse>(
+      `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}`,
       payload,
     ),
   duplicateWorkflow: (
