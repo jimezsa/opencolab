@@ -16,6 +16,26 @@ import type {
   WebProjectSummary,
   WebResearchRun,
   WebResearchRunDetail,
+  WebWorkflowApprovalRequest,
+  WebWorkflowCreateRequest,
+  WebWorkflowCreateResponse,
+  WebWorkflowDeleteRequest,
+  WebWorkflowDeleteResponse,
+  WebWorkflowDetail,
+  WebWorkflowDuplicateRequest,
+  WebWorkflowGraph,
+  WebWorkflowPauseResponse,
+  WebWorkflowRunDetail,
+  WebWorkflowRunStatusDto,
+  WebWorkflowRunSummary,
+  WebWorkflowStartRequest,
+  WebWorkflowStartResponse,
+  WebWorkflowStopResponse,
+  WebWorkflowSummary,
+  WebWorkflowTemplate,
+  WebWorkflowUpdateXmlRequest,
+  WebWorkflowValidationResponse,
+  WebWorkflowXmlResponse,
 } from "@shared/types"
 
 const API_BASE = "/api/web"
@@ -55,8 +75,24 @@ async function request<T>(path: string): Promise<T> {
 }
 
 async function postJson<T>(path: string, payload: unknown): Promise<T> {
+  return sendJson<T>("POST", path, payload)
+}
+
+async function putJson<T>(path: string, payload: unknown): Promise<T> {
+  return sendJson<T>("PUT", path, payload)
+}
+
+async function deleteJson<T>(path: string, payload: unknown): Promise<T> {
+  return sendJson<T>("DELETE", path, payload)
+}
+
+async function sendJson<T>(
+  method: "POST" | "PUT" | "DELETE",
+  path: string,
+  payload: unknown,
+): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
+    method,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -105,6 +141,10 @@ export function chatFileUrl(projectId: string, fileId: string): string {
 
 export function chatTurnEventsUrl(projectId: string, turnId: string): string {
   return `${API_BASE}/projects/${encodeURIComponent(projectId)}/chat/turns/${encodeURIComponent(turnId)}/events`
+}
+
+export function workflowRunEventsUrl(projectId: string, runId: string): string {
+  return `${API_BASE}/projects/${encodeURIComponent(projectId)}/workflow-runs/${encodeURIComponent(runId)}/events`
 }
 
 export const api = {
@@ -177,6 +217,114 @@ export const api = {
       form,
     )
   },
+  workflows: (projectId: string) =>
+    request<WebWorkflowSummary[]>(
+      `/projects/${encodeURIComponent(projectId)}/workflows`,
+    ),
+  workflow: (projectId: string, workflowId: string) =>
+    request<WebWorkflowDetail>(
+      `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}`,
+    ),
+  workflowGraph: (projectId: string, workflowId: string) =>
+    request<WebWorkflowGraph>(
+      `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/graph`,
+    ),
+  workflowXml: (projectId: string, workflowId: string) =>
+    request<WebWorkflowXmlResponse>(
+      `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/xml`,
+    ),
+  workflowTemplates: (projectId: string) =>
+    request<WebWorkflowTemplate[]>(
+      `/projects/${encodeURIComponent(projectId)}/workflows/templates`,
+    ),
+  createWorkflow: (projectId: string, payload: WebWorkflowCreateRequest) =>
+    postJson<WebWorkflowCreateResponse>(
+      `/projects/${encodeURIComponent(projectId)}/workflows`,
+      payload,
+    ),
+  updateWorkflowXml: (
+    projectId: string,
+    workflowId: string,
+    payload: WebWorkflowUpdateXmlRequest,
+  ) =>
+    putJson<WebWorkflowXmlResponse>(
+      `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/xml`,
+      payload,
+    ),
+  duplicateWorkflow: (
+    projectId: string,
+    sourceWorkflowId: string,
+    payload: WebWorkflowDuplicateRequest,
+  ) =>
+    postJson<WebWorkflowCreateResponse>(
+      `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(sourceWorkflowId)}/duplicate`,
+      payload,
+    ),
+  deleteWorkflow: (
+    projectId: string,
+    workflowId: string,
+    payload: WebWorkflowDeleteRequest,
+  ) =>
+    deleteJson<WebWorkflowDeleteResponse>(
+      `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}`,
+      payload,
+    ),
+  validateWorkflowXml: (projectId: string, xml: string, workflowId?: string) => {
+    const path = workflowId
+      ? `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/validate`
+      : `/projects/${encodeURIComponent(projectId)}/workflows/validate`
+    const payload = workflowId ? {} : { xml }
+    return postJson<WebWorkflowValidationResponse>(path, payload)
+  },
+  workflowRuns: (projectId: string, workflowId?: string) => {
+    const query = workflowId
+      ? `?workflowId=${encodeURIComponent(workflowId)}`
+      : ""
+    return request<WebWorkflowRunSummary[]>(
+      `/projects/${encodeURIComponent(projectId)}/workflow-runs${query}`,
+    )
+  },
+  workflowRun: (projectId: string, runId: string) =>
+    request<WebWorkflowRunDetail>(
+      `/projects/${encodeURIComponent(projectId)}/workflow-runs/${encodeURIComponent(runId)}`,
+    ),
+  workflowRunStatus: (projectId: string, runId: string) =>
+    request<WebWorkflowRunStatusDto>(
+      `/projects/${encodeURIComponent(projectId)}/workflow-runs/${encodeURIComponent(runId)}/status`,
+    ),
+  startWorkflow: (
+    projectId: string,
+    workflowId: string,
+    payload: WebWorkflowStartRequest,
+  ) =>
+    postJson<WebWorkflowStartResponse>(
+      `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/runs`,
+      payload,
+    ),
+  pauseWorkflowRun: (projectId: string, runId: string) =>
+    postJson<WebWorkflowPauseResponse>(
+      `/projects/${encodeURIComponent(projectId)}/workflow-runs/${encodeURIComponent(runId)}/pause`,
+      {},
+    ),
+  stopWorkflowRun: (projectId: string, runId: string) =>
+    postJson<WebWorkflowStopResponse>(
+      `/projects/${encodeURIComponent(projectId)}/workflow-runs/${encodeURIComponent(runId)}/stop`,
+      {},
+    ),
+  resumeWorkflowRun: (projectId: string, runId: string) =>
+    postJson<{ runId: string; status: string }>(
+      `/projects/${encodeURIComponent(projectId)}/workflow-runs/${encodeURIComponent(runId)}/resume`,
+      {},
+    ),
+  approveWorkflowRun: (
+    projectId: string,
+    runId: string,
+    payload: WebWorkflowApprovalRequest,
+  ) =>
+    postJson<{ runId: string; status: string }>(
+      `/projects/${encodeURIComponent(projectId)}/workflow-runs/${encodeURIComponent(runId)}/approve`,
+      payload,
+    ),
 }
 
 export type { WebOverview, WebProjectDetail, WebAgentDetail, WebHealthStatus }

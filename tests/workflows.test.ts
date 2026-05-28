@@ -425,6 +425,250 @@ test("setTelegramWorkflowNotifications persists the toggle", () => {
   }
 });
 
+test("readWorkflowXml returns the persisted XML and updatedAt", () => {
+  const { runtime, tempDir } = freshRuntime("xml-read");
+  try {
+    runtime.createWorkflow({ workflowId: "demo", template: "blank" });
+    const doc = runtime.readWorkflowXml("demo");
+    assert.ok(doc);
+    assert.equal(doc!.workflowId, "demo");
+    assert.match(doc!.xml, /<workflow id="demo"/);
+    assert.equal(typeof doc!.updatedAt, "string");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("updateWorkflowXml rejects id mismatch and missing workflow", () => {
+  const { runtime, tempDir } = freshRuntime("xml-update");
+  try {
+    runtime.createWorkflow({ workflowId: "demo", template: "blank" });
+    const xml = `<workflow id="other" version="1">
+      <input name="task" />
+      <step id="draft" type="agent" agent="professor">
+        <prompt>Draft for \${input.task}</prompt>
+        <output name="draft_output" />
+      </step>
+    </workflow>`;
+    assert.throws(
+      () => runtime.updateWorkflowXml("demo", xml),
+      /does not match folder id/
+    );
+    assert.throws(
+      () => runtime.updateWorkflowXml("missing", xml),
+      /does not exist/
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("validateWorkflowXml surfaces parser errors and good drafts", () => {
+  const { runtime, tempDir } = freshRuntime("xml-validate");
+  try {
+    const bad = runtime.validateWorkflowXml(
+      `<workflow id="x"><step id="" type="agent"></step></workflow>`
+    );
+    assert.equal(bad.ok, false);
+    const good = runtime.validateWorkflowXml(
+      `<workflow id="demo" version="1">
+        <input name="task" />
+        <step id="draft" type="agent" agent="professor">
+          <prompt>Draft for \${input.task}</prompt>
+          <output name="draft_output" />
+        </step>
+      </workflow>`
+    );
+    assert.equal(good.ok, true);
+    assert.ok(good.definition);
+    assert.equal(good.definition!.id, "demo");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("duplicateWorkflow rewrites the id and refuses existing targets", () => {
+  const { runtime, tempDir } = freshRuntime("duplicate");
+  try {
+    runtime.createWorkflow({ workflowId: "demo", template: "blank" });
+    const result = runtime.duplicateWorkflow("demo", "demo-copy");
+    assert.equal(result.workflowId, "demo-copy");
+    const xml = runtime.readWorkflowXml("demo-copy");
+    assert.match(xml!.xml, /<workflow id="demo-copy"/);
+    assert.throws(
+      () => runtime.duplicateWorkflow("demo", "demo-copy"),
+      /already exists/
+    );
+    assert.throws(
+      () => runtime.duplicateWorkflow("nope", "another"),
+      /does not exist/
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("deleteWorkflow blocks on existing runs and supports cascade", async () => {
+  const { tempDir } = freshRuntime("delete");
+  try {
+    process.env.OPENCOLAB_FORCE_MOCK_CLI = "1";
+    const runtime = createRuntime(tempDir, {
+      agentResponder: async (input) => `done: ${input.text}`
+    });
+    runtime.init();
+    runtime.createWorkflow({ workflowId: "demo", template: "blank" });
+
+    // No runs yet: safe delete.
+    runtime.createWorkflow({ workflowId: "temp", template: "blank" });
+    const removed = runtime.deleteWorkflow("temp");
+    assert.equal(removed.workflowId, "temp");
+    assert.equal(removed.runsRemoved, 0);
+    assert.equal(runtime.readWorkflowXml("temp"), null);
+
+    // Drive a run so the workflow has run history.
+    const start = runtime.startWorkflowRun({
+      workflowId: "demo",
+      input: { task: "x" }
+    });
+    await waitFor(() => {
+      const candidate = runtime.getWorkflowRun("demo", start.runId);
+      return candidate && candidate.status === "complete" ? candidate : null;
+    });
+
+    let error: Error | null = null;
+    try {
+      runtime.deleteWorkflow("demo");
+    } catch (caught) {
+      error = caught as Error;
+    }
+    assert.ok(error);
+    assert.match(error!.message, /run\(s\)/);
+
+    const cascade = runtime.deleteWorkflow("demo", { cascade: true });
+    assert.equal(cascade.runsRemoved, 1);
+    assert.equal(runtime.readWorkflowXml("demo"), null);
+  } finally {
+    delete process.env.OPENCOLAB_FORCE_MOCK_CLI;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("getWorkflowGraph returns nodes, edges, loops, and validation issues", () => {
+  const { runtime, tempDir } = freshRuntime("graph");
+  try {
+    runtime.createWorkflow({
+      workflowId: "review-loop",
+      template: "review-loop"
+    });
+    const graph = runtime.getWorkflowGraph("review-loop");
+    assert.ok(graph);
+    assert.equal(graph!.workflowId, "review-loop");
+    assert.equal(graph!.version, "1");
+
+    const ids = graph!.nodes.map((node) => node.id);
+    assert.ok(ids.includes("draft"));
+    assert.ok(ids.includes("review"));
+    assert.ok(ids.includes("judge"));
+    assert.ok(ids.includes("__input"));
+
+    const sequence = graph!.edges.filter((edge) => edge.kind === "sequence");
+    assert.ok(sequence.length > 0);
+
+    const choices = graph!.edges.filter((edge) => edge.kind === "choice" || edge.kind === "loop");
+    assert.ok(choices.length > 0, "should include decision edges");
+
+    assert.equal(graph!.loops.length, 1);
+    assert.equal(graph!.loops[0]!.id, "review_loop");
+    assert.equal(graph!.loops[0]!.maxIterations, 3);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("listWorkflowTemplates returns the built-in template descriptors", () => {
+  const { runtime, tempDir } = freshRuntime("templates");
+  try {
+    const templates = runtime.listWorkflowTemplates();
+    const ids = templates.map((template) => template.id).sort();
+    assert.deepEqual(ids, ["blank", "judge-and-retry", "review-loop"]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("pauseWorkflowRun pauses a running workflow between steps", async () => {
+  const { tempDir } = freshRuntime("pause");
+  try {
+    process.env.OPENCOLAB_FORCE_MOCK_CLI = "1";
+    let agentCalls = 0;
+    let releaseFirst!: () => void;
+    const firstAgentReleased = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const runtime = createRuntime(tempDir, {
+      agentResponder: async (input) => {
+        agentCalls += 1;
+        if (agentCalls === 1) {
+          await firstAgentReleased;
+        }
+        return `done: ${input.text}`;
+      }
+    });
+    runtime.init();
+    runtime.createWorkflow({ workflowId: "twostep", template: "blank" });
+    // Override the workflow XML to have two sequential agent steps.
+    const xmlPath = path.join(
+      tempDir,
+      "projects",
+      "default",
+      "workflows",
+      "twostep",
+      "workflow.xml"
+    );
+    fs.writeFileSync(
+      xmlPath,
+      `<workflow id="twostep" version="1">
+        <input name="task" />
+        <step id="first" type="agent" agent="professor">
+          <prompt>First step for \${input.task}</prompt>
+          <output name="first_output" />
+        </step>
+        <step id="second" type="agent" agent="professor">
+          <prompt>Second step using \${first_output}</prompt>
+          <output name="second_output" />
+        </step>
+      </workflow>`,
+      "utf8"
+    );
+    const start = runtime.startWorkflowRun({
+      workflowId: "twostep",
+      input: { task: "x" }
+    });
+    // Wait for the first step to be in flight before requesting pause.
+    await waitFor(() => (agentCalls >= 1 ? true : null));
+    const pausedStatus = runtime.pauseWorkflowRun(start.runId);
+    assert.ok(pausedStatus);
+    // Let the first step finish so the loop can observe the pause flag.
+    releaseFirst();
+    const paused = await waitFor(() => {
+      const candidate = runtime.getWorkflowRun("twostep", start.runId);
+      return candidate && candidate.status === "paused" ? candidate : null;
+    });
+    assert.equal(paused.status, "paused");
+    assert.equal(agentCalls, 1, "second step must not run after pause");
+    runtime.resumeWorkflowRun(start.runId);
+    const completed = await waitFor(() => {
+      const candidate = runtime.getWorkflowRun("twostep", start.runId);
+      return candidate && candidate.status === "complete" ? candidate : null;
+    });
+    assert.equal(completed.status, "complete");
+    assert.equal(agentCalls, 2, "second step must run after resume");
+  } finally {
+    delete process.env.OPENCOLAB_FORCE_MOCK_CLI;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("stopWorkflowRun aborts an active workflow", async () => {
   const { tempDir } = freshRuntime("stop");
   try {

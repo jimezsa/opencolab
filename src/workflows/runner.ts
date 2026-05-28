@@ -70,6 +70,7 @@ export interface WorkflowRunCallbacks {
 export interface WorkflowExecuteOptions {
   signal?: AbortSignal;
   callbacks?: WorkflowRunCallbacks;
+  isPauseRequested?: () => boolean;
 }
 
 export interface WorkflowStartInputDescriptor {
@@ -129,6 +130,11 @@ export class WorkflowRunner {
     while (true) {
       if (options.signal?.aborted || current.stopRequested) {
         current = this.markStopped(current, definition, options.callbacks);
+        return current;
+      }
+
+      if (options.isPauseRequested && options.isPauseRequested()) {
+        current = this.markPaused(current, definition, options.callbacks);
         return current;
       }
 
@@ -901,6 +907,26 @@ export class WorkflowRunner {
       message: `Workflow ${next.workflowId} run ${next.runId} stopped.`
     }, callbacks);
     void this.emitStatus(next, definition, "completed", callbacks);
+    return next;
+  }
+
+  private markPaused(
+    state: WorkflowRunState,
+    definition: WorkflowDefinition,
+    callbacks?: WorkflowRunCallbacks
+  ): WorkflowRunState {
+    const now = nowIso();
+    const next = transitionState(state, {
+      status: "paused",
+      updatedAt: now
+    });
+    this.persist(next, definition, "waiting_for_human", null);
+    void this.recordEvent(next.workflowId, next.runId, {
+      at: now,
+      kind: "run_paused",
+      message: `Workflow ${next.workflowId} run ${next.runId} paused.`
+    }, callbacks);
+    void this.emitStatus(next, definition, "waiting_for_human", callbacks);
     return next;
   }
 

@@ -21,16 +21,30 @@ import {
   type ActiveRunEntry
 } from "../../workflows/index.js";
 import type {
+  WebWorkflowCreateRequest,
+  WebWorkflowCreateResponse,
+  WebWorkflowDeleteRequest,
+  WebWorkflowDeleteResponse,
   WebWorkflowDetail,
+  WebWorkflowDuplicateRequest,
   WebWorkflowEvent,
+  WebWorkflowPauseResponse,
   WebWorkflowRunDetail,
   WebWorkflowRunStatusDto,
   WebWorkflowRunSummary,
   WebWorkflowStartRequest,
   WebWorkflowStartResponse,
   WebWorkflowStopResponse,
-  WebWorkflowSummary
+  WebWorkflowSummary,
+  WebWorkflowTemplate,
+  WebWorkflowUpdateXmlRequest,
+  WebWorkflowValidateRequest,
+  WebWorkflowValidationIssue,
+  WebWorkflowValidationResponse,
+  WebWorkflowXmlResponse
 } from "../shared/types.js";
+import type { WorkflowValidationResult } from "../../types.js";
+import type { WorkflowTemplateId } from "../../workflows/index.js";
 
 const SSE_KEEPALIVE_MS = 15_000;
 
@@ -46,6 +60,204 @@ export async function handleWorkflowsRoute(
 
   if (method === "GET" && (rest === "" || rest === "/")) {
     sendJson(response, 200, toWorkflowSummariesDto(runtime.listWorkflows(projectId)));
+    return true;
+  }
+
+  if (method === "POST" && (rest === "" || rest === "/")) {
+    let body: WebWorkflowCreateRequest;
+    try {
+      body = await readJsonBody<WebWorkflowCreateRequest>(request);
+    } catch (error) {
+      sendError(response, 400, (error as Error).message);
+      return true;
+    }
+    if (!body.workflowId || typeof body.workflowId !== "string") {
+      sendError(response, 400, "missing_workflow_id");
+      return true;
+    }
+    try {
+      const result = runtime.createWorkflow(
+        {
+          workflowId: body.workflowId,
+          template: body.template as WorkflowTemplateId | undefined,
+          xml: body.xml
+        },
+        projectId
+      );
+      const dto: WebWorkflowCreateResponse = {
+        workflowId: result.workflowId,
+        xmlPath: result.xmlPath
+      };
+      sendJson(response, 201, dto);
+    } catch (error) {
+      sendError(response, 400, (error as Error).message);
+    }
+    return true;
+  }
+
+  if (method === "GET" && (rest === "/templates" || rest === "/templates/")) {
+    const templates = runtime.listWorkflowTemplates(projectId);
+    const dto: WebWorkflowTemplate[] = templates.map((template) => ({
+      id: template.id,
+      label: template.label,
+      description: template.description
+    }));
+    sendJson(response, 200, dto);
+    return true;
+  }
+
+  if (method === "POST" && (rest === "/validate" || rest === "/validate/")) {
+    let body: WebWorkflowValidateRequest;
+    try {
+      body = await readJsonBody<WebWorkflowValidateRequest>(request);
+    } catch (error) {
+      sendError(response, 400, (error as Error).message);
+      return true;
+    }
+    if (typeof body.xml !== "string") {
+      sendError(response, 400, "missing_xml");
+      return true;
+    }
+    try {
+      const result = runtime.validateWorkflowXml(body.xml, projectId);
+      sendJson(response, 200, toValidationDto(result));
+    } catch (error) {
+      sendError(response, 400, (error as Error).message);
+    }
+    return true;
+  }
+
+  const xmlMatch = /^\/([^/]+)\/xml$/.exec(rest);
+  if (xmlMatch) {
+    const workflowId = decodeURIComponent(xmlMatch[1]!);
+    if (method === "GET") {
+      const xml = runtime.readWorkflowXml(workflowId, projectId);
+      if (!xml) {
+        sendError(response, 404, "unknown_workflow");
+        return true;
+      }
+      const dto: WebWorkflowXmlResponse = {
+        workflowId: xml.workflowId,
+        xml: xml.xml,
+        updatedAt: xml.updatedAt,
+        path: xml.path
+      };
+      sendJson(response, 200, dto);
+      return true;
+    }
+    if (method === "PUT") {
+      let body: WebWorkflowUpdateXmlRequest;
+      try {
+        body = await readJsonBody<WebWorkflowUpdateXmlRequest>(request);
+      } catch (error) {
+        sendError(response, 400, (error as Error).message);
+        return true;
+      }
+      if (typeof body.xml !== "string") {
+        sendError(response, 400, "missing_xml");
+        return true;
+      }
+      try {
+        const result = runtime.updateWorkflowXml(workflowId, body.xml, projectId);
+        const dto: WebWorkflowXmlResponse = {
+          workflowId: result.workflowId,
+          xml: result.xml,
+          updatedAt: result.updatedAt,
+          path: result.path
+        };
+        sendJson(response, 200, dto);
+      } catch (error) {
+        sendError(response, 400, (error as Error).message);
+      }
+      return true;
+    }
+    sendError(response, 405, "method_not_allowed");
+    return true;
+  }
+
+  const duplicateMatch = /^\/([^/]+)\/duplicate$/.exec(rest);
+  if (method === "POST" && duplicateMatch) {
+    const sourceWorkflowId = decodeURIComponent(duplicateMatch[1]!);
+    let body: WebWorkflowDuplicateRequest;
+    try {
+      body = await readJsonBody<WebWorkflowDuplicateRequest>(request);
+    } catch (error) {
+      sendError(response, 400, (error as Error).message);
+      return true;
+    }
+    if (typeof body.workflowId !== "string" || !body.workflowId.trim()) {
+      sendError(response, 400, "missing_workflow_id");
+      return true;
+    }
+    try {
+      const result = runtime.duplicateWorkflow(
+        sourceWorkflowId,
+        body.workflowId.trim(),
+        projectId
+      );
+      const dto: WebWorkflowCreateResponse = {
+        workflowId: result.workflowId,
+        xmlPath: result.xmlPath
+      };
+      sendJson(response, 201, dto);
+    } catch (error) {
+      sendError(response, 400, (error as Error).message);
+    }
+    return true;
+  }
+
+  const validateExistingMatch = /^\/([^/]+)\/validate$/.exec(rest);
+  if (method === "POST" && validateExistingMatch) {
+    const workflowId = decodeURIComponent(validateExistingMatch[1]!);
+    const result = runtime.validateWorkflow(workflowId, projectId);
+    sendJson(response, 200, toValidationDto(result));
+    return true;
+  }
+
+  const graphMatch = /^\/([^/]+)\/graph$/.exec(rest);
+  if (method === "GET" && graphMatch) {
+    const workflowId = decodeURIComponent(graphMatch[1]!);
+    const graph = runtime.getWorkflowGraph(workflowId, projectId);
+    if (!graph) {
+      sendError(response, 404, "unknown_workflow");
+      return true;
+    }
+    sendJson(response, 200, graph);
+    return true;
+  }
+
+  const deleteMatch = /^\/([^/]+)$/.exec(rest);
+  if (method === "DELETE" && deleteMatch) {
+    const workflowId = decodeURIComponent(deleteMatch[1]!);
+    let body: WebWorkflowDeleteRequest;
+    try {
+      body = await readJsonBody<WebWorkflowDeleteRequest>(request);
+    } catch {
+      body = {};
+    }
+    if (body.cascade && body.workflowId !== undefined && body.workflowId !== workflowId) {
+      sendError(response, 400, "workflow_id_mismatch");
+      return true;
+    }
+    try {
+      const result = runtime.deleteWorkflow(
+        workflowId,
+        { cascade: Boolean(body.cascade) },
+        projectId
+      );
+      const dto: WebWorkflowDeleteResponse = {
+        workflowId: result.workflowId,
+        runsRemoved: result.runsRemoved
+      };
+      sendJson(response, 200, dto);
+    } catch (error) {
+      const errObj = error as Error & { code?: string };
+      if (errObj.code === "workflow_has_runs") {
+        sendError(response, 409, errObj.message);
+      } else {
+        sendError(response, 400, errObj.message);
+      }
+    }
     return true;
   }
 
@@ -169,6 +381,21 @@ export async function handleWorkflowRunRoute(
 
   if (method === "GET" && trailing === "/events") {
     streamEvents(runtime, request, response, projectId, workflowId, runId);
+    return true;
+  }
+
+  if (method === "POST" && trailing === "/pause") {
+    const status = runtime.pauseWorkflowRun(runId, projectId);
+    if (!status) {
+      sendError(response, 404, "unknown_run");
+      return true;
+    }
+    const dto: WebWorkflowPauseResponse = {
+      runId,
+      status: status.status,
+      pauseRequested: status.status === "running" || status.status === "queued"
+    };
+    sendJson(response, 202, dto);
     return true;
   }
 
@@ -296,6 +523,32 @@ function normalizeInputs(body: WebWorkflowStartRequest): Record<string, string> 
     return { task: body.inputText };
   }
   return {};
+}
+
+function toValidationDto(result: WorkflowValidationResult): WebWorkflowValidationResponse {
+  const issues: WebWorkflowValidationIssue[] = result.issues.map((issue) => ({
+    severity: issue.severity,
+    message: issue.message,
+    stepId: issue.stepId ?? null,
+    loopId: issue.loopId ?? null
+  }));
+  return {
+    ok: result.ok,
+    issues,
+    definition: result.definition
+      ? {
+          id: result.definition.id,
+          version: result.definition.version,
+          description: result.definition.description,
+          stepCount: result.definition.stepOrder.length,
+          inputs: result.definition.inputs.map((input) => ({
+            name: input.name,
+            description: input.description,
+            required: input.required
+          }))
+        }
+      : null
+  };
 }
 
 function toWorkflowSummariesDto(summaries: WorkflowSummary[]): WebWorkflowSummary[] {

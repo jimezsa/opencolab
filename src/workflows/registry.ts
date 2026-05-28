@@ -25,6 +25,7 @@ export interface ActiveRunEntry {
   statusListeners: Set<WorkflowStatusListener>;
   progressListeners: Set<WorkflowProgressListener>;
   stopRequested: boolean;
+  pauseRequested: boolean;
   paused: boolean;
   completed: boolean;
 }
@@ -49,6 +50,7 @@ export function registerRun(input: {
     statusListeners: new Set(),
     progressListeners: new Set(),
     stopRequested: false,
+    pauseRequested: false,
     paused: false,
     completed: false
   };
@@ -107,6 +109,21 @@ export function pushRunProgress(runId: string, event: TaskProgressEvent): void {
   for (const listener of entry.progressListeners) {
     safeRun(() => listener(event));
   }
+}
+
+export function markPauseRequested(runId: string): boolean {
+  const entry = ACTIVE_RUNS.get(runId);
+  if (!entry) {
+    return false;
+  }
+  entry.pauseRequested = true;
+  return true;
+}
+
+export function clearPauseRequested(runId: string): void {
+  const entry = ACTIVE_RUNS.get(runId);
+  if (!entry) return;
+  entry.pauseRequested = false;
 }
 
 export function markStopRequested(runId: string): boolean {

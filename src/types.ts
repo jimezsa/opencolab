@@ -646,6 +646,8 @@ export type WorkflowEventKind =
   | "human_gate_resumed"
   | "merge_completed"
   | "stop_requested"
+  | "pause_requested"
+  | "run_paused"
   | "resume_requested"
   | "approval_recorded"
   | "run_completed"

@@ -7,6 +7,11 @@ export {
   parseAndValidateWorkflow
 } from "./parser.js";
 export {
+  extractWorkflowGraph,
+  INPUT_NODE_ID,
+  type GraphExtractionOptions
+} from "./graph.js";
+export {
   WorkflowRunner,
   type WorkflowAgentResponder,
   type WorkflowExecuteOptions,
@@ -18,10 +23,13 @@ export {
   WORKFLOW_TEMPLATE_BLANK,
   WORKFLOW_TEMPLATE_REVIEW_LOOP,
   WORKFLOW_TEMPLATE_JUDGE_AND_RETRY,
+  type WorkflowDeleteResult,
   type WorkflowDetail,
   type WorkflowStartRunInput,
   type WorkflowStartRunResult,
-  type WorkflowTemplateId
+  type WorkflowTemplateDescriptor,
+  type WorkflowTemplateId,
+  type WorkflowXmlDocument
 } from "./service.js";
 export {
   getActiveRun,

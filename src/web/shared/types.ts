@@ -520,3 +520,141 @@ export interface WebWorkflowApprovalRequest {
   next?: string;
   values?: Record<string, string>;
 }
+
+export type WebWorkflowValidationSeverity = "error" | "warning";
+
+export interface WebWorkflowValidationIssue {
+  severity: WebWorkflowValidationSeverity;
+  message: string;
+  stepId: string | null;
+  loopId: string | null;
+}
+
+export interface WebWorkflowValidationResponse {
+  ok: boolean;
+  issues: WebWorkflowValidationIssue[];
+  definition: {
+    id: string;
+    version: string;
+    description: string | null;
+    stepCount: number;
+    inputs: WebWorkflowInput[];
+  } | null;
+}
+
+export type WebWorkflowGraphNodeKind =
+  | "input"
+  | "agent"
+  | "decision"
+  | "human_gate"
+  | "merge"
+  | "terminate";
+
+export type WebWorkflowGraphNodeStatus =
+  | "idle"
+  | "queued"
+  | "running"
+  | "paused"
+  | "complete"
+  | "failed"
+  | "stopped";
+
+export interface WebWorkflowGraphAgent {
+  id: string;
+  provider: WebProviderInfo | null;
+  missing: boolean;
+}
+
+export interface WebWorkflowGraphNode {
+  id: string;
+  kind: WebWorkflowGraphNodeKind;
+  label: string;
+  subtitle: string | null;
+  agent: WebWorkflowGraphAgent | null;
+  loopId: string | null;
+  status: WebWorkflowGraphNodeStatus;
+}
+
+export type WebWorkflowGraphEdgeKind = "sequence" | "choice" | "loop" | "gate";
+
+export interface WebWorkflowGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  kind: WebWorkflowGraphEdgeKind;
+  label: string | null;
+}
+
+export interface WebWorkflowGraphLoop {
+  id: string;
+  parentLoopId: string | null;
+  childStepIds: string[];
+  maxIterations: number | null;
+  maxSteps: number | null;
+  maxRuntimeMinutes: number | null;
+}
+
+export interface WebWorkflowGraph {
+  workflowId: string;
+  version: string;
+  description: string | null;
+  nodes: WebWorkflowGraphNode[];
+  edges: WebWorkflowGraphEdge[];
+  loops: WebWorkflowGraphLoop[];
+  validation: WebWorkflowValidationIssue[];
+}
+
+export type WebWorkflowTemplateId = "blank" | "review-loop" | "judge-and-retry";
+
+export interface WebWorkflowTemplate {
+  id: WebWorkflowTemplateId;
+  label: string;
+  description: string;
+}
+
+export interface WebWorkflowCreateRequest {
+  workflowId: string;
+  template?: WebWorkflowTemplateId;
+  xml?: string;
+}
+
+export interface WebWorkflowCreateResponse {
+  workflowId: string;
+  xmlPath: string;
+}
+
+export interface WebWorkflowXmlResponse {
+  workflowId: string;
+  xml: string;
+  updatedAt: string;
+  path: string;
+}
+
+export interface WebWorkflowUpdateXmlRequest {
+  xml: string;
+  expectedUpdatedAt?: string;
+}
+
+export interface WebWorkflowDuplicateRequest {
+  workflowId: string;
+}
+
+export interface WebWorkflowDeleteRequest {
+  cascade?: boolean;
+  workflowId?: string;
+}
+
+export interface WebWorkflowDeleteResponse {
+  workflowId: string;
+  runsRemoved: number;
+}
+
+export interface WebWorkflowValidateRequest {
+  xml: string;
+}
+
+export interface WebWorkflowPauseResponse {
+  runId: string;
+  status: WebWorkflowRunStatus;
+  pauseRequested: boolean;
+}

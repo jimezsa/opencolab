@@ -96,11 +96,15 @@ import type {
 import { ensureDir, nowIso } from "./utils.js";
 import {
   WorkflowService,
+  type WorkflowDeleteResult,
   type WorkflowDetail,
   type WorkflowStartRunInput,
   type WorkflowStartRunResult,
-  type WorkflowTemplateId
+  type WorkflowTemplateDescriptor,
+  type WorkflowTemplateId,
+  type WorkflowXmlDocument
 } from "./workflows/index.js";
+import type { WebWorkflowGraph } from "./web/shared/types.js";
 
 type HeartbeatNotifyMode = "quiet" | "digest" | "live";
 
@@ -1025,6 +1029,67 @@ export class OpenColabRuntime {
     projectId = this.state.activeProjectId
   ): { workflowId: string; xmlPath: string } {
     return this.workflowServiceFor(projectId).createWorkflow(input);
+  }
+
+  listWorkflowTemplates(
+    projectId = this.state.activeProjectId
+  ): WorkflowTemplateDescriptor[] {
+    return this.workflowServiceFor(projectId).listTemplates();
+  }
+
+  readWorkflowXml(
+    workflowId: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowXmlDocument | null {
+    return this.workflowServiceFor(projectId).readXml(workflowId);
+  }
+
+  updateWorkflowXml(
+    workflowId: string,
+    xml: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowXmlDocument {
+    return this.workflowServiceFor(projectId).updateXml(workflowId, xml);
+  }
+
+  validateWorkflowXml(
+    xml: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowValidationResult {
+    return this.workflowServiceFor(projectId).validateXml(xml);
+  }
+
+  duplicateWorkflow(
+    sourceWorkflowId: string,
+    newWorkflowId: string,
+    projectId = this.state.activeProjectId
+  ): { workflowId: string; xmlPath: string } {
+    return this.workflowServiceFor(projectId).duplicateWorkflow(
+      sourceWorkflowId,
+      newWorkflowId
+    );
+  }
+
+  deleteWorkflow(
+    workflowId: string,
+    options: { cascade?: boolean } = {},
+    projectId = this.state.activeProjectId
+  ): WorkflowDeleteResult {
+    return this.workflowServiceFor(projectId).deleteWorkflow(workflowId, options);
+  }
+
+  getWorkflowGraph(
+    workflowId: string,
+    projectId = this.state.activeProjectId
+  ): WebWorkflowGraph | null {
+    return this.workflowServiceFor(projectId).getGraph(workflowId);
+  }
+
+  pauseWorkflowRun(
+    runId: string,
+    projectId = this.state.activeProjectId
+  ): WorkflowRunStatus | null {
+    return this.workflowServiceFor(projectId).pauseRun(runId);
   }
 
   startWorkflowRun(

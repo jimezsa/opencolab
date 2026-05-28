@@ -25,8 +25,10 @@ import { ensureDir, nowIso } from "../utils.js";
 import { parseAndValidateWorkflow } from "./parser.js";
 import {
   type ActiveRunEntry,
+  clearPauseRequested,
   getActiveRun,
   getActiveRuns,
+  markPauseRequested,
   markStopRequested,
   pushRunEvent,
   pushRunProgress,
@@ -34,6 +36,9 @@ import {
   removeRun,
   updateRunStatus
 } from "./registry.js";
+import {
+  extractWorkflowGraph
+} from "./graph.js";
 import type {
   WorkflowRunNotifier,
   WorkflowRunNotifierFactory
@@ -46,6 +51,7 @@ import {
 import {
   appendRunEvent,
   buildWorkflowSummary,
+  deleteWorkflow as deleteWorkflowDir,
   ensureStepDir,
   listRunIds,
   listWorkflowIds,
@@ -60,6 +66,7 @@ import {
   writeRunState,
   writeWorkflowXml
 } from "./storage.js";
+import type { WebWorkflowGraph } from "../web/shared/types.js";
 
 export const WORKFLOW_TEMPLATE_BLANK = `<workflow id="blank" version="1">
   <description>Replace with a description of what this workflow does.</description>
@@ -131,6 +138,45 @@ const TEMPLATES: Record<WorkflowTemplateId, string> = {
   "review-loop": WORKFLOW_TEMPLATE_REVIEW_LOOP,
   "judge-and-retry": WORKFLOW_TEMPLATE_JUDGE_AND_RETRY
 };
+
+export interface WorkflowTemplateDescriptor {
+  id: WorkflowTemplateId;
+  label: string;
+  description: string;
+}
+
+const TEMPLATE_DESCRIPTORS: WorkflowTemplateDescriptor[] = [
+  {
+    id: "blank",
+    label: "Blank",
+    description: "A single agent step ready to customize."
+  },
+  {
+    id: "review-loop",
+    label: "Review loop",
+    description: "Draft, review, judge — iterates until the judge stops or hands off to a human."
+  },
+  {
+    id: "judge-and-retry",
+    label: "Judge and retry",
+    description: "Draft and judge, retrying once if the judge calls for a redo."
+  }
+];
+
+export interface WorkflowXmlDocument {
+  workflowId: string;
+  xml: string;
+  path: string;
+  updatedAt: string;
+}
+
+export interface WorkflowDeleteResult {
+  workflowId: string;
+  runsRemoved: number;
+}
+
+const WORKFLOW_XML_MAX_BYTES = 256 * 1024;
+const TEXT_ENCODER = new TextEncoder();
 
 export interface WorkflowDetail extends WorkflowSummary {
   steps: Array<{
@@ -275,6 +321,7 @@ export class WorkflowService {
       );
     }
     const xmlSource = input.xml ?? TEMPLATES[input.template ?? "blank"];
+    enforceXmlSize(xmlSource);
     const xmlWithId = xmlSource.replace(
       /<workflow\s+id="[^"]*"/,
       `<workflow id="${input.workflowId}"`
@@ -287,8 +334,193 @@ export class WorkflowService {
         .join("; ");
       throw new Error(`Cannot create workflow: ${messages || "validation failed."}`);
     }
+    if (validation.definition && validation.definition.id !== input.workflowId) {
+      throw new Error(
+        `Workflow XML id '${validation.definition.id}' does not match requested id '${input.workflowId}'.`
+      );
+    }
     const xmlPath = writeWorkflowXml(this.config, project, input.workflowId, xmlWithId);
     return { workflowId: input.workflowId, xmlPath };
+  }
+
+  listTemplates(): WorkflowTemplateDescriptor[] {
+    return TEMPLATE_DESCRIPTORS.map((descriptor) => ({ ...descriptor }));
+  }
+
+  getTemplateXml(templateId: WorkflowTemplateId): string {
+    return TEMPLATES[templateId];
+  }
+
+  readXml(workflowId: string): WorkflowXmlDocument | null {
+    const project = this.projectAccessor();
+    const result = readWorkflowXml(this.config, project, workflowId);
+    if (!result) {
+      return null;
+    }
+    return {
+      workflowId,
+      xml: result.xml,
+      path: result.path,
+      updatedAt: result.updatedAt
+    };
+  }
+
+  updateXml(workflowId: string, xml: string): WorkflowXmlDocument {
+    if (!isValidWorkflowId(workflowId)) {
+      throw new Error(
+        `Invalid workflow id '${workflowId}'. Use letters, digits, underscore, or hyphen.`
+      );
+    }
+    const project = this.projectAccessor();
+    const existing = readWorkflowXml(this.config, project, workflowId);
+    if (!existing) {
+      throw new Error(
+        `Workflow '${workflowId}' does not exist in project '${project.id}'.`
+      );
+    }
+    enforceXmlSize(xml);
+    const validation = parseAndValidateWorkflow(xml);
+    if (!validation.ok || !validation.definition) {
+      const messages = validation.issues
+        .filter((issue) => issue.severity === "error")
+        .map((issue) => issue.message)
+        .join("; ");
+      throw new Error(`Cannot save workflow: ${messages || "validation failed."}`);
+    }
+    if (validation.definition.id !== workflowId) {
+      throw new Error(
+        `Workflow XML id '${validation.definition.id}' does not match folder id '${workflowId}'.`
+      );
+    }
+    this.assertNoActiveRun(workflowId);
+    const xmlPath = writeWorkflowXml(this.config, project, workflowId, xml);
+    return {
+      workflowId,
+      xml,
+      path: xmlPath,
+      updatedAt: nowIso()
+    };
+  }
+
+  validateXml(xml: string): WorkflowValidationResult {
+    enforceXmlSize(xml);
+    return parseAndValidateWorkflow(xml);
+  }
+
+  duplicateWorkflow(sourceWorkflowId: string, newWorkflowId: string): {
+    workflowId: string;
+    xmlPath: string;
+  } {
+    const project = this.projectAccessor();
+    if (!isValidWorkflowId(newWorkflowId)) {
+      throw new Error(
+        `Invalid workflow id '${newWorkflowId}'. Use letters, digits, underscore, or hyphen.`
+      );
+    }
+    const source = readWorkflowXml(this.config, project, sourceWorkflowId);
+    if (!source) {
+      throw new Error(
+        `Workflow '${sourceWorkflowId}' does not exist in project '${project.id}'.`
+      );
+    }
+    const target = readWorkflowXml(this.config, project, newWorkflowId);
+    if (target) {
+      throw new Error(
+        `Workflow '${newWorkflowId}' already exists in project '${project.id}'.`
+      );
+    }
+    const cloned = source.xml.replace(
+      /<workflow\s+id="[^"]*"/,
+      `<workflow id="${newWorkflowId}"`
+    );
+    return this.createWorkflow({ workflowId: newWorkflowId, xml: cloned });
+  }
+
+  deleteWorkflow(
+    workflowId: string,
+    options: { cascade?: boolean } = {}
+  ): WorkflowDeleteResult {
+    const project = this.projectAccessor();
+    const existing = readWorkflowXml(this.config, project, workflowId);
+    if (!existing) {
+      throw new Error(
+        `Workflow '${workflowId}' does not exist in project '${project.id}'.`
+      );
+    }
+    this.assertNoActiveRun(workflowId);
+    const runIds = listRunIds(this.config, project, workflowId);
+    if (runIds.length > 0 && !options.cascade) {
+      const error = new Error(
+        `Workflow '${workflowId}' has ${runIds.length} run(s). Delete with cascade=true to remove the workflow and its runs.`
+      );
+      (error as Error & { code?: string }).code = "workflow_has_runs";
+      throw error;
+    }
+    deleteWorkflowDir(this.config, project, workflowId);
+    return { workflowId, runsRemoved: runIds.length };
+  }
+
+  getGraph(workflowId: string): WebWorkflowGraph | null {
+    const project = this.projectAccessor();
+    const validation = this.validateWorkflow(workflowId);
+    if (!validation.definition) {
+      return null;
+    }
+    const status = this.findLatestStatus(workflowId);
+    return extractWorkflowGraph(
+      workflowId,
+      validation.definition,
+      validation.issues,
+      { project, status }
+    );
+  }
+
+  pauseRun(runId: string): WorkflowRunStatus | null {
+    const project = this.projectAccessor();
+    const resolved = this.resolveRun(runId);
+    if (!resolved) {
+      return null;
+    }
+    const live = getActiveRun(runId);
+    if (!live) {
+      // Persisted-only: cannot pause a run that is no longer in-process.
+      const current = readRunStatus(
+        this.config,
+        project,
+        resolved.workflowId,
+        runId
+      );
+      return current;
+    }
+    if (live.status?.status !== "running" && live.status?.status !== "queued") {
+      return live.status;
+    }
+    markPauseRequested(runId);
+    appendRunEvent(this.config, project, resolved.workflowId, runId, {
+      at: nowIso(),
+      kind: "pause_requested",
+      message: `Pause requested for run ${runId}.`
+    });
+    return live.status;
+  }
+
+  private findLatestStatus(workflowId: string): WorkflowRunStatus | null {
+    const summaries = this.listRunSummaries(workflowId);
+    const latest = summaries[0];
+    if (!latest) {
+      return null;
+    }
+    return this.getRunStatus(workflowId, latest.runId);
+  }
+
+  private assertNoActiveRun(workflowId: string): void {
+    for (const entry of getActiveRuns()) {
+      if (entry.workflowId !== workflowId) continue;
+      if (entry.completed) continue;
+      throw new Error(
+        `Workflow '${workflowId}' has an active run '${entry.runId}'. Stop or finish it before editing.`
+      );
+    }
   }
 
   getRunState(workflowId: string, runId: string): WorkflowRunState | null {
@@ -418,7 +650,8 @@ export class WorkflowService {
       entry,
       controller,
       callbacks,
-      notifierHandlePromise
+      notifierHandlePromise,
+      () => entry.pauseRequested
     );
     return {
       runId: state.runId,
@@ -566,6 +799,7 @@ export class WorkflowService {
       kind: "resume_requested",
       message: `Resume requested for run ${runId}.`
     });
+    clearPauseRequested(runId);
     const notifierHandlePromise = this.attachNotifier(entry);
     void this.executeRun(
       runner,
@@ -574,7 +808,8 @@ export class WorkflowService {
       entry,
       controller,
       callbacks,
-      notifierHandlePromise
+      notifierHandlePromise,
+      () => entry.pauseRequested
     );
     return { runId, status: "running" };
   }
@@ -637,12 +872,14 @@ export class WorkflowService {
     entry: ActiveRunEntry,
     controller: AbortController,
     callbacks: WorkflowRunCallbacks,
-    notifierHandlePromise?: Promise<NotifierHandle | null>
+    notifierHandlePromise?: Promise<NotifierHandle | null>,
+    isPauseRequested?: () => boolean
   ): Promise<void> {
     try {
       const finalState = await runner.execute(state, definition, {
         signal: controller.signal,
-        callbacks
+        callbacks,
+        isPauseRequested
       });
       if (finalState.status === "paused") {
         entry.paused = true;
@@ -779,6 +1016,15 @@ function nextStepInOrder(
 
 function isValidWorkflowId(value: string): boolean {
   return /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(value);
+}
+
+function enforceXmlSize(xml: string): void {
+  const bytes = TEXT_ENCODER.encode(xml).byteLength;
+  if (bytes > WORKFLOW_XML_MAX_BYTES) {
+    throw new Error(
+      `Workflow XML is ${bytes} bytes; max is ${WORKFLOW_XML_MAX_BYTES} bytes.`
+    );
+  }
 }
 
 export function listActiveRunSummaries(): Array<{
