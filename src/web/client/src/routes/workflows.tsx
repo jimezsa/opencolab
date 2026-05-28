@@ -32,7 +32,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ErrorState, LoadingState } from "@/components/layout/page-state"
 import { StartWorkflowDialog } from "@/components/workflows/start-workflow-dialog"
-import { WorkflowGraph } from "@/components/workflows/workflow-graph"
+import { WorkflowFlowDiagram } from "@/components/workflows/workflow-flow-diagram"
 import { WorkflowMetadataEditor } from "@/components/workflows/workflow-metadata-editor"
 import { WorkflowRunPanel } from "@/components/workflows/workflow-run-panel"
 import { WorkflowXmlEditor } from "@/components/workflows/workflow-xml-editor"
@@ -336,10 +336,7 @@ function WorkflowWorkspace({
                 workflow={detailData}
                 onSaved={() => setRefreshKey((value) => value + 1)}
               />
-              <WorkflowGraph
-                graph={graphData}
-                activeStepId={null}
-              />
+              <WorkflowFlowDiagram graph={graphData} />
             </div>
           </TabsContent>
 
