@@ -6,6 +6,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { defaultTelegramFileSender } from "../src/gateway.js";
 import type { RunpodExecutionService } from "../src/gpu-providers/runpod/index.js";
+import { readProjectState } from "../src/project-config.js";
 import { createRuntime } from "../src/runtime.js";
 import type {
   ExecutionTargetAvailabilityResult,
@@ -737,6 +738,30 @@ test("init and agent create seed professor, beginner, autoresearch, and speciali
         `${label} template should not contain template include markers`
       );
     }
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runtime persistence preserves agents added by another process", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-stale-agent-"));
+  const gatewayRuntime = createRuntime(tempDir);
+
+  try {
+    gatewayRuntime.init();
+
+    const cliRuntime = createRuntime(tempDir);
+    cliRuntime.configureAgent("blogger");
+
+    gatewayRuntime.setupTelegram({
+      chatId: "12345"
+    });
+
+    const state = readProjectState(gatewayRuntime.config);
+    const project = state.projects.default;
+    assert.ok(project.agents.blogger);
+    assert.equal(project.activeAgentId, "blogger");
+    assert.equal(state.telegram.chatId, "12345");
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

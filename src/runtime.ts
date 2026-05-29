@@ -20,6 +20,7 @@ import {
 } from "./provider-agent.js";
 import {
   buildAgentPath,
+  cloneOpenColabState,
   createDefaultExecutionTargetConfig,
   createDefaultManualSshProfile,
   createDefaultAgentConfig,
@@ -28,6 +29,7 @@ import {
   ensureProjectAndAgent,
   getActiveAgent as getProjectActiveAgent,
   getActiveProject,
+  mergeProjectStateChanges,
   readProjectState,
   writeProjectState
 } from "./project-config.js";
@@ -246,6 +248,7 @@ export class OpenColabRuntime {
   readonly config: OpenColabConfig;
 
   private state: OpenColabState;
+  private lastDiskState: OpenColabState;
   private readonly heartbeatInFlight = new Set<string>();
   private readonly conversations: ConversationStore;
   private readonly providerAgent: ProviderAgent;
@@ -257,18 +260,18 @@ export class OpenColabRuntime {
   constructor(cwd = resolveRuntimeRootDir(), private readonly options: RuntimeOptions = {}) {
     this.config = loadConfig(cwd);
     this.state = ensureProjectAndAgent(readProjectState(this.config));
+    this.lastDiskState = cloneOpenColabState(this.state);
     this.conversations = new ConversationStore(this.config.rootDir);
-    this.providerAgent = new ProviderAgent(this.config, () => this.state);
+    this.providerAgent = new ProviderAgent(this.config, () => this.getState());
     this.runpodExecutionService =
       options.runpodExecutionService ?? new RunpodExecutionServiceImpl(this.config);
     this.manualSshService = options.manualSshService ?? new ManualSshService(this.config);
 
     this.gateway = new TelegramGateway(this.config, {
-      getState: () => this.state,
+      getState: () => this.refreshStateFromDisk(),
       saveState: (next) => {
         this.state = ensureProjectAndAgent(next);
-        writeProjectState(this.config, this.state);
-        this.ensureActiveProjectFiles();
+        this.persist();
       },
       readConversationMemory: (chatId, limit): AgentMemoryContext =>
         this.conversations.readPromptMemory(this.resolveActiveAgentPath(), limit),
@@ -301,6 +304,7 @@ export class OpenColabRuntime {
     const hasExistingState = fs.existsSync(this.config.projectConfigPath);
     ensureDir(this.config.stateDir);
     this.state = ensureProjectAndAgent(readProjectState(this.config));
+    this.lastDiskState = cloneOpenColabState(this.state);
     this.persist();
     if (!hasExistingState) {
       ensureProjectAndTeamFile(this.config.rootDir, this.getActiveProject().path);
@@ -310,7 +314,7 @@ export class OpenColabRuntime {
   }
 
   getState(): OpenColabState {
-    return this.state;
+    return this.refreshStateFromDisk();
   }
 
   getActiveProject(): ProjectState {
@@ -1268,10 +1272,18 @@ export class OpenColabRuntime {
     return agent?.path ?? project.path;
   }
 
-  private persist(): void {
-    this.state = ensureProjectAndAgent(this.state);
-    writeProjectState(this.config, this.state);
+  private refreshStateFromDisk(): OpenColabState {
     this.state = ensureProjectAndAgent(readProjectState(this.config));
+    this.lastDiskState = cloneOpenColabState(this.state);
+    return this.state;
+  }
+
+  private persist(): void {
+    const diskState = ensureProjectAndAgent(readProjectState(this.config));
+    const merged = mergeProjectStateChanges(this.lastDiskState, diskState, this.state);
+    writeProjectState(this.config, merged);
+    this.state = ensureProjectAndAgent(readProjectState(this.config));
+    this.lastDiskState = cloneOpenColabState(this.state);
     this.ensureActiveProjectFiles();
   }
 

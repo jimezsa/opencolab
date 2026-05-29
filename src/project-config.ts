@@ -25,7 +25,7 @@ import type {
   TelegramChatType,
   TelegramConfig
 } from "./types.js";
-import { nowIso, safeReadJson, writeJson } from "./utils.js";
+import { nowIso, safeReadJson, writeJsonAtomic } from "./utils.js";
 
 const CURRENT_VERSION = 1 as const;
 export const DEFAULT_PROJECT_ID = "default";
@@ -366,11 +366,28 @@ export function readProjectState(config: OpenColabConfig): OpenColabState {
 
 export function writeProjectState(config: OpenColabConfig, value: OpenColabState): void {
   const normalized = ensureProjectAndAgent(value);
-  writeJson(config.projectConfigPath, {
+  writeJsonAtomic(config.projectConfigPath, {
     ...normalized,
     version: CURRENT_VERSION,
     updatedAt: nowIso()
   });
+}
+
+export function cloneOpenColabState(value: OpenColabState): OpenColabState {
+  return cloneJsonValue(value) as OpenColabState;
+}
+
+export function mergeProjectStateChanges(
+  base: OpenColabState,
+  current: OpenColabState,
+  next: OpenColabState
+): OpenColabState {
+  const merged = mergeJsonChanges(
+    ensureProjectAndAgent(base),
+    ensureProjectAndAgent(current),
+    ensureProjectAndAgent(next)
+  );
+  return ensureProjectAndAgent(merged as OpenColabState);
 }
 
 export function updateProjectState(
@@ -381,6 +398,104 @@ export function updateProjectState(
   const next = updater(current);
   writeProjectState(config, next);
   return readProjectState(config);
+}
+
+function mergeJsonChanges(base: unknown, current: unknown, next: unknown): unknown {
+  if (jsonValuesEqual(base, next)) {
+    return cloneJsonValue(current);
+  }
+
+  if (Array.isArray(base) || Array.isArray(current) || Array.isArray(next)) {
+    return cloneJsonValue(next);
+  }
+
+  const baseRecord = asRecord(base);
+  const currentRecord = asRecord(current);
+  const nextRecord = asRecord(next);
+  if (baseRecord && currentRecord && nextRecord) {
+    const merged: Record<string, unknown> = {};
+    const keys = new Set([
+      ...Object.keys(baseRecord),
+      ...Object.keys(currentRecord),
+      ...Object.keys(nextRecord)
+    ]);
+
+    for (const key of keys) {
+      const hasBase = Object.hasOwn(baseRecord, key);
+      const hasCurrent = Object.hasOwn(currentRecord, key);
+      const hasNext = Object.hasOwn(nextRecord, key);
+
+      if (!hasNext) {
+        if (!hasBase && hasCurrent) {
+          merged[key] = cloneJsonValue(currentRecord[key]);
+        }
+        continue;
+      }
+
+      const value = mergeJsonChanges(
+        hasBase ? baseRecord[key] : undefined,
+        hasCurrent ? currentRecord[key] : undefined,
+        nextRecord[key]
+      );
+      if (value !== undefined || hasCurrent || hasNext) {
+        merged[key] = value;
+      }
+    }
+
+    return merged;
+  }
+
+  return cloneJsonValue(next);
+}
+
+function jsonValuesEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+      return false;
+    }
+    return left.every((item, index) => jsonValuesEqual(item, right[index]));
+  }
+
+  const leftRecord = asRecord(left);
+  const rightRecord = asRecord(right);
+  if (leftRecord || rightRecord) {
+    if (!leftRecord || !rightRecord) {
+      return false;
+    }
+    const leftKeys = Object.keys(leftRecord);
+    const rightKeys = Object.keys(rightRecord);
+    if (leftKeys.length !== rightKeys.length) {
+      return false;
+    }
+    return leftKeys.every(
+      (key) =>
+        Object.hasOwn(rightRecord, key) &&
+        jsonValuesEqual(leftRecord[key], rightRecord[key])
+    );
+  }
+
+  return false;
+}
+
+function cloneJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneJsonValue(item));
+  }
+
+  const record = asRecord(value);
+  if (record) {
+    const cloned: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(record)) {
+      cloned[key] = cloneJsonValue(item);
+    }
+    return cloned;
+  }
+
+  return value;
 }
 
 function normalizeState(raw: unknown, defaults: OpenColabState): OpenColabState {

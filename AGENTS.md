@@ -39,7 +39,7 @@ Core implementation areas:
 - `src/agent-templates.ts`: built-in agent template loading and default-doc resolution.
 - `src/conversation.ts`: per-agent session logs, previous-day summaries, and prompt-memory loading.
 - `src/install.ts`: install-root detection, installer-managed install manifest handling, and runtime-root resolution across `OPENCOLAB_ROOT`, packaged-install defaults, and cwd fallback for source checkouts.
-- `src/project-config.ts`: `opencolab.json` defaults, normalization, migration including recognized stale Claude CLI arg upgrades, and project/agent path helpers.
+- `src/project-config.ts`: `opencolab.json` defaults, normalization, migration including recognized stale Claude CLI arg upgrades, stale-runtime-safe state merging, atomic writes, and project/agent path helpers.
 - `src/config.ts`: root config, runtime-root-aware path resolution, and local env loading.
 - `src/secrets.ts`: `.env.local` secret read/write helpers.
 - `src/web/server/`: OpenColab Studio HTTP handlers and static asset resolution for source and packaged installs.

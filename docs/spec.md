@@ -473,6 +473,7 @@ Future provider expansion may continue through `pi` for any provider or model fa
 
 `opencolab.json` is the source of truth and must contain project and agent configuration.
 `opencolab.json` and `.env.local` live at the runtime root, while internal runtime/service state lives under `<runtime_root>/.opencolab/`.
+Long-running runtimes such as the gateway must preserve valid `opencolab.json` changes made by other CLI processes while they are running. State writes must merge the runtime's actual in-memory mutations onto the latest disk state before writing, so externally-created projects, agents, provider settings, Telegram config, and similar persisted changes are not clobbered by stale snapshots.
 
 Minimum shape:
 
@@ -1035,6 +1036,7 @@ v1 is complete when all are true:
 - Active project routes to its active agent and provider runtime.
 - Provider runtimes can edit the active project workspace without interactive permission prompts.
 - `opencolab.json` persists active project, all project/agent configs, and one shared Telegram config.
+- A running gateway must preserve valid project and agent changes made by separate CLI processes instead of overwriting them from a stale in-memory state snapshot.
 - The default `professor` agent is created under `projects/<project_id>/AGENTS/professor/`.
 - The optional built-in `beginner` agent is created under `projects/<project_id>/AGENTS/beginner/` when used.
 - The optional built-in `autoresearch` agent is created under `projects/<project_id>/AGENTS/autoresearch/` when used.

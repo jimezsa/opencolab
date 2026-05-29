@@ -457,6 +457,8 @@ opencolab workflow run --workflow-id <id> --input "<task text>"
 opencolab workflow status --run-id <id>
 ```
 
+`opencolab.json` is shared by the CLI, Studio, and the background gateway. Long-running processes merge their state changes onto the latest file on disk before saving, so agents or projects created from another shell are preserved while the gateway is running.
+
 Telegram:
 
 ```text
