@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed stale gateway/runtime state saves clobbering `opencolab.json` changes made by another CLI process. Long-running runtimes now merge their in-memory changes onto the latest disk state before writing, preserving newly-created agents and projects while the gateway is running.
+
 ### Added
 
 - Added an n8n-style flow diagram for Studio Workflows using `@xyflow/react` + `@dagrejs/dagre`. The Definition tab now renders the workflow as a horizontal block diagram with bezier connections, pan/zoom, controls, and a minimap. Layout is fully deterministic — dagre's compound graph layout positions step nodes inside loop containers via `setParent`, and the loop container is drawn as a dashed amber rectangle around its children with the loop id and bounds shown along the top edge. Agent and decision nodes render the existing `AgentAvatar` (decision adds a small `GitFork` overlay), and human gate / merge / terminate / input use lucide-icon tiles. Edges are color-coded and styled by kind: `sequence` (default solid), `choice` (sky blue, labeled with the choice name), `loop` (amber, animated), `gate` (orange dashed). Active and run-status states still ring the node (running/paused/failed/stopped/complete). The old vertical card-stack diagram (`WorkflowGraph`) is kept in the component tree for reuse but no longer the default render.
