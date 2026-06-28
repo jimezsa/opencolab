@@ -65,7 +65,7 @@ Wire the agent to Anthropic through **OAuth** (no API key). You cannot drive the
      --provider anthropic \
      --auth oauth \
      --model claude-opus-4-7 \
-     --reasoning-effort max
+     --reasoning-effort xhigh
    ```
 
 Do **not** ask me for an `ANTHROPIC_API_KEY` and do not pass `--api-key`. This install is OAuth-only.
@@ -155,7 +155,7 @@ When everything is green, tell me in one short message:
 
 - The opencolab version installed.
 - The active project id and agent id.
-- That the agent is on `claude-opus-4-7` via Anthropic OAuth with reasoning effort `max`.
+- That the agent is on `claude-opus-4-7` via Anthropic OAuth with reasoning effort `xhigh`.
 - That the gateway is running on port 4646.
 - That Telegram is paired and replying.
 
