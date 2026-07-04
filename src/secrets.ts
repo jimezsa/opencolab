@@ -2,10 +2,10 @@
  * Secret resolution and persistence helpers.
  * Reads canonical provider/Telegram keys from env and updates .env.local safely.
  */
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { getCanonicalProviderKeyEnvVar } from "./provider.js";
+import { spawnCliSync } from "./spawn-cli.js";
 import type { ProviderName } from "./types.js";
 
 export const TELEGRAM_BOT_TOKEN_ENV_VAR = "TELEGRAM_BOT_TOKEN";
@@ -71,7 +71,7 @@ export function resolveOpenAiOauthStatus(
   if (result.error) {
     return {
       authenticated: false,
-      detail: result.error.message
+      detail: describeSpawnError(result.error, cliCommand)
     };
   }
 
@@ -106,7 +106,7 @@ export function resolveAnthropicOauthStatus(
   if (result.error) {
     return {
       authenticated: false,
-      detail: result.error.message
+      detail: describeSpawnError(result.error, cliCommand)
     };
   }
 
@@ -199,8 +199,19 @@ function readEnvValue(key: string): string | null {
   return trimmed ? trimmed : null;
 }
 
+function describeSpawnError(error: Error, cliCommand: string): string {
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code === "ENOENT") {
+    return (
+      `Could not find the '${cliCommand}' CLI on PATH. Install it and ensure it is ` +
+      `on PATH, or set the provider's cliCommand to its full path.`
+    );
+  }
+  return error.message;
+}
+
 function runOpenAiLoginStatusCommand(cliCommand: string): CommandResult {
-  const result = spawnSync(cliCommand, ["login", "status"], {
+  const result = spawnCliSync(cliCommand, ["login", "status"], {
     encoding: "utf8",
     env: buildCommandEnv(process.env, ["OPENAI_API_KEY"]),
     timeout: OAUTH_STATUS_TIMEOUT_MS,
@@ -216,7 +227,7 @@ function runOpenAiLoginStatusCommand(cliCommand: string): CommandResult {
 }
 
 function runAnthropicAuthStatusCommand(cliCommand: string): CommandResult {
-  const result = spawnSync(cliCommand, ["auth", "status", "--json"], {
+  const result = spawnCliSync(cliCommand, ["auth", "status", "--json"], {
     encoding: "utf8",
     env: buildCommandEnv(process.env, [
       "ANTHROPIC_API_KEY",

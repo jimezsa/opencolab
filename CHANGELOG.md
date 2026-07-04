@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [0.2.6] - 2026-07-04
+
+### Fixed
+
+- Fixed provider CLIs (`claude`, `codex`, `gemini`, `pi`) failing to launch on Windows when installed via npm/pnpm, which surfaced as a misleading `Anthropic OAuth login required. Run 'claude auth login' and retry. (spawnSync claude ENOENT)` on every Telegram message. npm installs these CLIs as batch shims (`claude.cmd`), which Node cannot spawn by bare name (ENOENT) and refuses to run as a `.cmd` without `shell: true`. A new `src/spawn-cli.ts` launcher resolves the command against PATH/PATHEXT and, for `.cmd`/`.bat` shims, spawns the underlying Node script directly with the current `node` binary — preserving argv exactly (so untrusted, multi-line Telegram prompts cannot be truncated or injected into `cmd.exe`), with an escaped `cmd.exe` fallback for unrecognized shims. Applied to the agent spawn (`provider-agent.ts`) and the OAuth status checks (`secrets.ts`).
+- Clarified the OAuth status error: a genuinely missing CLI now reports `Could not find the '<cli>' CLI on PATH...` instead of masquerading as an OAuth login failure.
+
 ## [0.2.5] - 2026-07-02
 
 ### Fixed

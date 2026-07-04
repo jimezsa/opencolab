@@ -2,7 +2,6 @@
  * Provider CLI adapter for agent responses.
  * Builds prompts, invokes provider CLIs, and normalizes command output/errors.
  */
-import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { OpenColabConfig } from "./config.js";
@@ -27,6 +26,7 @@ import {
   resolveOpenAiOauthStatus,
   resolveProviderApiKey
 } from "./secrets.js";
+import { spawnCli } from "./spawn-cli.js";
 import type {
   AgentConfig,
   AgentMemoryContext,
@@ -191,7 +191,7 @@ export class ProviderAgent {
         providerEnv.PI_CODING_AGENT_DIR = this.config.piAgentDir;
         providerEnv.PI_OFFLINE = "1";
       }
-      const child = spawn(provider.cliCommand, cliArgs, {
+      const child = spawnCli(provider.cliCommand, cliArgs, {
         cwd,
         env: {
           ...providerEnv,
