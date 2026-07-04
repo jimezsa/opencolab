@@ -62,6 +62,16 @@ OpenColab owns Telegram live status for routed runs and derives it from native r
 
 Telegram file returns must be emitted as raw `@telegram-file <json>` lines, not markdown-wrapped snippets. File references may be relative paths, absolute paths including Windows drive-letter or UNC paths, or `file://` URLs.
 
+To make sure the file is actually delivered, format the directive exactly like this:
+
+- Put it on its own line with nothing before or after it — no prose, no bullet, no bold, no code fence.
+- Keep the JSON on a single line and valid (double quotes, no trailing commas).
+- `kind` must be one of `photo`, `document`, `audio`, `video`, `voice`, `video_note`, `animation`, or `sticker`. For an image use `photo`, or `document` to send it at full quality without Telegram recompression. Do not invent kinds like `image`, `png`, or `jpg`.
+- `file` must point to a file that exists. On Windows use forward slashes (`outputs/chart.png` or `C:/Users/you/chart.png`); never single backslashes, which break the JSON.
+- Emit it exactly like this, without the surrounding backticks: `@telegram-file {"kind":"photo","file":"outputs/chart.png","caption":"optional caption"}`
+
+If a returned file does not arrive, the directive was malformed or the path was wrong — correct it against these rules and re-emit the line. It is never a bridge, routing, or OpenColab-side issue.
+
 ## Make It Yours
 
 Start here, then evolve this file as you learn what works.

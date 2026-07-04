@@ -3687,6 +3687,105 @@ test("agent response can send telegram files via @telegram-file directives", asy
   }
 });
 
+test("agent response sends telegram files from pretty-printed multi-line @telegram-file directives", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-multiline-"));
+  const sentTexts: string[] = [];
+  const sentFiles: Array<{ kind: string; file: string; caption?: string }> = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    },
+    telegramFileSender: async (_chatId, file) => {
+      sentFiles.push({
+        kind: file.kind,
+        file: file.file,
+        ...(file.caption ? { caption: file.caption } : {})
+      });
+      return true;
+    },
+    agentResponder: async () =>
+      [
+        "Here are your files.",
+        "@telegram-file {",
+        '  "kind": "document",',
+        '  "file": "doc_multiline",',
+        '  "caption": "multi"',
+        "}",
+        "Done."
+      ].join("\n")
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({ chatId: "10001" });
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "send me the artifacts",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    // The multi-line JSON block is stripped from the rendered text.
+    assert.equal(String(result.response).includes("@telegram-file"), false);
+    assert.equal(String(result.response).includes('"kind"'), false);
+    assert.equal(String(result.response).includes("Here are your files."), true);
+    assert.equal(String(result.response).includes("Done."), true);
+    assert.equal(sentFiles.length, 1);
+    assert.deepEqual(sentFiles[0], { kind: "document", file: "doc_multiline", caption: "multi" });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("agent response maps mislabeled telegram file kinds onto valid Telegram methods", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-kind-alias-"));
+  const sentFiles: Array<{ kind: string; file: string }> = [];
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async () => true,
+    telegramFileSender: async (_chatId, file) => {
+      sentFiles.push({ kind: file.kind, file: file.file });
+      return true;
+    },
+    agentResponder: async () =>
+      [
+        "Here is the chart.",
+        '@telegram-file {"kind":"image","file":"https://example.com/x.png"}',
+        '@telegram-file {"kind":"JPG","file":"https://example.com/y.jpg"}'
+      ].join("\n")
+  });
+
+  try {
+    runtime.init();
+    runtime.setupTelegram({ chatId: "10001" });
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+
+    await runtime.handleTelegramWebhook({
+      message: {
+        text: "send me the chart",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    // "image" and "JPG" are not valid Telegram kinds but map onto "photo".
+    assert.equal(sentFiles.length, 2);
+    assert.equal(sentFiles[0].kind, "photo");
+    assert.equal(sentFiles[1].kind, "photo");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("default telegram file sender uploads local file URLs as multipart", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-file-url-"));
   const originalFetch = globalThis.fetch;

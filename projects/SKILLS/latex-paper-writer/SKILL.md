@@ -100,7 +100,8 @@ after the user explicitly approves installing system packages.
   details.
 - When sending a PDF through Telegram, emit a raw
   `@telegram-file {"kind":"document","file":"<path>","caption":"optional"}`
-  line on its own line with no code fence.
+  line on its own line with no code fence. Keep the JSON on one line, keep
+  `kind` as `document`, and on Windows write the path with forward slashes.
 
 ## Workflow
 

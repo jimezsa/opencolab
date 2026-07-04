@@ -83,7 +83,7 @@ If the user does not provide a render style, use `sketch`.
 - Default to unlabeled arrows. Add edge labels only when they convey specific information such as a protocol, artifact, or payload that the arrow alone would not communicate.
 - Never use generic edge labels such as `input`, `output`, `data`, `result`, `something input`, or `something output`.
 - OpenColab normally provides `OPENCOLAB_PROGRESS_FILE` during provider runs. When it is set and the task is long enough to justify updates, emit bounded JSON progress events for normalization, draft completion, render start, warnings, blockers, or final artifact creation when they help the user understand real progress.
-- If the rendered artifact should be sent to Telegram, emit a raw `@telegram-file {"kind":"document","file":"diagrams/<slug>.svg","caption":"optional"}` or `@telegram-file {"kind":"photo","file":"diagrams/<slug>.png","caption":"optional"}` line on its own line with no backticks or code fences.
+- If the rendered artifact should be sent to Telegram, emit a raw `@telegram-file {"kind":"document","file":"diagrams/<slug>.svg","caption":"optional"}` or `@telegram-file {"kind":"photo","file":"diagrams/<slug>.png","caption":"optional"}` line on its own line with no backticks or code fences. Keep the JSON on one line, use a valid `kind` (`photo` for images, never `image`/`png`/`jpg`), and on Windows write the path with forward slashes.
 - If PNG rendering is unavailable in the current environment, fall back to the SVG artifact and send it as a Telegram document instead of pretending the PNG exists.
 
 ## Workflow

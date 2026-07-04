@@ -90,6 +90,32 @@ test("parseAssistantContent strips @telegram-file directives and resolves attach
   }
 });
 
+test("parseAssistantContent resolves pretty-printed multi-line @telegram-file directives", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-chat-multiline-"));
+  try {
+    const agentDir = path.join(tempDir, "projects", "default", "AGENTS", "professor");
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, "chart.png"), Buffer.from("fake-png"), null);
+    const raw = [
+      "Here is the chart.",
+      "@telegram-file {",
+      '  "kind": "photo",',
+      '  "file": "chart.png"',
+      "}",
+      "Thanks!",
+    ].join("\n");
+    const parsed = __chatInternals.parseAssistantContent(raw, agentDir, "default", "professor");
+    assert.equal(parsed.text.includes("@telegram-file"), false);
+    assert.equal(parsed.text.includes("\"kind\""), false);
+    assert.equal(parsed.text.includes("Here is the chart."), true);
+    assert.equal(parsed.text.includes("Thanks!"), true);
+    assert.equal(parsed.attachments.length, 1);
+    assert.equal(parsed.attachments[0].name, "chart.png");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("buildInboundChatText preserves user prose and appends a [telegram_files] block", () => {
   const text = __chatInternals.buildInboundChatText("Please summarize the paper", [
     {

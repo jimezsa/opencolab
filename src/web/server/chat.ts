@@ -438,36 +438,124 @@ function parseAssistantContent(
   const lines = raw.split(/\r?\n/);
   const remaining: string[] = [];
   const attachments: WebChatAttachment[] = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const payload = extractTelegramFilePayload(trimmed);
-    if (!payload) {
-      remaining.push(line);
+
+  let index = 0;
+  while (index < lines.length) {
+    const directive = parseChatDirectiveAt(lines, index, agentDir, projectId, agentId);
+    if (!directive) {
+      remaining.push(lines[index]);
+      index += 1;
       continue;
     }
-    let parsed: { file?: unknown } | null = null;
-    try {
-      parsed = JSON.parse(payload) as { file?: unknown };
-    } catch {
-      // Drop malformed directives instead of echoing them as plain text.
-      continue;
+    if (directive.attachment) {
+      attachments.push(directive.attachment);
     }
-    const reference = typeof parsed?.file === "string" ? parsed.file : null;
-    if (!reference) {
-      continue;
-    }
-    const resolved = resolveReturnedFilePath(reference, agentDir);
-    if (!resolved) {
-      // Path outside the agent directory or missing on disk: drop the directive line.
-      continue;
-    }
-    const entry = registerReturnedFile(resolved, projectId, agentId, agentDir);
-    attachments.push(buildAttachmentDto(entry));
+    index += directive.consumed;
   }
+
   return {
     text: remaining.join("\n").trim(),
     attachments
   };
+}
+
+// Cap how many lines one directive may span, matching the gateway parser, so a
+// stray "@telegram-file {" can never swallow the rest of the message.
+const MAX_DIRECTIVE_JSON_LINES = 40;
+
+interface ParsedChatDirective {
+  attachment: WebChatAttachment | null;
+  consumed: number;
+}
+
+// Payload text after "@telegram-file" (possibly ""), or null when the line is
+// not a directive. Unlike extractTelegramFilePayload, an empty payload returns
+// "" rather than null so JSON that begins on the next line can be accumulated.
+function chatDirectivePayload(trimmed: string): string | null {
+  const normalized =
+    trimmed.startsWith("`") && trimmed.endsWith("`") && trimmed.length >= 2
+      ? trimmed.slice(1, -1).trim()
+      : trimmed;
+  if (!normalized.startsWith("@telegram-file")) {
+    return null;
+  }
+  return normalized.slice("@telegram-file".length).trim();
+}
+
+// Parse one directive starting at `start`, allowing the JSON to sit on the
+// directive line, span several lines, or begin on the line after a bare
+// "@telegram-file". Returns null when the line is not a directive so the caller
+// keeps it as prose; a parsed-but-unusable directive is dropped (not echoed).
+function parseChatDirectiveAt(
+  lines: string[],
+  start: number,
+  agentDir: string,
+  projectId: string,
+  agentId: string
+): ParsedChatDirective | null {
+  const firstPayload = chatDirectivePayload(lines[start].trim());
+  if (firstPayload === null) {
+    return null;
+  }
+
+  const single = resolveChatDirectivePayload(firstPayload, agentDir, projectId, agentId);
+  if (single.ok) {
+    return { attachment: single.attachment, consumed: 1 };
+  }
+
+  // Directive-looking but not an object literal: drop the line without echoing.
+  if (firstPayload !== "" && !firstPayload.startsWith("{")) {
+    return { attachment: null, consumed: 1 };
+  }
+
+  let accumulated = firstPayload;
+  const maxEnd = Math.min(start + MAX_DIRECTIVE_JSON_LINES, lines.length - 1);
+  for (let cursor = start + 1; cursor <= maxEnd; cursor += 1) {
+    accumulated =
+      accumulated === "" ? lines[cursor] : `${accumulated}\n${lines[cursor]}`;
+    const attempt = resolveChatDirectivePayload(accumulated, agentDir, projectId, agentId);
+    if (attempt.ok) {
+      return { attachment: attempt.attachment, consumed: cursor - start + 1 };
+    }
+  }
+
+  // Never parsed within the window: drop only the opening line, keep the prose.
+  return { attachment: null, consumed: 1 };
+}
+
+function resolveChatDirectivePayload(
+  payloadText: string,
+  agentDir: string,
+  projectId: string,
+  agentId: string
+): { ok: true; attachment: WebChatAttachment | null } | { ok: false } {
+  const trimmed = payloadText.trim();
+  if (!trimmed.startsWith("{")) {
+    return { ok: false };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return { ok: false };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false };
+  }
+  const reference =
+    typeof (parsed as { file?: unknown }).file === "string"
+      ? (parsed as { file: string }).file
+      : null;
+  if (!reference) {
+    return { ok: true, attachment: null };
+  }
+  const resolved = resolveReturnedFilePath(reference, agentDir);
+  if (!resolved) {
+    // Path outside the agent directory or missing on disk: drop the directive.
+    return { ok: true, attachment: null };
+  }
+  const entry = registerReturnedFile(resolved, projectId, agentId, agentDir);
+  return { ok: true, attachment: buildAttachmentDto(entry) };
 }
 
 function parseUserContent(raw: string): ParsedAssistantContent {

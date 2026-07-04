@@ -74,7 +74,7 @@ If PyMuPDF is missing, only install it when the user explicitly asks for install
 - Before returning the figure, inspect the shortlisted candidate images directly with the active agent's multimodal capability when the provider runtime supports local image inspection.
 - If multimodal inspection is unavailable, say so explicitly and fall back to caption, page, and layout heuristics instead of overstating certainty.
 - If confidence is low, prefer returning the best candidate or top candidates with limitations rather than pretending the match is exact.
-- If the chosen figure should be sent back through Telegram, emit a raw `@telegram-file {"kind":"photo","file":"<path>","caption":"optional"}` line on its own line with no backticks or code fences.
+- If the chosen figure should be sent back through Telegram, emit a raw `@telegram-file {"kind":"photo","file":"<path>","caption":"optional"}` line on its own line with no backticks or code fences. Keep the JSON on one line, keep `kind` as `photo` (never `image`/`png`/`jpg`), and on Windows write the path with forward slashes.
 - The final reply must identify the paper and page, and include nearby caption text or figure number when available.
 
 ## OpenColab Progress Helper

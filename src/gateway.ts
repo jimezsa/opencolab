@@ -2143,6 +2143,10 @@ function buildInboundText(
   return lines.join("\n").trim();
 }
 
+// Cap how many lines a single directive may span so a stray "@telegram-file {"
+// followed by ordinary prose can never swallow the whole message.
+const MAX_DIRECTIVE_JSON_LINES = 40;
+
 function parseOutboundAgentResponse(raw: string, localBaseDir: string): {
   text: string;
   files: TelegramOutboundFile[];
@@ -2151,28 +2155,97 @@ function parseOutboundAgentResponse(raw: string, localBaseDir: string): {
   const remaining: string[] = [];
   const files: TelegramOutboundFile[] = [];
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const payloadRaw = extractTelegramFilePayload(trimmed);
-    if (!payloadRaw) {
-      remaining.push(line);
+  let index = 0;
+  while (index < lines.length) {
+    const directive = parseDirectiveAt(lines, index, localBaseDir);
+    if (!directive) {
+      remaining.push(lines[index]);
+      index += 1;
       continue;
     }
-
-    try {
-      const payload = JSON.parse(payloadRaw) as Record<string, unknown>;
-      const file = normalizeOutboundFile(payload, localBaseDir);
-      if (file) {
-        files.push(file);
-      }
-    } catch {
-      remaining.push(line);
+    if (directive.file) {
+      files.push(directive.file);
     }
+    index += directive.consumed;
   }
 
   return {
     text: remaining.join("\n").trim(),
     files,
+  };
+}
+
+interface ParsedDirective {
+  file: TelegramOutboundFile | null;
+  consumed: number;
+}
+
+// Parse one @telegram-file directive starting at `start`. The JSON payload may
+// sit on the directive line, span several lines (pretty-printed), or begin on
+// the line after a bare "@telegram-file". Returns null when the line does not
+// begin a usable directive, so the caller keeps it as ordinary prose.
+function parseDirectiveAt(
+  lines: string[],
+  start: number,
+  localBaseDir: string,
+): ParsedDirective | null {
+  const firstPayload = directivePayload(lines[start].trim());
+  if (firstPayload === null) {
+    return null;
+  }
+
+  // Fast path: the JSON is complete on the directive's own line.
+  const single = parseOutboundPayload(firstPayload, localBaseDir);
+  if (single.ok) {
+    return { file: single.file, consumed: 1 };
+  }
+
+  // Only accumulate following lines when the payload opens an object literal
+  // (or is empty, meaning the JSON begins on the next line). This prevents a
+  // stray directive from consuming unrelated prose beneath it.
+  if (firstPayload !== "" && !firstPayload.startsWith("{")) {
+    return null;
+  }
+
+  let accumulated = firstPayload;
+  const maxEnd = Math.min(start + MAX_DIRECTIVE_JSON_LINES, lines.length - 1);
+  for (let cursor = start + 1; cursor <= maxEnd; cursor += 1) {
+    accumulated =
+      accumulated === "" ? lines[cursor] : `${accumulated}\n${lines[cursor]}`;
+    const attempt = parseOutboundPayload(accumulated, localBaseDir);
+    if (attempt.ok) {
+      return { file: attempt.file, consumed: cursor - start + 1 };
+    }
+  }
+
+  return null;
+}
+
+function parseOutboundPayload(
+  payloadText: string,
+  localBaseDir: string,
+):
+  | { ok: true; file: TelegramOutboundFile | null }
+  | { ok: false } {
+  const trimmed = payloadText.trim();
+  if (!trimmed.startsWith("{")) {
+    return { ok: false };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return { ok: false };
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false };
+  }
+
+  return {
+    ok: true,
+    file: normalizeOutboundFile(parsed as Record<string, unknown>, localBaseDir),
   };
 }
 
@@ -2198,13 +2271,50 @@ function normalizeOutboundFile(
   };
 }
 
+// Common ways agents mislabel a file kind. Telegram silently drops an
+// unrecognized kind, so we map the frequent mistakes onto the real method
+// instead of losing the file. Keys are compared lowercase.
+const TELEGRAM_KIND_ALIASES: Record<string, TelegramFileKind> = {
+  image: "photo",
+  images: "photo",
+  picture: "photo",
+  pic: "photo",
+  photos: "photo",
+  png: "photo",
+  jpg: "photo",
+  jpeg: "photo",
+  webp: "photo",
+  gif: "animation",
+  animated: "animation",
+  doc: "document",
+  docs: "document",
+  documents: "document",
+  file: "document",
+  pdf: "document",
+  audios: "audio",
+  mp3: "audio",
+  sound: "audio",
+  videos: "video",
+  mp4: "video",
+  movie: "video",
+  voicenote: "voice",
+  voice_note: "voice",
+  videonote: "video_note",
+  stickers: "sticker",
+};
+
 function asOutboundKind(value: unknown): TelegramFileKind | null {
   const parsed = asStringValue(value);
   if (!parsed) {
     return null;
   }
 
-  return isTelegramFileKind(parsed) ? parsed : null;
+  const normalized = parsed.trim().toLowerCase();
+  if (isTelegramFileKind(normalized)) {
+    return normalized;
+  }
+
+  return TELEGRAM_KIND_ALIASES[normalized] ?? null;
 }
 
 function isTelegramFileKind(value: string): value is TelegramFileKind {
@@ -2274,14 +2384,16 @@ function resolveOutboundFileReference(value: string, localBaseDir: string): stri
   return fs.existsSync(candidate) ? candidate : trimmed;
 }
 
-function extractTelegramFilePayload(trimmed: string): string | null {
+// Returns the payload text after "@telegram-file" (possibly ""), or null when
+// the line is not a directive at all. An empty string signals that the JSON
+// begins on a following line, which parseDirectiveAt handles.
+function directivePayload(trimmed: string): string | null {
   const normalized = unwrapInlineCode(trimmed);
   if (!normalized.startsWith("@telegram-file")) {
     return null;
   }
 
-  const payloadRaw = normalized.slice("@telegram-file".length).trim();
-  return payloadRaw || null;
+  return normalized.slice("@telegram-file".length).trim();
 }
 
 function unwrapInlineCode(value: string): string {
