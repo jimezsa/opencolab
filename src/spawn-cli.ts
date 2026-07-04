@@ -107,18 +107,47 @@ export function spawnCliSync(
   }) as SpawnSyncReturns<string>;
 }
 
+/**
+ * Expand a candidate path into the concrete files Windows would consider
+ * executable. A bare name (no extension) resolves ONLY through PATHEXT
+ * extensions — never the extension-less file itself, which on Windows is an
+ * npm/pnpm Git-Bash shell shim that cannot be spawned. Exported for testing.
+ */
+export function windowsExecutableCandidates(
+  base: string,
+  pathext: string[]
+): string[] {
+  if (path.win32.extname(base)) {
+    return [base];
+  }
+  return pathext.map((entry) => base + entry);
+}
+
+/**
+ * Directories a provider CLI may live in when it is not on the process PATH,
+ * e.g. when the gateway runs as a Windows scheduled task without the user's
+ * PATH. Covers npm-global, pnpm, the native Claude installer, and Node itself.
+ */
+function windowsFallbackDirs(): string[] {
+  const dirs: string[] = [];
+  const add = (root: string | undefined, ...sub: string[]): void => {
+    if (root) {
+      dirs.push(path.join(root, ...sub));
+    }
+  };
+  add(process.env.APPDATA, "npm");
+  add(process.env.PNPM_HOME);
+  add(process.env.LOCALAPPDATA, "pnpm");
+  add(process.env.USERPROFILE, ".local", "bin");
+  add(process.env.ProgramFiles, "nodejs");
+  return dirs;
+}
+
 function resolveWindowsExecutable(command: string): string | null {
   const pathext = (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD")
     .split(";")
     .map((entry) => entry.trim())
     .filter(Boolean);
-
-  const candidatesFor = (base: string): string[] => {
-    if (path.extname(base)) {
-      return [base];
-    }
-    return [base, ...pathext.map((entry) => base + entry)];
-  };
 
   const firstExisting = (candidates: string[]): string | null => {
     for (const candidate of candidates) {
@@ -134,15 +163,24 @@ function resolveWindowsExecutable(command: string): string | null {
   };
 
   if (command.includes("\\") || command.includes("/")) {
-    return firstExisting(candidatesFor(path.resolve(command)));
+    return firstExisting(
+      windowsExecutableCandidates(path.resolve(command), pathext)
+    );
   }
 
-  const dirs = (process.env.PATH || "")
+  const pathDirs = (process.env.PATH || "")
     .split(path.delimiter)
     .map((entry) => entry.trim())
     .filter(Boolean);
-  for (const dir of dirs) {
-    const match = firstExisting(candidatesFor(path.join(dir, command)));
+  const seen = new Set<string>();
+  for (const dir of [...pathDirs, ...windowsFallbackDirs()]) {
+    if (!dir || seen.has(dir)) {
+      continue;
+    }
+    seen.add(dir);
+    const match = firstExisting(
+      windowsExecutableCandidates(path.join(dir, command), pathext)
+    );
     if (match) {
       return match;
     }

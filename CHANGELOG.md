@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [0.2.7] - 2026-07-04
+
+### Fixed
+
+- Fixed the Windows CLI launcher added in 0.2.6 still failing with `Could not find the '<cli>' CLI on PATH`. On Windows, npm/pnpm create three files per bin (`claude`, `claude.cmd`, `claude.ps1`); the resolver matched the extension-less `claude` (a Git-Bash shell shim) first and tried to spawn it directly, which Windows cannot execute. The resolver now follows real Windows rules — a bare command name resolves only through `PATHEXT` extensions, never the extension-less file — so it correctly selects `claude.cmd`. Also added fallback lookup directories (npm-global `%APPDATA%\npm`, pnpm `PNPM_HOME`/`%LOCALAPPDATA%\pnpm`, the native installer's `%USERPROFILE%\.local\bin`, and `%ProgramFiles%\nodejs`) so the CLI is still found when the gateway runs as a scheduled task whose `PATH` omits the user's npm directory.
+
 ## [0.2.6] - 2026-07-04
 
 ### Fixed
