@@ -199,58 +199,51 @@ function extractNodeScriptFromShim(shimPath: string): string | null {
   } catch {
     return null;
   }
+  return resolveShimScript(text, path.dirname(shimPath));
+}
 
-  const dir = path.dirname(shimPath);
-  const stripDp0 = (value: string): string =>
-    value.replace(/%[~]?dp0%?[\\/]?/gi, "");
-
-  // Standard cmd-shim: `"%dp0%\path\to\cli.js"  %*`
-  const shimMatch = text.match(/"(%[~]?dp0%?[\\/][^"]+?)"\s+%\*/i);
-  let scriptRel: string | null = shimMatch ? stripDp0(shimMatch[1]) : null;
-
-  if (!scriptRel) {
-    // Fallback: any quoted JS path referenced in the shim.
-    const jsMatch = text.match(/"([^"]*\.(?:js|mjs|cjs))"/i);
-    if (jsMatch) {
-      scriptRel = stripDp0(jsMatch[1]);
-    }
-  }
-
-  if (!scriptRel || !/\.(js|mjs|cjs)$/i.test(scriptRel)) {
+/**
+ * Given the text of a Windows cmd/bat shim and the directory it lives in,
+ * return the absolute path of the first referenced JS entry point that exists
+ * on disk. Handles npm and pnpm shims: `%dp0%`/`%~dp0` directory variables,
+ * `..` traversal, mixed separators, and already-absolute paths. Exported for
+ * testing. Returns null when no referenced JS file can be located.
+ */
+export function resolveShimScript(text: string, shimDir: string): string | null {
+  const references = text.match(/"[^"\r\n]*?\.(?:js|mjs|cjs)"/gi);
+  if (!references) {
     return null;
   }
-
-  const scriptPath = path.resolve(dir, scriptRel);
-  try {
-    if (fs.statSync(scriptPath).isFile()) {
-      return scriptPath;
+  for (const reference of references) {
+    const raw = reference.slice(1, -1);
+    // Expand the shim's directory variable, then normalize separators.
+    const expanded = raw
+      .replace(/%~?dp0%?/gi, `${shimDir}${path.sep}`)
+      .replace(/[\\/]+/g, path.sep);
+    const resolved = path.isAbsolute(expanded)
+      ? path.normalize(expanded)
+      : path.resolve(shimDir, expanded);
+    try {
+      if (fs.statSync(resolved).isFile()) {
+        return resolved;
+      }
+    } catch {
+      // Try the next referenced script.
     }
-  } catch {
-    // Fall through when the parsed path doesn't exist.
   }
   return null;
 }
 
 /**
- * Build a cmd.exe command line with cross-spawn-style escaping so that
- * arguments (including quotes and cmd metacharacters) cannot inject commands.
- * Used only as a fallback for shims we can't resolve to a Node script.
+ * Build a cmd.exe command line for `cmd /d /s /c`. Each token (command and
+ * args) is double-quoted so paths with spaces survive, and the whole line is
+ * wrapped in an outer pair of quotes that `/s` strips as a unit. Used only as a
+ * fallback for shims we can't resolve to a Node script; untrusted, multi-line
+ * prompt argv always takes the Node-script path instead, never this one.
  */
 function buildWindowsCommandLine(command: string, args: string[]): string {
-  const escapeCommand = (value: string): string =>
-    value.replace(/[()%!^"<>&|]/g, "^$&");
-
-  const escapeArgument = (value: string): string => {
-    let arg = String(value);
-    // Escape backslashes preceding a double quote, and any trailing run.
-    arg = arg.replace(/(\\*)"/g, '$1$1\\"');
-    arg = arg.replace(/(\\*)$/, "$1$1");
-    arg = `"${arg}"`;
-    // Caret-escape cmd metacharacters twice (cmd /c strips one layer).
-    arg = arg.replace(/[()%!^"<>&|]/g, "^$&");
-    arg = arg.replace(/[()%!^"<>&|]/g, "^$&");
-    return arg;
-  };
-
-  return [escapeCommand(command), ...args.map(escapeArgument)].join(" ");
+  const quoteToken = (value: string): string =>
+    `"${String(value).replace(/"/g, '\\"')}"`;
+  const inner = [command, ...args].map(quoteToken).join(" ");
+  return `"${inner}"`;
 }

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [0.2.8] - 2026-07-04
+
+### Fixed
+
+- Hardened the Windows `.cmd`/`.bat` shim parser so provider CLIs launch on more install layouts. The previous parser stripped `%dp0%` to a relative path with one rigid regex and fell back to `cmd.exe` when it didn't match, which then broke on user paths containing spaces (`"C:\Users\Daniela" no se reconoce como un comando...`). The parser now expands `%dp0%`/`%~dp0` to the shim's real directory, tries every referenced `.js`/`.mjs`/`.cjs` entry, and handles `..` traversal (pnpm), mixed separators, absolute paths, and spaces — resolving to the underlying Node script and spawning it directly with no shell. The `cmd.exe` fallback (used only for unrecognized, non-Node shims) now double-quotes the command and every argument and outer-wraps the line for `cmd /s /c`, so paths with spaces no longer break.
+
 ## [0.2.7] - 2026-07-04
 
 ### Fixed
