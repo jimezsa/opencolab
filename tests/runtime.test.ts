@@ -3038,7 +3038,7 @@ test("timed out routed runs preserve a compact recovery summary for the next tur
     assert.equal(recoveryTurn.role, "assistant");
     assert.equal(
       recoveryTurn.content.includes(
-        `Previous attempt timed out after 30m using ${provider.name}/${provider.model}.`
+        `Previous attempt timed out after 40m using ${provider.name}/${provider.model}.`
       ),
       true
     );
