@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed agent-returned files silently dropping when the `@telegram-file` directive wasn't formatted exactly as expected. The Telegram bridge and web-chat parser previously accepted only a single-line directive with an exact `kind` enum, so pretty-printed/multi-line JSON or a mislabeled kind (e.g. `image` instead of `photo`) was discarded without feedback — leading agents to confabulate a "parser isn't wired / routing-layer" excuse because the send failure was never surfaced back to them. The gateway parser now accepts multi-line/pretty-printed JSON after `@telegram-file` and aliases common wrong kinds case-insensitively (`image`/`png`/`jpg` → `photo`, `gif` → `animation`, `pdf`/`doc`/`file` → `document`, `mp3` → `audio`, `mp4` → `video`, …); the web-chat parser mirrors the same multi-line JSON accumulation. Strengthened the `@telegram-file` guidance in the seeded `AGENTS.md` templates (`autoresearch`, `beginner`, `professor`, `specialist`) and the `block-diagram`, `nano-banana`, `pdf-figure-extract`, and `latex-paper-writer` skills (single-line JSON, valid kinds, Windows forward-slash paths, no confabulation), and added tests for multi-line directives and kind aliasing.
+
+### Changed
+
+- Default provider CLI timeout bumped from 30 to 40 minutes (`DEFAULT_PROVIDER_CLI_TIMEOUT_MS` 1800000 → 2400000 ms), still overridable via `OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS`. Updated the config test to match the new default.
+
 ## [0.2.8] - 2026-07-04
 
 ### Fixed
