@@ -348,6 +348,69 @@ async function chooseInteractive(
   });
 }
 
+async function confirmInteractive(
+  prompt: string,
+  defaultValue: boolean,
+): Promise<string> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error("Interactive onboarding requires a TTY terminal.");
+  }
+
+  return new Promise((resolve) => {
+    const cleanup = (): void => {
+      process.stdin.off("keypress", onKeypress);
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+    };
+
+    const finish = (answer: "y" | "n"): void => {
+      cleanup();
+      process.stdout.write(`${answer}\n`);
+      resolve(answer);
+    };
+
+    const onKeypress = (chunk: string, key: Keypress): void => {
+      if (key.ctrl && key.name === "c") {
+        cleanup();
+        process.stdout.write("^C\n");
+        process.kill(process.pid, "SIGINT");
+        return;
+      }
+
+      if (key.name === "escape") {
+        cleanup();
+        process.stdout.write("\n");
+        resolve(ESC_INPUT);
+        return;
+      }
+
+      if (key.name === "return" || key.name === "enter") {
+        finish(defaultValue ? "y" : "n");
+        return;
+      }
+
+      const answer = chunk?.toLowerCase();
+      if (answer === "y") {
+        finish("y");
+        return;
+      }
+      if (answer === "n") {
+        finish("n");
+        return;
+      }
+
+      // Ignore any other key (including pasted text) so a single deliberate
+      // y/n/Enter keypress is required to advance.
+    };
+
+    process.stdout.write(styleCliText(prompt));
+    emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.on("keypress", onKeypress);
+  });
+}
+
 function parseFlags(args: string[]): {
   values: Record<string, string>;
   positionals: string[];
@@ -1628,6 +1691,8 @@ async function main(): Promise<void> {
           ask: async (prompt) => askInteractive(prompt),
           choose: async (prompt, options, defaultValue) =>
             chooseInteractive(prompt, options, defaultValue),
+          confirm: async (prompt, defaultValue) =>
+            confirmInteractive(prompt, defaultValue),
           write: (line) => {
             console.log(styleCliText(line));
           },

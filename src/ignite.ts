@@ -51,6 +51,7 @@ export interface IgniteIo {
     options: string[],
     defaultValue: string,
   ): Promise<string>;
+  confirm?(prompt: string, defaultValue: boolean): Promise<string>;
   write(line: string): void;
 }
 
@@ -157,11 +158,15 @@ async function runStep(
 ): Promise<void> {
   io.write(title);
   const choose = io.choose;
+  const confirm = io.confirm;
   const stepIo: IgniteIo = {
     ask: async (prompt) => io.ask(`| ${prompt}`),
     choose: choose
       ? async (prompt, options, defaultValue) =>
           choose(`| ${prompt}`, options, defaultValue)
+      : undefined,
+    confirm: confirm
+      ? async (prompt, defaultValue) => confirm(`| ${prompt}`, defaultValue)
       : undefined,
     write: (line) => io.write(`| ${line}`),
   };
@@ -809,7 +814,19 @@ async function askYesNo(
   defaultValue: boolean,
 ): Promise<boolean> {
   const fallback = defaultValue ? "Y/n" : "y/N";
-  const raw = await io.ask(`${label} [${fallback}]: `);
+  const prompt = `${label} [${fallback}]: `;
+
+  // Prefer a single-keypress confirmation so answering y/n advances the flow
+  // immediately, matching the interactive chooser prompts. This also prevents a
+  // pasted value (e.g. a bot token entered too early) from being appended to the
+  // answer and rejected as invalid.
+  if (io.confirm) {
+    const raw = await io.confirm(prompt, defaultValue);
+    throwIfEsc(raw);
+    return raw.trim().toLowerCase() !== "n";
+  }
+
+  const raw = await io.ask(prompt);
   throwIfEsc(raw);
   const answer = raw.trim().toLowerCase();
   if (!answer) {

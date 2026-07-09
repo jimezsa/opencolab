@@ -174,6 +174,94 @@ test("ignite configures project, provider, and telegram", async () => {
   }
 });
 
+test("ignite edits an existing telegram token via single-key confirm without re-asking", async () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-token-edit-"),
+  );
+  const previousEnv = clearSecretEnvVars();
+  process.env.TELEGRAM_BOT_TOKEN = "123456:existing_token";
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  // Free-text answers (io.ask) and yes/no answers (io.confirm) are scripted on
+  // separate queues, mirroring the real CLI where confirmations are a single
+  // keypress and never share the line-based input path.
+  const askAnswers = [
+    "science", // project id
+    "openai", // provider
+    "api-key", // auth mode
+    "gpt-5.5", // model
+    "high", // reasoning effort
+    "openai_test_key_123", // openai api key
+    "gemini_tools_key_123", // gemini built-in tools key
+    "999999:new_token", // new telegram bot token
+    "10001", // telegram chat id
+  ];
+  const confirmAnswers = [
+    "y", // add gemini built-in tools key
+    "y", // configure telegram now
+    "n", // do not keep existing token (edit it)
+    "n", // skip pairing
+    "n", // skip runpod
+  ];
+  const confirmPrompts: string[] = [];
+  const askPrompts: string[] = [];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async (prompt) => {
+          askPrompts.push(prompt);
+          return askAnswers.shift() ?? "";
+        },
+        confirm: async (prompt) => {
+          confirmPrompts.push(prompt);
+          return confirmAnswers.shift() ?? "n";
+        },
+        write: () => undefined,
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
+    );
+
+    assert.equal(
+      askAnswers.length,
+      0,
+      "all scripted free-text answers should be consumed",
+    );
+    assert.equal(
+      confirmAnswers.length,
+      0,
+      "all scripted confirm answers should be consumed",
+    );
+
+    // The "Keep it?" question must be asked exactly once — the old bug caused a
+    // pasted token to be appended to the answer, rejected, and re-asked.
+    const keepPrompts = confirmPrompts.filter((prompt) =>
+      prompt.includes("already has a value. Keep it?"),
+    );
+    assert.equal(keepPrompts.length, 1);
+
+    // The new token must be requested and saved.
+    assert.equal(
+      askPrompts.some((prompt) => prompt.includes("TELEGRAM_BOT_TOKEN value")),
+      true,
+    );
+    assert.equal(process.env.TELEGRAM_BOT_TOKEN, "999999:new_token");
+    const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(
+      envLocal.includes("TELEGRAM_BOT_TOKEN=999999:new_token"),
+      true,
+    );
+    assert.equal(runtime.getState().telegram.chatId, "10001");
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("ignite lets Esc skip a step and continue", async () => {
   const tempDir = fs.mkdtempSync(
     path.join(os.tmpdir(), "opencolab-ignite-esc-"),

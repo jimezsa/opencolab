@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed `opencolab ignite` mishandling the "already has a value. Keep it?" confirmation when editing the Telegram bot token (and every other yes/no step). Those confirmations required typing `y`/`n` **and** pressing Enter, while every surrounding onboarding prompt (provider, auth mode, model, reasoning effort) is a single-keypress arrow menu — so users pressed `n` expecting the flow to advance, saw it stall on a seemingly blank line, and pasted the new token. The `n` and the pasted token concatenated into an invalid answer (`n123456:…`), which was rejected with "Please answer 'y' or 'n'." and re-asked the same "Keep it?" question in a confusing loop. Yes/no confirmations now resolve on a single `y`/`n` keypress (Enter still accepts the shown default, Esc still skips the step) via a new `confirmInteractive` prompt, so choosing to edit advances immediately to the token entry and a stray paste can no longer be swallowed into the answer. Added an ignite regression test that edits an existing token through the single-key confirm path and asserts the prompt is asked only once.
+
 ## [0.2.9] - 2026-07-07
 
 ### Fixed
