@@ -1530,6 +1530,12 @@ function normalizeProviderCliSpawnError(
       `${providerLabel} CLI is not executable. Fix '${provider.cliCommand}' permissions and retry.`
     );
   }
+  if (spawnError.code === "ENAMETOOLONG" || spawnError.code === "E2BIG") {
+    return new Error(
+      `${providerLabel} CLI could not start: the command line exceeds the OS limit. ` +
+        `Remove the '{prompt}' token from the provider cliArgs in opencolab.json so the prompt is sent over stdin.`
+    );
+  }
 
   const message = error.message?.trim();
   if (message) {

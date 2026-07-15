@@ -1077,9 +1077,7 @@ test("setupModel auto-sets provider CLI defaults for the active agent", () => {
       "--add-dir",
       "{project_dir}",
       "--add-dir",
-      "{shared_skills_dir}",
-      "--",
-      "{prompt}"
+      "{shared_skills_dir}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -1155,9 +1153,7 @@ test("setupModel stores Anthropic oauth auth mode on the agent", () => {
       "--add-dir",
       "{project_dir}",
       "--add-dir",
-      "{shared_skills_dir}",
-      "--",
-      "{prompt}"
+      "{shared_skills_dir}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -1222,8 +1218,6 @@ test("setupModel stores Gemini oauth auth mode and workspace defaults on the age
     assert.equal(agent.provider.authMode, "oauth");
     assert.equal(agent.provider.cliCommand, "gemini");
     assert.deepEqual(agent.provider.cliArgs, [
-      "--prompt",
-      "{prompt}",
       "--output-format",
       "stream-json",
       "--model",
@@ -1304,9 +1298,7 @@ test("agents in one project can use different providers", () => {
       "--add-dir",
       "{project_dir}",
       "--add-dir",
-      "{shared_skills_dir}",
-      "--",
-      "{prompt}"
+      "{shared_skills_dir}"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

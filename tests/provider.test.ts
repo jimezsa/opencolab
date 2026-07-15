@@ -48,9 +48,7 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
     "--add-dir",
     "{project_dir}",
     "--add-dir",
-    "{shared_skills_dir}",
-    "--",
-    "{prompt}"
+    "{shared_skills_dir}"
   ]);
   assert.equal(getCanonicalProviderKeyEnvVar("minimax"), "MINIMAX_API_KEY");
 });
@@ -106,9 +104,7 @@ test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
     "--add-dir",
     "{project_dir}",
     "--add-dir",
-    "{shared_skills_dir}",
-    "--",
-    "{prompt}"
+    "{shared_skills_dir}"
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("anthropic"), ["api_key", "oauth"]);
   assert.deepEqual(getProviderReasoningEffortOptions("anthropic", "claude-opus-4-6"), [
@@ -132,8 +128,6 @@ test("Gemini setup defaults use concrete model names and support OAuth", () => {
   assert.equal(defaults.cliCommand, "gemini");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
-    "--prompt",
-    "{prompt}",
     "--output-format",
     "stream-json",
     "--model",
@@ -327,6 +321,19 @@ test("provider invocation args add native reasoning flags when configured", () =
       "--",
       "{prompt}"
     ]
+  );
+
+  assert.deepEqual(
+    buildProviderInvocationArgs({
+      name: "anthropic",
+      model: "claude-opus-4-6",
+      runtime: "claude",
+      cliCommand: "claude",
+      cliArgs: getProviderSetupDefaults("anthropic").cliArgs,
+      authMode: "api_key",
+      reasoningEffort: "max"
+    }),
+    [...getProviderSetupDefaults("anthropic").cliArgs, "--effort", "max"]
   );
 
   assert.deepEqual(

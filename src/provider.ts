@@ -41,6 +41,11 @@ interface ProviderReasoningCapability {
   defaultEffort: ProviderReasoningEffort;
 }
 
+// The prompt is intentionally NOT part of the argv: without a `{prompt}`
+// token the runner pipes it through stdin, which has no size limit. Putting
+// it in argv breaks once the conversation transcript grows past the OS
+// command-line limit (32 KiB on Windows -> spawn ENAMETOOLONG, ~128 KiB per
+// argument on Linux -> spawn E2BIG).
 const CLAUDE_WORKSPACE_ARGS = [
   "-p",
   "--verbose",
@@ -54,8 +59,6 @@ const CLAUDE_WORKSPACE_ARGS = [
   "{project_dir}",
   "--add-dir",
   "{shared_skills_dir}",
-  "--",
-  "{prompt}",
 ] as const;
 
 const CLAUDE_LEGACY_SIMPLE_ARGS = [
@@ -90,6 +93,22 @@ const CLAUDE_LEGACY_STREAM_JSON_ARGS = [
   "--add-dir",
   "{shared_skills_dir}",
 ] as const;
+const CLAUDE_LEGACY_ARGV_PROMPT_ARGS = [
+  "-p",
+  "--verbose",
+  "--output-format",
+  "stream-json",
+  "--model",
+  "{model}",
+  "--permission-mode",
+  "bypassPermissions",
+  "--add-dir",
+  "{project_dir}",
+  "--add-dir",
+  "{shared_skills_dir}",
+  "--",
+  "{prompt}",
+] as const;
 
 const CODEX_WORKSPACE_ARGS = [
   "-a",
@@ -108,7 +127,15 @@ const CODEX_WORKSPACE_ARGS = [
   "-",
 ] as const;
 
+// Prompt goes through stdin (see CLAUDE_WORKSPACE_ARGS note).
 const GEMINI_WORKSPACE_ARGS = [
+  "--output-format",
+  "stream-json",
+  "--model",
+  "{model}",
+  "--yolo",
+] as const;
+const GEMINI_LEGACY_ARGV_PROMPT_ARGS = [
   "--prompt",
   "{prompt}",
   "--output-format",
@@ -220,6 +247,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
         CLAUDE_LEGACY_SIMPLE_ARGS,
         CLAUDE_LEGACY_WORKSPACE_ARGS,
         CLAUDE_LEGACY_STREAM_JSON_ARGS,
+        CLAUDE_LEGACY_ARGV_PROMPT_ARGS,
       ],
     ),
     buildRuntimeEnv: (apiKey, _model, authMode) => {
@@ -239,6 +267,9 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     apiKeyEnvVar: "GEMINI_API_KEY",
     supportedAuthModes: ["api_key", "oauth"],
     resetEnvVars: [...GEMINI_RUNTIME_RESET_ENV_VARS],
+    migratableCliDefaults: buildMigratableCliDefaults("gemini-3.5-flash", "gemini", [
+      GEMINI_LEGACY_ARGV_PROMPT_ARGS,
+    ]),
     buildRuntimeEnv: (apiKey, _model, authMode) => {
       const env: Record<string, string> = {};
       if (authMode !== "oauth") {
@@ -263,6 +294,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
         CLAUDE_LEGACY_SIMPLE_ARGS,
         CLAUDE_LEGACY_WORKSPACE_ARGS,
         CLAUDE_LEGACY_STREAM_JSON_ARGS,
+        CLAUDE_LEGACY_ARGV_PROMPT_ARGS,
       ],
     ),
     buildRuntimeEnv: (apiKey, model) => ({

@@ -347,8 +347,6 @@ test("project state migrates legacy project provider into agent config", () => {
       "{project_dir}",
       "--add-dir",
       "{shared_skills_dir}",
-      "--",
-      "{prompt}",
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -489,8 +487,6 @@ test("project state migrates previously shipped Claude workspace args to the cur
       "{project_dir}",
       "--add-dir",
       "{shared_skills_dir}",
-      "--",
-      "{prompt}",
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -573,8 +569,160 @@ test("project state migrates older Claude workspace args without stream-json to 
       "{project_dir}",
       "--add-dir",
       "{shared_skills_dir}",
-      "--",
-      "{prompt}",
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state migrates Claude args with the prompt in argv to the stdin defaults", () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-claude-argv-prompt-migrate-"),
+  );
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: DEFAULT_AGENT_ID,
+            agents: {
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  memory: "MEMORY.md",
+                },
+                provider: {
+                  name: "anthropic",
+                  model: "claude-opus-4-6",
+                  runtime: "claude",
+                  cliCommand: "claude",
+                  cliArgs: [
+                    "-p",
+                    "--verbose",
+                    "--output-format",
+                    "stream-json",
+                    "--model",
+                    "{model}",
+                    "--permission-mode",
+                    "bypassPermissions",
+                    "--add-dir",
+                    "{project_dir}",
+                    "--add-dir",
+                    "{shared_skills_dir}",
+                    "--",
+                    "{prompt}",
+                  ],
+                  authMode: "api_key",
+                },
+              },
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const loaded = readProjectState(config);
+    const project = loaded.projects[loaded.activeProjectId];
+    const agent = project.agents[project.activeAgentId];
+    assert.equal(agent.provider.name, "anthropic");
+    assert.equal(agent.provider.cliCommand, "claude");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "-p",
+      "--verbose",
+      "--output-format",
+      "stream-json",
+      "--model",
+      "{model}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--add-dir",
+      "{project_dir}",
+      "--add-dir",
+      "{shared_skills_dir}",
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state migrates Gemini args with the prompt in argv to the stdin defaults", () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-gemini-argv-prompt-migrate-"),
+  );
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        activeProjectId: "alpha",
+        projects: {
+          alpha: {
+            id: "alpha",
+            path: "projects/alpha",
+            activeAgentId: DEFAULT_AGENT_ID,
+            agents: {
+              [DEFAULT_AGENT_ID]: {
+                id: DEFAULT_AGENT_ID,
+                path: buildDefaultAgentPath("alpha"),
+                files: {
+                  agents: "AGENTS.md",
+                  bootstrap: "BOOTSTRAP.md",
+                  identity: "IDENTITY.md",
+                  alma: "ALMA.md",
+                  tools: "TOOLS.md",
+                  user: "USER.md",
+                  memory: "MEMORY.md",
+                },
+                provider: {
+                  name: "gemini",
+                  model: "gemini-3.5-flash",
+                  runtime: "gemini",
+                  cliCommand: "gemini",
+                  cliArgs: [
+                    "--prompt",
+                    "{prompt}",
+                    "--output-format",
+                    "stream-json",
+                    "--model",
+                    "{model}",
+                    "--yolo",
+                  ],
+                  authMode: "api_key",
+                },
+              },
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const loaded = readProjectState(config);
+    const project = loaded.projects[loaded.activeProjectId];
+    const agent = project.agents[project.activeAgentId];
+    assert.equal(agent.provider.name, "gemini");
+    assert.equal(agent.provider.cliCommand, "gemini");
+    assert.deepEqual(agent.provider.cliArgs, [
+      "--output-format",
+      "stream-json",
+      "--model",
+      "{model}",
+      "--yolo",
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

@@ -428,8 +428,6 @@ test("ignite supports configuring the minimax provider", async () => {
       "{project_dir}",
       "--add-dir",
       "{shared_skills_dir}",
-      "--",
-      "{prompt}",
     ]);
 
     assert.equal(process.env.MINIMAX_API_KEY, "minimax_test_key_123");
@@ -703,8 +701,6 @@ test("ignite supports configuring the Gemini provider with a concrete model name
     assert.equal(agent.provider.runtime, "gemini");
     assert.equal(agent.provider.cliCommand, "gemini");
     assert.deepEqual(agent.provider.cliArgs, [
-      "--prompt",
-      "{prompt}",
       "--output-format",
       "stream-json",
       "--model",
