@@ -57,7 +57,7 @@ export interface IgniteIo {
 
 const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
   openai: ["gpt-5.5"],
-  anthropic: ["claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-5"],
+  anthropic: ["claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5"],
   gemini: [
     "gemini-3.1-pro-preview",
     "gemini-3.5-flash",
