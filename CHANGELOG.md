@@ -8,7 +8,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
-- Refreshed the Anthropic model options offered during `opencolab ignite`. The provider model list now leads with `claude-opus-4-8`, keeps `claude-opus-4-7`, drops `claude-opus-4-6`, and replaces `claude-sonnet-4-5` with `claude-sonnet-5`. The `anthropic` reasoning-effort capability map in `provider.ts` was updated to match (`claude-opus-4-8` and `claude-sonnet-5`, both `low|medium|high|xhigh|max`, default `high`), so the new models expose reasoning-effort selection during onboarding. Migration defaults that reference `claude-opus-4-6` are left intact so existing configs still upgrade cleanly.
+- Refreshed the Anthropic model options offered during `opencolab ignite`. The onboarding model list now leads with `claude-opus-4-8`, keeps `claude-opus-4-7`, drops `claude-opus-4-6`, and replaces `claude-sonnet-4-5` with `claude-sonnet-5`. Added `claude-opus-4-8` and `claude-sonnet-5` to the `anthropic` reasoning-effort capability map in `provider.ts` (both `low|medium|high|xhigh|max`, default `high`) so the new models expose reasoning-effort selection during onboarding. The existing `claude-opus-4-6` and `claude-sonnet-4-5` capability entries and the migration defaults that reference `claude-opus-4-6` are left intact so agents already configured on those models keep their reasoning-effort support and existing configs still upgrade cleanly.
 
 ### Fixed
 

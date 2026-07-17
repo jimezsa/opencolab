@@ -217,7 +217,15 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
       options: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "high",
     },
+    "claude-opus-4-6": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
     "claude-sonnet-5": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
+    "claude-sonnet-4-5": {
       options: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "high",
     },
