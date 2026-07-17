@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## [Unreleased]
 
+### Changed
+
+- Refreshed the Anthropic model options offered during `opencolab ignite`. The provider model list now leads with `claude-opus-4-8`, keeps `claude-opus-4-7`, drops `claude-opus-4-6`, and replaces `claude-sonnet-4-5` with `claude-sonnet-5`. The `anthropic` reasoning-effort capability map in `provider.ts` was updated to match (`claude-opus-4-8` and `claude-sonnet-5`, both `low|medium|high|xhigh|max`, default `high`), so the new models expose reasoning-effort selection during onboarding. Migration defaults that reference `claude-opus-4-6` are left intact so existing configs still upgrade cleanly.
+
 ### Fixed
 
 - Fixed `spawn ENAMETOOLONG` on Windows from the second message of a session onward. The `claude` and `gemini` runtime defaults passed the entire built prompt (agent context, skills, long-term memory, and the working-memory transcript) as a single command-line argument (`-- {prompt}` / `--prompt {prompt}`). The first message after a restart fit, but once the transcript contained the first exchange the command line crossed the Windows `CreateProcess` limit of 32,767 characters and every subsequent spawn failed before the CLI even started (Linux has a similar ~128 KiB per-argument ceiling, surfacing as `E2BIG`). The default `cliArgs` no longer include a prompt token, so the runner delivers the prompt over stdin — the path the codex runtime already used — which has no size limit. Existing configs with the old prompt-in-argv arg sets (anthropic, minimax, gemini) are migrated to the stdin defaults automatically on load; hand-customized arg sets are left untouched. As a safety net, an `ENAMETOOLONG`/`E2BIG` spawn error now reports a clear message pointing at the `{prompt}` token in `cliArgs` instead of the raw error code. Added migration tests for the retired claude and gemini arg sets and updated the provider default/effort-placement tests.
