@@ -213,11 +213,11 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
     },
   },
   anthropic: {
-    "claude-opus-4-6": {
+    "claude-opus-4-8": {
       options: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "high",
     },
-    "claude-sonnet-4-5": {
+    "claude-sonnet-5": {
       options: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "high",
     },
