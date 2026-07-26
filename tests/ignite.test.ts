@@ -1255,3 +1255,231 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("ignite pairs Telegram via the handshake without asking for a chat id or code", async () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-tg-handshake-"),
+  );
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "", // project id (default)
+    "openai", // provider
+    "oauth", // auth mode (skips api key)
+    "gpt-5.5", // model
+    "", // reasoning effort (default)
+    "n", // skip gemini built-in tools key
+    "n", // skip pageindex-grounded key
+    "y", // configure telegram now
+    "123456:handshake_token", // telegram bot token
+    "n", // skip runpod
+  ];
+  const prompts: string[] = [];
+  const outputs: string[] = [];
+  let syncChatId: string | null | undefined;
+  let handshakeCalls = 0;
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async (prompt) => {
+          prompts.push(prompt);
+          return answers.shift() ?? "";
+        },
+        write: (line) => {
+          outputs.push(line);
+        },
+      },
+      {
+        syncTelegramCommands: async (chatId) => {
+          syncChatId = chatId;
+          return { ok: true };
+        },
+        waitForTelegramHandshake: async (request) => {
+          handshakeCalls += 1;
+          request.onBotInfo?.("opencolab_bot");
+          return {
+            chatId: "778899",
+            chatType: "private",
+            sender: "alice",
+            text: "hello",
+          };
+        },
+      },
+    );
+
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
+    assert.equal(handshakeCalls, 1);
+
+    const state = runtime.getState();
+    assert.equal(state.telegram.chatId, "778899");
+    assert.equal(state.telegram.paired, true);
+    assert.equal(syncChatId, "778899");
+    assert.equal(process.env.TELEGRAM_BOT_TOKEN, "123456:handshake_token");
+
+    // The manual chat-id and pairing-code prompts are gone in the handshake flow.
+    assert.equal(
+      prompts.some((prompt) => prompt.includes("Telegram chat id")),
+      false,
+    );
+    assert.equal(
+      prompts.some((prompt) => prompt.includes("Enter pairing code")),
+      false,
+    );
+    assert.equal(
+      outputs.some((line) =>
+        line.includes("Telegram paired with alice (chat 778899)."),
+      ),
+      true,
+    );
+    assert.equal(
+      outputs.some((line) => line.includes("https://t.me/opencolab_bot")),
+      true,
+    );
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite handshake timeout offers a retry and then skips", async () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-tg-handshake-skip-"),
+  );
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "", // project id
+    "openai", // provider
+    "oauth", // auth mode
+    "gpt-5.5", // model
+    "", // reasoning effort
+    "n", // skip gemini built-in tools
+    "n", // skip pageindex-grounded
+    "y", // configure telegram now
+    "123:tok", // telegram bot token
+    "y", // retry handshake after first timeout
+    "n", // do not retry after second timeout
+    "n", // do not enter chat id manually
+    "n", // skip runpod
+  ];
+  const outputs: string[] = [];
+  let handshakeCalls = 0;
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        write: (line) => {
+          outputs.push(line);
+        },
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true }),
+        waitForTelegramHandshake: async () => {
+          handshakeCalls += 1;
+          return null;
+        },
+      },
+    );
+
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
+    assert.equal(handshakeCalls, 2);
+
+    const state = runtime.getState();
+    assert.equal(state.telegram.chatId, null);
+    assert.equal(state.telegram.paired, false);
+    assert.equal(
+      outputs.some((line) =>
+        line.includes(
+          "Telegram pairing skipped. Run 'opencolab setup telegram pair start' when ready.",
+        ),
+      ),
+      true,
+    );
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite handshake timeout can fall back to manual chat-id entry", async () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-tg-handshake-manual-"),
+  );
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir);
+  runtime.init();
+
+  const answers = [
+    "", // project id
+    "openai", // provider
+    "oauth", // auth mode
+    "gpt-5.5", // model
+    "", // reasoning effort
+    "n", // skip gemini built-in tools
+    "n", // skip pageindex-grounded
+    "y", // configure telegram now
+    "123:tok", // telegram bot token
+    "n", // do not retry handshake
+    "y", // enter chat id manually instead
+    "10001", // telegram chat id
+    "n", // do not start code pairing now
+    "n", // skip runpod
+  ];
+  const outputs: string[] = [];
+  let syncChatId: string | null | undefined;
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        write: (line) => {
+          outputs.push(line);
+        },
+      },
+      {
+        syncTelegramCommands: async (chatId) => {
+          syncChatId = chatId;
+          return { ok: true };
+        },
+        waitForTelegramHandshake: async () => null,
+      },
+    );
+
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
+
+    const state = runtime.getState();
+    assert.equal(state.telegram.chatId, "10001");
+    assert.equal(state.telegram.paired, false);
+    assert.equal(syncChatId, "10001");
+    assert.equal(
+      outputs.some((line) =>
+        line.includes("Telegram configured for chat: 10001"),
+      ),
+      true,
+    );
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

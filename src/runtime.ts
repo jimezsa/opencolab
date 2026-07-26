@@ -496,6 +496,32 @@ export class OpenColabRuntime {
     return this.state;
   }
 
+  markTelegramPaired(chatId: string): OpenColabState {
+    const chatChanged = this.state.telegram.chatId !== chatId;
+
+    this.state = {
+      ...this.state,
+      telegram: {
+        ...this.state.telegram,
+        chatId,
+        paired: true,
+        pairedAt: nowIso(),
+        pendingPairingCode: null,
+        pendingPairingExpiresAt: null,
+        lastChatType: chatChanged ? null : this.state.telegram.lastChatType,
+        lastMessageThreadId: chatChanged
+          ? null
+          : this.state.telegram.lastMessageThreadId,
+        lastInteractionAt: chatChanged
+          ? null
+          : this.state.telegram.lastInteractionAt
+      }
+    };
+
+    this.persist();
+    return this.state;
+  }
+
   setTelegramWorkflowNotifications(enabled: boolean): OpenColabState {
     this.state = {
       ...this.state,

@@ -17,6 +17,11 @@ import {
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
 import {
+  fetchTelegramBotUsername,
+  waitForTelegramHandshake,
+  type TelegramHandshakeResult,
+} from "./telegram-poller.js";
+import {
   resolveCurrentOpenColabInstall,
   readManagedInstallManifest,
   resolveManagedInstallCliScriptPath,
@@ -1349,6 +1354,20 @@ async function startGatewayForeground(
   startHttpServer(port, runtimeRootDir, { telegramPolling });
 }
 
+async function waitForTelegramHandshakeForIgnite(request: {
+  timeoutMs?: number;
+  onBotInfo?: (username: string | null) => void;
+  onWaiting?: (elapsedSeconds: number) => void;
+}): Promise<TelegramHandshakeResult | null> {
+  const username = await fetchTelegramBotUsername();
+  request.onBotInfo?.(username);
+  return waitForTelegramHandshake({
+    timeoutMs: request.timeoutMs,
+    onWaiting: request.onWaiting,
+    acknowledgeText: "Paired ✅ OpenColab is now connected to this chat.",
+  });
+}
+
 async function syncTelegramBotCommands(
   chatId?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -1699,6 +1718,7 @@ async function main(): Promise<void> {
         },
         {
           syncTelegramCommands: syncTelegramBotCommands,
+          waitForTelegramHandshake: waitForTelegramHandshakeForIgnite,
         },
       );
     } finally {

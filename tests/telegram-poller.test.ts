@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { OpenColabRuntime } from "../src/runtime.js";
-import { startTelegramPolling } from "../src/telegram-poller.js";
+import {
+  fetchTelegramBotUsername,
+  startTelegramPolling,
+  waitForTelegramHandshake,
+} from "../src/telegram-poller.js";
 
 test("polling advances offset after a failed update", async () => {
   const originalFetch = globalThis.fetch;
@@ -226,6 +230,225 @@ test("polling can dispatch /stop while a previous update is still running", asyn
     }
   }
 });
+
+test("waitForTelegramHandshake drains stale updates and returns the first fresh message", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousToken = process.env.TELEGRAM_BOT_TOKEN;
+  process.env.TELEGRAM_BOT_TOKEN = "test_bot_token";
+
+  const fetchUrls: string[] = [];
+  const sentMessages: Array<{ chatId: unknown; text: unknown }> = [];
+
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    fetchUrls.push(url);
+
+    if (url.includes("/deleteWebhook")) {
+      return jsonResponse({ ok: true, result: true });
+    }
+
+    if (url.includes("/getUpdates?timeout=0")) {
+      // A stale message is already pending when onboarding starts.
+      return jsonResponse({
+        ok: true,
+        result: [
+          {
+            update_id: 500,
+            message: {
+              text: "old message",
+              chat: { id: "99999", type: "private" },
+              from: { username: "stale" },
+            },
+          },
+        ],
+      });
+    }
+
+    if (url.includes("/getUpdates?timeout=1")) {
+      const offset = new URL(url).searchParams.get("offset");
+      if (offset === "501") {
+        return jsonResponse({
+          ok: true,
+          result: [
+            {
+              update_id: 501,
+              message: {
+                text: "hello",
+                chat: { id: "55555", type: "private" },
+                from: { username: "alice" },
+              },
+            },
+          ],
+        });
+      }
+
+      // A wrong/absent offset means the stale update was not drained.
+      return jsonResponse({
+        ok: true,
+        result: [
+          {
+            update_id: 500,
+            message: {
+              text: "old message",
+              chat: { id: "99999", type: "private" },
+              from: { username: "stale" },
+            },
+          },
+        ],
+      });
+    }
+
+    if (url.includes("/sendMessage")) {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        chat_id?: unknown;
+        text?: unknown;
+      };
+      sentMessages.push({ chatId: body.chat_id, text: body.text });
+      return jsonResponse({ ok: true, result: {} });
+    }
+
+    throw new Error(`Unexpected fetch url: ${url}`);
+  };
+
+  try {
+    const result = await waitForTelegramHandshake({
+      timeoutMs: 2000,
+      pollTimeoutSeconds: 1,
+      acknowledgeText: "Paired ✅",
+    });
+
+    assert.notEqual(result, null);
+    assert.equal(result?.chatId, "55555");
+    assert.equal(result?.chatType, "private");
+    assert.equal(result?.sender, "alice");
+    assert.equal(result?.text, "hello");
+    assert.deepEqual(sentMessages, [{ chatId: "55555", text: "Paired ✅" }]);
+    assert.equal(
+      fetchUrls.some((url) => url.includes("/deleteWebhook")),
+      true,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreToken(previousToken);
+  }
+});
+
+test("waitForTelegramHandshake returns null when no message arrives before the timeout", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousToken = process.env.TELEGRAM_BOT_TOKEN;
+  process.env.TELEGRAM_BOT_TOKEN = "test_bot_token";
+  let waitingTicks = 0;
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/deleteWebhook")) {
+      return jsonResponse({ ok: true, result: true });
+    }
+    if (url.includes("/getUpdates?timeout=0")) {
+      return jsonResponse({ ok: true, result: [] });
+    }
+    if (url.includes("/getUpdates")) {
+      await wait(10);
+      return jsonResponse({ ok: true, result: [] });
+    }
+    throw new Error(`Unexpected fetch url: ${url}`);
+  };
+
+  try {
+    const result = await waitForTelegramHandshake({
+      timeoutMs: 40,
+      pollTimeoutSeconds: 1,
+      onWaiting: () => {
+        waitingTicks += 1;
+      },
+    });
+
+    assert.equal(result, null);
+    assert.equal(waitingTicks >= 1, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreToken(previousToken);
+  }
+});
+
+test("waitForTelegramHandshake returns null on a polling conflict", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousToken = process.env.TELEGRAM_BOT_TOKEN;
+  process.env.TELEGRAM_BOT_TOKEN = "test_bot_token";
+  const logs: string[] = [];
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/deleteWebhook")) {
+      return jsonResponse({ ok: true, result: true });
+    }
+    if (url.includes("/getUpdates?timeout=0")) {
+      return jsonResponse({ ok: true, result: [] });
+    }
+    if (url.includes("/getUpdates")) {
+      return new Response("Conflict", { status: 409 });
+    }
+    throw new Error(`Unexpected fetch url: ${url}`);
+  };
+
+  try {
+    const result = await waitForTelegramHandshake({
+      timeoutMs: 2000,
+      pollTimeoutSeconds: 1,
+      logger: (message) => {
+        logs.push(message);
+      },
+    });
+
+    assert.equal(result, null);
+    assert.equal(
+      logs.some((message) => message.includes("conflict")),
+      true,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreToken(previousToken);
+  }
+});
+
+test("fetchTelegramBotUsername returns the bot username from getMe", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousToken = process.env.TELEGRAM_BOT_TOKEN;
+  process.env.TELEGRAM_BOT_TOKEN = "test_bot_token";
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/getMe")) {
+      return jsonResponse({ ok: true, result: { username: "opencolab_bot" } });
+    }
+    throw new Error(`Unexpected fetch url: ${url}`);
+  };
+
+  try {
+    const username = await fetchTelegramBotUsername();
+    assert.equal(username, "opencolab_bot");
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreToken(previousToken);
+  }
+});
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+function restoreToken(previous: string | undefined): void {
+  if (previous === undefined) {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+  } else {
+    process.env.TELEGRAM_BOT_TOKEN = previous;
+  }
+}
 
 async function wait(ms: number): Promise<void> {
   await new Promise<void>((resolve) => {
