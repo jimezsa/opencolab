@@ -80,6 +80,7 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
     "anthropic/claude-opus-4.7",
     "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-pro",
+    "moonshotai/kimi-k3",
     "moonshotai/kimi-k2.5",
     "x-ai/grok-code-fast-1",
   ],
