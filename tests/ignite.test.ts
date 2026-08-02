@@ -57,12 +57,13 @@ test("ignite configures project, provider, and telegram", async () => {
     "gpt-5.5",
     "high",
     "openai_test_key_123",
-    "y",
-    "gemini_tools_key_123",
-    "y",
+    "y", // configure telegram now
     "123456:telegram_bot_token",
     "10001",
-    "n",
+    "n", // skip pairing
+    "y", // open the optional Gemini + Runpod section
+    "y", // add gemini built-in tools key
+    "gemini_tools_key_123",
   ];
   const prompts: string[] = [];
   const outputs: string[] = [];
@@ -193,15 +194,16 @@ test("ignite edits an existing telegram token via single-key confirm without re-
     "gpt-5.5", // model
     "high", // reasoning effort
     "openai_test_key_123", // openai api key
-    "gemini_tools_key_123", // gemini built-in tools key
     "999999:new_token", // new telegram bot token
     "10001", // telegram chat id
+    "gemini_tools_key_123", // gemini built-in tools key
   ];
   const confirmAnswers = [
-    "y", // add gemini built-in tools key
     "y", // configure telegram now
     "n", // do not keep existing token (edit it)
     "n", // skip pairing
+    "y", // open the optional Gemini + Runpod section
+    "y", // add gemini built-in tools key
     "n", // skip runpod
   ];
   const confirmPrompts: string[] = [];
@@ -277,9 +279,8 @@ test("ignite lets Esc skip a step and continue", async () => {
     "gpt-5.5",
     "",
     "openai_test_key_esc",
-    "n",
-    "n",
-    ESC_INPUT,
+    ESC_INPUT, // skip telegram step
+    "n", // decline the optional Gemini + Runpod section
   ];
   const outputs: string[] = [];
   let syncCalls = 0;
@@ -339,7 +340,7 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
     model: "gpt-5.5",
   });
 
-  const answers = ["", "y", "n", "n", "n"];
+  const answers = ["", "y", "n", "n"];
   const prompts: string[] = [];
 
   try {
@@ -386,9 +387,8 @@ test("ignite supports configuring the minimax provider", async () => {
     "minimax",
     "MiniMax-M2.5",
     "minimax_test_key_123",
-    "n",
-    "n",
-    "n",
+    "n", // skip telegram
+    "n", // decline the optional Gemini + Runpod section
   ];
 
   try {
@@ -450,7 +450,7 @@ test("ignite exposes MiniMax-M2.7 in interactive chooser mode", async () => {
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = ["", "minimax_test_key_choose", "n", "n", "n"];
+  const answers = ["", "minimax_test_key_choose", "n", "n"];
   let modelOptions: string[] | null = null;
 
   try {
@@ -501,7 +501,7 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = ["", "openai", "oauth", "gpt-5.5", "", "n", "n", "n"];
+  const answers = ["", "openai", "oauth", "gpt-5.5", "", "n", "n"];
   const prompts: string[] = [];
 
   try {
@@ -549,7 +549,7 @@ test("ignite exposes native OpenAI reasoning effort options in chooser mode", as
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = ["", "n", "n", "n"];
+  const answers = ["", "n", "n"];
   let reasoningOptions: string[] | null = null;
 
   try {
@@ -607,9 +607,8 @@ test("ignite supports Anthropic oauth mode without asking for API key", async ()
     "oauth",
     "claude-opus-4-6",
     "max",
-    "n",
-    "n",
-    "n",
+    "n", // skip telegram
+    "n", // decline the optional Gemini + Runpod section
   ];
   const prompts: string[] = [];
   const outputs: string[] = [];
@@ -725,7 +724,7 @@ test("ignite supports Gemini oauth mode without asking for API key", async () =>
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = ["", "gemini", "oauth", "gemini-2.5-pro", "n", "n", "n"];
+  const answers = ["", "gemini", "oauth", "gemini-2.5-pro", "n", "n"];
   const prompts: string[] = [];
   const outputs: string[] = [];
 
@@ -780,7 +779,7 @@ test("ignite exposes curated Gemini models in interactive chooser mode", async (
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = ["", "n", "n", "n"];
+  const answers = ["", "n", "n"];
   let modelOptions: string[] | null = null;
 
   try {
@@ -845,9 +844,8 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
     "xai",
     "grok-code-fast-1",
     "xai_test_key_123",
-    "n",
-    "n",
-    "n",
+    "n", // skip telegram
+    "n", // decline the optional Gemini + Runpod section
   ];
 
   try {
@@ -916,9 +914,8 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
     "openrouter",
     "openai/gpt-5.5",
     "openrouter_test_key_123",
-    "n",
-    "n",
-    "n",
+    "n", // skip telegram
+    "n", // decline the optional Gemini + Runpod section
   ];
 
   try {
@@ -985,7 +982,7 @@ test("ignite supports configuring Kimi on the pi runtime", async () => {
   const runtime = createRuntime(tempDir);
   runtime.init();
 
-  const answers = ["", "kimi", "k2p5", "kimi_test_key_123", "n", "n", "n"];
+  const answers = ["", "kimi", "k2p5", "kimi_test_key_123", "n", "n"];
 
   try {
     await runIgnite(
@@ -1054,10 +1051,11 @@ test("ignite can save the Gemini built-in tools key without changing the active 
     "oauth",
     "gpt-5.5",
     "high",
-    "y",
+    "n", // skip telegram
+    "y", // open the optional Gemini + Runpod section
+    "y", // add gemini built-in tools key
     "gemini_built_in_key_123",
-    "n",
-    "n",
+    "n", // skip runpod
   ];
   const outputs: string[] = [];
 
@@ -1126,10 +1124,12 @@ test("ignite can save the Gemini key for pageindex-grounded without changing the
     "gemini",
     "oauth",
     "gemini-2.5-pro",
-    "n",
-    "y",
+    "n", // skip telegram
+    "y", // open the optional Gemini + Runpod section
+    "n", // skip the gemini built-in tools key
+    "y", // add the gemini key for pageindex-grounded
     "pageindex_gemini_key_123",
-    "n",
+    "n", // skip runpod
   ];
   const outputs: string[] = [];
 
@@ -1193,15 +1193,16 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     "gpt-5.5",
     "",
     "openai_test_key_for_runpod",
-    "n",
-    "n",
-    "n",
-    "y",
-    "y",
+    "n", // skip telegram
+    "y", // open the optional Gemini + Runpod section
+    "n", // skip gemini built-in tools key
+    "n", // skip pageindex-grounded key
+    "y", // configure runpod now
+    "y", // add runpod api key
     "runpod_test_key_123",
-    "y",
+    "y", // create the default gpu server
     "runpod-a100",
-    "n",
+    "n", // skip validation
   ];
   const outputs: string[] = [];
 
@@ -1270,11 +1271,9 @@ test("ignite pairs Telegram via the handshake without asking for a chat id or co
     "oauth", // auth mode (skips api key)
     "gpt-5.5", // model
     "", // reasoning effort (default)
-    "n", // skip gemini built-in tools key
-    "n", // skip pageindex-grounded key
     "y", // configure telegram now
     "123456:handshake_token", // telegram bot token
-    "n", // skip runpod
+    "n", // decline the optional Gemini + Runpod section
   ];
   const prompts: string[] = [];
   const outputs: string[] = [];
@@ -1363,14 +1362,12 @@ test("ignite handshake timeout offers a retry and then skips", async () => {
     "oauth", // auth mode
     "gpt-5.5", // model
     "", // reasoning effort
-    "n", // skip gemini built-in tools
-    "n", // skip pageindex-grounded
     "y", // configure telegram now
     "123:tok", // telegram bot token
     "y", // retry handshake after first timeout
     "n", // do not retry after second timeout
     "n", // do not enter chat id manually
-    "n", // skip runpod
+    "n", // decline the optional Gemini + Runpod section
   ];
   const outputs: string[] = [];
   let handshakeCalls = 0;
@@ -1431,15 +1428,13 @@ test("ignite handshake timeout can fall back to manual chat-id entry", async () 
     "oauth", // auth mode
     "gpt-5.5", // model
     "", // reasoning effort
-    "n", // skip gemini built-in tools
-    "n", // skip pageindex-grounded
     "y", // configure telegram now
     "123:tok", // telegram bot token
     "n", // do not retry handshake
     "y", // enter chat id manually instead
     "10001", // telegram chat id
     "n", // do not start code pairing now
-    "n", // skip runpod
+    "n", // decline the optional Gemini + Runpod section
   ];
   const outputs: string[] = [];
   let syncChatId: string | null | undefined;

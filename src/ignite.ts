@@ -140,18 +140,14 @@ export async function runIgnite(
     configureProvider(runtime, stepIo),
   );
   io.write("|");
-  await runStep(
-    io,
-    "* Built-in tools configure shared skill keys",
-    async (stepIo) => configureBuiltInTools(runtime, stepIo),
-  );
-  io.write("|");
   await runStep(io, "* Telegram configure chat and pairing", async (stepIo) =>
     configureTelegram(runtime, stepIo, deps),
   );
   io.write("|");
-  await runStep(io, "* Runpod configure optional GPU server", async (stepIo) =>
-    configureRunpod(runtime, stepIo),
+  await runStep(
+    io,
+    "* More optional Gemini image generation and Runpod GPU",
+    async (stepIo) => configureMore(runtime, stepIo),
   );
 
   const state = runtime.getState();
@@ -588,6 +584,24 @@ async function pairTelegramWithCode(
     io.write(error instanceof Error ? error.message : String(error));
     io.write("Run 'opencolab setup telegram pair start' to retry pairing.");
   }
+}
+
+async function configureMore(
+  runtime: OpenColabRuntime,
+  io: IgniteIo,
+): Promise<void> {
+  const shouldConfigure = await askYesNo(
+    io,
+    "Set up optional Gemini image generation and Runpod GPU now?",
+    false,
+  );
+  if (!shouldConfigure) {
+    io.write("Optional Gemini image generation and Runpod setup skipped.");
+    return;
+  }
+
+  await configureBuiltInTools(runtime, io);
+  await configureRunpod(runtime, io);
 }
 
 async function configureBuiltInTools(
