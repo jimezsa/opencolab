@@ -207,6 +207,18 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
   Record<ProviderName, Record<string, ProviderReasoningCapability>>
 > = {
   openai: {
+    "gpt-5.6-sol": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
+    "gpt-5.6-terra": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
+    "gpt-5.6-luna": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
     "gpt-5.5": {
       options: ["low", "medium", "high", "xhigh"],
       defaultEffort: "high",
