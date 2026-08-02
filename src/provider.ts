@@ -225,6 +225,10 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
     },
   },
   anthropic: {
+    "claude-opus-5": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
     "claude-opus-4-8": {
       options: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "high",
