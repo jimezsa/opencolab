@@ -961,6 +961,62 @@ test("project state migrates legacy per-project telegram shape", () => {
     );
     assert.equal(loaded.telegram.chatId, "55555");
     assert.equal(loaded.telegram.paired, true);
+    // Legacy config predates v2, so workflow live updates are migrated ON.
+    assert.equal(loaded.telegram.notifyWorkflowProgress, true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("project state migrates a pre-v2 stored workflow-notifications flag to ON, but respects an explicit v2 opt-out", () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-state-workflow-notify-migrate-"),
+  );
+
+  try {
+    const config = loadConfig(tempDir);
+    const baseState = {
+      activeProjectId: "default",
+      projects: {
+        default: {
+          id: "default",
+          path: "projects/default",
+          activeAgentId: "professor",
+          agents: {
+            professor: {
+              id: "professor",
+              path: "projects/default",
+              files: {},
+              provider: { name: "anthropic" },
+            },
+          },
+        },
+      },
+    };
+
+    // A pre-v2 install with the old default (false) stored is flipped ON on load.
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 1,
+        ...baseState,
+        telegram: { chatId: "12345", paired: true, notifyWorkflowProgress: false },
+      }),
+      "utf8",
+    );
+    assert.equal(readProjectState(config).telegram.notifyWorkflowProgress, true);
+
+    // A v2 install that deliberately turned it off keeps it off (migration is one-time).
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 2,
+        ...baseState,
+        telegram: { chatId: "12345", paired: true, notifyWorkflowProgress: false },
+      }),
+      "utf8",
+    );
+    assert.equal(readProjectState(config).telegram.notifyWorkflowProgress, false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

@@ -95,10 +95,6 @@ const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
   { command: "agents", description: "Pick active agent" },
   { command: "session_reset", description: "Reset active session" },
   { command: "stop", description: "Stop active task" },
-  {
-    command: "workflow_notifications",
-    description: "Toggle live workflow updates (on|off|status)",
-  },
 ];
 
 function supportsColor(): boolean {

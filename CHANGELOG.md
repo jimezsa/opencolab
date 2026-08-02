@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Changed
+
+- Workflow live updates now default to ON, and the `/workflow_notifications` toggle is no longer advertised in the Telegram slash-command menu. `createDefaultTelegramConfig` in `project-config.ts` now seeds `notifyWorkflowProgress: true`, and the command was removed from `TELEGRAM_MENU_COMMANDS` in `cli.ts` (so the next `setMyCommands` sync on gateway startup drops it from the menu). The command still works when typed and via `opencolab setup telegram workflow-notifications`, so it remains a live toggle — only the menu entry and the default changed. To carry the new default to existing installs (whose `opencolab.json`, e.g. on the remote host, may already store `notifyWorkflowProgress: false`), bumped the config schema `CURRENT_VERSION` 1 → 2 and added a one-time `migrateTelegram` step that flips the stored flag ON for any config saved before v2; configs already at v2 keep whatever value they hold, so a later opt-out sticks. Updated the persistence/skip tests for the new default and added a `project-config` migration test covering both the pre-v2 flip and the v2 opt-out.
+
 ## [0.2.10] - 2026-08-02
 
 ### Changed

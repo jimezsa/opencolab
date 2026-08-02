@@ -146,7 +146,7 @@ export interface ProjectState {
 }
 
 export interface OpenColabState {
-  version: 1;
+  version: 2;
   updatedAt: string;
   activeProjectId: string;
   projects: Record<string, ProjectState>;

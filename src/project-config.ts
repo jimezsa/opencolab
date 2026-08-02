@@ -27,7 +27,11 @@ import type {
 } from "./types.js";
 import { nowIso, safeReadJson, writeJsonAtomic } from "./utils.js";
 
-const CURRENT_VERSION = 1 as const;
+const CURRENT_VERSION = 2 as const;
+
+// Schema version at which telegram workflow live updates began defaulting to ON.
+// Installs saved before this version have their stored flag flipped ON once, on load.
+const WORKFLOW_NOTIFICATIONS_DEFAULT_ON_VERSION = 2;
 export const DEFAULT_PROJECT_ID = "default";
 export const DEFAULT_AGENT_ID = "professor";
 export const DEFAULT_RUNPOD_IMAGE = "runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04";
@@ -227,7 +231,7 @@ export function createDefaultTelegramConfig(): TelegramConfig {
     lastChatType: null,
     lastMessageThreadId: null,
     lastInteractionAt: null,
-    notifyWorkflowProgress: false
+    notifyWorkflowProgress: true
   };
 }
 
@@ -504,6 +508,7 @@ function normalizeState(raw: unknown, defaults: OpenColabState): OpenColabState 
     return defaults;
   }
 
+  const sourceVersion = asVersion(source.version);
   const sourceProjects = asRecord(source.projects);
   if (sourceProjects && Object.keys(sourceProjects).length > 0) {
     const projects: Record<string, ProjectState> = {};
@@ -524,7 +529,10 @@ function normalizeState(raw: unknown, defaults: OpenColabState): OpenColabState 
 
     const preferredActiveId = asString(source.activeProjectId, defaults.activeProjectId);
     const activeProjectId = projects[preferredActiveId] ? preferredActiveId : Object.keys(projects)[0];
-    const telegram = normalizeSharedTelegram(source, sourceProjects, activeProjectId, defaults.telegram);
+    const telegram = migrateTelegram(
+      normalizeSharedTelegram(source, sourceProjects, activeProjectId, defaults.telegram),
+      sourceVersion
+    );
 
     return {
       version: CURRENT_VERSION,
@@ -584,7 +592,10 @@ function normalizeLegacyState(
     projects: {
       [project.id]: project
     },
-    telegram: normalizeTelegram(sourceTelegram, defaults.telegram)
+    telegram: migrateTelegram(
+      normalizeTelegram(sourceTelegram, defaults.telegram),
+      asVersion(source.version)
+    )
   };
 
   return ensureProjectAndAgent(normalized);
@@ -946,6 +957,19 @@ function normalizeTelegram(
   };
 }
 
+// One-time schema migrations applied to a normalized telegram config based on the
+// version the config was saved with. Runs on load; the migrated value is persisted
+// on the next write (as CURRENT_VERSION), so each migration only takes effect once.
+function migrateTelegram(telegram: TelegramConfig, sourceVersion: number): TelegramConfig {
+  let migrated = telegram;
+  if (sourceVersion < WORKFLOW_NOTIFICATIONS_DEFAULT_ON_VERSION) {
+    // Workflow live updates now default to ON. Enable it for installs saved before
+    // this default landed so the change reaches existing (e.g. remote) configs.
+    migrated = { ...migrated, notifyWorkflowProgress: true };
+  }
+  return migrated;
+}
+
 export function createDefaultManualSshProfile(profileId: string): ManualSshProfile {
   return {
     id: profileId,
@@ -974,6 +998,12 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function asString(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+// Reads a config's stored schema version. Missing/invalid versions are treated as 0
+// (oldest) so every pending migration applies.
+function asVersion(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function asNullableString(value: unknown): string | null {

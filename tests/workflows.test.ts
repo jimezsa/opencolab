@@ -342,6 +342,7 @@ test("workflow run skips Telegram updates when notifyWorkflowProgress is off", a
     });
     runtime.init();
     runtime.setupTelegram({ chatId: "12345" });
+    runtime.setTelegramWorkflowNotifications(false);
     // Pairing is intentionally NOT completed, so notifier should stay quiet even if the flag were on.
 
     runtime.createWorkflow({ workflowId: "demo", template: "blank" });
@@ -419,14 +420,14 @@ test("workflow run streams step boundaries to Telegram when notifyWorkflowProgre
 test("setTelegramWorkflowNotifications persists the toggle", () => {
   const { runtime, tempDir } = freshRuntime("notif-toggle");
   try {
-    assert.equal(runtime.getState().telegram.notifyWorkflowProgress, false);
-    runtime.setTelegramWorkflowNotifications(true);
     assert.equal(runtime.getState().telegram.notifyWorkflowProgress, true);
+    runtime.setTelegramWorkflowNotifications(false);
+    assert.equal(runtime.getState().telegram.notifyWorkflowProgress, false);
     const reloaded = createRuntime(tempDir);
     reloaded.init();
-    assert.equal(reloaded.getState().telegram.notifyWorkflowProgress, true);
-    reloaded.setTelegramWorkflowNotifications(false);
     assert.equal(reloaded.getState().telegram.notifyWorkflowProgress, false);
+    reloaded.setTelegramWorkflowNotifications(true);
+    assert.equal(reloaded.getState().telegram.notifyWorkflowProgress, true);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
