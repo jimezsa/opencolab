@@ -138,8 +138,9 @@ across sessions.
 
 ### 1.6 Optional: LLM API key for the discriminator
 
-`jobcli-job-search/scripts/job_discriminator.py` wants `MINIMAX_API_KEY` (or an
-OpenAI/Anthropic fallback). If no key is available, **you act as the LLM gate
+`jobcli-job-search/scripts/job_discriminator.py` runs the discrimination step through
+**OpenRouter** — set `OPENROUTER_API_KEY` and use the model
+**`google/gemini-3.1-flash-lite`**. If no key is available, **you act as the LLM gate
 yourself** — read each posting and decide YES/NO/MAYBE inline against the hard
 constraints.
 
