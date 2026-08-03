@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## [Unreleased]
 
+### Added
+
+- Added `other_usecases/JUBHUNTER_ONBOARDING.md`, a self-contained onboarding prompt for cloning the "Hunter" job-hunter agent on top of OpenColab. It documents the agent's personality and behavior rules, the cross-platform environment setup (base toolchain, LaTeX→PDF for CV compilation, the [`jobcli`](https://github.com/jimezsa/jobcli) search engine, `browser-use` + Chromium, and the jobcli skills), and the step-by-step human onboarding flow (CV → LaTeX blueprint, persona query build, job search with hard-reject + LLM gate, and end-to-end apply). This is documentation only — no code or runtime behavior changes.
+
 ### Changed
 
 - Regrouped `opencolab ignite` onboarding so the optional Gemini and Runpod setup no longer sit in the middle of the flow. The core path is now Project → Provider → Telegram, followed by a single "More" step (`configureMore` in `ignite.ts`) that asks one gate — "Set up optional Gemini image generation and Runpod GPU now?" (default No) — and only then runs the existing Gemini built-in tools + pageindex-grounded key setup and the Runpod GPU setup. Declining the gate skips all three at once. No provider/Telegram behavior changed and the individual sub-steps keep their own keep/skip prompts; this only moves the Gemini `GEMINI_API_KEY` step from mid-flow to the end and stacks it with Runpod behind the opt-in. Reordered every scripted answer array in the ignite tests to match the new prompt sequence.
