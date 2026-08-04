@@ -193,27 +193,47 @@ processing runs in the background), open the login pages — don't wait for the
 blueprint to finish.
 
 Goal: a **saved, authenticated browser session** so you can apply without ever
-handling passwords. Use a named session **with `--profile`** so cookies survive
-restarts.
+handling passwords.
 
-For **Gmail/Outlook**, **LinkedIn**, and **StepStone**, open each page in a visible
-Chromium window and have the human log in **by hand** in that window:
+**First verify the browser-ownership model** — does `browser-use` launch its own
+persistent profile, or attach over CDP to an already-running browser? Check
+`browser-use --help` / `browser-use doctor` before opening anything, then open the
+login windows *in a browser the automation can actually drive*. If the tool manages
+its own persistent profile, use that mechanism and confirm where the profile lives
+on disk. If it attaches over CDP, **you** launch a dedicated Chromium with a
+permanent `--user-data-dir` on a debug port **before** asking the human to log in.
+
+For **Gmail/Outlook**, **LinkedIn**, and **StepStone**, open each page in that
+window and have the human log in **by hand**, once; the dedicated
+`--user-data-dir` persists sessions across restarts:
 
 ```bash
-# activate the env first (see 1.4), then:
-browser-use --headed --profile --session main open https://mail.google.com
-# human logs in in the visible window, then:
-browser-use --session main screenshot /tmp/login-gmail.png
+# activate the env first (see 1.4), then verify the ownership model:
+browser-use --help    # own persistent profile, or CDP attach?
 
-browser-use --headed --profile --session main open https://www.linkedin.com
-browser-use --headed --profile --session main open https://www.stepstone.de
+# CDP-attach case — launch the dedicated Chromium yourself, once:
+CHROMIUM=$(python -c "from playwright.sync_api import sync_playwright; \
+pw = sync_playwright().start(); print(pw.chromium.executable_path); pw.stop()")
+"$CHROMIUM" --user-data-dir="$HOME/.hunter-profile" --remote-debugging-port=9222 &
+
+# attach and open each login page in that window (exact flag per --help, e.g.):
+browser-use --cdp-url http://localhost:9222 open https://mail.google.com
+browser-use --cdp-url http://localhost:9222 open https://www.linkedin.com
+browser-use --cdp-url http://localhost:9222 open https://www.stepstone.de
+# after each login, grab proof:
+browser-use --cdp-url http://localhost:9222 screenshot /tmp/login-gmail.png
 ```
 
 - **Always Chromium.** These windows are the Playwright Chromium from 1.4 — never
   open the login pages in the system browser; sessions saved anywhere else are
   useless to you.
 - **Do NOT type credentials through the CLI.** The human logs in themselves in the
-  visible window; `--profile` persists the session.
+  visible window; the dedicated `--user-data-dir` persists the session across
+  restarts.
+- **Never assume flags, never offload the wiring.** Don't assume a `--profile`
+  flag exists — verify against `--help` — and never route the human through
+  `chrome://inspect` → "Allow remote debugging" to set up CDP. Launching the
+  debug-port browser is **your** job, done before the human is asked to log in.
 - After each login, **send the human the screenshot** of the logged-in page to
   confirm (in Telegram: emit a raw `@telegram-file` line, one per file, no markdown
   wrapping — e.g. `@telegram-file {"kind":"photo","file":"/tmp/login-gmail.png","caption":"Gmail logged in"}`).

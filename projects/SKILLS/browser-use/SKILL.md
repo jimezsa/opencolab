@@ -5,7 +5,9 @@ description: Automated browser control via the `browser-use` CLI. Navigate pages
 
 # browser-use
 
-Automated browser control via the `browser-use` CLI. Navigate pages, fill forms, click elements, take screenshots, and extract content — all from the command line. Backed by Playwright Chromium under the hood.
+Automated browser control via the `browser-use` CLI. Navigate pages, fill forms, click elements, take screenshots, and extract content — all from the command line. On most installs it is backed by Playwright Chromium under the hood — but not on all of them; verify before relying on it.
+
+> ⚠️ **Verify the interface before trusting this doc.** On some machines this CLI does **not** launch its own Playwright browser — it **attaches over CDP to an already-running Chromium/Brave**, and there is **no `--profile` flag**. Run `browser-use skill show` (or `--doctor`) to confirm the real interface first. If it attaches over CDP: persistence only happens if *you* launch the browser with your own `--user-data-dir` on a debug port; modern Brave/Chrome (136+) refuses remote debugging on the *default* profile, so use a dedicated user-data-dir and never chase the `chrome://inspect` toggle.
 
 ## Prerequisites
 
@@ -78,6 +80,8 @@ browser-use close
 - `browser-use --session <name> close` — close one named session
 
 ## Persistent Browser Profile (LinkedIn etc.)
+
+> ⚠️ This entire section only applies when the CLI launches and owns its browser. On CDP-attach builds there is **no `--profile` flag** — persistence comes from the `--user-data-dir` of the browser *you* launched; see the warning at the top of this doc.
 
 For sites that require an authenticated login (LinkedIn, some company portals), use a persistent Chrome user-data directory so the login session survives across restarts. The `--profile` flag stores cookies and local storage between commands.
 
