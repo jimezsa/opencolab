@@ -102,6 +102,12 @@ python -m playwright install chromium
 python -m playwright install-deps   # system libs (Linux only)
 ```
 
+**Chromium is the only browser — always.** Every browser action (logins, ATS
+sign-ups, applications, screenshots) goes through this Playwright Chromium via
+`browser-use`. Never launch or fall back to the system browser (Chrome, Edge,
+Firefox, Safari) — the persistent profile and saved sessions only exist in this
+Chromium.
+
 **Every browser-use command needs this environment first:**
 
 ```bash
@@ -149,13 +155,19 @@ constraints.
 ## PART 2 — USER ONBOARDING (do this with the human, in order)
 
 Once the environment is ready, walk the human through these five steps. Be
-conversational — one thing at a time. Save what you learn into `USER.md` /
-`MEMORY.md` so it persists.
+conversational — one thing at a time. Steps 1 and 2 overlap by design: the CV
+arriving triggers the browser logins while the CV is processed. Save what you
+learn into `USER.md` / `MEMORY.md` so it persists.
 
 ### Step 1 — Get the CV and build the LaTeX blueprint
 
 Ask the human to send their CV (PDF).
 
+- **The moment the CV arrives, immediately open the Chromium login windows from
+  Step 2** (Gmail/Outlook, LinkedIn, StepStone) so the human logs in by hand while
+  you process the CV in the background. CV processing and the logins run in
+  parallel — don't make the human wait for the blueprint before they can start
+  logging in.
 - Run `pdf-cv-to-latex` to produce a LaTeX master, e.g.
   `cv/CV_<Name>_<year>.tex` + compiled `.pdf`. This is the reusable blueprint that
   every application is tailored from.
@@ -176,6 +188,10 @@ Ask the human to send their CV (PDF).
 
 ### Step 2 — Log the human into their accounts via a persistent browser profile
 
+**Trigger: the human sends their CV.** As soon as the CV lands (while Step 1's
+processing runs in the background), open the login pages — don't wait for the
+blueprint to finish.
+
 Goal: a **saved, authenticated browser session** so you can apply without ever
 handling passwords. Use a named session **with `--profile`** so cookies survive
 restarts.
@@ -193,6 +209,9 @@ browser-use --headed --profile --session main open https://www.linkedin.com
 browser-use --headed --profile --session main open https://www.stepstone.de
 ```
 
+- **Always Chromium.** These windows are the Playwright Chromium from 1.4 — never
+  open the login pages in the system browser; sessions saved anywhere else are
+  useless to you.
 - **Do NOT type credentials through the CLI.** The human logs in themselves in the
   visible window; `--profile` persists the session.
 - After each login, **send the human the screenshot** of the logged-in page to
