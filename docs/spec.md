@@ -308,7 +308,7 @@ Responsibilities:
 - configure one provider API key without changing the active agent runtime
 - configure provider for the active agent
 - provider configuration must ask for provider and model, must support provider auth mode selection when available, and must ask for native reasoning effort when the selected provider/model exposes it
-- `ignite` should offer curated concrete model options per provider ordered from smarter to less smart; Gemini options must include `gemini-3.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`; Gemini provider defaults must use `gemini-3.5-flash`; MiniMax options must include `MiniMax-M2.5` and `MiniMax-M2.7`
+- `ignite` should offer curated concrete model options per provider ordered from smarter to less smart; Gemini options must include `gemini-3.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`; Gemini provider defaults must use `gemini-3.5-flash`; MiniMax options must include `MiniMax-M2.5` and `MiniMax-M2.7`; OpenRouter options must include `~deepseek/deepseek-v4-flash-latest`
 - OpenAI, Anthropic, and Gemini provider auth modes must support `api_key` and `oauth`
 - `opencolab setup model` must accept a native `--reasoning-effort <value>` flag for provider/model pairs that support configurable reasoning
 - OpenAI `gpt-5.5` must support native reasoning effort values `low`, `medium`, `high`, and `xhigh`, defaulting to `high`

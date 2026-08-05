@@ -83,6 +83,7 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
     "moonshotai/kimi-k3",
     "moonshotai/kimi-k2.5",
     "x-ai/grok-code-fast-1",
+    "~deepseek/deepseek-v4-flash-latest",
   ],
   kimi: ["k2p5", "kimi-k2-thinking"],
 };
