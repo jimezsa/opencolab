@@ -246,6 +246,15 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
       defaultEffort: "high",
     },
   },
+  // pi clamps unsupported thinking levels silently instead of failing, so only
+  // levels the model actually distinguishes are offered here. DeepSeek V4 maps
+  // high -> "high" and xhigh -> "xhigh"; every other level lands on one of those.
+  openrouter: {
+    "deepseek/deepseek-v4-pro": {
+      options: ["high", "xhigh"],
+      defaultEffort: "high",
+    },
+  },
 };
 
 const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
@@ -708,6 +717,30 @@ export function buildProviderInvocationArgs(
       ];
     }
     return [...args, "--effort", provider.reasoningEffort];
+  }
+
+  if (
+    provider.runtime === "pi" &&
+    normalizeProviderReasoningEffort(
+      provider.name,
+      provider.model,
+      provider.reasoningEffort,
+    )
+  ) {
+    // The pi arg set ends with the positional user message, so the flag has to
+    // go ahead of it and keep that token last.
+    const userMessageIndex = args.findIndex((arg) =>
+      arg.includes("{user_message}"),
+    );
+    if (userMessageIndex >= 0) {
+      return [
+        ...args.slice(0, userMessageIndex),
+        "--thinking",
+        provider.reasoningEffort,
+        ...args.slice(userMessageIndex),
+      ];
+    }
+    return [...args, "--thinking", provider.reasoningEffort];
   }
 
   return args;

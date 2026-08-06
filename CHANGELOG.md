@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Added native reasoning-effort selection for pi-backed providers, starting with OpenRouter `deepseek/deepseek-v4-pro` (`high` and `xhigh`, default `high`). `buildProviderInvocationArgs` now injects `pi --thinking <level>` ahead of the trailing positional user-message argument, mirroring the existing codex (`-c model_reasoning_effort=`) and claude (`--effort`) branches; the flag is injected at invocation time and never persisted into `cliArgs`, so no config migration is needed and existing agents keep pi's own default until `opencolab setup model` or `ignite` is re-run. Only levels the model actually distinguishes are offered because pi clamps unsupported thinking levels silently instead of failing. Design notes and host-side verification steps are in `docs/pi_reasoning_effort_spec.md`.
+
 ## [0.2.13] - 2026-08-06
 
 ### Added

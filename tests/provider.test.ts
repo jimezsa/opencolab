@@ -237,9 +237,39 @@ test("provider reasoning helpers validate only supported native values", () => {
   assert.equal(normalizeProviderReasoningEffort("anthropic", "claude-opus-4-6", "xhigh"), "xhigh");
   assert.equal(normalizeProviderReasoningEffort("anthropic", "claude-opus-4-6", "max"), "max");
   assert.equal(normalizeProviderReasoningEffort("gemini", "gemini-2.5-pro", "high"), null);
+  assert.equal(
+    normalizeProviderReasoningEffort("openrouter", "deepseek/deepseek-v4-pro", "high"),
+    "high"
+  );
+  assert.equal(
+    normalizeProviderReasoningEffort("openrouter", "deepseek/deepseek-v4-pro", "xhigh"),
+    "xhigh"
+  );
+  assert.equal(
+    normalizeProviderReasoningEffort("openrouter", "deepseek/deepseek-v4-pro", "medium"),
+    null
+  );
+  assert.equal(
+    normalizeProviderReasoningEffort("openrouter", "deepseek/deepseek-v4-pro", "max"),
+    null
+  );
+  assert.equal(normalizeProviderReasoningEffort("openrouter", "openai/gpt-5.5", "high"), null);
   assert.equal(resolveProviderReasoningEffort("openai", "gpt-5.5", undefined, undefined), "high");
   assert.equal(resolveProviderReasoningEffort("anthropic", "claude-opus-4-6", "high"), "high");
   assert.equal(resolveProviderReasoningEffort("gemini", "gemini-2.5-pro", "high"), undefined);
+  assert.equal(
+    resolveProviderReasoningEffort("openrouter", "deepseek/deepseek-v4-pro", undefined, undefined),
+    "high"
+  );
+  assert.equal(
+    resolveProviderReasoningEffort("openrouter", "openai/gpt-5.5", "high"),
+    undefined
+  );
+  assert.deepEqual(
+    getProviderReasoningEffortOptions("openrouter", "deepseek/deepseek-v4-pro"),
+    ["high", "xhigh"]
+  );
+  assert.deepEqual(getProviderReasoningEffortOptions("openrouter", "openai/gpt-5.5"), []);
 });
 
 test("provider invocation args add native reasoning flags when configured", () => {
@@ -347,6 +377,57 @@ test("provider invocation args add native reasoning flags when configured", () =
       reasoningEffort: "high"
     }),
     ["--prompt", "{prompt}"]
+  );
+});
+
+test("pi invocation args add --thinking before the positional user message", () => {
+  const piDefaults = getProviderSetupDefaults("openrouter");
+  const args = buildProviderInvocationArgs({
+    name: "openrouter",
+    model: "deepseek/deepseek-v4-pro",
+    runtime: "pi",
+    cliCommand: piDefaults.cliCommand,
+    cliArgs: piDefaults.cliArgs,
+    authMode: "api_key",
+    reasoningEffort: "xhigh"
+  });
+
+  const userMessageIndex = args.indexOf("{user_message}");
+  assert.equal(userMessageIndex, args.length - 1);
+  assert.deepEqual(args.slice(userMessageIndex - 2), ["--thinking", "xhigh", "{user_message}"]);
+  assert.deepEqual(
+    args.filter((arg) => arg !== "--thinking" && arg !== "xhigh"),
+    piDefaults.cliArgs
+  );
+});
+
+test("pi invocation args stay unchanged for models without native reasoning support", () => {
+  const piDefaults = getProviderSetupDefaults("openrouter");
+  assert.deepEqual(
+    buildProviderInvocationArgs({
+      name: "openrouter",
+      model: "openai/gpt-5.5",
+      runtime: "pi",
+      cliCommand: piDefaults.cliCommand,
+      cliArgs: piDefaults.cliArgs,
+      authMode: "api_key",
+      reasoningEffort: "high"
+    }),
+    piDefaults.cliArgs
+  );
+
+  const xaiDefaults = getProviderSetupDefaults("xai");
+  assert.deepEqual(
+    buildProviderInvocationArgs({
+      name: "xai",
+      model: "grok-4",
+      runtime: "pi",
+      cliCommand: xaiDefaults.cliCommand,
+      cliArgs: xaiDefaults.cliArgs,
+      authMode: "api_key",
+      reasoningEffort: "high"
+    }),
+    xaiDefaults.cliArgs
   );
 });
 

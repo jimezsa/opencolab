@@ -209,6 +209,7 @@ OpenColab configures provider CLIs for non-interactive runs inside the active pr
 - `ignite` and `opencolab setup model` expose native reasoning-effort choices when the selected provider/model supports them
 - OpenAI `gpt-5.5`: `low`, `medium`, `high`, `xhigh`; default `high`
 - Anthropic Claude on the Claude runtime: `low`, `medium`, `high`, `xhigh`, `max`; default `high`
+- OpenRouter `deepseek/deepseek-v4-pro` on the `pi` runtime: `high`, `xhigh`; default `high`, sent as `pi --thinking <level>`
 - Gemini-based shared tools still require `GEMINI_API_KEY` even when the active agent runtime uses another provider or Gemini OAuth
 - `pageindex-grounded` uses `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini OAuth
 - `opencolab ignite` prints direct setup links before asking for provider and Runpod API key values, and a BotFather instruction before asking for `TELEGRAM_BOT_TOKEN`
@@ -229,6 +230,9 @@ opencolab setup model --provider openai --auth oauth --model gpt-5.5 --reasoning
 # Anthropic OAuth
 claude auth login
 opencolab setup model --provider anthropic --auth oauth --model claude-opus-4-6 --reasoning-effort max
+
+# OpenRouter through the pi runtime
+opencolab setup model --provider openrouter --model deepseek/deepseek-v4-pro --reasoning-effort xhigh
 
 # Gemini OAuth
 gemini
