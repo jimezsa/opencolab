@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Added `deepseek/deepseek-v4-pro` to the OpenRouter model options offered during `opencolab ignite`, listed last in the curated list. OpenRouter runs on the `pi` runtime, which has no reasoning-effort wiring, so no `provider.ts` capability entry was added and the OpenRouter provider default stays `openai/gpt-5.5`. Recorded the new option in the `ignite` curated-model-options requirement in `docs/spec.md`.
+
 ## [0.2.12] - 2026-08-05
 
 ### Added
