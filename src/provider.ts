@@ -254,6 +254,10 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
       options: ["high", "xhigh"],
       defaultEffort: "high",
     },
+    "deepseek/deepseek-v4-flash": {
+      options: ["high", "xhigh"],
+      defaultEffort: "high",
+    },
   },
 };
 

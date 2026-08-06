@@ -8,7 +8,11 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Added
 
-- Added native reasoning-effort selection for pi-backed providers, starting with OpenRouter `deepseek/deepseek-v4-pro` (`high` and `xhigh`, default `high`). `buildProviderInvocationArgs` now injects `pi --thinking <level>` ahead of the trailing positional user-message argument, mirroring the existing codex (`-c model_reasoning_effort=`) and claude (`--effort`) branches; the flag is injected at invocation time and never persisted into `cliArgs`, so no config migration is needed and existing agents keep pi's own default until `opencolab setup model` or `ignite` is re-run. Only levels the model actually distinguishes are offered because pi clamps unsupported thinking levels silently instead of failing. Design notes and host-side verification steps are in `docs/pi_reasoning_effort_spec.md`.
+- Added native reasoning-effort selection for pi-backed providers, covering OpenRouter `deepseek/deepseek-v4-pro` and `deepseek/deepseek-v4-flash` (`high` and `xhigh`, default `high`). `buildProviderInvocationArgs` now injects `pi --thinking <level>` ahead of the trailing positional user-message argument, mirroring the existing codex (`-c model_reasoning_effort=`) and claude (`--effort`) branches; the flag is injected at invocation time and never persisted into `cliArgs`, so no config migration is needed and existing agents keep pi's own default until `opencolab setup model` or `ignite` is re-run. Only levels the model actually distinguishes are offered because pi clamps unsupported thinking levels silently instead of failing. Design notes and host-side verification steps are in `docs/pi_reasoning_effort_spec.md`.
+
+### Changed
+
+- Replaced the `opencolab ignite` OpenRouter option `~deepseek/deepseek-v4-flash-latest` with `deepseek/deepseek-v4-flash`, and moved the DeepSeek entries to pro-then-flash order. The floating `~<vendor>/<model>-latest` alias is absent from the `pi` model catalog, so pi resolved it through its custom-model fallback: the run inherited the catalog default model's metadata (262K context window instead of the model's real 1M) and, with no `thinkingLevelMap`, could not honor `xhigh` at all. Using the catalog id restores the real context window and makes reasoning-effort selection truthful. Agents already configured on the alias keep it — `ignite` still lists a configured model that is not in the curated set — and switch by picking the new option.
 
 ## [0.2.13] - 2026-08-06
 

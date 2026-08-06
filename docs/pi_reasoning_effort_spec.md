@@ -131,11 +131,23 @@ local pi install rather than the machine that runs agents:
 
 ## Follow-Ups (not in this change)
 
-- `~deepseek/deepseek-v4-flash-latest`, offered in ignite since 0.2.12, is not
-  present in pi `0.83.0`'s OpenRouter catalog (which ships
-  `deepseek/deepseek-v4-flash`). It runs through the custom-model-id fallback
-  with default context/max-token values. Confirm the intended id before giving
-  it a capability entry.
+- Resolved: `~deepseek/deepseek-v4-flash-latest` was replaced in ignite by
+  `deepseek/deepseek-v4-flash`. The floating alias is absent from pi `0.83.0`'s
+  catalog, so it resolved through `buildFallbackModel`, which clones the
+  provider's catalog default (`moonshotai/kimi-k2.6`) and swaps the id. That
+  clone carries no `thinkingLevelMap`, and `getSupportedThinkingLevels` exposes
+  `xhigh` and `max` only when a map defines them — so `xhigh` would have clamped
+  silently down to `high`, and the run would also have used the base model's
+  262K context window instead of the real 1M. Curated pi model options should
+  therefore use catalog ids, never `~<vendor>/<model>-latest` aliases.
+- `max` is not reachable for these models through pi. Both DeepSeek V4 entries
+  set `max: null` in `thinkingLevelMap`, confirmed against the catalog published
+  on the registry, not just a local copy; pi `0.83.0` is the latest release. pi
+  therefore clamps `max` down to `xhigh` before the request is sent, so
+  advertising `max` would label a run with a level it does not use. Reaching it
+  would require writing a pi `modelOverrides` entry into the OpenColab-owned pi
+  agent directory, and first confirming OpenRouter accepts `effort: "max"` for
+  these models.
 - Every `xai` model offered in ignite is likewise absent from pi's `xai`
   catalog, which ships only `grok-4.3` and `grok-build-0.1`. The curated pi model
   lists have drifted from pi's catalog and deserve a separate audit.

@@ -269,6 +269,20 @@ test("provider reasoning helpers validate only supported native values", () => {
     getProviderReasoningEffortOptions("openrouter", "deepseek/deepseek-v4-pro"),
     ["high", "xhigh"]
   );
+  assert.deepEqual(
+    getProviderReasoningEffortOptions("openrouter", "deepseek/deepseek-v4-flash"),
+    ["high", "xhigh"]
+  );
+  assert.equal(
+    getProviderDefaultReasoningEffort("openrouter", "deepseek/deepseek-v4-flash"),
+    "high"
+  );
+  // The floating "~...-latest" alias is unknown to pi's catalog, so pi cannot
+  // honor xhigh for it. No capability entry means no effort prompt.
+  assert.deepEqual(
+    getProviderReasoningEffortOptions("openrouter", "~deepseek/deepseek-v4-flash-latest"),
+    []
+  );
   assert.deepEqual(getProviderReasoningEffortOptions("openrouter", "openai/gpt-5.5"), []);
 });
 
