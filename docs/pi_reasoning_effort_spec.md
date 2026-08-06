@@ -91,6 +91,44 @@ change on upgrade.
 - The OpenRouter provider default stays `openai/gpt-5.5`. No provider default
   changes.
 
+## Verification
+
+Confirmed against pi `0.83.0` while writing this spec:
+
+- **`--thinking` is honored in non-interactive mode.** pi applies the parsed
+  flag before mode dispatch (`dist/main.js:365`), so it is not interactive-only
+  and reaches `--print --mode json` runs.
+- **Reasoning text cannot leak into answers.** This matters because raising
+  effort produces more thinking tokens. Both consumption paths drop it:
+  `consumePiStreamEvent` accumulates only `text_delta` and ignores
+  `thinking_delta` (`src/provider-agent.ts:660`), and `extractUnknownText`
+  (`src/provider-agent.ts:1383`) reads only `text` / `message` / `content` /
+  `result` / `output` / `delta`, while pi's `ThinkingContent` block carries its
+  payload under a `thinking` field. Thinking blocks resolve to null and are
+  filtered out of the final response.
+- **`requiresReasoningContentOnAssistantMessages` requires nothing from
+  OpenColab.** pi auto-detects it for DeepSeek and satisfies it internally by
+  stamping `reasoning_content: ""` on assistant messages. It is moot here in any
+  case: runs are single-turn under `--no-session`.
+- **Timeout headroom exists for higher effort.** `providerCliTimeoutMs` defaults
+  to 40 minutes (`src/config.ts:9`) and is overridable through
+  `OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS`.
+
+Still to be checked on the execution host, since the evidence above comes from a
+local pi install rather than the machine that runs agents:
+
+- `pi --version` on the host, plus `pi --list-models deepseek` with
+  `OPENROUTER_API_KEY` set, to confirm `deepseek/deepseek-v4-pro` reports
+  `thinking: yes`. An older pi routes the id through the custom-model-id
+  fallback described under Constraints.
+- One real run confirming the effort reaches OpenRouter. pi does not log the
+  request body, so the practical check is an OpenRouter activity entry showing
+  reasoning tokens above zero, compared between `high` and `xhigh`.
+- The pi agent directory (`.opencolab/pi-agent`, exported as
+  `PI_CODING_AGENT_DIR`) must not contain a stale `settings.json` with
+  `modelOverrides`, which can override `thinkingLevelMap` and would silently win
+  over the catalog.
+
 ## Follow-Ups (not in this change)
 
 - `~deepseek/deepseek-v4-flash-latest`, offered in ignite since 0.2.12, is not
