@@ -881,7 +881,7 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
       "--model",
       "{model}",
       "--append-system-prompt",
-      "{system_prompt}",
+      "{system_prompt_file}",
       "--no-session",
       "--no-extensions",
       "--no-skills",
@@ -889,7 +889,6 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
       "--no-themes",
       "--tools",
       "read,bash,edit,write,grep,find,ls",
-      "{user_message}",
     ]);
 
     assert.equal(process.env.XAI_API_KEY, "xai_test_key_123");
@@ -951,7 +950,7 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
       "--model",
       "{model}",
       "--append-system-prompt",
-      "{system_prompt}",
+      "{system_prompt_file}",
       "--no-session",
       "--no-extensions",
       "--no-skills",
@@ -959,7 +958,6 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
       "--no-themes",
       "--tools",
       "read,bash,edit,write,grep,find,ls",
-      "{user_message}",
     ]);
 
     assert.equal(process.env.OPENROUTER_API_KEY, "openrouter_test_key_123");
@@ -1017,7 +1015,7 @@ test("ignite supports configuring Kimi on the pi runtime", async () => {
       "--model",
       "{model}",
       "--append-system-prompt",
-      "{system_prompt}",
+      "{system_prompt_file}",
       "--no-session",
       "--no-extensions",
       "--no-skills",
@@ -1025,7 +1023,6 @@ test("ignite supports configuring Kimi on the pi runtime", async () => {
       "--no-themes",
       "--tools",
       "read,bash,edit,write,grep,find,ls",
-      "{user_message}",
     ]);
 
     assert.equal(process.env.KIMI_API_KEY, "kimi_test_key_123");

@@ -157,15 +157,14 @@ test("xAI setup defaults use the pi runtime", () => {
     "--model",
     "{model}",
     "--append-system-prompt",
-    "{system_prompt}",
+    "{system_prompt_file}",
     "--no-session",
     "--no-extensions",
     "--no-skills",
     "--no-prompt-templates",
     "--no-themes",
     "--tools",
-    "read,bash,edit,write,grep,find,ls",
-    "{user_message}"
+    "read,bash,edit,write,grep,find,ls"
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("xai"), ["api_key"]);
   assert.equal(getCanonicalProviderKeyEnvVar("xai"), "XAI_API_KEY");
@@ -186,15 +185,14 @@ test("OpenRouter setup defaults use the pi runtime", () => {
     "--model",
     "{model}",
     "--append-system-prompt",
-    "{system_prompt}",
+    "{system_prompt_file}",
     "--no-session",
     "--no-extensions",
     "--no-skills",
     "--no-prompt-templates",
     "--no-themes",
     "--tools",
-    "read,bash,edit,write,grep,find,ls",
-    "{user_message}"
+    "read,bash,edit,write,grep,find,ls"
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("openrouter"), ["api_key"]);
   assert.equal(getCanonicalProviderKeyEnvVar("openrouter"), "OPENROUTER_API_KEY");
@@ -216,15 +214,14 @@ test("Kimi setup defaults use the pi runtime and kimi-coding provider id", () =>
     "--model",
     "{model}",
     "--append-system-prompt",
-    "{system_prompt}",
+    "{system_prompt_file}",
     "--no-session",
     "--no-extensions",
     "--no-skills",
     "--no-prompt-templates",
     "--no-themes",
     "--tools",
-    "read,bash,edit,write,grep,find,ls",
-    "{user_message}"
+    "read,bash,edit,write,grep,find,ls"
   ]);
   assert.deepEqual(getProviderSupportedAuthModes("kimi"), ["api_key"]);
   assert.equal(getCanonicalProviderKeyEnvVar("kimi"), "KIMI_API_KEY");
@@ -394,7 +391,7 @@ test("provider invocation args add native reasoning flags when configured", () =
   );
 });
 
-test("pi invocation args add --thinking before the positional user message", () => {
+test("pi invocation args append --thinking to the stdin-driven default arg set", () => {
   const piDefaults = getProviderSetupDefaults("openrouter");
   const args = buildProviderInvocationArgs({
     name: "openrouter",
@@ -406,13 +403,45 @@ test("pi invocation args add --thinking before the positional user message", () 
     reasoningEffort: "xhigh"
   });
 
-  const userMessageIndex = args.indexOf("{user_message}");
-  assert.equal(userMessageIndex, args.length - 1);
-  assert.deepEqual(args.slice(userMessageIndex - 2), ["--thinking", "xhigh", "{user_message}"]);
+  assert.deepEqual(args.slice(-2), ["--thinking", "xhigh"]);
   assert.deepEqual(
     args.filter((arg) => arg !== "--thinking" && arg !== "xhigh"),
     piDefaults.cliArgs
   );
+});
+
+test("pi invocation args keep a custom positional user message last", () => {
+  const args = buildProviderInvocationArgs({
+    name: "openrouter",
+    model: "deepseek/deepseek-v4-pro",
+    runtime: "pi",
+    cliCommand: "pi",
+    cliArgs: ["--print", "--model", "{model}", "{user_message}"],
+    authMode: "api_key",
+    reasoningEffort: "xhigh"
+  });
+
+  assert.deepEqual(args, [
+    "--print",
+    "--model",
+    "{model}",
+    "--thinking",
+    "xhigh",
+    "{user_message}"
+  ]);
+});
+
+test("pi default args keep the prompt out of argv", () => {
+  for (const providerName of ["xai", "openrouter", "kimi"] as const) {
+    const { cliArgs } = getProviderSetupDefaults(providerName);
+    for (const token of ["{prompt}", "{system_prompt}", "{user_message}"]) {
+      assert.ok(
+        !cliArgs.some((arg) => arg.includes(token)),
+        `${providerName} cliArgs must not carry ${token} in argv`
+      );
+    }
+    assert.ok(cliArgs.includes("{system_prompt_file}"));
+  }
 });
 
 test("pi invocation args stay unchanged for models without native reasoning support", () => {

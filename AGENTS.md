@@ -33,8 +33,8 @@ Core implementation areas:
 - `src/gateway-service.ts`: persistent background gateway service management for macOS `launchd`, Linux `systemd`, and hidden always-restarting Windows Task Scheduler user tasks.
 - `src/telegram-poller.ts`: Telegram long-polling loop and update ingestion.
 - `src/upgrade.ts`: install-aware OpenColab upgrade flow for one-link installer-managed package or clone installs plus manual git/source checkouts, with guidance only for generic package installs.
-- `src/provider.ts`: provider defaults including concrete model defaults, runtime selection, auth-mode support, OAuth setup/remediation hints, CLI args including current Claude Code `stream-json` requirements, migration signatures for previously-shipped Claude defaults, and env wiring.
-- `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling including OAuth session checks for supported runtimes, and provider-to-gateway progress-event forwarding.
+- `src/provider.ts`: provider defaults including concrete model defaults, runtime selection, auth-mode support, OAuth setup/remediation hints, CLI args including current Claude Code `stream-json` requirements, migration signatures for previously-shipped Claude and pi defaults, and env wiring. Repo-managed CLI args must never carry prompt text in argv: the prompt outgrows the OS command-line limit as agent memory and transcript accumulate, so it travels over stdin, or by file path for the `pi` runtime's `--append-system-prompt`. Superseded arg sets belong in `migratableCliDefaults` so stored configs are upgraded on load.
+- `src/provider-agent.ts`: provider-backed execution, runtime preflight/error handling including OAuth session checks for supported runtimes, staging of the pi system prompt into a temporary file it also cleans up, and provider-to-gateway progress-event forwarding.
 - `src/agent.ts`: agent file seeding, shared/agent-local skill discovery, and prompt assembly.
 - `src/agent-templates.ts`: built-in agent template loading and default-doc resolution.
 - `src/conversation.ts`: per-agent session logs, previous-day summaries, and prompt-memory loading.

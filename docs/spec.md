@@ -314,7 +314,7 @@ Responsibilities:
 - OpenAI `gpt-5.5` must support native reasoning effort values `low`, `medium`, `high`, and `xhigh`, defaulting to `high`
 - Anthropic Claude models on the Claude runtime must support native reasoning effort values `low`, `medium`, `high`, `xhigh`, and `max`, defaulting to `high`
 - OpenRouter `deepseek/deepseek-v4-pro` and `deepseek/deepseek-v4-flash` on the `pi` runtime must support native reasoning effort values `high` and `xhigh`, defaulting to `high`; pi clamps unsupported levels silently, so only levels the model distinguishes may be offered
-- native reasoning effort for pi-backed providers must be delivered as `pi --thinking <level>`, inserted ahead of the trailing positional user-message argument so that argument stays last
+- native reasoning effort for pi-backed providers must be delivered as `pi --thinking <level>`; repo-managed defaults take the user turn over stdin so the flag simply appends, and a custom arg set that still ends with a positional user-message argument must have the flag inserted ahead of it so that argument stays last
 - in `api_key` mode, provider API keys must be persisted in `.env.local` using canonical env names (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, or `XAI_API_KEY`)
 - when `ignite` asks for a provider or Runpod API key value, it should print a direct setup URL for that key first
 - when `ignite` asks for `TELEGRAM_BOT_TOKEN`, it should print a BotFather instruction first
@@ -454,6 +454,8 @@ Runtime architecture:
   - `kimi` -> `pi` using the upstream `kimi-coding` runtime provider id
 - providers without a native CLI should default to the `pi` runtime
 - OpenColab must keep explicit provider names even when multiple providers share the same runtime so project state, setup UX, and auth handling remain clear
+- repo-managed provider defaults must never place prompt text in argv. The assembled prompt grows without bound as agent memory and the working-memory transcript accumulate, and every OS caps a command line (32 KiB on Windows, surfacing as `spawn ENAMETOOLONG`; roughly 128 KiB per argument on Linux, surfacing as `spawn E2BIG`). Prompt text must travel over stdin, or by a file path for runtimes that read prompt inputs from disk
+- when a repo-managed default is changed to move prompt text out of argv, the superseded arg set must be registered as a migratable default so stored `opencolab.json` configs are upgraded on load rather than left on the broken shape
 
 `pi` integration requirements:
 
@@ -461,6 +463,8 @@ Runtime architecture:
 - `pi` must be invoked from the active agent directory while still allowing access to the active project workspace
 - OpenColab should remain the source of truth for project state, Telegram routing, memory files, and conversation logs
 - OpenColab should avoid duplicating prompt context that `pi` already loads automatically from local context files
+- the pi system prompt must be staged in a temporary file and passed as `--append-system-prompt <path>`, which pi resolves to that file's contents; the user turn must be piped over stdin, which pi prepends to the initial message. Neither half may be passed as an argv value. OpenColab owns the staged file's lifecycle and removes it once the pi process settles
+- when the pi system prompt is delivered by file, stdin must carry the user turn alone, not the combined prompt, so the agent context is not duplicated across both channels
 - runtime preflight must verify that the `pi` command is available on `PATH` before attempting execution
 - runtime preflight must verify provider credentials required by the selected pi-backed provider before attempting execution
 - model configuration for pi-backed providers should prefer runtime discovery when available and fall back to explicit manual model entry when discovery is unavailable or fails

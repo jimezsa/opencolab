@@ -145,9 +145,51 @@ const GEMINI_LEGACY_ARGV_PROMPT_ARGS = [
   "--yolo",
 ] as const;
 
+// Neither half of the prompt may sit in argv (see the CLAUDE_WORKSPACE_ARGS
+// note): the pi system prompt carries agent files, long-term memory, and the
+// working-memory transcript, so it outgrows the OS command-line limit as an
+// agent accumulates history. pi accepts both halves out of band:
+// `--append-system-prompt` reads file contents when the value names an
+// existing file, and piped stdin is prepended to the initial message.
 const PI_WORKSPACE_ARGS = [
   "--mode",
   "json",
+  "--print",
+  "--provider",
+  "{runtime_provider}",
+  "--model",
+  "{model}",
+  "--append-system-prompt",
+  "{system_prompt_file}",
+  "--no-session",
+  "--no-extensions",
+  "--no-skills",
+  "--no-prompt-templates",
+  "--no-themes",
+  "--tools",
+  "read,bash,edit,write,grep,find,ls",
+] as const;
+
+const PI_LEGACY_ARGV_PROMPT_ARGS = [
+  "--mode",
+  "json",
+  "--print",
+  "--provider",
+  "{runtime_provider}",
+  "--model",
+  "{model}",
+  "--append-system-prompt",
+  "{system_prompt}",
+  "--no-session",
+  "--no-extensions",
+  "--no-skills",
+  "--no-prompt-templates",
+  "--no-themes",
+  "--tools",
+  "read,bash,edit,write,grep,find,ls",
+  "{user_message}",
+] as const;
+const PI_LEGACY_TEXT_MODE_ARGV_PROMPT_ARGS = [
   "--print",
   "--provider",
   "{runtime_provider}",
@@ -373,6 +415,11 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     apiKeyEnvVar: "XAI_API_KEY",
     supportedAuthModes: ["api_key"],
     resetEnvVars: [...XAI_RUNTIME_RESET_ENV_VARS],
+    migratableCliDefaults: buildMigratableCliDefaults(
+      "grok-4-fast-non-reasoning",
+      "pi",
+      [PI_LEGACY_ARGV_PROMPT_ARGS, PI_LEGACY_TEXT_MODE_ARGV_PROMPT_ARGS],
+    ),
     buildRuntimeEnv: (apiKey) => ({
       XAI_API_KEY: requireApiKey(apiKey, "XAI_API_KEY"),
     }),
@@ -386,6 +433,10 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     apiKeyEnvVar: "OPENROUTER_API_KEY",
     supportedAuthModes: ["api_key"],
     resetEnvVars: [...OPENROUTER_RUNTIME_RESET_ENV_VARS],
+    migratableCliDefaults: buildMigratableCliDefaults("openai/gpt-5.5", "pi", [
+      PI_LEGACY_ARGV_PROMPT_ARGS,
+      PI_LEGACY_TEXT_MODE_ARGV_PROMPT_ARGS,
+    ]),
     buildRuntimeEnv: (apiKey) => ({
       OPENROUTER_API_KEY: requireApiKey(apiKey, "OPENROUTER_API_KEY"),
     }),
@@ -401,6 +452,10 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
     aliases: ["kimi-coding"],
     runtimeProvider: "kimi-coding",
     resetEnvVars: [...KIMI_RUNTIME_RESET_ENV_VARS],
+    migratableCliDefaults: buildMigratableCliDefaults("k2p5", "pi", [
+      PI_LEGACY_ARGV_PROMPT_ARGS,
+      PI_LEGACY_TEXT_MODE_ARGV_PROMPT_ARGS,
+    ]),
     buildRuntimeEnv: (apiKey) => ({
       KIMI_API_KEY: requireApiKey(apiKey, "KIMI_API_KEY"),
     }),
@@ -731,8 +786,9 @@ export function buildProviderInvocationArgs(
       provider.reasoningEffort,
     )
   ) {
-    // The pi arg set ends with the positional user message, so the flag has to
-    // go ahead of it and keep that token last.
+    // Current defaults take the user message over stdin, so the flag simply
+    // appends. A custom arg set may still end with the positional user
+    // message, in which case the flag has to go ahead of it to keep it last.
     const userMessageIndex = args.findIndex((arg) =>
       arg.includes("{user_message}"),
     );

@@ -729,6 +729,122 @@ test("project state migrates Gemini args with the prompt in argv to the stdin de
   }
 });
 
+test("project state migrates pi args with the prompt in argv to the file/stdin defaults", () => {
+  const legacyArgSets = [
+    [
+      "--mode",
+      "json",
+      "--print",
+      "--provider",
+      "{runtime_provider}",
+      "--model",
+      "{model}",
+      "--append-system-prompt",
+      "{system_prompt}",
+      "--no-session",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--tools",
+      "read,bash,edit,write,grep,find,ls",
+      "{user_message}",
+    ],
+    // Predates --mode json.
+    [
+      "--print",
+      "--provider",
+      "{runtime_provider}",
+      "--model",
+      "{model}",
+      "--append-system-prompt",
+      "{system_prompt}",
+      "--no-session",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--tools",
+      "read,bash,edit,write,grep,find,ls",
+      "{user_message}",
+    ],
+  ];
+
+  for (const providerName of ["xai", "openrouter", "kimi"]) {
+    for (const cliArgs of legacyArgSets) {
+      const tempDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "opencolab-state-pi-argv-prompt-migrate-"),
+      );
+
+      try {
+        const config = loadConfig(tempDir);
+        fs.writeFileSync(
+          config.projectConfigPath,
+          JSON.stringify({
+            activeProjectId: "alpha",
+            projects: {
+              alpha: {
+                id: "alpha",
+                path: "projects/alpha",
+                activeAgentId: DEFAULT_AGENT_ID,
+                agents: {
+                  [DEFAULT_AGENT_ID]: {
+                    id: DEFAULT_AGENT_ID,
+                    path: buildDefaultAgentPath("alpha"),
+                    files: {
+                      agents: "AGENTS.md",
+                      bootstrap: "BOOTSTRAP.md",
+                      identity: "IDENTITY.md",
+                      alma: "ALMA.md",
+                      tools: "TOOLS.md",
+                      user: "USER.md",
+                      memory: "MEMORY.md",
+                    },
+                    provider: {
+                      name: providerName,
+                      runtime: "pi",
+                      cliCommand: "pi",
+                      cliArgs,
+                      authMode: "api_key",
+                    },
+                  },
+                },
+              },
+            },
+          }),
+          "utf8",
+        );
+
+        const loaded = readProjectState(config);
+        const project = loaded.projects[loaded.activeProjectId];
+        const agent = project.agents[project.activeAgentId];
+        assert.equal(agent.provider.name, providerName);
+        assert.equal(agent.provider.cliCommand, "pi");
+        assert.deepEqual(agent.provider.cliArgs, [
+          "--mode",
+          "json",
+          "--print",
+          "--provider",
+          "{runtime_provider}",
+          "--model",
+          "{model}",
+          "--append-system-prompt",
+          "{system_prompt_file}",
+          "--no-session",
+          "--no-extensions",
+          "--no-skills",
+          "--no-prompt-templates",
+          "--no-themes",
+          "--tools",
+          "read,bash,edit,write,grep,find,ls",
+        ]);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
 test("project state preserves custom provider CLI defaults on the agent", () => {
   const tempDir = fs.mkdtempSync(
     path.join(os.tmpdir(), "opencolab-state-provider-cli-custom-"),

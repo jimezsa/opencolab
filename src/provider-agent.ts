@@ -157,6 +157,11 @@ export class ProviderAgent {
     const outputFilePath = invocationArgs.some((arg: string) => arg.includes("{output_file}"))
       ? buildProviderOutputFilePath(cwd)
       : "";
+    const systemPromptFilePath = invocationArgs.some((arg: string) =>
+      arg.includes("{system_prompt_file}")
+    )
+      ? writeProviderSystemPromptFile(cwd, input.systemPrompt)
+      : "";
     const resolvedArgs = invocationArgs.map((arg: string) =>
       replaceCliArgTokens(arg, {
         "{provider}": provider.name,
@@ -167,6 +172,7 @@ export class ProviderAgent {
         "{agent_dir}": cwd,
         "{prompt}": input.prompt,
         "{system_prompt}": input.systemPrompt,
+        "{system_prompt_file}": systemPromptFilePath,
         "{user_message}": input.userMessage,
         "{output_file}": outputFilePath
       })
@@ -175,6 +181,13 @@ export class ProviderAgent {
       (arg: string) =>
         arg.includes("{prompt}") || arg.includes("{system_prompt}") || arg.includes("{user_message}")
     );
+    // When the system prompt travels by file, stdin carries only the user turn;
+    // sending the combined prompt would duplicate the whole agent context.
+    const stdinPayload = promptProvidedInArgs
+      ? null
+      : systemPromptFilePath
+        ? input.userMessage
+        : input.prompt;
     const cliArgs = resolvedArgs;
     const providerLabel = provider.name.replaceAll("_", " ");
     const streamState = createProviderStreamState(provider, outputFilePath || null, options.onProgress);
@@ -230,6 +243,7 @@ export class ProviderAgent {
         options.signal?.removeEventListener("abort", abortProviderExecution);
         void Promise.resolve(streamQueue)
           .finally(() => finalizeProviderStreamState(streamState))
+          .finally(() => removeProviderSystemPromptFile(systemPromptFilePath))
           .finally(handler);
       };
 
@@ -315,12 +329,12 @@ export class ProviderAgent {
         finish(() => reject(new Error(normalizeProviderCliError(provider, authMode, message))));
       });
 
-      if (promptProvidedInArgs) {
+      if (stdinPayload === null) {
         child.stdin.end();
         return;
       }
 
-      child.stdin.write(input.prompt);
+      child.stdin.write(stdinPayload);
       child.stdin.end();
     });
   }
@@ -395,6 +409,33 @@ function buildProviderOutputFilePath(agentDir: string): string {
     outputDir,
     `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 10)}.txt`
   );
+}
+
+/**
+ * Stage the system prompt on disk for runtimes that accept it by path. Keeps
+ * an unbounded prompt out of argv, which the OS caps (32 KiB on Windows).
+ * The file is removed once the provider process settles.
+ */
+function writeProviderSystemPromptFile(agentDir: string, systemPrompt: string): string {
+  const outputDir = path.join(agentDir, ".opencolab-provider-output");
+  ensureDir(outputDir);
+  const filePath = path.join(
+    outputDir,
+    `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 10)}-system-prompt.txt`
+  );
+  fs.writeFileSync(filePath, systemPrompt, "utf8");
+  return filePath;
+}
+
+function removeProviderSystemPromptFile(filePath: string): void {
+  if (!filePath) {
+    return;
+  }
+  try {
+    fs.unlinkSync(filePath);
+  } catch {
+    // Best-effort cleanup.
+  }
 }
 
 function createProviderStreamState(
@@ -1531,9 +1572,12 @@ function normalizeProviderCliSpawnError(
     );
   }
   if (spawnError.code === "ENAMETOOLONG" || spawnError.code === "E2BIG") {
+    const remediation =
+      provider.runtime === "pi"
+        ? `Replace '{system_prompt}' with '{system_prompt_file}' and drop '{user_message}' from the provider cliArgs in opencolab.json so the prompt travels by file and stdin.`
+        : `Remove the '{prompt}' token from the provider cliArgs in opencolab.json so the prompt is sent over stdin.`;
     return new Error(
-      `${providerLabel} CLI could not start: the command line exceeds the OS limit. ` +
-        `Remove the '{prompt}' token from the provider cliArgs in opencolab.json so the prompt is sent over stdin.`
+      `${providerLabel} CLI could not start: the command line exceeds the OS limit. ${remediation}`
     );
   }
 

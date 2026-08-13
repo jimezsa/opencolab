@@ -1331,15 +1331,14 @@ test("setupModel stores xAI on the pi runtime with non-interactive defaults", ()
       "--model",
       "{model}",
       "--append-system-prompt",
-      "{system_prompt}",
+      "{system_prompt_file}",
       "--no-session",
       "--no-extensions",
       "--no-skills",
       "--no-prompt-templates",
       "--no-themes",
       "--tools",
-      "read,bash,edit,write,grep,find,ls",
-      "{user_message}"
+      "read,bash,edit,write,grep,find,ls"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -1372,15 +1371,14 @@ test("setupModel stores OpenRouter on the pi runtime with non-interactive defaul
       "--model",
       "{model}",
       "--append-system-prompt",
-      "{system_prompt}",
+      "{system_prompt_file}",
       "--no-session",
       "--no-extensions",
       "--no-skills",
       "--no-prompt-templates",
       "--no-themes",
       "--tools",
-      "read,bash,edit,write,grep,find,ls",
-      "{user_message}"
+      "read,bash,edit,write,grep,find,ls"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -1413,15 +1411,14 @@ test("setupModel stores Kimi on the pi runtime with non-interactive defaults", (
       "--model",
       "{model}",
       "--append-system-prompt",
-      "{system_prompt}",
+      "{system_prompt_file}",
       "--no-session",
       "--no-extensions",
       "--no-skills",
       "--no-prompt-templates",
       "--no-themes",
       "--tools",
-      "read,bash,edit,write,grep,find,ls",
-      "{user_message}"
+      "read,bash,edit,write,grep,find,ls"
     ]);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -2797,6 +2794,98 @@ test("provider CLI native stream events are normalized into Telegram live status
       delete process.env.ANTHROPIC_API_KEY;
     } else {
       process.env.ANTHROPIC_API_KEY = originalAnthropicKey;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("pi runtime receives the system prompt by file and the user turn over stdin", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-provider-pi-stdin-"));
+  const sentTexts: string[] = [];
+  const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
+
+  process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+
+  const runtime = createRuntime(tempDir, {
+    telegramSender: async (_chatId, text) => {
+      sentTexts.push(text);
+      return true;
+    }
+  });
+
+  try {
+    runtime.init();
+    // Stand in for `pi`: report back the argv system-prompt path, that file's
+    // contents, and whatever arrived on stdin, shaped as a pi message_end.
+    runtime.setupModel({
+      providerName: "openrouter",
+      model: "openai/gpt-5.5",
+      cliCommand: "node",
+      cliArgs: [
+        "-e",
+        [
+          "const fs = require('node:fs');",
+          "const argv = process.argv.slice(1);",
+          "const promptFile = argv[argv.indexOf('--append-system-prompt') + 1];",
+          "let stdin = '';",
+          "process.stdin.on('data', (chunk) => { stdin += chunk; });",
+          "process.stdin.on('end', () => {",
+          "  const report = JSON.stringify({",
+          "    argvLength: argv.join(' ').length,",
+          "    promptFile,",
+          "    promptFileHead: fs.readFileSync(promptFile, 'utf8').slice(0, 120),",
+          "    stdin",
+          "  });",
+          "  console.log(JSON.stringify({ type: 'message_end', message: { role: 'assistant', content: report } }));",
+          "});"
+        ].join(" "),
+        "--",
+        "--append-system-prompt",
+        "{system_prompt_file}"
+      ]
+    });
+    runtime.setupTelegram({ chatId: "10001" });
+
+    const pairing = await runtime.startPairing();
+    runtime.completePairing(pairing.code);
+    sentTexts.length = 0;
+
+    const result = await runtime.handleTelegramWebhook({
+      message: {
+        text: "summarize the transformer paper",
+        chat: { id: "10001" },
+        from: { username: "alice" }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.action, "agent_response");
+    assert.equal(sentTexts.length, 1);
+
+    const reported = JSON.parse(
+      sentTexts[0].slice(sentTexts[0].indexOf("{"))
+    ) as {
+      argvLength: number;
+      promptFile: string;
+      promptFileHead: string;
+      stdin: string;
+    };
+
+    // stdin carries the user turn alone; the agent context rides in the file.
+    assert.equal(reported.stdin, "summarize the transformer paper");
+    assert.ok(
+      reported.promptFileHead.includes("OpenColab agent running inside the pi coding runtime"),
+      `unexpected system prompt file head: ${reported.promptFileHead}`
+    );
+    // The whole point of the fix: argv stays far below the 32 KiB Windows cap.
+    assert.ok(reported.argvLength < 4096, `argv unexpectedly long: ${reported.argvLength}`);
+    // The staged prompt file is cleaned up once the provider settles.
+    assert.equal(fs.existsSync(reported.promptFile), false);
+  } finally {
+    if (originalOpenRouterKey === undefined) {
+      delete process.env.OPENROUTER_API_KEY;
+    } else {
+      process.env.OPENROUTER_API_KEY = originalOpenRouterKey;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
