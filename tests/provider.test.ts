@@ -55,7 +55,7 @@ test("provider defaults expose MiniMax through the Claude runtime", () => {
 
 test("OpenAI setup defaults support OAuth and API key auth modes", () => {
   const defaults = getProviderSetupDefaults("openai");
-  assert.equal(defaults.model, "gpt-5.5");
+  assert.equal(defaults.model, "gpt-6-sol");
   assert.equal(defaults.runtime, "codex");
   assert.equal(defaults.authMode, "api_key");
   assert.deepEqual(defaults.cliArgs, [
@@ -82,13 +82,28 @@ test("OpenAI setup defaults support OAuth and API key auth modes", () => {
     "xhigh"
   ]);
   assert.equal(getProviderDefaultReasoningEffort("openai", "gpt-5.5"), "high");
+  assert.deepEqual(getProviderReasoningEffortOptions("openai", "gpt-6-sol"), [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+  ]);
+  assert.equal(getProviderDefaultReasoningEffort("openai", "gpt-6-sol"), "high");
+  assert.deepEqual(getProviderReasoningEffortOptions("openai", "gpt-6-astra"), [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+  ]);
   assert.equal(normalizeProviderAuthMode("api-key"), "api_key");
   assert.equal(normalizeProviderAuthMode("oauth"), "oauth");
 });
 
 test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
   const defaults = getProviderSetupDefaults("anthropic");
-  assert.equal(defaults.model, "claude-opus-4-7");
+  assert.equal(defaults.model, "claude-opus-5-5");
   assert.equal(defaults.runtime, "claude");
   assert.equal(defaults.cliCommand, "claude");
   assert.equal(defaults.authMode, "api_key");
@@ -115,6 +130,30 @@ test("Anthropic setup defaults support OAuth on the Claude runtime", () => {
     "max"
   ]);
   assert.equal(getProviderDefaultReasoningEffort("anthropic", "claude-opus-4-6"), "high");
+  assert.deepEqual(getProviderReasoningEffortOptions("anthropic", "claude-opus-5-5"), [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+  ]);
+  assert.equal(getProviderDefaultReasoningEffort("anthropic", "claude-opus-5-5"), "high");
+  assert.deepEqual(getProviderReasoningEffortOptions("anthropic", "claude-fable-5-1"), [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+  ]);
+  assert.deepEqual(getProviderReasoningEffortOptions("anthropic", "claude-opus-4-7"), [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+  ]);
+  // Haiku 4.5 predates the effort parameter, so it must expose no levels.
+  assert.deepEqual(getProviderReasoningEffortOptions("anthropic", "claude-haiku-4-5"), []);
   assert.equal(
     getProviderOauthSetupHint("anthropic", "claude"),
     "Run 'claude auth login' if needed."

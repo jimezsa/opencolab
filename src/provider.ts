@@ -249,6 +249,18 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
   Record<ProviderName, Record<string, ProviderReasoningCapability>>
 > = {
   openai: {
+    "gpt-6-astra": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
+    "gpt-6-sol": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
+    "gpt-6-luna": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
     "gpt-5.6-sol": {
       options: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "high",
@@ -266,12 +278,27 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
       defaultEffort: "high",
     },
   },
+  // Claude Haiku 4.5 is intentionally absent: it predates the effort parameter
+  // and still uses manual extended thinking, so `claude --effort` is rejected.
+  // No entry means no effort options and no flag, which is the correct shape.
   anthropic: {
+    "claude-fable-5-1": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
+    "claude-opus-5-5": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
     "claude-opus-5": {
       options: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "high",
     },
     "claude-opus-4-8": {
+      options: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
+    },
+    "claude-opus-4-7": {
       options: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "high",
     },
@@ -306,7 +333,7 @@ const PROVIDER_REASONING_CAPABILITIES: Partial<
 const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   anthropic: {
     runtime: "claude",
-    model: "claude-opus-4-7",
+    model: "claude-opus-5-5",
     cliCommand: "claude",
     cliArgs: [...CLAUDE_WORKSPACE_ARGS],
     authMode: "api_key",
@@ -390,7 +417,7 @@ const PROVIDER_DEFINITIONS: Record<ProviderName, ProviderDefinition> = {
   },
   openai: {
     runtime: "codex",
-    model: "gpt-5.5",
+    model: "gpt-6-sol",
     cliCommand: "codex",
     cliArgs: [...CODEX_WORKSPACE_ARGS],
     authMode: "api_key",

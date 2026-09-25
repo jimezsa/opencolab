@@ -208,8 +208,8 @@ OpenColab configures provider CLIs for non-interactive runs inside the active pr
 - `kimi`: `api_key` with `KIMI_API_KEY` through the `pi` runtime, mapped to the upstream `kimi-coding` provider id
 - repo-managed provider defaults keep prompt text out of argv, since the assembled prompt outgrows the OS command-line limit as agent memory and transcript accumulate (`spawn ENAMETOOLONG` on Windows, `spawn E2BIG` on Linux). The `claude`, `gemini`, and `codex` runtimes take the prompt over stdin; the `pi` runtime takes the system prompt as `--append-system-prompt <file>` and the user turn over stdin. Configs still holding a superseded arg set are migrated on load
 - `ignite` and `opencolab setup model` expose native reasoning-effort choices when the selected provider/model supports them
-- OpenAI `gpt-5.5`: `low`, `medium`, `high`, `xhigh`; default `high`
-- Anthropic Claude on the Claude runtime: `low`, `medium`, `high`, `xhigh`, `max`; default `high`
+- OpenAI `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`: `low`, `medium`, `high`, `xhigh`, `max`; default `high`
+- Anthropic Claude on the Claude runtime: `low`, `medium`, `high`, `xhigh`, `max`; default `high`. `claude-haiku-4-5` is the exception and exposes no effort levels
 - OpenRouter `deepseek/deepseek-v4-pro` on the `pi` runtime: `high`, `xhigh`; default `high`, sent as `pi --thinking <level>`
 - Gemini-based shared tools still require `GEMINI_API_KEY` even when the active agent runtime uses another provider or Gemini OAuth
 - `pageindex-grounded` uses `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini OAuth
@@ -226,11 +226,11 @@ opencolab setup api-key --provider gemini --api-key <your_gemini_key>
 
 # OpenAI OAuth
 codex login
-opencolab setup model --provider openai --auth oauth --model gpt-5.5 --reasoning-effort high
+opencolab setup model --provider openai --auth oauth --model gpt-6-sol --reasoning-effort high
 
 # Anthropic OAuth
 claude auth login
-opencolab setup model --provider anthropic --auth oauth --model claude-opus-4-6 --reasoning-effort max
+opencolab setup model --provider anthropic --auth oauth --model claude-opus-5-5 --reasoning-effort max
 
 # OpenRouter through the pi runtime
 opencolab setup model --provider openrouter --model deepseek/deepseek-v4-pro --reasoning-effort xhigh

@@ -1,6 +1,6 @@
 # OpenColab Installation Prompt
 
-Paste the prompt below into your AI agent (Claude Code, ChatGPT desktop, Cursor, etc.) and let it drive the install end to end. The agent will install the OpenColab CLI through npm, create a Claude Code agent backed by `claude-opus-4-7`, and walk you step-by-step through Telegram pairing so you can control OpenColab from your phone.
+Paste the prompt below into your AI agent (Claude Code, ChatGPT desktop, Cursor, etc.) and let it drive the install end to end. The agent will install the OpenColab CLI through npm, create a Claude Code agent backed by `claude-opus-5-5`, and walk you step-by-step through Telegram pairing so you can control OpenColab from your phone.
 
 ---
 
@@ -64,7 +64,7 @@ Wire the agent to Anthropic through **OAuth** (no API key). You cannot drive the
      --agent-id <agent_id> \
      --provider anthropic \
      --auth oauth \
-     --model claude-opus-4-7 \
+     --model claude-opus-5-5 \
      --reasoning-effort xhigh
    ```
 
@@ -76,7 +76,7 @@ Confirm the configuration with:
 opencolab agent show
 ```
 
-The output must show `provider: anthropic`, `model: claude-opus-4-7`, and `auth: oauth`. If anything is wrong, fix it before moving on.
+The output must show `provider: anthropic`, `model: claude-opus-5-5`, and `auth: oauth`. If anything is wrong, fix it before moving on.
 
 ### 4. Telegram setup (guide me through it)
 
@@ -155,7 +155,7 @@ When everything is green, tell me in one short message:
 
 - The opencolab version installed.
 - The active project id and agent id.
-- That the agent is on `claude-opus-4-7` via Anthropic OAuth with reasoning effort `xhigh`.
+- That the agent is on `claude-opus-5-5` via Anthropic OAuth with reasoning effort `xhigh`.
 - That the gateway is running on port 4646.
 - That Telegram is paired and replying.
 
@@ -166,6 +166,6 @@ Then stop. Do **not** start configuring extra agents, GPU servers, or shared too
 ## Notes for the human (not part of the agent prompt)
 
 - The CLI commands above match the current OpenColab CLI surface (`opencolab setup model`, `opencolab setup telegram`, `opencolab setup telegram pair start|complete`, `opencolab gateway start`).
-- `claude-opus-4-7` is the current default Anthropic model in OpenColab and supports reasoning efforts `low|medium|high|xhigh|max`.
+- `claude-opus-5-5` is the current default Anthropic model in OpenColab and supports reasoning efforts `low|medium|high|xhigh|max`.
 - `opencolab ignite` is the interactive alternative to steps 2–4; the prompt above prefers explicit non-interactive commands so an agent can execute them reliably.
 - Secrets land in `.env.local` at the OpenColab install root. Keep that file out of version control.

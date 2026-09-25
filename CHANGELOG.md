@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Added the current Anthropic and OpenAI models to the `opencolab ignite` curated model lists and the `provider.ts` reasoning-effort capability map. Anthropic onboarding now offers `claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5`, and `claude-haiku-4-5`; OpenAI onboarding now offers `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`, keeping `gpt-5.6-sol` as the previous-generation pin. The five new effort-capable models each expose `low|medium|high|xhigh|max` with default `high`, matching the existing Claude-runtime convention and the `docs/spec.md` requirement; OpenAI documents `medium` as the per-model default for `gpt-6-sol` and `gpt-6-luna`, but OpenColab sends effort explicitly and keeps `high` for routed agentic runs. The `none` level those two models accept is not offered, since a routed research agent should always reason. `claude-haiku-4-5` intentionally gets no capability entry: it predates the effort parameter and still uses manual extended thinking, so `claude --effort` is rejected for it, and an absent entry is what correctly keeps the flag off the argv.
+- Added the missing `claude-opus-4-7` entry to the `anthropic` reasoning-effort capability map. It had been the shipped Anthropic provider default and an `ignite` option since 0.2.x, but was never registered, so selecting it offered no reasoning-effort choices and routed runs silently dropped `--effort`.
+
+### Changed
+
+- Bumped the repo-managed default models: Anthropic `claude-opus-4-7` -> `claude-opus-5-5`, OpenAI `gpt-5.5` -> `gpt-6-sol`. The OpenAI bump is a correctness fix, not just a refresh: the Codex CLI has dropped `gpt-5.5` and below from its model registry, and those ids now fail with "not supported when using Codex with a ChatGPT account". `gpt-5.6-terra` was likewise removed from the curated list because it is leaving the Codex registry with `gpt-6-sol` named as its replacement. Only new setups and configs that stored no model pick the new defaults, because provider migration matches and rewrites `cliCommand`/`cliArgs` and never rewrites a stored `model` — an agent already pinned to `gpt-5.5` keeps that id and must be repointed through `ignite` or `opencolab setup model`. The superseded `gpt-5.6-terra`, `gpt-5.6-luna`, and `gpt-5.5` capability entries are deliberately retained so an agent still pinned to one does not lose its effort setting. OpenRouter is untouched: its default stays `openai/gpt-5.5` and its curated list is unchanged. Updated `docs/spec.md` first, then synced `README.md` and `docs/install_prompt/install_prompt.md`, which walked new installs onto the now-superseded `claude-opus-4-7`.
+
 ## [0.2.15] - 2026-08-06
 
 ### Fixed
