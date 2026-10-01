@@ -47,7 +47,12 @@ function restoreSecretEnvVars(
 test("ignite configures project, provider, and telegram", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-ignite-"));
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -181,7 +186,12 @@ test("ignite edits an existing telegram token via single-key confirm without re-
   );
   const previousEnv = clearSecretEnvVars();
   process.env.TELEGRAM_BOT_TOKEN = "123456:existing_token";
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   // Free-text answers (io.ask) and yes/no answers (io.confirm) are scripted on
@@ -199,8 +209,7 @@ test("ignite edits an existing telegram token via single-key confirm without re-
     "gemini_tools_key_123", // gemini built-in tools key
   ];
   const confirmAnswers = [
-    "y", // configure telegram now
-    "n", // do not keep existing token (edit it)
+    "y", // add a telegram bot for this project
     "n", // skip pairing
     "y", // open the optional Gemini + Runpod section
     "y", // add gemini built-in tools key
@@ -239,18 +248,18 @@ test("ignite edits an existing telegram token via single-key confirm without re-
       "all scripted confirm answers should be consumed",
     );
 
-    // The "Keep it?" question must be asked exactly once — the old bug caused a
-    // pasted token to be appended to the answer, rejected, and re-asked.
-    const keepPrompts = confirmPrompts.filter((prompt) =>
-      prompt.includes("already has a value. Keep it?"),
+    // A single-keypress confirm sits immediately before the token prompt. The old bug
+    // appended the pasted token to the confirm answer, so the token ask was repeated;
+    // it must still be asked exactly once.
+    const addBotPrompts = confirmPrompts.filter((prompt) =>
+      prompt.includes("Add a Telegram bot for project"),
     );
-    assert.equal(keepPrompts.length, 1);
+    assert.equal(addBotPrompts.length, 1);
 
-    // The new token must be requested and saved.
-    assert.equal(
-      askPrompts.some((prompt) => prompt.includes("TELEGRAM_BOT_TOKEN value")),
-      true,
+    const tokenPrompts = askPrompts.filter((prompt) =>
+      prompt.includes("BotFather token"),
     );
+    assert.equal(tokenPrompts.length, 1);
     assert.equal(process.env.TELEGRAM_BOT_TOKEN, "999999:new_token");
     const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
     assert.equal(
@@ -269,7 +278,12 @@ test("ignite lets Esc skip a step and continue", async () => {
     path.join(os.tmpdir(), "opencolab-ignite-esc-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -333,7 +347,12 @@ test("ignite detects existing provider setup and allows keeping it", async () =>
   );
   const previousEnv = clearSecretEnvVars();
   process.env.OPENAI_API_KEY = "existing_openai_key";
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
   runtime.setupModel({
     providerName: "openai",
@@ -379,7 +398,12 @@ test("ignite supports configuring the minimax provider", async () => {
     path.join(os.tmpdir(), "opencolab-ignite-minimax-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -447,7 +471,12 @@ test("ignite exposes MiniMax-M2.7 in interactive chooser mode", async () => {
     path.join(os.tmpdir(), "opencolab-ignite-minimax-choose-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = ["", "minimax_test_key_choose", "n", "n"];
@@ -498,7 +527,12 @@ test("ignite supports OpenAI oauth mode without asking for API key", async () =>
     path.join(os.tmpdir(), "opencolab-ignite-openai-oauth-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = ["", "openai", "oauth", "gpt-5.5", "", "n", "n"];
@@ -546,7 +580,12 @@ test("ignite exposes native OpenAI reasoning effort options in chooser mode", as
     path.join(os.tmpdir(), "opencolab-ignite-openai-choose-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = ["", "n", "n"];
@@ -598,7 +637,12 @@ test("ignite supports Anthropic oauth mode without asking for API key", async ()
     path.join(os.tmpdir(), "opencolab-ignite-anthropic-oauth-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -662,7 +706,12 @@ test("ignite supports configuring the Gemini provider with a concrete model name
     path.join(os.tmpdir(), "opencolab-ignite-gemini-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -721,7 +770,12 @@ test("ignite supports Gemini oauth mode without asking for API key", async () =>
     path.join(os.tmpdir(), "opencolab-ignite-gemini-oauth-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = ["", "gemini", "oauth", "gemini-2.5-pro", "n", "n"];
@@ -776,7 +830,12 @@ test("ignite exposes curated Gemini models in interactive chooser mode", async (
     path.join(os.tmpdir(), "opencolab-ignite-gemini-choose-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = ["", "n", "n"];
@@ -836,7 +895,12 @@ test("ignite supports configuring xAI on the pi runtime", async () => {
     path.join(os.tmpdir(), "opencolab-ignite-xai-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -905,7 +969,12 @@ test("ignite supports configuring OpenRouter on the pi runtime", async () => {
     path.join(os.tmpdir(), "opencolab-ignite-openrouter-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -977,7 +1046,12 @@ test("ignite supports configuring Kimi on the pi runtime", async () => {
     path.join(os.tmpdir(), "opencolab-ignite-kimi-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = ["", "kimi", "k2p5", "kimi_test_key_123", "n", "n"];
@@ -1039,7 +1113,12 @@ test("ignite can save the Gemini built-in tools key without changing the active 
     path.join(os.tmpdir(), "opencolab-ignite-built-in-tools-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -1113,7 +1192,12 @@ test("ignite can save the Gemini key for pageindex-grounded without changing the
     path.join(os.tmpdir(), "opencolab-ignite-pageindex-grounded-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -1180,7 +1264,12 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     path.join(os.tmpdir(), "opencolab-ignite-runpod-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -1259,7 +1348,12 @@ test("ignite pairs Telegram via the handshake without asking for a chat id or co
     path.join(os.tmpdir(), "opencolab-ignite-tg-handshake-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -1290,8 +1384,8 @@ test("ignite pairs Telegram via the handshake without asking for a chat id or co
         },
       },
       {
-        syncTelegramCommands: async (chatId) => {
-          syncChatId = chatId;
+        syncTelegramCommands: async (request) => {
+          syncChatId = request.chatId;
           return { ok: true };
         },
         waitForTelegramHandshake: async (request) => {
@@ -1350,7 +1444,12 @@ test("ignite handshake timeout offers a retry and then skips", async () => {
     path.join(os.tmpdir(), "opencolab-ignite-tg-handshake-skip-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -1400,7 +1499,7 @@ test("ignite handshake timeout offers a retry and then skips", async () => {
     assert.equal(
       outputs.some((line) =>
         line.includes(
-          "Telegram pairing skipped. Run 'opencolab setup telegram pair start' when ready.",
+          "Telegram pairing skipped. Run 'opencolab telegram bot pair --id default start' when ready.",
         ),
       ),
       true,
@@ -1416,7 +1515,12 @@ test("ignite handshake timeout can fall back to manual chat-id entry", async () 
     path.join(os.tmpdir(), "opencolab-ignite-tg-handshake-manual-"),
   );
   const previousEnv = clearSecretEnvVars();
-  const runtime = createRuntime(tempDir);
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
   runtime.init();
 
   const answers = [
@@ -1446,8 +1550,8 @@ test("ignite handshake timeout can fall back to manual chat-id entry", async () 
         },
       },
       {
-        syncTelegramCommands: async (chatId) => {
-          syncChatId = chatId;
+        syncTelegramCommands: async (request) => {
+          syncChatId = request.chatId;
           return { ok: true };
         },
         waitForTelegramHandshake: async () => null,
@@ -1466,7 +1570,7 @@ test("ignite handshake timeout can fall back to manual chat-id entry", async () 
     assert.equal(syncChatId, "10001");
     assert.equal(
       outputs.some((line) =>
-        line.includes("Telegram configured for chat: 10001"),
+        line.includes("Telegram bot 'default' configured for chat: 10001"),
       ),
       true,
     );

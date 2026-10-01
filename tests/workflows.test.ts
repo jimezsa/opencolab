@@ -14,11 +14,51 @@ import {
 import { parseXml, XmlSyntaxError } from "../src/workflows/xml.js";
 import type { WorkflowDefinition, WorkflowLoop } from "../src/types.js";
 
+// The gateway refuses to act for a bot with no token; injected senders ignore the value.
+process.env.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "test_bot_token";
+
 function freshRuntime(label: string) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `opencolab-workflows-${label}-`));
   const runtime = createRuntime(tempDir);
   runtime.init();
   return { runtime, tempDir };
+}
+
+/** Seeds a paired bot bound to a project, the way `telegram bot add` + pairing would. */
+function seedTelegramBot(
+  tempDir: string,
+  overrides: Record<string, unknown> = {}
+): void {
+  const statePath = path.join(tempDir, "opencolab.json");
+  const stateOnDisk = JSON.parse(fs.readFileSync(statePath, "utf8")) as Record<string, unknown>;
+  const activeProjectId = String(stateOnDisk.activeProjectId ?? "default");
+  stateOnDisk.telegramBots = {
+    default: {
+      id: "default",
+      enabled: true,
+      scope: "pinned",
+      projectId: activeProjectId,
+      agentId: null,
+      tokenEnvVar: "TELEGRAM_BOT_TOKEN",
+      telegramBotId: "7000000001",
+      telegramUsername: "opencolab_test_bot",
+      replyMode: "default_public",
+      showAgentPrefix: true,
+      chatId: "12345",
+      paired: true,
+      pairedAt: new Date().toISOString(),
+      pendingPairingCode: null,
+      pendingPairingExpiresAt: null,
+      lastChatType: "private",
+      lastMessageThreadId: null,
+      lastInteractionAt: null,
+      notifyWorkflowProgress: true,
+      boundAt: new Date().toISOString(),
+      lastValidatedAt: null,
+      ...overrides
+    }
+  };
+  fs.writeFileSync(statePath, JSON.stringify(stateOnDisk, null, 2), "utf8");
 }
 
 function waitFor<T>(predicate: () => T | null, timeoutMs = 5000): Promise<T> {
@@ -327,6 +367,7 @@ test("workflow run skips Telegram updates when notifyWorkflowProgress is off", a
   const { tempDir } = freshRuntime("notif-off");
   try {
     process.env.OPENCOLAB_FORCE_MOCK_CLI = "1";
+    seedTelegramBot(tempDir);
     const createCalls: string[] = [];
     const editCalls: string[] = [];
     const runtime = createRuntime(tempDir, {
@@ -341,9 +382,7 @@ test("workflow run skips Telegram updates when notifyWorkflowProgress is off", a
       }
     });
     runtime.init();
-    runtime.setupTelegram({ chatId: "12345" });
-    runtime.setTelegramWorkflowNotifications(false);
-    // Pairing is intentionally NOT completed, so notifier should stay quiet even if the flag were on.
+    runtime.setTelegramBotWorkflowNotifications("default", false);
 
     runtime.createWorkflow({ workflowId: "demo", template: "blank" });
     const result = runtime.startWorkflowRun({
@@ -370,16 +409,8 @@ test("workflow run streams step boundaries to Telegram when notifyWorkflowProgre
     const createCalls: string[] = [];
     const editCalls: string[] = [];
 
-    // Pre-pair the chat by writing state, then load a fresh runtime.
-    const statePath = path.join(tempDir, "opencolab.json");
-    const stateOnDisk = JSON.parse(fs.readFileSync(statePath, "utf8")) as Record<string, unknown>;
-    stateOnDisk.telegram = {
-      ...(stateOnDisk.telegram as Record<string, unknown>),
-      chatId: "12345",
-      paired: true,
-      notifyWorkflowProgress: true
-    };
-    fs.writeFileSync(statePath, JSON.stringify(stateOnDisk, null, 2), "utf8");
+    // Pre-pair a project-bound bot by writing state, then load a fresh runtime.
+    seedTelegramBot(tempDir);
 
     const runtime = createRuntime(tempDir, {
       agentResponder: async (input) => `Mocked: ${input.text}`,
@@ -393,8 +424,10 @@ test("workflow run streams step boundaries to Telegram when notifyWorkflowProgre
       }
     });
     runtime.init();
-    assert.equal(runtime.getState().telegram.paired, true);
-    assert.equal(runtime.getState().telegram.notifyWorkflowProgress, true);
+    const seeded = runtime.getTelegramBotSummary("default");
+    assert.equal(seeded.paired, true);
+    assert.equal(seeded.notifyWorkflowProgress, true);
+    assert.equal(seeded.effectiveProjectId, runtime.getActiveProject().id);
 
     runtime.createWorkflow({ workflowId: "demo", template: "blank" });
     const result = runtime.startWorkflowRun({
@@ -417,17 +450,32 @@ test("workflow run streams step boundaries to Telegram when notifyWorkflowProgre
   }
 });
 
-test("setTelegramWorkflowNotifications persists the toggle", () => {
+test("setTelegramWorkflowNotifications persists the toggle per bot", () => {
   const { runtime, tempDir } = freshRuntime("notif-toggle");
   try {
-    assert.equal(runtime.getState().telegram.notifyWorkflowProgress, true);
+    runtime.setupTelegram({ chatId: "12345" });
+    assert.equal(runtime.getTelegramBotSummary("default").notifyWorkflowProgress, true);
+
     runtime.setTelegramWorkflowNotifications(false);
-    assert.equal(runtime.getState().telegram.notifyWorkflowProgress, false);
+    assert.equal(runtime.getTelegramBotSummary("default").notifyWorkflowProgress, false);
+
     const reloaded = createRuntime(tempDir);
     reloaded.init();
-    assert.equal(reloaded.getState().telegram.notifyWorkflowProgress, false);
+    assert.equal(reloaded.getTelegramBotSummary("default").notifyWorkflowProgress, false);
     reloaded.setTelegramWorkflowNotifications(true);
-    assert.equal(reloaded.getState().telegram.notifyWorkflowProgress, true);
+    assert.equal(reloaded.getTelegramBotSummary("default").notifyWorkflowProgress, true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("setTelegramWorkflowNotifications fails loudly when no bot is configured", () => {
+  const { runtime, tempDir } = freshRuntime("notif-no-bot");
+  try {
+    assert.throws(
+      () => runtime.setTelegramWorkflowNotifications(false),
+      /Unknown Telegram bot: default/
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

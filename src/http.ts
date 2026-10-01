@@ -7,6 +7,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadConfig } from "./config.js";
 import { resolveRuntimeRootDir } from "./install.js";
 import { createRuntime } from "./runtime.js";
+import { DEFAULT_TELEGRAM_BOT_ID } from "./project-config.js";
 import { startTelegramPolling, type TelegramPollingHandle } from "./telegram-poller.js";
 import { handleWebRequest } from "./web/server/index.js";
 
@@ -62,6 +63,8 @@ export function startHttpServer(
     ? startTelegramPolling(runtime, { logger: (message) => console.log(message) })
     : null;
   const heartbeatTimer = setInterval(() => {
+    // A CLI process may have added, removed, or rebound a bot while the gateway runs.
+    poller?.refresh();
     void runtime.runHeartbeatTick().catch((error) => {
       console.error(
         `OpenColab heartbeat tick failed: ${error instanceof Error ? error.message : String(error)}`
@@ -84,9 +87,29 @@ export function startHttpServer(
         return;
       }
 
-      if (method === "POST" && url.pathname === "/api/telegram/webhook") {
+      // The botId comes from the path, never from the update payload: trusting the body
+      // would make this bot's chat authorization spoofable.
+      if (method === "POST" && url.pathname.startsWith("/api/telegram/webhook")) {
+        const suffix = url.pathname.slice("/api/telegram/webhook".length);
+        const pathBotId = suffix.startsWith("/")
+          ? decodeURIComponent(suffix.slice(1)).trim()
+          : "";
+        if (suffix && !suffix.startsWith("/")) {
+          sendJson(response, 404, { error: "not_found" });
+          return;
+        }
+
+        const botId = pathBotId || DEFAULT_TELEGRAM_BOT_ID;
+        if (!runtime.getTelegramBotProfile(botId)) {
+          sendJson(response, pathBotId ? 404 : 400, {
+            error: "unknown_bot",
+            botId
+          });
+          return;
+        }
+
         const body = await readJson(request);
-        const result = await runtime.handleTelegramWebhook(body);
+        const result = await runtime.handleTelegramWebhook(body, { botId });
         sendJson(response, 200, result);
         return;
       }

@@ -15,13 +15,14 @@ import {
   resolveProviderReasoningEffort,
   normalizeProviderName,
 } from "./provider.js";
-import type { OpenColabRuntime } from "./runtime.js";
+import { DEFAULT_TELEGRAM_BOT_ID } from "./project-config.js";
+import type { OpenColabRuntime, TelegramBotSummary } from "./runtime.js";
 import {
   getProviderApiKeyEnvVar,
   resolveProviderApiKey,
   resolveRunpodApiKey,
   RUNPOD_API_KEY_ENV_VAR,
-  resolveTelegramBotToken,
+  resolveEnvVar,
   TELEGRAM_BOT_TOKEN_ENV_VAR,
   writeSecretToLocalEnv,
 } from "./secrets.js";
@@ -109,14 +110,22 @@ const TELEGRAM_BOT_TOKEN_SETUP_URL = "https://t.me/BotFather";
 const TELEGRAM_HANDSHAKE_TIMEOUT_MS = 3 * 60 * 1000;
 
 export interface TelegramHandshakeRequest {
+  /** Token of the bot to listen on. Handshake never guesses which bot to use. */
+  token: string;
   timeoutMs?: number;
   onBotInfo?: (username: string | null) => void;
   onWaiting?: (elapsedSeconds: number) => void;
 }
 
+export interface TelegramCommandSyncRequest {
+  token: string;
+  chatId?: string | null;
+  scope: "pinned" | "floating";
+}
+
 export interface IgniteDependencies {
   syncTelegramCommands: (
-    chatId?: string | null,
+    request: TelegramCommandSyncRequest,
   ) => Promise<SyncTelegramCommandsResult>;
   /**
    * Waits for the user to message the bot and returns the detected chat, or
@@ -165,8 +174,23 @@ export async function runIgnite(
   io.write(`Active project: ${project.id} (${project.path})`);
   io.write(`Active agent: ${agent.id} (${agent.path})`);
   io.write(`Provider: ${formatProviderSummary(agent.provider)}`);
-  io.write(`Telegram chat: ${state.telegram.chatId ?? "not configured"}`);
-  io.write(`Telegram paired: ${state.telegram.paired ? "yes" : "no"}`);
+  const bots = runtime.listTelegramBotSummaries();
+  if (bots.length === 0) {
+    io.write("Telegram bots: none configured");
+  } else {
+    io.write(`Telegram bots (${bots.length}):`);
+    for (const bot of bots) {
+      const target =
+        bot.scope === "floating"
+          ? "follows active project"
+          : `project ${bot.effectiveProjectId ?? "unbound"}`;
+      io.write(
+        `  ${describeBotHandle(bot)} -> ${target}` +
+          `${bot.effectiveAgentId ? ` (agent: ${bot.effectiveAgentId})` : ""}` +
+          `${bot.paired ? "" : " [not paired]"}`,
+      );
+    }
+  }
   io.write(`GPU servers: ${Object.keys(project.executionTargets).length}`);
   io.write("Next: opencolab gateway start --port 4646");
 }
@@ -355,191 +379,208 @@ async function configureProvider(
   );
 }
 
+/**
+ * Per-project Telegram setup: one bot per project, so the operator opens that chat and
+ * talks to that project's agent without switching anything.
+ */
 async function configureTelegram(
   runtime: OpenColabRuntime,
   io: IgniteIo,
   deps: IgniteDependencies,
 ): Promise<void> {
-  if (typeof deps.waitForTelegramHandshake === "function") {
-    await configureTelegramHandshake(runtime, io, deps);
-    return;
+  const projectId = runtime.getActiveProject().id;
+  const bots = runtime.listTelegramBotSummaries();
+  const bound = bots.find(
+    (bot) => bot.scope === "pinned" && bot.projectId === projectId,
+  );
+  const floating = bots.find((bot) => bot.scope === "floating");
+
+  if (bound) {
+    io.write(
+      `Telegram bot for ${projectId}: ${describeBotHandle(bound)} (${bound.paired ? "paired" : "not paired"}).`,
+    );
+    const replace = await askYesNo(
+      io,
+      "Replace the Telegram bot for this project?",
+      false,
+    );
+    if (!replace) {
+      await pairTelegramBot(runtime, io, deps, bound.id);
+      return;
+    }
+    runtime.removeTelegramBot(bound.id);
+    io.write(`Removed bot '${bound.id}'.`);
+  } else if (floating) {
+    io.write(
+      `Telegram bot '${floating.id}' ${describeBotHandle(floating)} still follows whichever project is active (legacy mode).`,
+    );
+    const pin = await askYesNo(
+      io,
+      `Pin it to project '${projectId}' so that chat always reaches this project?`,
+      true,
+    );
+    if (pin) {
+      const pinned = runtime.pinTelegramBot(floating.id, projectId);
+      io.write(`Bot '${pinned.id}' is now bound to project ${projectId}.`);
+      await syncTelegramBotCommandsAndReport(runtime, deps, io, pinned.id);
+      await pairTelegramBot(runtime, io, deps, pinned.id);
+      return;
+    }
   }
-
-  await configureTelegramManual(runtime, io, deps);
-}
-
-async function configureTelegramHandshake(
-  runtime: OpenColabRuntime,
-  io: IgniteIo,
-  deps: IgniteDependencies,
-): Promise<void> {
-  const telegram = runtime.getState().telegram;
-  const hasToken = resolveTelegramBotToken() !== null;
-  const fullyConfigured = Boolean(telegram.chatId) && hasToken && telegram.paired;
 
   const shouldConfigure = await askYesNo(
     io,
-    fullyConfigured
-      ? "Telegram already paired. Reconfigure?"
-      : "Configure Telegram now?",
-    !fullyConfigured,
+    `Add a Telegram bot for project '${projectId}' now?`,
+    true,
   );
-
   if (!shouldConfigure) {
     io.write("Telegram setup skipped.");
     return;
   }
 
-  await configureTelegramToken(runtime, io, hasToken);
-  await pairTelegramViaHandshake(runtime, io, deps);
-}
-
-async function pairTelegramViaHandshake(
-  runtime: OpenColabRuntime,
-  io: IgniteIo,
-  deps: IgniteDependencies,
-): Promise<void> {
-  const waitForHandshake = deps.waitForTelegramHandshake;
-  if (!waitForHandshake) {
-    await promptManualChatId(runtime, io, deps);
-    await pairTelegramWithCode(runtime, io, deps);
-    return;
-  }
-
-  while (true) {
-    io.write(
-      'Finish pairing from Telegram: open your bot and send it any message (for example "hello").',
-    );
-
-    const result = await waitForHandshake({
-      timeoutMs: TELEGRAM_HANDSHAKE_TIMEOUT_MS,
-      onBotInfo: (username) => {
-        if (username) {
-          io.write(`Your bot: https://t.me/${username} (@${username})`);
-        }
-      },
-      onWaiting: (elapsedSeconds) => {
-        io.write(`Waiting for your Telegram message… (${elapsedSeconds}s elapsed)`);
-      },
-    });
-
-    if (result) {
-      runtime.markTelegramPaired(result.chatId);
-      io.write(`Telegram paired with ${result.sender} (chat ${result.chatId}).`);
-      await syncTelegramCommandsAndReport(deps, io, result.chatId);
-      return;
-    }
-
-    io.write("No Telegram message received before the timeout.");
-    const retry = await askYesNo(io, "Try the Telegram handshake again?", true);
-    if (retry) {
-      continue;
-    }
-
-    const manual = await askYesNo(
-      io,
-      "Enter the Telegram chat id manually instead?",
-      false,
-    );
-    if (manual) {
-      await promptManualChatId(runtime, io, deps);
-      await pairTelegramWithCode(runtime, io, deps);
-      return;
-    }
-
-    io.write(
-      "Telegram pairing skipped. Run 'opencolab setup telegram pair start' when ready.",
-    );
-    return;
-  }
-}
-
-async function configureTelegramManual(
-  runtime: OpenColabRuntime,
-  io: IgniteIo,
-  deps: IgniteDependencies,
-): Promise<void> {
-  const telegram = runtime.getState().telegram;
-  const hasChat = Boolean(telegram.chatId);
-  const hasToken = resolveTelegramBotToken() !== null;
-  const fullyConfigured = hasChat && hasToken;
-
-  const shouldConfigure = await askYesNo(
-    io,
-    fullyConfigured
-      ? "Telegram already configured. Update settings?"
-      : "Configure Telegram now?",
-    !fullyConfigured,
-  );
-
-  if (shouldConfigure) {
-    await configureTelegramToken(runtime, io, hasToken);
-    await promptManualChatId(runtime, io, deps);
-  } else {
-    io.write("Telegram setup skipped.");
-  }
-
-  await pairTelegramWithCode(runtime, io, deps);
-}
-
-async function configureTelegramToken(
-  runtime: OpenColabRuntime,
-  io: IgniteIo,
-  hasToken: boolean,
-): Promise<void> {
-  const keepExistingToken =
-    hasToken &&
-    (await askYesNo(
-      io,
-      `${TELEGRAM_BOT_TOKEN_ENV_VAR} already has a value. Keep it?`,
-      true,
-    ));
-  if (keepExistingToken) {
-    return;
-  }
-
   writeTelegramBotTokenSetupHelp(io);
-  const botToken = await askRequiredWithOptionalDefault(
+  const token = await askRequiredWithOptionalDefault(
     io,
-    `${TELEGRAM_BOT_TOKEN_ENV_VAR} value`,
+    "BotFather token for this project's bot",
   );
-  writeSecretToLocalEnv(
-    runtime.config.rootDir,
-    TELEGRAM_BOT_TOKEN_ENV_VAR,
-    botToken,
-  );
-  io.write(`Saved ${TELEGRAM_BOT_TOKEN_ENV_VAR} in .env.local.`);
+
+  let added;
+  try {
+    added = await runtime.addTelegramBot({
+      token,
+      projectId,
+      // The first bot keeps the legacy id and TELEGRAM_BOT_TOKEN env var so an
+      // existing single-bot install is byte-identical after onboarding.
+      ...(bots.length === 0 ? { botId: DEFAULT_TELEGRAM_BOT_ID } : {}),
+    });
+  } catch (error) {
+    io.write(error instanceof Error ? error.message : String(error));
+    io.write(
+      "Telegram setup skipped. Retry with 'opencolab telegram bot add --token <value> --project " +
+        `${projectId}'.`,
+    );
+    return;
+  }
+
+  io.write(`Telegram bot added: ${describeBotHandle(added)} -> project ${projectId}`);
+  if (added.telegramUsername) {
+    io.write(`Open it: https://t.me/${added.telegramUsername}`);
+  }
+  io.write(`Token saved in .env.local as ${added.tokenEnvVar}.`);
+  await pairTelegramBot(runtime, io, deps, added.id);
+}
+
+function describeBotHandle(bot: TelegramBotSummary): string {
+  return bot.telegramUsername ? `@${bot.telegramUsername}` : `(${bot.id})`;
+}
+
+async function pairTelegramBot(
+  runtime: OpenColabRuntime,
+  io: IgniteIo,
+  deps: IgniteDependencies,
+  botId: string,
+): Promise<void> {
+  const bot = runtime.getTelegramBotSummary(botId);
+  if (bot.paired) {
+    io.write("Telegram pairing already completed.");
+    return;
+  }
+
+  const token = resolveEnvVar(bot.tokenEnvVar);
+  if (!token) {
+    io.write(
+      `Pairing skipped: ${bot.tokenEnvVar} has no value. Re-add the bot with 'opencolab telegram bot add'.`,
+    );
+    return;
+  }
+
+  const waitForHandshake = deps.waitForTelegramHandshake;
+  if (waitForHandshake) {
+    while (true) {
+      io.write(
+        'Finish pairing from Telegram: open your bot and send it any message (for example "hello").',
+      );
+
+      const result = await waitForHandshake({
+        token,
+        timeoutMs: TELEGRAM_HANDSHAKE_TIMEOUT_MS,
+        onBotInfo: (username) => {
+          if (username) {
+            io.write(`Your bot: https://t.me/${username} (@${username})`);
+          }
+        },
+        onWaiting: (elapsedSeconds) => {
+          io.write(`Waiting for your Telegram message… (${elapsedSeconds}s elapsed)`);
+        },
+      });
+
+      if (result) {
+        runtime.markTelegramPaired(result.chatId, botId);
+        io.write(`Telegram paired with ${result.sender} (chat ${result.chatId}).`);
+        await syncTelegramBotCommandsAndReport(runtime, deps, io, botId);
+        return;
+      }
+
+      io.write("No Telegram message received before the timeout.");
+      if (await askYesNo(io, "Try the Telegram handshake again?", true)) {
+        continue;
+      }
+
+      const manual = await askYesNo(
+        io,
+        "Enter the Telegram chat id manually instead?",
+        false,
+      );
+      if (manual) {
+        break;
+      }
+
+      io.write(
+        `Telegram pairing skipped. Run 'opencolab telegram bot pair --id ${botId} start' when ready.`,
+      );
+      return;
+    }
+  }
+
+  await promptManualChatId(runtime, io, deps, botId);
+  await pairTelegramWithCode(runtime, io, botId);
 }
 
 async function promptManualChatId(
   runtime: OpenColabRuntime,
   io: IgniteIo,
   deps: IgniteDependencies,
+  botId: string,
 ): Promise<void> {
+  const existing = runtime.getTelegramBotSummary(botId);
   const chatId = await askRequiredWithOptionalDefault(
     io,
     "Telegram chat id",
-    runtime.getState().telegram.chatId ?? undefined,
+    existing.chatId ?? undefined,
   );
 
-  runtime.setupTelegram({
-    chatId,
-  });
-  io.write(`Telegram configured for chat: ${chatId}`);
-
-  await syncTelegramCommandsAndReport(
-    deps,
-    io,
-    runtime.getState().telegram.chatId,
-  );
+  runtime.setupTelegram({ chatId, botId });
+  io.write(`Telegram bot '${botId}' configured for chat: ${chatId}`);
+  await syncTelegramBotCommandsAndReport(runtime, deps, io, botId);
 }
 
-async function syncTelegramCommandsAndReport(
+async function syncTelegramBotCommandsAndReport(
+  runtime: OpenColabRuntime,
   deps: IgniteDependencies,
   io: IgniteIo,
-  chatId?: string | null,
+  botId: string,
 ): Promise<void> {
-  const syncResult = await deps.syncTelegramCommands(chatId);
+  const bot = runtime.getTelegramBotSummary(botId);
+  const token = resolveEnvVar(bot.tokenEnvVar);
+  if (!token) {
+    return;
+  }
+
+  const syncResult = await deps.syncTelegramCommands({
+    token,
+    chatId: bot.chatId,
+    scope: bot.scope,
+  });
   if (syncResult.ok) {
     io.write("Telegram bot commands synced.");
   } else {
@@ -552,11 +593,11 @@ async function syncTelegramCommandsAndReport(
 async function pairTelegramWithCode(
   runtime: OpenColabRuntime,
   io: IgniteIo,
-  deps: IgniteDependencies,
+  botId: string,
 ): Promise<void> {
-  const current = runtime.getState().telegram;
+  const current = runtime.getTelegramBotSummary(botId);
   if (!current.chatId) {
-    io.write("Pairing skipped because Telegram chat is not configured.");
+    io.write("Pairing skipped because the Telegram chat is not configured.");
     return;
   }
 
@@ -568,13 +609,13 @@ async function pairTelegramWithCode(
   const shouldPair = await askYesNo(io, "Start Telegram pairing now?", true);
   if (!shouldPair) {
     io.write(
-      "Pairing skipped. Run 'opencolab setup telegram pair start' when ready.",
+      `Pairing skipped. Run 'opencolab telegram bot pair --id ${botId} start' when ready.`,
     );
     return;
   }
 
   try {
-    const pairing = await runtime.startPairing();
+    const pairing = await runtime.startPairing(botId);
     io.write(`Pairing code sent to Telegram (expires ${pairing.expiresAt}).`);
     const code = await askOptional(
       io,
@@ -585,11 +626,13 @@ async function pairTelegramWithCode(
       return;
     }
 
-    const completed = runtime.completePairing(code);
+    const completed = runtime.completePairing(code, botId);
     io.write(`Telegram pairing completed at ${completed.pairedAt}.`);
   } catch (error) {
     io.write(error instanceof Error ? error.message : String(error));
-    io.write("Run 'opencolab setup telegram pair start' to retry pairing.");
+    io.write(
+      `Run 'opencolab telegram bot pair --id ${botId} start' to retry pairing.`,
+    );
   }
 }
 

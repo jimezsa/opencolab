@@ -1,9 +1,10 @@
 /**
  * Telegram long-polling transport.
- * Pulls updates from Telegram and forwards them into the runtime webhook handler.
+ * Runs one independent loop per enabled bot and forwards each update into the runtime
+ * tagged with the bot that received it. One bot failing never stops the others, and the
+ * botId always comes from the loop that owns the token, never from the update payload.
  */
 import type { OpenColabRuntime } from "./runtime.js";
-import { resolveTelegramBotToken } from "./secrets.js";
 
 interface TelegramUpdate {
   update_id: number;
@@ -16,10 +17,25 @@ interface TelegramResponse<T> {
 
 export interface TelegramPollingHandle {
   stop: () => void;
+  /** Starts/stops loops so they match the current registry. Safe to call repeatedly. */
+  refresh: () => void;
+  /** Bot ids with a live loop, for diagnostics and tests. */
+  activeBotIds: () => string[];
+}
+
+/** One pollable bot: an enabled profile whose token is present. */
+export interface TelegramPollableBot {
+  botId: string;
+  token: string;
 }
 
 interface PollingOptions {
   logger?: (message: string) => void;
+}
+
+interface BotLoop {
+  token: string;
+  stop: () => void;
 }
 
 export function startTelegramPolling(
@@ -27,61 +43,139 @@ export function startTelegramPolling(
   options: PollingOptions = {}
 ): TelegramPollingHandle | null {
   const log = options.logger ?? (() => undefined);
-  const token = resolveTelegramBotToken();
-
-  if (!token) {
-    log("Telegram polling skipped: bot token is not configured.");
-    return null;
-  }
-  const tokenValue = token;
-
+  const loops = new Map<string, BotLoop>();
   let running = true;
-  const inFlight = new Set<Promise<unknown>>();
-  void pollLoop();
 
-  return {
+  const handle: TelegramPollingHandle = {
     stop: () => {
       running = false;
-    }
+      for (const loop of loops.values()) {
+        loop.stop();
+      }
+      loops.clear();
+    },
+    refresh: () => {
+      if (!running) {
+        return;
+      }
+      syncLoops();
+    },
+    activeBotIds: () => [...loops.keys()].sort()
   };
 
-  async function pollLoop(): Promise<void> {
-    let offset = await primeOffset(tokenValue, log);
+  syncLoops();
 
-    while (running) {
-      try {
-        const updates = await getUpdates(tokenValue, offset);
-        for (const update of updates) {
-          const task = Promise.resolve(runtime.handleTelegramWebhook(update))
-            .catch((error) => {
-              log(
-                `Telegram update ${String(update.update_id)} failed: ${
-                  error instanceof Error ? error.message : String(error)
-                }`
-              );
-            })
-            .finally(() => {
-              inFlight.delete(task);
-            });
-          inFlight.add(task);
-          offset = update.update_id + 1;
-        }
-      } catch (error) {
-        log(
-          `Telegram polling error: ${error instanceof Error ? error.message : String(error)}`
-        );
-        await sleep(2000);
+  if (loops.size === 0) {
+    log("Telegram polling skipped: no enabled bot has a token configured.");
+  }
+
+  return handle;
+
+  function syncLoops(): void {
+    let desired: TelegramPollableBot[];
+    try {
+      desired = runtime.listTelegramPollableBots();
+    } catch (error) {
+      log(
+        `Telegram polling could not read the bot registry: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      return;
+    }
+
+    const desiredById = new Map(desired.map((bot) => [bot.botId, bot]));
+
+    for (const [botId, loop] of [...loops.entries()]) {
+      const next = desiredById.get(botId);
+      // A rotated token needs a fresh loop so the old one stops using the stale secret.
+      if (!next || next.token !== loop.token) {
+        loop.stop();
+        loops.delete(botId);
+        log(`Telegram polling stopped for bot '${botId}'.`);
       }
     }
+
+    for (const bot of desired) {
+      if (loops.has(bot.botId)) {
+        continue;
+      }
+      loops.set(bot.botId, startBotLoop(bot));
+      log(`Telegram polling started for bot '${bot.botId}'.`);
+    }
+  }
+
+  function startBotLoop(bot: TelegramPollableBot): BotLoop {
+    let loopRunning = true;
+    const inFlight = new Set<Promise<unknown>>();
+
+    void (async () => {
+      let offset = await primeOffset(bot.token, log, bot.botId);
+
+      while (loopRunning && running) {
+        try {
+          const updates = await getUpdates(bot.token, offset);
+          for (const update of updates) {
+            const task = Promise.resolve(
+              runtime.handleTelegramWebhook(update, { botId: bot.botId })
+            )
+              .catch((error) => {
+                log(
+                  `[bot ${bot.botId}] Telegram update ${String(update.update_id)} failed: ${
+                    error instanceof Error ? error.message : String(error)
+                  }`
+                );
+              })
+              .finally(() => {
+                inFlight.delete(task);
+              });
+            inFlight.add(task);
+            offset = update.update_id + 1;
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (message.includes("HTTP 401")) {
+            // A revoked or wrong token never recovers by retrying; stop just this bot.
+            log(
+              `[bot ${bot.botId}] Telegram rejected the token (HTTP 401). Polling stopped for this bot; ` +
+                "re-add it with 'opencolab telegram bot add'."
+            );
+            loopRunning = false;
+            break;
+          }
+          if (message.includes("HTTP 409")) {
+            log(
+              `[bot ${bot.botId}] Telegram polling conflict (HTTP 409): another process is consuming ` +
+                "this bot's updates. Stop the other gateway or give this bot its own token."
+            );
+          } else {
+            log(`[bot ${bot.botId}] Telegram polling error: ${message}`);
+          }
+          await sleep(2000);
+        }
+      }
+    })();
+
+    return {
+      token: bot.token,
+      stop: () => {
+        loopRunning = false;
+      }
+    };
   }
 }
 
-async function primeOffset(token: string, logger: (message: string) => void): Promise<number | undefined> {
+async function primeOffset(
+  token: string,
+  logger: (message: string) => void,
+  botId?: string
+): Promise<number | undefined> {
+  const label = botId ? `[bot ${botId}] ` : "";
   try {
     await deleteWebhook(token);
   } catch (error) {
     logger(
-      `Could not clear Telegram webhook; continuing with polling. ${
+      `${label}Could not clear Telegram webhook; continuing with polling. ${
         error instanceof Error ? error.message : String(error)
       }`
     );
@@ -153,6 +247,8 @@ export interface TelegramHandshakeResult {
 }
 
 export interface TelegramHandshakeOptions {
+  /** Token of the bot to listen on. Required: handshake never guesses a bot. */
+  token: string;
   /** Overall time to wait for an inbound message before giving up. */
   timeoutMs?: number;
   /** Long-poll timeout per getUpdates call, in seconds. */
@@ -167,13 +263,20 @@ export interface TelegramHandshakeOptions {
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 3 * 60 * 1000;
 const DEFAULT_HANDSHAKE_POLL_TIMEOUT_SECONDS = 25;
 
+export interface TelegramBotIdentity {
+  telegramBotId: string;
+  username: string | null;
+}
+
 /**
- * Looks up the bot's public @username via getMe so onboarding can show a
- * direct t.me link. Returns null when the token is missing or the call fails.
+ * Validates a token and returns the bot's real Telegram identity.
+ * Binding must never be persisted without this succeeding, so the operator never has to
+ * type a username and a bad token fails before anything is written.
  */
-export async function fetchTelegramBotUsername(): Promise<string | null> {
-  const token = resolveTelegramBotToken();
-  if (!token) {
+export async function fetchTelegramBotIdentity(
+  token: string
+): Promise<TelegramBotIdentity | null> {
+  if (!token.trim()) {
     return null;
   }
 
@@ -183,17 +286,34 @@ export async function fetchTelegramBotUsername(): Promise<string | null> {
       return null;
     }
 
-    const body = (await response.json()) as TelegramResponse<{ username?: unknown }>;
-    if (!body.ok || !body.result) {
+    const body = (await response.json()) as TelegramResponse<{
+      id?: unknown;
+      username?: unknown;
+    }>;
+    if (!body.ok || !body.result || body.result.id === undefined || body.result.id === null) {
       return null;
     }
 
     const username =
       typeof body.result.username === "string" ? body.result.username.trim() : "";
-    return username ? username : null;
+    return {
+      telegramBotId: String(body.result.id),
+      username: username ? username.replace(/^@/u, "") : null
+    };
   } catch {
     return null;
   }
+}
+
+/**
+ * Looks up a bot's public @username so onboarding can show a direct t.me link.
+ * Returns null when the token is missing or the call fails.
+ */
+export async function fetchTelegramBotUsername(
+  token: string
+): Promise<string | null> {
+  const identity = await fetchTelegramBotIdentity(token);
+  return identity?.username ?? null;
 }
 
 /**
@@ -202,10 +322,10 @@ export async function fetchTelegramBotUsername(): Promise<string | null> {
  * Returns null on timeout, a missing token, or a polling conflict (HTTP 409).
  */
 export async function waitForTelegramHandshake(
-  options: TelegramHandshakeOptions = {}
+  options: TelegramHandshakeOptions
 ): Promise<TelegramHandshakeResult | null> {
   const log = options.logger ?? (() => undefined);
-  const token = resolveTelegramBotToken();
+  const token = options.token.trim();
   if (!token) {
     log("Telegram handshake skipped: bot token is not configured.");
     return null;

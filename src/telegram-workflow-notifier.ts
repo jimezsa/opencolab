@@ -5,12 +5,12 @@
  * matches the live status the user already sees during chat-driven agent turns.
  */
 import {
+  type TelegramBotContext,
   type TelegramMessageEditor,
   type TelegramStatusMessageCreator,
   TelegramLiveStatusSession
 } from "./gateway.js";
 import type {
-  OpenColabState,
   TaskProgressEvent,
   WorkflowEvent,
   WorkflowRunStatus
@@ -29,7 +29,12 @@ const FORWARDED_PROGRESS_KINDS = new Set<TaskProgressEvent["kind"]>([
 ]);
 
 interface NotifierDependencies {
-  getState: () => OpenColabState;
+  /**
+   * Resolves the bot that owns a project's outbound notifications, or null when no
+   * enabled, paired, token-present bot is bound to it. Returning null is deliberate:
+   * a project's run updates are never delivered into another project's chat.
+   */
+  resolveBotContextForProject: (projectId: string) => TelegramBotContext | null;
   statusMessageCreator: TelegramStatusMessageCreator;
   messageEditor: TelegramMessageEditor;
 }
@@ -38,15 +43,18 @@ export function createTelegramWorkflowNotifierFactory(
   deps: NotifierDependencies
 ): WorkflowRunNotifierFactory {
   return (context) => {
-    const state = deps.getState();
-    if (!state.telegram.notifyWorkflowProgress) {
+    const ctx = deps.resolveBotContextForProject(context.projectId);
+    if (!ctx) {
       return null;
     }
-    const chatId = state.telegram.chatId;
-    if (!chatId || !state.telegram.paired) {
+    if (!ctx.profile.notifyWorkflowProgress) {
       return null;
     }
-    return new TelegramWorkflowNotifier(context, chatId, deps);
+    const chatId = ctx.profile.chatId;
+    if (!chatId || !ctx.profile.paired) {
+      return null;
+    }
+    return new TelegramWorkflowNotifier(context, chatId, ctx, deps);
   };
 }
 
@@ -59,14 +67,14 @@ class TelegramWorkflowNotifier implements WorkflowRunNotifier {
   constructor(
     private readonly context: WorkflowRunNotifierContext,
     chatId: string,
+    ctx: TelegramBotContext,
     deps: NotifierDependencies
   ) {
-    const state = deps.getState();
     this.session = new TelegramLiveStatusSession(
       chatId,
-      state,
+      ctx,
       {
-        messageThreadId: state.telegram.lastMessageThreadId ?? undefined,
+        messageThreadId: ctx.profile.lastMessageThreadId ?? undefined,
         heading: `Workflow ${context.workflowId} · run ${shortRunId(context.runId)}`
       },
       deps.statusMessageCreator,

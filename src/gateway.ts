@@ -1,6 +1,11 @@
 /**
  * Telegram gateway and routing logic.
- * Enforces pairing/auth, handles management commands, and forwards user input to agents.
+ * Resolves the inbound bot to its bound project/agent, enforces per-bot pairing and
+ * authorization, handles management commands, and forwards user input to that agent.
+ *
+ * Every Telegram API call carries an explicit TelegramBotContext. Nothing in this module
+ * resolves a bot token from ambient process state, so one bot can never borrow another's
+ * token or deliver into another bot's chat.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -15,14 +20,18 @@ import {
   ensureProjectAndAgent,
   getActiveAgent as getProjectActiveAgent,
   getActiveProject,
+  getTelegramBot,
 } from "./project-config.js";
 import type {
+  AgentConfig,
   AgentMemoryContext,
   ConversationMessage,
   GatewayResult,
   OpenColabState,
+  ProjectState,
   ProviderConfig,
   TaskProgressEvent,
+  TelegramBotProfile,
   TelegramChatType,
   TelegramFileKind,
   TelegramFilePayload,
@@ -31,13 +40,33 @@ import type {
   TelegramMessageOptions,
   TelegramOutboundFile,
 } from "./types.js";
-import { resolveTelegramBotToken } from "./secrets.js";
 import { ensureDir, nowIso, randomDigits } from "./utils.js";
+
+/**
+ * One resolved Telegram bot identity plus its secret, passed to every outbound call.
+ * `token` is always the token stored under `profile.tokenEnvVar`.
+ */
+export interface TelegramBotContext {
+  botId: string;
+  token: string;
+  profile: TelegramBotProfile;
+}
+
+/** Where an inbound update came from. The botId comes from the transport, never the payload. */
+export interface TelegramUpdateSource {
+  botId: string;
+}
+
+/** The project/agent pair an inbound message routes to. */
+export interface TelegramRoutingTarget {
+  project: ProjectState;
+  agent: AgentConfig;
+}
 
 export type TelegramSender = (
   chatId: string,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ) => Promise<boolean>;
 
@@ -45,14 +74,14 @@ export type TelegramDraftSender = (
   chatId: string,
   draftId: number,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ) => Promise<boolean>;
 
 export type TelegramStatusMessageCreator = (
   chatId: string,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ) => Promise<string | null>;
 
@@ -60,32 +89,40 @@ export type TelegramMessageEditor = (
   chatId: string,
   messageId: string,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ) => Promise<boolean>;
 
 export type TelegramTypingSender = (
   chatId: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
 ) => Promise<boolean>;
 export type TelegramFileSender = (
   chatId: string,
   file: TelegramOutboundFile,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
 ) => Promise<boolean>;
 
 export type TelegramCallbackAnswerer = (
   callbackQueryId: string,
   text: string | undefined,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
 ) => Promise<boolean>;
 
 interface GatewayDependencies {
   getState: () => OpenColabState;
   saveState: (next: OpenColabState) => void;
-  readConversationMemory: (chatId: string, limit: number) => AgentMemoryContext;
-  appendConversation: (chatId: string, message: ConversationMessage) => void;
-  resetConversationSession: () => string;
+  /** Reads the token stored under the profile's env var. Never falls back to another bot. */
+  resolveBotToken: (profile: TelegramBotProfile) => string | null;
+  readConversationMemory: (
+    target: TelegramRoutingTarget,
+    limit: number,
+  ) => AgentMemoryContext;
+  appendConversation: (
+    target: TelegramRoutingTarget,
+    message: ConversationMessage,
+  ) => void;
+  resetConversationSession: (target: TelegramRoutingTarget) => string;
   onAgentTurnStarted?: (projectId: string, agentId: string) => void | Promise<void>;
   onAgentTurnFinished?: (
     projectId: string,
@@ -93,6 +130,7 @@ interface GatewayDependencies {
     outcome: "completed" | "stopped" | "timed_out" | "failed"
   ) => void | Promise<void>;
   respond: (
+    target: TelegramRoutingTarget,
     input: ProviderAgentInput,
     options?: ProviderRespondOptions,
   ) => Promise<string>;
@@ -105,15 +143,12 @@ interface GatewayDependencies {
   telegramStatusMessageCreator?: TelegramStatusMessageCreator;
   telegramMessageEditor?: TelegramMessageEditor;
 }
-
 const TELEGRAM_FILE_FETCH_TIMEOUT_MS = 10_000;
 const MAX_TELEGRAM_ERROR_CHARS = 1_500;
 const MAX_TELEGRAM_CALLBACK_TEXT_CHARS = 180;
 const MAX_TELEGRAM_TEXT_CHARS = 4_000;
 const EDITABLE_STATUS_THROTTLE_MS = 3_000;
 const MAX_LIVE_STATUS_LINES = 5;
-const SUPPORTED_TELEGRAM_COMMANDS_TEXT =
-  "Supported commands: /projects | /agents | /session_reset | /stop | /workflow_notifications on|off|status";
 const STOPPED_TASK_CONFIRMATION_TEXT = [
   "Stopped the current task.",
   "Saved the latest progress so you can ask me to continue later.",
@@ -178,7 +213,7 @@ export class TelegramLiveStatusSession {
 
   constructor(
     private readonly chatId: string,
-    private readonly state: OpenColabState,
+    private readonly ctx: TelegramBotContext,
     private readonly inbound: TelegramLiveStatusContext,
     private readonly statusMessageCreator: TelegramStatusMessageCreator,
     private readonly messageEditor: TelegramMessageEditor,
@@ -302,7 +337,7 @@ export class TelegramLiveStatusSession {
         this.chatId,
         this.editableMessageId,
         text,
-        this.state,
+        this.ctx,
         options,
       );
     }
@@ -311,7 +346,7 @@ export class TelegramLiveStatusSession {
       this.statusMessageCreator,
       this.chatId,
       text,
-      this.state,
+      this.ctx,
       options,
     );
     if (messageId) {
@@ -342,6 +377,9 @@ export class TelegramGateway {
   private readonly callbackAnswerer: TelegramCallbackAnswerer;
   private readonly activeRequests = new Map<string, ActiveRequest>();
   private readonly laneQueues = new Map<string, Promise<void>>();
+  // One agent never runs two provider turns at once: Telegram, web chat, and heartbeat all
+  // write the same memory/Session files, and multi-bot traffic makes the overlap likely.
+  private readonly agentQueues = new Map<string, Promise<void>>();
 
   constructor(
     private readonly config: OpenColabConfig,
@@ -358,63 +396,196 @@ export class TelegramGateway {
       deps.telegramCallbackAnswerer ?? defaultTelegramCallbackAnswerer;
   }
 
-  async startPairing(): Promise<{
+  /**
+   * Resolves one enabled bot plus its token. Never falls back to another bot: a
+   * misconfiguration must stay visible instead of delivering into the wrong chat.
+   */
+  resolveBotContext(
+    state: OpenColabState,
+    botId: string,
+  ): BotContextResolution {
+    const profile = getTelegramBot(state, botId);
+    if (!profile) {
+      return {
+        ok: false,
+        result: {
+          ok: false,
+          action: "unknown_bot",
+          response: `Unknown Telegram bot: ${botId}`,
+          sent: false,
+        },
+      };
+    }
+
+    if (!profile.enabled) {
+      return {
+        ok: false,
+        result: {
+          ok: false,
+          action: "unknown_bot",
+          response: `Telegram bot '${botId}' is disabled.`,
+          sent: false,
+        },
+      };
+    }
+
+    const token = this.deps.resolveBotToken(profile);
+    if (!token) {
+      logTokenMissing(profile);
+      return {
+        ok: false,
+        result: {
+          ok: false,
+          action: "token_missing",
+          response: `Telegram bot '${botId}' has no token in ${profile.tokenEnvVar}.`,
+          sent: false,
+        },
+      };
+    }
+
+    return { ok: true, ctx: { botId: profile.id, token, profile } };
+  }
+
+  /**
+   * Resolves which project/agent answers for a bot.
+   * Pinned bots use their binding; floating bots keep the legacy behavior of following
+   * the globally active project.
+   */
+  resolveRoutingTarget(
+    state: OpenColabState,
+    profile: TelegramBotProfile,
+  ): RoutingResolution {
+    if (profile.scope === "floating") {
+      const project = getActiveProject(state);
+      if (Object.keys(project.agents).length === 0) {
+        return {
+          ok: false,
+          message: `Project '${project.id}' has no agents yet. Create one with 'opencolab agent create'.`,
+        };
+      }
+      return { ok: true, target: { project, agent: getProjectActiveAgent(project) } };
+    }
+
+    if (!profile.projectId) {
+      return {
+        ok: false,
+        message: [
+          "This bot is not bound to a project yet.",
+          `Bind it with: opencolab telegram bot bind --id ${profile.id} --project <project_id>`,
+        ].join("\n"),
+      };
+    }
+
+    const project = state.projects[profile.projectId];
+    if (!project) {
+      return {
+        ok: false,
+        message: [
+          `This bot is bound to project '${profile.projectId}', which no longer exists.`,
+          `Rebind it with: opencolab telegram bot bind --id ${profile.id} --project <project_id>`,
+        ].join("\n"),
+      };
+    }
+
+    if (Object.keys(project.agents).length === 0) {
+      return {
+        ok: false,
+        message: `Project '${project.id}' has no agents yet. Create one with 'opencolab agent create'.`,
+      };
+    }
+
+    if (profile.agentId) {
+      const pinned = project.agents[profile.agentId];
+      if (pinned) {
+        return { ok: true, target: { project, agent: pinned } };
+      }
+      // One-turn fallback. The profile is left alone so the operator sees what broke.
+      const fallback = getProjectActiveAgent(project);
+      return {
+        ok: true,
+        target: { project, agent: fallback },
+        note: `Agent '${profile.agentId}' is no longer in project '${project.id}'. Using '${fallback.id}' for this message.`,
+      };
+    }
+
+    return { ok: true, target: { project, agent: getProjectActiveAgent(project) } };
+  }
+
+  async startPairing(botId: string): Promise<{
+    botId: string;
     code: string;
     expiresAt: string;
     sent: boolean;
   }> {
     const state = ensureProjectAndAgent(this.deps.getState());
+    const profile = getTelegramBot(state, botId);
+    if (!profile) {
+      throw new Error(`Unknown Telegram bot: ${botId}`);
+    }
 
-    if (!state.telegram.chatId) {
+    const token = this.deps.resolveBotToken(profile);
+    if (!token) {
       throw new Error(
-        "Telegram chatId is not configured. Run 'opencolab setup telegram'.",
+        `Telegram bot '${botId}' has no token in ${profile.tokenEnvVar}. Re-add it with 'opencolab telegram bot add'.`,
+      );
+    }
+
+    if (!profile.chatId) {
+      throw new Error(
+        `Telegram bot '${botId}' has no chat id yet. Message the bot once so it can be detected, or set one with 'opencolab setup telegram --chat-id <id>'.`,
       );
     }
 
     const code = randomDigits(6);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    const next: OpenColabState = {
-      ...state,
-      telegram: {
-        ...state.telegram,
-        paired: false,
-        pairedAt: null,
-        pendingPairingCode: code,
-        pendingPairingExpiresAt: expiresAt,
-      },
-    };
+    const next = withBotProfile(state, botId, {
+      paired: false,
+      pairedAt: null,
+      pendingPairingCode: code,
+      pendingPairingExpiresAt: expiresAt,
+    });
 
     this.deps.saveState(next);
 
+    const ctx: TelegramBotContext = {
+      botId,
+      token,
+      profile: next.telegramBots[botId] ?? profile,
+    };
     const sent = await this.sender(
-      state.telegram.chatId,
+      profile.chatId,
       [
         "Welcome to OpenColab Pairing! ✨",
         "You've unlocked the first step of your research adventure! 🌊🐙",
         `🔑 Code: ${code}`,
-        ` or run: opencolab setup telegram pair complete --code ${code}`,
+        ` or run: opencolab telegram bot pair --id ${botId} complete --code ${code}`,
         "⏰ Code valid for 10 minutes. Let’s dive in!",
       ].join("\n"),
-      next,
+      ctx,
     );
 
     if (!sent) {
       throw new Error(
-        "Could not send pairing code to Telegram. Ensure bot token is configured (env var or literal token).",
+        `Could not send the pairing code through bot '${botId}'. Check that ${profile.tokenEnvVar} holds a valid token.`,
       );
     }
 
-    return { code, expiresAt, sent };
+    return { botId, code, expiresAt, sent };
   }
 
-  completePairing(code: string): { pairedAt: string } {
+  completePairing(botId: string, code: string): { botId: string; pairedAt: string } {
     const state = ensureProjectAndAgent(this.deps.getState());
-    const pendingCode = state.telegram.pendingPairingCode;
-    const pendingExpiresAt = state.telegram.pendingPairingExpiresAt;
+    const profile = getTelegramBot(state, botId);
+    if (!profile) {
+      throw new Error(`Unknown Telegram bot: ${botId}`);
+    }
+
+    const pendingCode = profile.pendingPairingCode;
+    const pendingExpiresAt = profile.pendingPairingExpiresAt;
 
     if (!pendingCode || !pendingExpiresAt) {
       throw new Error(
-        "No active pairing code. Run 'opencolab setup telegram pair start' first.",
+        `No active pairing code for bot '${botId}'. Run 'opencolab telegram bot pair --id ${botId} start' first.`,
       );
     }
 
@@ -427,22 +598,22 @@ export class TelegramGateway {
     }
 
     const pairedAt = nowIso();
-    const next: OpenColabState = {
-      ...state,
-      telegram: {
-        ...state.telegram,
+    this.deps.saveState(
+      withBotProfile(state, botId, {
         paired: true,
         pairedAt,
         pendingPairingCode: null,
         pendingPairingExpiresAt: null,
-      },
-    };
+      }),
+    );
 
-    this.deps.saveState(next);
-    return { pairedAt };
+    return { botId, pairedAt };
   }
 
-  async handleWebhook(body: unknown): Promise<GatewayResult> {
+  async handleWebhook(
+    body: unknown,
+    source: TelegramUpdateSource,
+  ): Promise<GatewayResult> {
     const inbound = parseTelegramWebhookPayload(body);
     if (!inbound) {
       return {
@@ -454,8 +625,13 @@ export class TelegramGateway {
     }
 
     const state = ensureProjectAndAgent(this.deps.getState());
+    const resolved = this.resolveBotContext(state, source.botId);
+    if (!resolved.ok) {
+      return resolved.result;
+    }
+    const ctx = resolved.ctx;
 
-    if (!state.telegram.chatId || inbound.chatId !== state.telegram.chatId) {
+    if (!ctx.profile.chatId || inbound.chatId !== ctx.profile.chatId) {
       return {
         ok: false,
         action: "unauthorized_chat",
@@ -464,10 +640,9 @@ export class TelegramGateway {
       };
     }
 
-    if (!state.telegram.paired) {
-      const response =
-        "Pairing required. Run 'opencolab setup telegram pair start' in your terminal.";
-      const sent = await this.sender(inbound.chatId, response, state);
+    if (!ctx.profile.paired) {
+      const response = `Pairing required. Run 'opencolab telegram bot pair --id ${ctx.botId} start' in your terminal.`;
+      const sent = await this.sender(inbound.chatId, response, ctx);
       return {
         ok: false,
         action: "pairing_required",
@@ -477,72 +652,64 @@ export class TelegramGateway {
     }
 
     const laneKey = buildTelegramConversationLaneKey(
+      ctx.botId,
       inbound.chatId,
       inbound.messageThreadId,
     );
     if (isStopCommand(inbound)) {
-      return this.handleStopCommand(inbound, state, laneKey);
+      return this.handleStopCommand(ctx, inbound, laneKey);
     }
 
     if (!isTelegramCommandLike(inbound)) {
-      this.rememberTelegramTarget(inbound, state);
+      this.rememberTelegramTarget(ctx, inbound, state);
     }
 
     return this.runQueuedLane(laneKey, async () =>
-      this.handleQueuedWebhook(inbound, laneKey),
+      this.handleQueuedWebhook(ctx, inbound, laneKey),
     );
   }
 
-  async sendHeartbeatDigest(text: string): Promise<boolean> {
+  async sendHeartbeatDigest(
+    ctx: TelegramBotContext,
+    text: string,
+  ): Promise<boolean> {
     const message = normalizeProgressMessage(text);
     if (!message) {
       return false;
     }
 
-    const state = ensureProjectAndAgent(this.deps.getState());
-    if (!state.telegram.chatId || !state.telegram.paired) {
+    if (!ctx.profile.chatId || !ctx.profile.paired) {
       return false;
     }
 
-    const options = state.telegram.lastMessageThreadId
-      ? { messageThreadId: state.telegram.lastMessageThreadId }
+    const options = ctx.profile.lastMessageThreadId
+      ? { messageThreadId: ctx.profile.lastMessageThreadId }
       : undefined;
 
     return safeSendTelegramMessage(
       this.sender,
-      state.telegram.chatId,
+      ctx.profile.chatId,
       message,
-      state,
+      ctx,
       options,
     );
   }
 
   openHeartbeatLiveStatus(
+    ctx: TelegramBotContext,
     projectId: string,
     agentId: string,
     provider: ProviderConfig,
   ): HeartbeatLiveStatusSession | null {
-    const state = ensureProjectAndAgent(this.deps.getState());
-    if (!state.telegram.chatId || !state.telegram.paired) {
+    if (!ctx.profile.chatId || !ctx.profile.paired) {
       return null;
     }
 
-    const chatType = state.telegram.lastChatType ?? "unknown";
-    const messageThreadId = state.telegram.lastMessageThreadId ?? undefined;
-    const target: TelegramInbound = {
-      kind: "message",
-      chatId: state.telegram.chatId,
-      chatType,
-      sender: "heartbeat",
-      commandText: "",
-      text: "",
-      files: [],
-      messageThreadId,
-    };
+    const messageThreadId = ctx.profile.lastMessageThreadId ?? undefined;
     const liveStatus = new TelegramLiveStatusSession(
-      target.chatId,
-      state,
-      target,
+      ctx.profile.chatId,
+      ctx,
+      { messageThreadId },
       this.statusMessageCreator,
       this.messageEditor,
     );
@@ -554,7 +721,11 @@ export class TelegramGateway {
       progressState,
       liveStatus,
     );
-    const laneKey = buildTelegramConversationLaneKey(target.chatId, messageThreadId);
+    const laneKey = buildTelegramConversationLaneKey(
+      ctx.botId,
+      ctx.profile.chatId,
+      messageThreadId,
+    );
     this.activeRequests.set(laneKey, activeRequest);
     let progressQueue = Promise.resolve();
 
@@ -588,16 +759,21 @@ export class TelegramGateway {
   }
 
   private async handleQueuedWebhook(
+    ctx: TelegramBotContext,
     inbound: TelegramInbound,
     laneKey: string,
   ): Promise<GatewayResult> {
     const state = ensureProjectAndAgent(this.deps.getState());
-    const project = getActiveProject(state);
-    const activeAgent = getProjectActiveAgent(project);
+    // Re-read the profile: a CLI process may have rebound this bot while the lane queued.
+    const profile = getTelegramBot(state, ctx.botId) ?? ctx.profile;
+    const liveCtx: TelegramBotContext = { ...ctx, profile };
+    const replyOptions = inbound.messageThreadId
+      ? { messageThreadId: inbound.messageThreadId }
+      : undefined;
 
     let commandResult: ManagementCommandResult | null = null;
     try {
-      commandResult = this.tryHandleManagementCommand(inbound, state);
+      commandResult = this.tryHandleManagementCommand(liveCtx, inbound, state);
     } catch (error) {
       commandResult = {
         response: error instanceof Error ? error.message : String(error),
@@ -605,208 +781,255 @@ export class TelegramGateway {
       };
     }
     if (commandResult) {
-      return this.sendManagementCommandResult(inbound, state, commandResult);
+      return this.sendManagementCommandResult(liveCtx, inbound, commandResult);
     }
 
-    const memory = this.deps.readConversationMemory(inbound.chatId, 8);
-    let stopTyping: (() => void) | null = null;
+    const routing = this.resolveRoutingTarget(state, profile);
+    if (!routing.ok) {
+      const sent = await safeSendTelegramMessage(
+        this.sender,
+        inbound.chatId,
+        routing.message,
+        liveCtx,
+        replyOptions,
+      );
+      return {
+        ok: false,
+        action: "routing_error",
+        response: routing.message,
+        sent,
+      };
+    }
+
+    const target = routing.target;
+    const { project, agent } = target;
+    if (routing.note) {
+      await safeSendTelegramMessage(
+        this.sender,
+        inbound.chatId,
+        routing.note,
+        liveCtx,
+        replyOptions,
+      );
+    }
+
     const progressState = createRequestProgressState();
-    const replyOptions = inbound.messageThreadId
-      ? { messageThreadId: inbound.messageThreadId }
-      : undefined;
     const liveStatus = new TelegramLiveStatusSession(
       inbound.chatId,
-      state,
+      liveCtx,
       inbound,
       this.statusMessageCreator,
       this.messageEditor,
     );
     const activeRequest = createActiveRequest(
       project.id,
-      activeAgent.id,
-      activeAgent.provider,
+      agent.id,
+      agent.provider,
       progressState,
       liveStatus,
     );
+    // Registered before the agent queue is acquired so /stop can cancel a queued turn.
     this.activeRequests.set(laneKey, activeRequest);
-    let progressQueue = Promise.resolve();
-    let appendedUserTurn = false;
 
-    try {
-      await this.deps.onAgentTurnStarted?.(project.id, activeAgent.id);
-      stopTyping = this.startTypingFeedback(inbound.chatId, state);
-      const resolvedFiles = await resolveInboundFiles(
-        this.config,
-        project.path,
-        inbound.files,
-      );
-      if (activeRequest.stopRequested) {
-        return buildStoppedGatewayResult();
-      }
-
-      const inboundText = buildInboundText(inbound.text, resolvedFiles);
-      this.deps.appendConversation(inbound.chatId, {
-        role: "user",
-        content: inboundText,
-        at: nowIso(),
-      });
-      appendedUserTurn = true;
-      const response = await this.deps.respond(
-        {
-          chatId: inbound.chatId,
-          sender: inbound.sender,
-          text: inboundText,
-          files: resolvedFiles,
-          memory,
-        },
-        {
-          signal: activeRequest.abortController.signal,
-          onProgress: (event) => {
-            if (activeRequest.stopRequested) {
-              return progressQueue;
-            }
-            progressQueue = progressQueue
-              .then(async () =>
-                this.sendProgressUpdate(
-                  event,
-                  progressState,
-                  liveStatus,
-                ),
-              )
-              .catch(() => undefined);
-            return progressQueue;
-          },
-        },
-      );
-      await progressQueue;
-      await liveStatus.close();
-
-      if (activeRequest.stopRequested) {
-        return buildStoppedGatewayResult();
-      }
-
-      const outbound = parseOutboundAgentResponse(
-        response,
-        path.resolve(this.config.rootDir, activeAgent.path),
-      );
-      if (activeRequest.stopRequested) {
-        return buildStoppedGatewayResult();
-      }
-      const outboundTextForTelegram = formatTelegramAgentReply(activeAgent.id, outbound.text);
-      const assistantLog = buildAssistantLogContent(
-        outbound.text,
-        outbound.files,
-      );
-
-      if (activeRequest.stopRequested) {
-        return buildStoppedGatewayResult();
-      }
-      this.deps.appendConversation(inbound.chatId, {
-        role: "assistant",
-        content: assistantLog,
-        at: nowIso(),
-      });
-
-      let sent = true;
-      let sentAny = false;
-
-      if (!activeRequest.stopRequested && outbound.text) {
-        const textSent = await safeSendTelegramMessage(
-          this.sender,
-          inbound.chatId,
-          outboundTextForTelegram,
-          state,
-          replyOptions,
-        );
-        sent = sent && textSent;
-        sentAny = sentAny || textSent;
-      }
-
-      for (const file of outbound.files) {
+    return this.runQueuedAgent(
+      buildAgentLaneKey(project.id, agent.id),
+      async () => {
         if (activeRequest.stopRequested) {
+          if (this.activeRequests.get(laneKey) === activeRequest) {
+            this.activeRequests.delete(laneKey);
+          }
           return buildStoppedGatewayResult();
         }
-        const fileSent = await this.fileSender(inbound.chatId, file, state);
-        sent = sent && fileSent;
-        sentAny = sentAny || fileSent;
-      }
 
-      if (!outbound.text && outbound.files.length === 0) {
-        sent = false;
-      } else if (sentAny && !sent) {
-        sent = false;
-      }
+        let stopTyping: (() => void) | null = null;
+        let progressQueue = Promise.resolve();
+        let appendedUserTurn = false;
 
-      const responseText =
-        outboundTextForTelegram || summarizeOutboundFiles(outbound.files);
+        try {
+          ensureAgentFiles(this.config.rootDir, agent);
+          const memory = this.deps.readConversationMemory(target, 8);
+          await this.deps.onAgentTurnStarted?.(project.id, agent.id);
+          stopTyping = this.startTypingFeedback(inbound.chatId, liveCtx);
+          const resolvedFiles = await resolveInboundFiles(
+            this.config,
+            project.path,
+            inbound.files,
+            liveCtx,
+          );
+          if (activeRequest.stopRequested) {
+            return buildStoppedGatewayResult();
+          }
 
-      await this.notifyAgentTurnFinished(activeRequest, "completed");
+          const inboundText = buildInboundText(inbound.text, resolvedFiles);
+          this.deps.appendConversation(target, {
+            role: "user",
+            content: inboundText,
+            at: nowIso(),
+          });
+          appendedUserTurn = true;
+          const response = await this.deps.respond(
+            target,
+            {
+              chatId: inbound.chatId,
+              sender: inbound.sender,
+              text: inboundText,
+              files: resolvedFiles,
+              memory,
+            },
+            {
+              signal: activeRequest.abortController.signal,
+              onProgress: (event) => {
+                if (activeRequest.stopRequested) {
+                  return progressQueue;
+                }
+                progressQueue = progressQueue
+                  .then(async () =>
+                    this.sendProgressUpdate(
+                      event,
+                      progressState,
+                      liveStatus,
+                    ),
+                  )
+                  .catch(() => undefined);
+                return progressQueue;
+              },
+            },
+          );
+          await progressQueue;
+          await liveStatus.close();
 
-      return {
-        ok: true,
-        action: "agent_response",
-        response: responseText,
-        sent,
-      };
-    } catch (error) {
-      await progressQueue.catch(() => undefined);
-      await liveStatus.close();
-      if (activeRequest.stopRequested) {
-        return buildStoppedGatewayResult();
-      }
+          if (activeRequest.stopRequested) {
+            return buildStoppedGatewayResult();
+          }
 
-      const response = buildAgentFailureMessage(
-        error,
-        progressState.lastMeaningfulMessage,
-      );
-      await this.notifyAgentTurnFinished(
-        activeRequest,
-        isProviderTimeoutError(error) ? "timed_out" : "failed"
-      );
-      if (appendedUserTurn) {
-        this.deps.appendConversation(inbound.chatId, {
-          role: "assistant",
-          content: buildAssistantRecoveryLog(
+          const outbound = parseOutboundAgentResponse(
+            response,
+            path.resolve(this.config.rootDir, agent.path),
+          );
+          if (activeRequest.stopRequested) {
+            return buildStoppedGatewayResult();
+          }
+          const outboundTextForTelegram = profile.showAgentPrefix
+            ? formatTelegramAgentReply(agent.id, outbound.text)
+            : outbound.text;
+          const assistantLog = buildAssistantLogContent(
+            outbound.text,
+            outbound.files,
+          );
+
+          if (activeRequest.stopRequested) {
+            return buildStoppedGatewayResult();
+          }
+          this.deps.appendConversation(target, {
+            role: "assistant",
+            content: assistantLog,
+            at: nowIso(),
+          });
+
+          let sent = true;
+          let sentAny = false;
+
+          if (!activeRequest.stopRequested && outbound.text) {
+            const textSent = await safeSendTelegramMessage(
+              this.sender,
+              inbound.chatId,
+              outboundTextForTelegram,
+              liveCtx,
+              replyOptions,
+            );
+            sent = sent && textSent;
+            sentAny = sentAny || textSent;
+          }
+
+          for (const file of outbound.files) {
+            if (activeRequest.stopRequested) {
+              return buildStoppedGatewayResult();
+            }
+            const fileSent = await this.fileSender(inbound.chatId, file, liveCtx);
+            sent = sent && fileSent;
+            sentAny = sentAny || fileSent;
+          }
+
+          if (!outbound.text && outbound.files.length === 0) {
+            sent = false;
+          } else if (sentAny && !sent) {
+            sent = false;
+          }
+
+          const responseText =
+            outboundTextForTelegram || summarizeOutboundFiles(outbound.files);
+
+          await this.notifyAgentTurnFinished(activeRequest, "completed");
+
+          return {
+            ok: true,
+            action: "agent_response",
+            response: responseText,
+            sent,
+          };
+        } catch (error) {
+          await progressQueue.catch(() => undefined);
+          await liveStatus.close();
+          if (activeRequest.stopRequested) {
+            return buildStoppedGatewayResult();
+          }
+
+          const response = buildAgentFailureMessage(
             error,
-            activeAgent.provider,
-            this.config.providerCliTimeoutMs,
             progressState.lastMeaningfulMessage,
-          ),
-          at: nowIso(),
-        });
-      }
-      logAgentFailure(inbound.chatId, activeAgent.provider, error);
-      const sent = await safeSendTelegramMessage(
-        this.sender,
-        inbound.chatId,
-        response,
-        state,
-        replyOptions,
-      );
-      return {
-        ok: false,
-        action: "agent_error",
-        response,
-        sent,
-      };
-    } finally {
-      stopTyping?.();
-      if (this.activeRequests.get(laneKey) === activeRequest) {
-        this.activeRequests.delete(laneKey);
-      }
-    }
+          );
+          await this.notifyAgentTurnFinished(
+            activeRequest,
+            isProviderTimeoutError(error) ? "timed_out" : "failed"
+          );
+          if (appendedUserTurn) {
+            this.deps.appendConversation(target, {
+              role: "assistant",
+              content: buildAssistantRecoveryLog(
+                error,
+                agent.provider,
+                this.config.providerCliTimeoutMs,
+                progressState.lastMeaningfulMessage,
+              ),
+              at: nowIso(),
+            });
+          }
+          logAgentFailure(liveCtx.botId, inbound.chatId, agent.provider, error);
+          const sent = await safeSendTelegramMessage(
+            this.sender,
+            inbound.chatId,
+            response,
+            liveCtx,
+            replyOptions,
+          );
+          return {
+            ok: false,
+            action: "agent_error",
+            response,
+            sent,
+          };
+        } finally {
+          stopTyping?.();
+          if (this.activeRequests.get(laneKey) === activeRequest) {
+            this.activeRequests.delete(laneKey);
+          }
+        }
+      },
+    );
   }
 
   private async sendManagementCommandResult(
+    ctx: TelegramBotContext,
     inbound: TelegramInbound,
-    state: OpenColabState,
     commandResult: ManagementCommandResult,
   ): Promise<GatewayResult> {
-    const responseState = commandResult.nextState
-      ? ensureProjectAndAgent(commandResult.nextState)
-      : state;
+    let responseCtx = ctx;
     if (commandResult.nextState) {
       this.deps.saveState(commandResult.nextState);
+      const refreshed = getTelegramBot(commandResult.nextState, ctx.botId);
+      if (refreshed) {
+        responseCtx = { ...ctx, profile: refreshed };
+      }
     }
 
     if (inbound.callbackQueryId) {
@@ -814,14 +1037,14 @@ export class TelegramGateway {
         this.callbackAnswerer,
         inbound.callbackQueryId,
         truncateTelegramCallbackText(commandResult.callbackAnswerText ?? commandResult.response),
-        responseState,
+        responseCtx,
       );
     }
 
     const sent = await this.sender(
       inbound.chatId,
       commandResult.response,
-      responseState,
+      responseCtx,
       {
         ...commandResult.options,
         ...(inbound.messageThreadId ? { messageThreadId: inbound.messageThreadId } : {}),
@@ -836,31 +1059,27 @@ export class TelegramGateway {
   }
 
   private rememberTelegramTarget(
+    ctx: TelegramBotContext,
     inbound: TelegramInbound,
     state: OpenColabState,
   ): void {
-    const lastChatType = normalizeRememberedChatType(inbound.chatType);
-    const lastMessageThreadId = inbound.messageThreadId ?? null;
-    const next: OpenColabState = {
-      ...state,
-      telegram: {
-        ...state.telegram,
-        lastChatType,
-        lastMessageThreadId,
+    this.deps.saveState(
+      withBotProfile(state, ctx.botId, {
+        lastChatType: normalizeRememberedChatType(inbound.chatType),
+        lastMessageThreadId: inbound.messageThreadId ?? null,
         lastInteractionAt: nowIso(),
-      },
-    };
-    this.deps.saveState(next);
+      }),
+    );
   }
 
   private async handleStopCommand(
+    ctx: TelegramBotContext,
     inbound: TelegramInbound,
-    state: OpenColabState,
     laneKey: string,
   ): Promise<GatewayResult> {
     const activeRequest = this.activeRequests.get(laneKey);
     if (!activeRequest) {
-      return this.sendManagementCommandResult(inbound, state, {
+      return this.sendManagementCommandResult(ctx, inbound, {
         response: "No active task to stop.",
       });
     }
@@ -871,20 +1090,28 @@ export class TelegramGateway {
       await activeRequest.liveStatus.close();
 
       if (!activeRequest.recoveryLogged) {
-        this.deps.appendConversation(inbound.chatId, {
-          role: "assistant",
-          content: buildAssistantStopRecoveryLog(
-            activeRequest.provider,
-            activeRequest.progressState.lastMeaningfulMessage,
-          ),
-          at: nowIso(),
-        });
+        const state = ensureProjectAndAgent(this.deps.getState());
+        const project = state.projects[activeRequest.projectId];
+        const agent = project?.agents[activeRequest.agentId];
+        if (project && agent) {
+          this.deps.appendConversation(
+            { project, agent },
+            {
+              role: "assistant",
+              content: buildAssistantStopRecoveryLog(
+                activeRequest.provider,
+                activeRequest.progressState.lastMeaningfulMessage,
+              ),
+              at: nowIso(),
+            },
+          );
+        }
         activeRequest.recoveryLogged = true;
       }
       await this.notifyAgentTurnFinished(activeRequest, "stopped");
     }
 
-    return this.sendManagementCommandResult(inbound, state, {
+    return this.sendManagementCommandResult(ctx, inbound, {
       response: STOPPED_TASK_CONFIRMATION_TEXT,
     });
   }
@@ -893,23 +1120,14 @@ export class TelegramGateway {
     laneKey: string,
     task: () => Promise<T>,
   ): Promise<T> {
-    const previous = this.laneQueues.get(laneKey) ?? Promise.resolve();
-    let releaseCurrent!: () => void;
-    const current = new Promise<void>((resolve) => {
-      releaseCurrent = resolve;
-    });
-    const tail = previous.catch(() => undefined).then(() => current);
-    this.laneQueues.set(laneKey, tail);
+    return runQueued(this.laneQueues, laneKey, task);
+  }
 
-    await previous.catch(() => undefined);
-    try {
-      return await task();
-    } finally {
-      releaseCurrent();
-      if (this.laneQueues.get(laneKey) === tail) {
-        this.laneQueues.delete(laneKey);
-      }
-    }
+  private async runQueuedAgent<T>(
+    agentLaneKey: string,
+    task: () => Promise<T>,
+  ): Promise<T> {
+    return runQueued(this.agentQueues, agentLaneKey, task);
   }
 
   isAgentBusy(projectId: string, agentId: string): boolean {
@@ -933,11 +1151,12 @@ export class TelegramGateway {
   }
 
   private tryHandleManagementCommand(
+    ctx: TelegramBotContext,
     inbound: TelegramInbound,
     state: OpenColabState,
   ): ManagementCommandResult | null {
     if (inbound.kind === "callback_query") {
-      return this.tryHandleManagementCallback(inbound, state);
+      return this.tryHandleManagementCallback(ctx, inbound, state);
     }
 
     const text = normalizeManagementInput(inbound.commandText);
@@ -949,65 +1168,68 @@ export class TelegramGateway {
     const scope = normalizeCommandToken(tokens[0]).toLowerCase();
 
     if (scope === "/projects") {
-      return this.renderProjectPicker(state);
+      return this.renderProjectPicker(ctx, state);
     }
 
     if (scope === "/agents") {
-      return this.renderAgentPicker(getActiveProject(state));
+      return this.renderAgentPicker(ctx, state);
+    }
+
+    if (scope === "/whoami") {
+      return this.renderWhoAmI(ctx, state);
     }
 
     if (scope === "/session_reset") {
-      const sessionId = this.deps.resetConversationSession();
+      const routing = this.resolveRoutingTarget(state, ctx.profile);
+      if (!routing.ok) {
+        return { response: routing.message };
+      }
+      const sessionId = this.deps.resetConversationSession(routing.target);
       return {
-        response: `Session reset. New session: ${sessionId}`,
+        response: [
+          `Session reset for ${routing.target.agent.id} (project ${routing.target.project.id}).`,
+          `New session: ${sessionId}`,
+        ].join("\n"),
       };
     }
 
     if (scope === "/workflow_notifications" || scope === "/workflow_notify") {
-      return this.handleWorkflowNotificationsCommand(state, tokens.slice(1));
+      return this.handleWorkflowNotificationsCommand(ctx, state, tokens.slice(1));
     }
 
     return {
-      response: SUPPORTED_TELEGRAM_COMMANDS_TEXT,
+      response: buildSupportedCommandsText(ctx.profile),
     };
   }
 
   private handleWorkflowNotificationsCommand(
+    ctx: TelegramBotContext,
     state: OpenColabState,
     args: string[],
   ): ManagementCommandResult {
     const mode = (args[0] ?? "status").trim().toLowerCase();
     if (mode === "status" || mode === "") {
-      const enabled = state.telegram.notifyWorkflowProgress;
       return {
-        response: enabled
+        response: ctx.profile.notifyWorkflowProgress
           ? "Workflow live updates: ON. You'll get step boundaries + agent milestones for every run."
           : "Workflow live updates: OFF. Send /workflow_notifications on to enable.",
       };
     }
     if (mode === "on" || mode === "enable" || mode === "true") {
-      if (state.telegram.notifyWorkflowProgress) {
+      if (ctx.profile.notifyWorkflowProgress) {
         return { response: "Workflow live updates are already ON." };
       }
-      const nextState: OpenColabState = {
-        ...state,
-        telegram: { ...state.telegram, notifyWorkflowProgress: true },
-      };
       return {
-        nextState,
+        nextState: withBotProfile(state, ctx.botId, { notifyWorkflowProgress: true }),
         response: "Workflow live updates: ON. You'll see step boundaries + agent milestones here.",
       };
     }
     if (mode === "off" || mode === "disable" || mode === "false") {
-      if (!state.telegram.notifyWorkflowProgress) {
+      if (!ctx.profile.notifyWorkflowProgress) {
         return { response: "Workflow live updates are already OFF." };
       }
-      const nextState: OpenColabState = {
-        ...state,
-        telegram: { ...state.telegram, notifyWorkflowProgress: false },
-      };
       return {
-        nextState,
+        nextState: withBotProfile(state, ctx.botId, { notifyWorkflowProgress: false }),
         response: "Workflow live updates: OFF.",
       };
     }
@@ -1017,6 +1239,7 @@ export class TelegramGateway {
   }
 
   private tryHandleManagementCallback(
+    ctx: TelegramBotContext,
     inbound: TelegramInbound,
     state: OpenColabState,
   ): ManagementCommandResult {
@@ -1031,11 +1254,11 @@ export class TelegramGateway {
     }
 
     if (scope === "prj" && action === "use" && value) {
-      return this.selectProject(state, value, "Project selected.");
+      return this.selectProject(ctx, state, value, "Project selected.");
     }
 
     if (scope === "agt" && action === "use" && value) {
-      return this.selectAgent(state, value, "Agent selected.");
+      return this.selectAgent(ctx, state, value, "Agent selected.");
     }
 
     return {
@@ -1044,11 +1267,20 @@ export class TelegramGateway {
     };
   }
 
+  /** Only reachable from a floating bot's picker; a pinned chat never switches projects. */
   private selectProject(
+    ctx: TelegramBotContext,
     state: OpenColabState,
     projectIdRaw: string,
     callbackAnswerText: string,
   ): ManagementCommandResult {
+    if (ctx.profile.scope === "pinned") {
+      return {
+        response: describeBotBinding(ctx.profile, state),
+        callbackAnswerText: "This chat has a fixed project.",
+      };
+    }
+
     const projectId = normalizeEntityId(projectIdRaw);
     const target = state.projects[projectId];
     if (!target) {
@@ -1077,13 +1309,48 @@ export class TelegramGateway {
     };
   }
 
+  /**
+   * Switches who answers in this chat. For a pinned bot that is the bot's own target
+   * agent, so the global active agent and every other chat stay untouched.
+   */
   private selectAgent(
+    ctx: TelegramBotContext,
     state: OpenColabState,
     agentIdRaw: string,
     callbackAnswerText: string,
   ): ManagementCommandResult {
-    const project = getActiveProject(state);
     const agentId = normalizeEntityId(agentIdRaw);
+
+    if (ctx.profile.scope === "pinned") {
+      const projectId = ctx.profile.projectId;
+      const project = projectId ? state.projects[projectId] : null;
+      if (!project) {
+        return {
+          response: describeBotBinding(ctx.profile, state),
+          callbackAnswerText: "No bound project.",
+        };
+      }
+      const agent = project.agents[agentId];
+      if (!agent) {
+        return {
+          response: `Unknown agent in project '${project.id}': ${agentId}`,
+          callbackAnswerText: "Unknown agent.",
+        };
+      }
+
+      ensureAgentFiles(this.config.rootDir, agent);
+      return {
+        nextState: withBotProfile(state, ctx.botId, { agentId }),
+        response: [
+          `Now talking to: ${agentId}`,
+          `Project: ${project.id}`,
+          `Provider: ${agent.provider.name}:${agent.provider.model}`,
+        ].join("\n"),
+        callbackAnswerText,
+      };
+    }
+
+    const project = getActiveProject(state);
     if (!project.agents[agentId]) {
       return {
         response: `Unknown agent in project '${project.id}': ${agentId}`,
@@ -1111,7 +1378,14 @@ export class TelegramGateway {
     };
   }
 
-  private renderProjectPicker(state: OpenColabState): ManagementCommandResult {
+  private renderProjectPicker(
+    ctx: TelegramBotContext,
+    state: OpenColabState,
+  ): ManagementCommandResult {
+    if (ctx.profile.scope === "pinned") {
+      return { response: describeBotBinding(ctx.profile, state) };
+    }
+
     const entries = Object.values(state.projects).sort((a, b) =>
       a.id.localeCompare(b.id),
     );
@@ -1146,21 +1420,35 @@ export class TelegramGateway {
   }
 
   private renderAgentPicker(
-    project: OpenColabState["projects"][string],
+    ctx: TelegramBotContext,
+    state: OpenColabState,
   ): ManagementCommandResult {
+    const routing = this.resolveRoutingTarget(state, ctx.profile);
+    if (!routing.ok) {
+      return { response: routing.message };
+    }
+
+    const project = routing.target.project;
+    const currentAgentId = routing.target.agent.id;
+    const following =
+      ctx.profile.scope === "pinned" && !ctx.profile.agentId
+        ? `Following the project default (${project.activeAgentId}).`
+        : null;
+
     const entries = Object.values(project.agents).sort((a, b) =>
       a.id.localeCompare(b.id),
     );
     const lines = entries.map((agent) => {
-      const marker = agent.id === project.activeAgentId ? "*" : "-";
+      const marker = agent.id === currentAgentId ? "*" : "-";
       return `${marker} ${agent.id} [${agent.provider.name}:${agent.provider.model}]`;
     });
 
     return {
       response: [
         `Agents in ${project.id} (${entries.length})`,
-        `Current: ${project.activeAgentId}`,
-        "Tap an agent to switch.",
+        `Current: ${currentAgentId}`,
+        ...(following ? [following] : []),
+        "Tap an agent to switch this chat.",
         "",
         ...lines,
       ].join("\n"),
@@ -1169,7 +1457,7 @@ export class TelegramGateway {
           ...chunkInlineButtons(
             entries.map((agent) => ({
               text:
-                agent.id === project.activeAgentId
+                agent.id === currentAgentId
                   ? `* ${agent.id}`
                   : agent.id,
               callbackData: `agt:use:${agent.id}`,
@@ -1181,9 +1469,40 @@ export class TelegramGateway {
     };
   }
 
+  private renderWhoAmI(
+    ctx: TelegramBotContext,
+    state: OpenColabState,
+  ): ManagementCommandResult {
+    const routing = this.resolveRoutingTarget(state, ctx.profile);
+    const lines = [
+      `Bot: ${ctx.profile.telegramUsername ? `@${ctx.profile.telegramUsername}` : ctx.botId} (${ctx.botId})`,
+      `Mode: ${ctx.profile.scope}`,
+    ];
+
+    if (routing.ok) {
+      const { project, agent } = routing.target;
+      lines.push(`Project: ${project.id}`);
+      lines.push(`Agent: ${agent.id} [${agent.provider.name}:${agent.provider.model}]`);
+      if (ctx.profile.scope === "pinned" && !ctx.profile.agentId) {
+        lines.push("Agent source: project default (use /agents to pin one here)");
+      }
+    } else {
+      lines.push(routing.message);
+    }
+
+    lines.push(
+      `Workflow updates: ${ctx.profile.notifyWorkflowProgress ? "on" : "off"}`,
+    );
+    if (ctx.profile.pairedAt) {
+      lines.push(`Paired: ${ctx.profile.pairedAt}`);
+    }
+
+    return { response: lines.join("\n") };
+  }
+
   private startTypingFeedback(
     chatId: string,
-    state: OpenColabState,
+    ctx: TelegramBotContext,
   ): () => void {
     let running = true;
 
@@ -1193,7 +1512,7 @@ export class TelegramGateway {
       }
 
       try {
-        await this.typingSender(chatId, state);
+        await this.typingSender(chatId, ctx);
       } catch {
         // Typing feedback is best-effort.
       }
@@ -1230,15 +1549,117 @@ export class TelegramGateway {
   }
 }
 
+type BotContextResolution =
+  | { ok: true; ctx: TelegramBotContext }
+  | { ok: false; result: GatewayResult };
+
+type RoutingResolution =
+  | { ok: true; target: TelegramRoutingTarget; note?: string }
+  | { ok: false; message: string };
+
+/** Immutably patches one bot profile inside a state snapshot. */
+export function withBotProfile(
+  state: OpenColabState,
+  botId: string,
+  patch: Partial<TelegramBotProfile>,
+): OpenColabState {
+  const existing = state.telegramBots[botId];
+  if (!existing) {
+    return state;
+  }
+
+  return {
+    ...state,
+    telegramBots: {
+      ...state.telegramBots,
+      [botId]: { ...existing, ...patch, id: existing.id },
+    },
+  };
+}
+
+function describeBotBinding(
+  profile: TelegramBotProfile,
+  state: OpenColabState,
+): string {
+  const project = profile.projectId ? state.projects[profile.projectId] : null;
+  const agentId = profile.agentId ?? project?.activeAgentId ?? "unknown";
+
+  if (!project) {
+    return [
+      profile.projectId
+        ? `This chat is bound to project '${profile.projectId}', which no longer exists.`
+        : "This chat is not bound to a project yet.",
+      `Bind it with: opencolab telegram bot bind --id ${profile.id} --project <project_id>`,
+    ].join("\n");
+  }
+
+  return [
+    `This chat is bound to project '${project.id}'.`,
+    `Target agent: ${agentId}`,
+    "Use /agents to change who answers here.",
+    `To move this bot to another project, run: opencolab telegram bot bind --id ${profile.id} --project <project_id>`,
+  ].join("\n");
+}
+
+function buildSupportedCommandsText(profile: TelegramBotProfile): string {
+  const commands = [
+    ...(profile.scope === "floating" ? ["/projects"] : ["/projects (info)"]),
+    "/agents",
+    "/whoami",
+    "/session_reset",
+    "/stop",
+    "/workflow_notifications on|off|status",
+  ];
+  return `Supported commands: ${commands.join(" | ")}`;
+}
+
+const tokenMissingLoggedAt = new Map<string, number>();
+const TOKEN_MISSING_LOG_INTERVAL_MS = 60_000;
+
+function logTokenMissing(profile: TelegramBotProfile): void {
+  const now = Date.now();
+  const last = tokenMissingLoggedAt.get(profile.id) ?? 0;
+  if (now - last < TOKEN_MISSING_LOG_INTERVAL_MS) {
+    return;
+  }
+  tokenMissingLoggedAt.set(profile.id, now);
+  console.error(
+    `[opencolab:telegram] bot=${profile.id} token missing (${profile.tokenEnvVar}); updates are ignored.`,
+  );
+}
+
+async function runQueued<T>(
+  queues: Map<string, Promise<void>>,
+  key: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = queues.get(key) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const tail = previous.catch(() => undefined).then(() => current);
+  queues.set(key, tail);
+
+  await previous.catch(() => undefined);
+  try {
+    return await task();
+  } finally {
+    releaseCurrent();
+    if (queues.get(key) === tail) {
+      queues.delete(key);
+    }
+  }
+}
 async function safeSendTelegramMessage(
   sender: TelegramSender,
   chatId: string,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ): Promise<boolean> {
   try {
-    return await sendTelegramTextChunks(sender, chatId, text, state, options);
+    return await sendTelegramTextChunks(sender, chatId, text, ctx, options);
   } catch {
     return false;
   }
@@ -1248,7 +1669,7 @@ async function sendTelegramTextChunks(
   sender: TelegramSender,
   chatId: string,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ): Promise<boolean> {
   const chunks = splitTelegramText(text);
@@ -1257,7 +1678,7 @@ async function sendTelegramTextChunks(
   }
 
   for (const chunk of chunks) {
-    const sent = await sender(chatId, chunk, state, options);
+    const sent = await sender(chatId, chunk, ctx, options);
     if (!sent) {
       return false;
     }
@@ -1270,11 +1691,11 @@ async function safeCreateTelegramStatusMessage(
   creator: TelegramStatusMessageCreator,
   chatId: string,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ): Promise<string | null> {
   try {
-    return await creator(chatId, text, state, options);
+    return await creator(chatId, text, ctx, options);
   } catch {
     return null;
   }
@@ -1285,11 +1706,11 @@ async function safeEditTelegramMessage(
   chatId: string,
   messageId: string,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ): Promise<boolean> {
   try {
-    return await editor(chatId, messageId, text, state, options);
+    return await editor(chatId, messageId, text, ctx, options);
   } catch {
     return false;
   }
@@ -1299,10 +1720,10 @@ async function safeAnswerTelegramCallback(
   answerer: TelegramCallbackAnswerer,
   callbackQueryId: string,
   text: string | undefined,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
 ): Promise<boolean> {
   try {
-    return await answerer(callbackQueryId, text, state);
+    return await answerer(callbackQueryId, text, ctx);
   } catch {
     return false;
   }
@@ -1500,6 +1921,7 @@ function resolveProgressSlot(event: TaskProgressEvent): string {
 }
 
 function logAgentFailure(
+  botId: string,
   chatId: string,
   provider: ProviderConfig,
   error: unknown,
@@ -1509,21 +1931,17 @@ function logAgentFailure(
       ? (error.stack ?? error.message)
       : String(error);
   console.error(
-    `[opencolab:telegram:error] chat=${chatId} provider=${provider.name} model=${provider.model} ${detail}`,
+    `[opencolab:telegram:error] bot=${botId} chat=${chatId} provider=${provider.name} model=${provider.model} ${detail}`,
   );
 }
 
 async function postTelegramJson(
+  ctx: TelegramBotContext,
   method: string,
   payload: Record<string, unknown>,
 ): Promise<Record<string, unknown> | null> {
-  const token = resolveTelegramBotToken();
-  if (!token) {
-    return null;
-  }
-
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    const response = await fetch(`https://api.telegram.org/bot${ctx.token}/${method}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1536,13 +1954,17 @@ async function postTelegramJson(
       const detail =
         asStringValue(body?.description) ??
         (response.ok ? "telegram returned ok=false" : `telegram api status ${String(response.status)}`);
-      console.error(`[opencolab:telegram:api] method=${method} status=${String(response.status)} ${detail}`);
+      console.error(
+        `[opencolab:telegram:api] bot=${ctx.botId} method=${method} status=${String(response.status)} ${detail}`,
+      );
       return null;
     }
     return body;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error ?? "");
-    console.error(`[opencolab:telegram:api] method=${method} transport_error ${detail}`);
+    console.error(
+      `[opencolab:telegram:api] bot=${ctx.botId} method=${method} transport_error ${detail}`,
+    );
     return null;
   }
 }
@@ -1566,10 +1988,10 @@ function extractTelegramMessageId(response: Record<string, unknown> | null): str
 export async function defaultTelegramSender(
   chatId: string,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ): Promise<boolean> {
-  const messageId = await defaultTelegramStatusMessageCreator(chatId, text, state, options);
+  const messageId = await defaultTelegramStatusMessageCreator(chatId, text, ctx, options);
   return Boolean(messageId);
 }
 
@@ -1577,11 +1999,10 @@ export async function defaultTelegramDraftSender(
   chatId: string,
   draftId: number,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ): Promise<boolean> {
-  void state;
-  const response = await postTelegramJson("sendMessageDraft", {
+  const response = await postTelegramJson(ctx, "sendMessageDraft", {
     chat_id: chatId,
     draft_id: draftId,
     text,
@@ -1593,11 +2014,10 @@ export async function defaultTelegramDraftSender(
 export async function defaultTelegramStatusMessageCreator(
   chatId: string,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ): Promise<string | null> {
-  void state;
-  const response = await postTelegramJson("sendMessage", {
+  const response = await postTelegramJson(ctx, "sendMessage", {
     chat_id: chatId,
     text,
     ...(options?.messageThreadId ? { message_thread_id: Number(options.messageThreadId) } : {}),
@@ -1621,12 +2041,11 @@ export async function defaultTelegramMessageEditor(
   chatId: string,
   messageId: string,
   text: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
   options?: TelegramMessageOptions,
 ): Promise<boolean> {
-  void state;
   void options;
-  const response = await postTelegramJson("editMessageText", {
+  const response = await postTelegramJson(ctx, "editMessageText", {
     chat_id: chatId,
     message_id: Number(messageId),
     text,
@@ -1637,17 +2056,11 @@ export async function defaultTelegramMessageEditor(
 export async function defaultTelegramCallbackAnswerer(
   callbackQueryId: string,
   text: string | undefined,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
 ): Promise<boolean> {
-  void state;
-  const token = resolveTelegramBotToken();
-  if (!token) {
-    return false;
-  }
-
   try {
     const response = await fetch(
-      `https://api.telegram.org/bot${token}/answerCallbackQuery`,
+      `https://api.telegram.org/bot${ctx.token}/answerCallbackQuery`,
       {
         method: "POST",
         headers: {
@@ -1668,10 +2081,9 @@ export async function defaultTelegramCallbackAnswerer(
 
 export async function defaultTelegramTypingSender(
   chatId: string,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
 ): Promise<boolean> {
-  void state;
-  return (await postTelegramJson("sendChatAction", {
+  return (await postTelegramJson(ctx, "sendChatAction", {
     chat_id: chatId,
     action: "typing",
   })) !== null;
@@ -1680,14 +2092,9 @@ export async function defaultTelegramTypingSender(
 export async function defaultTelegramFileSender(
   chatId: string,
   file: TelegramOutboundFile,
-  state: OpenColabState,
+  ctx: TelegramBotContext,
 ): Promise<boolean> {
-  void state;
-  const token = resolveTelegramBotToken();
-  if (!token) {
-    return false;
-  }
-
+  const token = ctx.token;
   const method = resolveTelegramFileMethod(file.kind);
   const fileField = resolveTelegramFileField(file.kind);
   const url = `https://api.telegram.org/bot${token}/${method}`;
@@ -1934,10 +2341,16 @@ function normalizeManagementInput(raw: string): string {
 }
 
 function buildTelegramConversationLaneKey(
+  botId: string,
   chatId: string,
   messageThreadId?: string,
 ): string {
-  return `${chatId}::${messageThreadId ?? ""}`;
+  return `${botId}::${chatId}::${messageThreadId ?? ""}`;
+}
+
+/** Serializes provider turns for one agent across every bot, chat, and thread. */
+function buildAgentLaneKey(projectId: string, agentId: string): string {
+  return `${projectId}::${agentId}`;
 }
 
 function isStopCommand(inbound: TelegramInbound): boolean {
@@ -2453,16 +2866,13 @@ async function resolveInboundFiles(
   config: OpenColabConfig,
   projectPath: string,
   files: TelegramFilePayload[],
+  ctx: TelegramBotContext,
 ): Promise<TelegramFilePayload[]> {
   if (files.length === 0) {
     return [];
   }
 
-  const token = resolveTelegramBotToken();
-  if (!token) {
-    return files;
-  }
-
+  const token = ctx.token;
   const projectDir = path.isAbsolute(projectPath)
     ? projectPath
     : path.join(config.rootDir, projectPath);

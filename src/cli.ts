@@ -17,6 +17,7 @@ import {
 import { startHttpServer } from "./http.js";
 import { runIgnite } from "./ignite.js";
 import {
+  fetchTelegramBotIdentity,
   fetchTelegramBotUsername,
   waitForTelegramHandshake,
   type TelegramHandshakeResult,
@@ -27,7 +28,10 @@ import {
   resolveManagedInstallCliScriptPath,
   resolveRuntimeRootDir,
 } from "./install.js";
-import { DEFAULT_AGENT_ID } from "./project-config.js";
+import {
+  DEFAULT_AGENT_ID,
+  DEFAULT_TELEGRAM_BOT_ID,
+} from "./project-config.js";
 import {
   getProviderDefaultReasoningEffort,
   getProviderReasoningEffortOptions,
@@ -41,11 +45,15 @@ import {
   resolveProviderReasoningEffort,
   resolveProviderAuthMode,
 } from "./provider.js";
-import { createRuntime } from "./runtime.js";
+import {
+  createRuntime,
+  type OpenColabRuntime,
+  type TelegramBotSummary,
+} from "./runtime.js";
 import {
   getProviderApiKeyEnvVar,
+  resolveEnvVar,
   resolveProviderApiKey,
-  resolveTelegramBotToken,
   TELEGRAM_BOT_TOKEN_ENV_VAR,
   writeSecretToLocalEnv,
 } from "./secrets.js";
@@ -90,9 +98,18 @@ type TelegramCommandScope =
   | { type: "all_group_chats" }
   | { type: "chat"; chat_id: string };
 
-const TELEGRAM_MENU_COMMANDS: TelegramMenuCommand[] = [
+const TELEGRAM_MENU_COMMANDS_PINNED: TelegramMenuCommand[] = [
+  { command: "agents", description: "Pick who answers in this chat" },
+  { command: "whoami", description: "Show this chat's project and agent" },
+  { command: "projects", description: "Show this chat's project binding" },
+  { command: "session_reset", description: "Reset this agent's session" },
+  { command: "stop", description: "Stop active task" },
+];
+
+const TELEGRAM_MENU_COMMANDS_FLOATING: TelegramMenuCommand[] = [
   { command: "projects", description: "Pick active project" },
   { command: "agents", description: "Pick active agent" },
+  { command: "whoami", description: "Show active project and agent" },
   { command: "session_reset", description: "Reset active session" },
   { command: "stop", description: "Stop active task" },
 ];
@@ -489,6 +506,7 @@ function usageMain(): string {
       "Upgrade OpenColab or show package upgrade guidance",
     ),
     helpCommand("setup", "Configure model/provider/api-key/telegram"),
+    helpCommand("telegram", "Bind one Telegram bot per project"),
     helpCommand("project", "Manage/create projects"),
     helpCommand("agent", "Manage/create agents"),
     helpCommand("gpu", "Manage remote GPU servers and jobs"),
@@ -499,6 +517,7 @@ function usageMain(): string {
     ...helpExample("opencolab setup --help", "Show setup command help"),
     ...helpExample("opencolab upgrade --help", "Show upgrade command help"),
     ...helpExample("opencolab setup model --help", "Show setup model flags"),
+    ...helpExample("opencolab telegram bot --help", "Show telegram bot commands"),
     ...helpExample(
       "opencolab gateway start --help",
       "Show gateway start flags",
@@ -678,6 +697,10 @@ function usageSetupTelegram(): string {
       "Telegram bot token value (saved to .env.local)",
     ),
     helpFlag("--chat-id <id>", "Authorized Telegram chat id"),
+    helpFlag("--id <bot>", "Bot to configure (default: default)"),
+    "",
+    "Notes:",
+    `  - This configures one bot. For a bot per project use ${accent("opencolab telegram bot add")}.`,
   ]);
 }
 
@@ -691,6 +714,8 @@ function usageSetupTelegramCommandsSync(): string {
     "",
     "Flags:",
     helpFlag("--chat-id <id>", "Specific chat for menu button setup"),
+    helpFlag("--id <bot>", "Bot to sync (default: default)"),
+    helpFlag("--all", "Sync every configured bot"),
   ]);
 }
 
@@ -708,6 +733,63 @@ function usageSetupTelegramPair(): string {
     "",
     "Flags:",
     helpFlag("--code <pairing_code>", "Required for 'complete'"),
+  ]);
+}
+
+function usageTelegram(): string {
+  return formatHelp([
+    "Usage:",
+    helpCommand(
+      "opencolab telegram bot add --token <botfather_token> [--project <id>]",
+      "Bind a new bot to a project",
+    ),
+    helpCommand("opencolab telegram bot list [--json]", "List bots and project owners"),
+    helpCommand("opencolab telegram bot show --id <bot>", "Show one bot"),
+    helpCommand(
+      "opencolab telegram bot bind --id <bot> --project <id> [--agent <id>|--agent-auto]",
+      "Repoint a bot at a project/agent",
+    ),
+    helpCommand(
+      "opencolab telegram bot pin --id <bot> [--project <id>]",
+      "Pin a floating bot to a project",
+    ),
+    helpCommand(
+      "opencolab telegram bot unbind --id <bot>",
+      "Return a bot to following the active project",
+    ),
+    helpCommand(
+      "opencolab telegram bot enable|disable --id <bot>",
+      "Enable or disable one bot",
+    ),
+    helpCommand(
+      "opencolab telegram bot remove --id <bot> [--keep-token]",
+      "Remove a bot and its token",
+    ),
+    helpCommand(
+      "opencolab telegram bot pair --id <bot> start|complete --code <code>",
+      "Pair one bot with its chat",
+    ),
+    helpCommand("opencolab telegram bot test --id <bot>", "Validate token and chat"),
+    helpCommand(
+      "opencolab telegram commands sync [--id <bot>|--all]",
+      "Sync slash-command menus",
+    ),
+    "",
+    "Flags:",
+    helpFlag("--token <value>", "BotFather token (saved to .env.local)"),
+    helpFlag("--id <bot>", "Local bot id; defaults to the bot's @username slug"),
+    helpFlag("--project <id>", "Project this bot answers for"),
+    helpFlag("--agent <id>", "Pin one agent; omit to follow the project default"),
+    helpFlag("--agent-auto", "Clear a pinned agent"),
+    helpFlag("--floating", "Legacy mode: follow the globally active project"),
+    helpFlag("--keep-token", "Leave the token in .env.local when removing"),
+    "",
+    "Notes:",
+    "  - One project owns at most one enabled bot, so a chat is never ambiguous.",
+    "  - Messages to a bot route to its project regardless of the active project.",
+    "  - Tokens live only in .env.local; opencolab.json stores the env var name.",
+    "  - A project with no bot gets no heartbeat or workflow notifications.",
+    `  - Create bots in BotFather first: ${accent("https://t.me/BotFather")}`,
   ]);
 }
 
@@ -1075,6 +1157,10 @@ function resolveHelp(argv: string[]): string | null {
     return usageSetup();
   }
 
+  if (command === "telegram") {
+    return usageTelegram();
+  }
+
   if (command === "project") {
     return usageProject();
   }
@@ -1334,9 +1420,7 @@ async function startGatewayForeground(
 ): Promise<void> {
   const runtime = createRuntime(runtimeRootDir);
   runtime.init();
-  const autoSync = await autoSyncTelegramCommandsIfConfigured(
-    runtime.getState(),
-  );
+  const autoSync = await autoSyncTelegramCommandsIfConfigured(runtime);
   if (autoSync.attempted) {
     if (autoSync.ok) {
       console.log("Telegram bot commands synced.");
@@ -1351,29 +1435,36 @@ async function startGatewayForeground(
 }
 
 async function waitForTelegramHandshakeForIgnite(request: {
+  token: string;
   timeoutMs?: number;
   onBotInfo?: (username: string | null) => void;
   onWaiting?: (elapsedSeconds: number) => void;
 }): Promise<TelegramHandshakeResult | null> {
-  const username = await fetchTelegramBotUsername();
+  const username = await fetchTelegramBotUsername(request.token);
   request.onBotInfo?.(username);
   return waitForTelegramHandshake({
+    token: request.token,
     timeoutMs: request.timeoutMs,
     onWaiting: request.onWaiting,
     acknowledgeText: "Paired ✅ OpenColab is now connected to this chat.",
   });
 }
 
+interface TelegramCommandSyncTarget {
+  token: string;
+  chatId?: string | null;
+  scope: "pinned" | "floating";
+}
+
 async function syncTelegramBotCommands(
-  chatId?: string | null,
+  target: TelegramCommandSyncTarget,
 ): Promise<{ ok: boolean; error?: string }> {
-  const token = resolveTelegramBotToken();
-  if (!token) {
-    return {
-      ok: false,
-      error: `missing Telegram bot token (${TELEGRAM_BOT_TOKEN_ENV_VAR})`,
-    };
-  }
+  const token = target.token;
+  const chatId = target.chatId;
+  const menuCommands =
+    target.scope === "floating"
+      ? TELEGRAM_MENU_COMMANDS_FLOATING
+      : TELEGRAM_MENU_COMMANDS_PINNED;
 
   try {
     const scopes: TelegramCommandScope[] = [
@@ -1399,7 +1490,7 @@ async function syncTelegramBotCommands(
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            commands: TELEGRAM_MENU_COMMANDS,
+            commands: menuCommands,
             ...scopePayload,
           }),
         },
@@ -1483,19 +1574,242 @@ async function syncTelegramBotCommands(
   }
 }
 
+/**
+ * Syncs the command menu for every configured bot. One bot failing never aborts the
+ * rest, so a single stale token cannot block the others from updating.
+ */
 async function autoSyncTelegramCommandsIfConfigured(
-  state: OpenColabState,
+  runtime: OpenColabRuntime,
 ): Promise<{ attempted: boolean; ok: boolean; error?: string }> {
-  if (!state.telegram.chatId) {
+  const bots = runtime
+    .listTelegramBotSummaries()
+    .filter((bot) => bot.enabled && bot.tokenPresent && bot.chatId);
+  if (bots.length === 0) {
     return { attempted: false, ok: true };
   }
 
-  const result = await syncTelegramBotCommands(state.telegram.chatId);
+  const errors: string[] = [];
+  for (const bot of bots) {
+    const token = resolveEnvVar(bot.tokenEnvVar);
+    if (!token) {
+      errors.push(`[bot ${bot.id}] missing token (${bot.tokenEnvVar})`);
+      continue;
+    }
+    const result = await syncTelegramBotCommands({
+      token,
+      chatId: bot.chatId,
+      scope: bot.scope,
+    });
+    if (!result.ok) {
+      errors.push(`[bot ${bot.id}] ${result.error ?? "unknown error"}`);
+    }
+  }
+
   return {
     attempted: true,
-    ok: result.ok,
-    ...(result.error ? { error: result.error } : {}),
+    ok: errors.length === 0,
+    ...(errors.length > 0 ? { error: errors.join("; ") } : {}),
   };
+}
+
+/** Resolves one bot plus its token for a CLI command, with a clear error when missing. */
+function requireTelegramBotForCli(
+  runtime: OpenColabRuntime,
+  botId: string,
+): { bot: TelegramBotSummary; token: string } {
+  const bot = runtime.getTelegramBotSummary(botId);
+  const token = resolveEnvVar(bot.tokenEnvVar);
+  if (!token) {
+    throw new Error(
+      `Telegram bot '${bot.id}' has no token in ${bot.tokenEnvVar}. Re-add it with 'opencolab telegram bot add --token <value> --id ${bot.id}'.`,
+    );
+  }
+  return { bot, token };
+}
+
+function requireBotIdFlag(values: Record<string, string | undefined>): string {
+  const botId = values.id?.trim();
+  if (botId) {
+    return botId;
+  }
+  throw new Error(`${accent("--id")} is required (see 'opencolab telegram bot list')`);
+}
+
+/** Syncs one bot's command menu, reporting rather than throwing on failure. */
+async function syncTelegramBotCommandsForBot(
+  runtime: OpenColabRuntime,
+  botId: string,
+): Promise<boolean> {
+  const bot = runtime.getTelegramBotSummary(botId);
+  const token = resolveEnvVar(bot.tokenEnvVar);
+  if (!token) {
+    console.log(
+      `Warning: could not sync Telegram commands for '${bot.id}' (missing ${bot.tokenEnvVar}).`,
+    );
+    return false;
+  }
+
+  const result = await syncTelegramBotCommands({
+    token,
+    chatId: bot.chatId,
+    scope: bot.scope,
+  });
+  if (result.ok) {
+    console.log(`Telegram bot commands synced for '${bot.id}'.`);
+    return true;
+  }
+
+  console.log(
+    `Warning: could not sync Telegram commands for '${bot.id}' (${result.error ?? "unknown error"}).`,
+  );
+  return false;
+}
+
+async function runTelegramCommandsSync(
+  runtime: OpenColabRuntime,
+  values: Record<string, string | undefined>,
+): Promise<void> {
+  if (parseBooleanFlag(values.all, false)) {
+    const bots = runtime.listTelegramBotSummaries();
+    if (bots.length === 0) {
+      throw new Error("No Telegram bots configured.");
+    }
+    let failures = 0;
+    for (const bot of bots) {
+      if (!(await syncTelegramBotCommandsForBot(runtime, bot.id))) {
+        failures += 1;
+      }
+    }
+    if (failures > 0) {
+      throw new Error(`Could not sync Telegram commands for ${String(failures)} bot(s).`);
+    }
+    return;
+  }
+
+  const botId = values.id ?? DEFAULT_TELEGRAM_BOT_ID;
+  const { bot, token } = requireTelegramBotForCli(runtime, botId);
+  const result = await syncTelegramBotCommands({
+    token,
+    chatId: values["chat-id"] ?? bot.chatId,
+    scope: bot.scope,
+  });
+  if (!result.ok) {
+    throw new Error(
+      `Could not sync Telegram commands: ${result.error ?? "unknown error"}`,
+    );
+  }
+  console.log(`Telegram bot commands synced for '${bot.id}'.`);
+}
+
+async function runTelegramPairCommand(
+  runtime: OpenColabRuntime,
+  rest: string[],
+  commandLabel: string,
+): Promise<void> {
+  const pairAction = rest.find((token) => !token.startsWith("--"));
+  const { values } = parseFlags(rest.filter((token) => token !== pairAction));
+  const botId = values.id ?? DEFAULT_TELEGRAM_BOT_ID;
+
+  if (pairAction === "start") {
+    const result = await runtime.startPairing(botId);
+    console.log(
+      `Pairing code sent through bot '${result.botId}' (expires ${result.expiresAt}).`,
+    );
+    console.log(
+      styleCliText(
+        `Enter in CLI: ${commandLabel} complete --code ${result.code}` +
+          (botId === DEFAULT_TELEGRAM_BOT_ID ? "" : ` --id ${botId}`),
+      ),
+    );
+    return;
+  }
+
+  if (pairAction === "complete") {
+    const code = values.code;
+    if (!code) {
+      throw new Error(`${accent("--code")} is required`);
+    }
+
+    const result = runtime.completePairing(code, botId);
+    console.log(
+      `Telegram pairing completed for bot '${result.botId}' at ${result.pairedAt}`,
+    );
+    await syncTelegramBotCommandsForBot(runtime, result.botId);
+    return;
+  }
+
+  throw new Error(
+    styleCliText(
+      "Unknown pairing command. Use 'start' or 'complete --code <value>'.",
+    ),
+  );
+}
+
+async function sendTelegramTestMessage(
+  token: string,
+  chatId: string,
+  text: string,
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text }),
+      },
+    );
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Shows which bot owns each project's notifications, so a gap is visible not silent. */
+function printTelegramProjectCoverage(runtime: OpenColabRuntime): void {
+  const bots = runtime.listTelegramBotSummaries();
+  const projects = runtime.listProjects();
+  console.log("");
+  console.log("Project notification owners");
+  for (const project of projects) {
+    const owner = bots.find(
+      (bot) =>
+        bot.enabled &&
+        bot.tokenPresent &&
+        ((bot.scope === "pinned" && bot.projectId === project.id) ||
+          (bot.scope === "floating" && project.id === runtime.getState().activeProjectId)),
+    );
+    console.log(
+      `- ${project.id}: ${owner ? `${owner.id}${owner.telegramUsername ? ` (@${owner.telegramUsername})` : ""}` : "none (heartbeat + workflow updates are skipped)"}`,
+    );
+  }
+}
+
+function formatTelegramBotLine(bot: TelegramBotSummary): string {
+  const handle = bot.telegramUsername ? `@${bot.telegramUsername}` : "(username unknown)";
+  const target =
+    bot.scope === "floating"
+      ? `follows active project (currently ${bot.effectiveProjectId ?? "none"})`
+      : bot.orphaned
+        ? `bound to missing project '${bot.projectId ?? "none"}'`
+        : `project ${bot.effectiveProjectId}`;
+  const agent = bot.effectiveAgentId
+    ? `${bot.effectiveAgentId}${bot.agentId ? "" : " (project default)"}`
+    : "none";
+  const flags = [
+    bot.enabled ? null : "disabled",
+    bot.tokenPresent ? null : `token missing (${bot.tokenEnvVar})`,
+    bot.paired ? null : "not paired",
+    bot.orphaned ? "orphaned" : null,
+  ].filter(Boolean);
+
+  return [
+    `- ${bot.id} ${handle}`,
+    `    target: ${target}`,
+    `    agent: ${agent}`,
+    `    mode: ${bot.scope}  workflow updates: ${bot.notifyWorkflowProgress ? "on" : "off"}`,
+    ...(flags.length > 0 ? [`    warnings: ${flags.join(", ")}`] : []),
+  ].join("\n");
 }
 
 function formatUpgradeDependencyInstallMode(
@@ -1857,15 +2171,7 @@ async function main(): Promise<void> {
     }
 
     const { values } = parseFlags(rest.slice(1));
-    const chatId = values["chat-id"] ?? runtime.getState().telegram.chatId;
-    const syncResult = await syncTelegramBotCommands(chatId);
-    if (!syncResult.ok) {
-      throw new Error(
-        `Could not sync Telegram commands: ${syncResult.error ?? "unknown error"}`,
-      );
-    }
-
-    console.log("Telegram bot commands synced.");
+    await runTelegramCommandsSync(runtime, values);
     return;
   }
 
@@ -1878,40 +2184,50 @@ async function main(): Promise<void> {
     const { values } = parseFlags([action, ...rest].filter(Boolean));
     const chatId = values["chat-id"];
     const botToken = values["bot-token"]?.trim() ?? "";
+    // Legacy alias: operates on the `default` bot so existing scripts keep working.
+    const botId = values.id ?? DEFAULT_TELEGRAM_BOT_ID;
+    const existingBot = runtime.getTelegramBotProfile(botId);
+    const tokenEnvVar = existingBot?.tokenEnvVar ?? TELEGRAM_BOT_TOKEN_ENV_VAR;
 
     if (!chatId) {
       throw new Error(`${accent("--chat-id")} is required`);
     }
     if (botToken) {
-      writeSecretToLocalEnv(
-        runtime.config.rootDir,
-        TELEGRAM_BOT_TOKEN_ENV_VAR,
-        botToken,
-      );
-    } else if (!resolveTelegramBotToken()) {
+      writeSecretToLocalEnv(runtime.config.rootDir, tokenEnvVar, botToken);
+    } else if (!resolveEnvVar(tokenEnvVar)) {
       throw new Error(
-        `Missing Telegram bot token. Set ${TELEGRAM_BOT_TOKEN_ENV_VAR} in .env.local or pass ${accent("--bot-token")} to save it automatically.`,
+        `Missing Telegram bot token. Set ${tokenEnvVar} in .env.local or pass ${accent("--bot-token")} to save it automatically.`,
       );
     }
 
-    runtime.setupTelegram({
-      chatId,
-    });
+    runtime.setupTelegram({ chatId, botId });
 
-    const state = runtime.getState();
+    const bot = runtime.getTelegramBotSummary(botId);
     console.log("Telegram configured.");
-    console.log(`Chat ID: ${state.telegram.chatId}`);
-    console.log(`Bot token env var: ${TELEGRAM_BOT_TOKEN_ENV_VAR}`);
-    const syncResult = await syncTelegramBotCommands(state.telegram.chatId);
-    if (syncResult.ok) {
-      console.log("Telegram bot commands synced.");
-    } else {
-      console.log(
-        `Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`,
-      );
+    console.log(`Bot: ${bot.id}`);
+    console.log(`Chat ID: ${bot.chatId}`);
+    console.log(`Bot token env var: ${bot.tokenEnvVar}`);
+    const token = resolveEnvVar(bot.tokenEnvVar);
+    if (token) {
+      const identity = await fetchTelegramBotIdentity(token);
+      if (identity) {
+        runtime.recordTelegramBotIdentity(bot.id, identity);
+        if (identity.username) {
+          console.log(`Username: @${identity.username}`);
+        }
+      }
+    }
+    if (!(await syncTelegramBotCommandsForBot(runtime, bot.id))) {
       console.log(
         styleCliText(
           "Run 'opencolab setup telegram commands sync' after fixing token access.",
+        ),
+      );
+    }
+    if (bot.scope === "floating") {
+      console.log(
+        styleCliText(
+          `This bot follows the active project. Pin it with: opencolab telegram bot pin --id ${bot.id}`,
         ),
       );
     }
@@ -1929,26 +2245,34 @@ async function main(): Promise<void> {
     action === "workflow-notifications"
   ) {
     const mode = (rest[0] ?? "status").trim().toLowerCase();
+    const { values: notifyValues } = parseFlags(rest.slice(1));
+    const notifyBotId = notifyValues.id ?? DEFAULT_TELEGRAM_BOT_ID;
     if (mode === "on" || mode === "enable" || mode === "true") {
-      runtime.setTelegramWorkflowNotifications(true);
-      console.log("Telegram workflow live updates: enabled.");
+      const bot = runtime.setTelegramBotWorkflowNotifications(notifyBotId, true);
+      console.log(`Telegram workflow live updates: enabled for bot '${bot.id}'.`);
       console.log(
         styleCliText(
-          "Live status will appear in the paired Telegram chat for every workflow run.",
+          "Live status will appear in that bot's paired chat for every run in its project.",
         ),
       );
       return;
     }
     if (mode === "off" || mode === "disable" || mode === "false") {
-      runtime.setTelegramWorkflowNotifications(false);
-      console.log("Telegram workflow live updates: disabled.");
+      const bot = runtime.setTelegramBotWorkflowNotifications(notifyBotId, false);
+      console.log(`Telegram workflow live updates: disabled for bot '${bot.id}'.`);
       return;
     }
     if (mode === "status") {
-      const enabled = runtime.getState().telegram.notifyWorkflowProgress;
-      console.log(
-        `Telegram workflow live updates: ${enabled ? "enabled" : "disabled"}.`,
-      );
+      const bots = runtime.listTelegramBotSummaries();
+      if (bots.length === 0) {
+        console.log("Telegram workflow live updates: no bots configured.");
+        return;
+      }
+      for (const bot of bots) {
+        console.log(
+          `${bot.id}: ${bot.notifyWorkflowProgress ? "enabled" : "disabled"}`,
+        );
+      }
       return;
     }
     throw new Error(
@@ -1957,45 +2281,208 @@ async function main(): Promise<void> {
   }
 
   if (command === "setup" && subcommand === "telegram" && action === "pair") {
-    const pairAction = rest[0];
+    await runTelegramPairCommand(runtime, rest, "opencolab setup telegram pair");
+    return;
+  }
 
-    if (pairAction === "start") {
-      const result = await runtime.startPairing();
-      console.log(
-        `Pairing code sent to Telegram (expires ${result.expiresAt}).`,
+  if (command === "telegram") {
+    if (subcommand !== "bot" && subcommand !== "commands") {
+      throw new Error(
+        styleCliText("Unknown telegram command. Use 'bot' or 'commands sync'."),
       );
+    }
+
+    if (subcommand === "commands") {
+      if (action !== "sync") {
+        throw new Error("Unknown telegram commands command. Use 'sync'.");
+      }
+      const { values } = parseFlags(rest);
+      await runTelegramCommandsSync(runtime, values);
+      return;
+    }
+
+    const botAction = (action ?? "list").trim();
+    const { values } = parseFlags(rest);
+
+    if (botAction === "list") {
+      const bots = runtime.listTelegramBotSummaries();
+      if (bots.length === 0) {
+        console.log("No Telegram bots configured.");
+        console.log(
+          styleCliText(
+            "Add one with: opencolab telegram bot add --token <botfather_token> --project <project_id>",
+          ),
+        );
+        return;
+      }
+      if (parseBooleanFlag(values.json, false)) {
+        console.log(JSON.stringify(bots, null, 2));
+        return;
+      }
+      console.log(`Telegram bots (${bots.length})`);
+      for (const bot of bots) {
+        console.log(formatTelegramBotLine(bot));
+      }
+      printTelegramProjectCoverage(runtime);
+      return;
+    }
+
+    if (botAction === "show") {
+      const bot = runtime.getTelegramBotSummary(requireBotIdFlag(values));
+      if (parseBooleanFlag(values.json, false)) {
+        console.log(JSON.stringify(bot, null, 2));
+        return;
+      }
+      console.log(formatTelegramBotLine(bot));
+      console.log(`    token env var: ${bot.tokenEnvVar}`);
+      console.log(`    telegram bot id: ${bot.telegramBotId ?? "unknown"}`);
+      console.log(`    paired at: ${bot.pairedAt ?? "never"}`);
+      console.log(`    chat id: ${bot.chatId ?? "not set"}`);
+      return;
+    }
+
+    if (botAction === "add") {
+      const token = values.token?.trim();
+      if (!token) {
+        throw new Error(`${accent("--token")} is required`);
+      }
+      const floating = parseBooleanFlag(values.floating, false);
+      const bot = await runtime.addTelegramBot({
+        token,
+        botId: values.id,
+        projectId: values.project,
+        agentId: values.agent ?? null,
+        floating,
+      });
+
+      console.log(`Telegram bot added: ${bot.id}`);
+      if (bot.telegramUsername) {
+        console.log(`Username: @${bot.telegramUsername}`);
+        console.log(`Open it: https://t.me/${bot.telegramUsername}`);
+      }
+      console.log(
+        bot.scope === "floating"
+          ? "Mode: floating (follows the active project)"
+          : `Project: ${bot.projectId}`,
+      );
+      if (bot.agentId) {
+        console.log(`Agent: ${bot.agentId}`);
+      }
+      console.log(`Token saved in .env.local as ${bot.tokenEnvVar}.`);
+      await syncTelegramBotCommandsForBot(runtime, bot.id);
       console.log(
         styleCliText(
-          `Enter in CLI: opencolab setup telegram pair complete --code ${result.code}`,
+          `Next: message the bot, then run 'opencolab telegram bot pair --id ${bot.id} start'.`,
         ),
       );
       return;
     }
 
-    if (pairAction === "complete") {
-      const { values } = parseFlags(rest.slice(1));
-      const code = values.code;
-      if (!code) {
-        throw new Error(`${accent("--code")} is required`);
-      }
+    if (botAction === "bind") {
+      const botId = requireBotIdFlag(values);
+      const bot = runtime.bindTelegramBot(botId, {
+        projectId: values.project,
+        ...(values.agent !== undefined ? { agentId: values.agent } : {}),
+        agentAuto: parseBooleanFlag(values["agent-auto"], false),
+      });
+      console.log(`Bot '${bot.id}' is bound to project ${bot.projectId}.`);
+      console.log(
+        `Target agent: ${bot.effectiveAgentId ?? "none"}${bot.agentId ? "" : " (project default)"}`,
+      );
+      await syncTelegramBotCommandsForBot(runtime, bot.id);
+      return;
+    }
 
-      const result = runtime.completePairing(code);
-      console.log(`Telegram pairing completed at ${result.pairedAt}`);
-      const state = runtime.getState();
-      const syncResult = await syncTelegramBotCommands(state.telegram.chatId);
-      if (syncResult.ok) {
-        console.log("Telegram bot commands synced.");
-      } else {
-        console.log(
-          `Warning: could not sync Telegram commands (${syncResult.error ?? "unknown error"}).`,
+    if (botAction === "pin") {
+      const bot = runtime.pinTelegramBot(requireBotIdFlag(values), values.project);
+      console.log(`Bot '${bot.id}' is now pinned to project ${bot.projectId}.`);
+      console.log(
+        styleCliText(
+          "That chat no longer follows the active project; /projects there is informational.",
+        ),
+      );
+      await syncTelegramBotCommandsForBot(runtime, bot.id);
+      return;
+    }
+
+    if (botAction === "unbind") {
+      const bot = runtime.unbindTelegramBot(requireBotIdFlag(values));
+      console.log(
+        `Bot '${bot.id}' is floating again and follows the active project (${bot.effectiveProjectId ?? "none"}).`,
+      );
+      await syncTelegramBotCommandsForBot(runtime, bot.id);
+      return;
+    }
+
+    if (botAction === "enable" || botAction === "disable") {
+      const bot = runtime.setTelegramBotEnabled(
+        requireBotIdFlag(values),
+        botAction === "enable",
+      );
+      console.log(`Bot '${bot.id}' is now ${bot.enabled ? "enabled" : "disabled"}.`);
+      return;
+    }
+
+    if (botAction === "remove") {
+      const botId = requireBotIdFlag(values);
+      const keepToken = parseBooleanFlag(values["keep-token"], false);
+      const result = runtime.removeTelegramBot(botId, { keepToken });
+      console.log(`Bot '${result.botId}' removed.`);
+      console.log(
+        result.tokenRemoved
+          ? `Removed ${result.tokenEnvVar} from .env.local.`
+          : `Left ${result.tokenEnvVar} in .env.local.`,
+      );
+      console.log(
+        styleCliText(
+          "Revoke the token in BotFather with /revoke if the bot is no longer needed.",
+        ),
+      );
+      return;
+    }
+
+    if (botAction === "pair") {
+      await runTelegramPairCommand(
+        runtime,
+        rest,
+        "opencolab telegram bot pair",
+      );
+      return;
+    }
+
+    if (botAction === "test") {
+      const { bot, token } = requireTelegramBotForCli(
+        runtime,
+        requireBotIdFlag(values),
+      );
+      const identity = await fetchTelegramBotIdentity(token);
+      if (!identity) {
+        throw new Error(
+          `Telegram rejected the token in ${bot.tokenEnvVar} for bot '${bot.id}'.`,
         );
       }
+      runtime.recordTelegramBotIdentity(bot.id, identity);
+      console.log(`Token OK: @${identity.username ?? identity.telegramBotId}`);
+      if (!bot.chatId) {
+        console.log("No chat id yet, so no test message was sent.");
+        return;
+      }
+      const sent = await sendTelegramTestMessage(
+        token,
+        bot.chatId,
+        `OpenColab test from bot '${bot.id}'.`,
+      );
+      console.log(
+        sent
+          ? `Test message delivered to chat ${bot.chatId}.`
+          : `Could not deliver a test message to chat ${bot.chatId}.`,
+      );
       return;
     }
 
     throw new Error(
       styleCliText(
-        "Unknown pairing command. Use 'start' or 'complete --code <value>'.",
+        "Unknown telegram bot command. Use add | list | show | bind | pin | unbind | enable | disable | remove | pair | test.",
       ),
     );
   }

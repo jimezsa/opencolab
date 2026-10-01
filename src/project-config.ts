@@ -22,17 +22,29 @@ import type {
   ProjectState,
   ProjectHeartbeatState,
   ProviderConfig,
+  TelegramBotProfile,
+  TelegramBotScope,
   TelegramChatType,
   TelegramConfig
 } from "./types.js";
 import { nowIso, safeReadJson, writeJsonAtomic } from "./utils.js";
 
-const CURRENT_VERSION = 2 as const;
+const CURRENT_VERSION = 3 as const;
 
 // Schema version at which telegram workflow live updates began defaulting to ON.
 // Installs saved before this version have their stored flag flipped ON once, on load.
 const WORKFLOW_NOTIFICATIONS_DEFAULT_ON_VERSION = 2;
+// Schema version at which the single shared telegram config became a bot registry.
+// Installs saved before this version get one migrated `floating` bot, on load.
+const TELEGRAM_BOT_REGISTRY_VERSION = 3;
 export const DEFAULT_PROJECT_ID = "default";
+export const DEFAULT_TELEGRAM_BOT_ID = "default";
+export const LEGACY_TELEGRAM_BOT_TOKEN_ENV_VAR = "TELEGRAM_BOT_TOKEN";
+const TELEGRAM_BOT_ID_PATTERN = /^[a-z0-9][a-z0-9_]{0,31}$/;
+const TELEGRAM_BOT_TOKEN_ENV_VAR_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+// A raw bot token looks like "<digits>:<base64ish>". Refuse to treat one as an env key
+// so a mis-entered token can never be persisted into opencolab.json.
+const TELEGRAM_BOT_TOKEN_SHAPE_PATTERN = /^\d{5,}:[A-Za-z0-9_-]{20,}$/;
 export const DEFAULT_AGENT_ID = "professor";
 export const DEFAULT_RUNPOD_IMAGE = "runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04";
 
@@ -235,6 +247,295 @@ export function createDefaultTelegramConfig(): TelegramConfig {
   };
 }
 
+/** Normalizes any user-supplied string into a usable bot id, or null when nothing survives. */
+export function deriveTelegramBotId(raw: string): string | null {
+  const slug = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, "_")
+    .replace(/^_+|_+$/gu, "")
+    .slice(0, 32)
+    .replace(/_+$/gu, "");
+  return slug && TELEGRAM_BOT_ID_PATTERN.test(slug) ? slug : null;
+}
+
+export function isValidTelegramBotId(value: string): boolean {
+  return TELEGRAM_BOT_ID_PATTERN.test(value);
+}
+
+/** Default env key for a bot's token. The legacy `default` bot keeps the bare name. */
+export function deriveTelegramBotTokenEnvVar(botId: string): string {
+  if (botId === DEFAULT_TELEGRAM_BOT_ID) {
+    return LEGACY_TELEGRAM_BOT_TOKEN_ENV_VAR;
+  }
+  return `${LEGACY_TELEGRAM_BOT_TOKEN_ENV_VAR}_${botId.toUpperCase()}`;
+}
+
+export function createDefaultTelegramBotProfile(
+  botId: string,
+  tokenEnvVar = deriveTelegramBotTokenEnvVar(botId)
+): TelegramBotProfile {
+  return {
+    id: botId,
+    enabled: true,
+    scope: "pinned",
+    projectId: null,
+    agentId: null,
+    tokenEnvVar,
+    telegramBotId: null,
+    telegramUsername: null,
+    replyMode: "default_public",
+    showAgentPrefix: true,
+    chatId: null,
+    paired: false,
+    pairedAt: null,
+    pendingPairingCode: null,
+    pendingPairingExpiresAt: null,
+    lastChatType: null,
+    lastMessageThreadId: null,
+    lastInteractionAt: null,
+    notifyWorkflowProgress: true,
+    boundAt: null,
+    lastValidatedAt: null
+  };
+}
+
+export function listTelegramBots(state: OpenColabState): TelegramBotProfile[] {
+  return Object.values(state.telegramBots ?? {}).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export function getTelegramBot(state: OpenColabState, botId: string): TelegramBotProfile | null {
+  return state.telegramBots?.[botId] ?? null;
+}
+
+/**
+ * Resolves the bot that owns a project's outbound notifications.
+ * Pinned bots own their bound project; a floating bot only owns the active project,
+ * matching the legacy single-bot behavior it was migrated from.
+ */
+export function resolveTelegramBotForProject(
+  state: OpenColabState,
+  projectId: string
+): TelegramBotProfile | null {
+  const bots = listTelegramBots(state).filter((bot) => bot.enabled);
+  const pinned = bots.find((bot) => bot.scope === "pinned" && bot.projectId === projectId);
+  if (pinned) {
+    return pinned;
+  }
+  if (projectId !== state.activeProjectId) {
+    return null;
+  }
+  return bots.find((bot) => bot.scope === "floating") ?? null;
+}
+
+/** Projects the registry back onto the deprecated shared `telegram` field. */
+function projectLegacyTelegramConfig(
+  bots: Record<string, TelegramBotProfile>,
+  fallback: TelegramConfig
+): TelegramConfig {
+  const ordered = Object.values(bots).sort((a, b) => a.id.localeCompare(b.id));
+  const primary = bots[DEFAULT_TELEGRAM_BOT_ID] ?? ordered[0];
+  if (!primary) {
+    return fallback;
+  }
+
+  return {
+    chatId: primary.chatId,
+    paired: primary.paired,
+    pairedAt: primary.pairedAt,
+    pendingPairingCode: primary.pendingPairingCode,
+    pendingPairingExpiresAt: primary.pendingPairingExpiresAt,
+    lastChatType: primary.lastChatType,
+    lastMessageThreadId: primary.lastMessageThreadId,
+    lastInteractionAt: primary.lastInteractionAt,
+    notifyWorkflowProgress: primary.notifyWorkflowProgress
+  };
+}
+
+function asTelegramBotScope(value: unknown, fallback: TelegramBotScope): TelegramBotScope {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "pinned" || normalized === "floating" ? normalized : fallback;
+}
+
+function asTelegramBotTokenEnvVar(value: unknown, fallback: string): string {
+  const candidate = String(value ?? "").trim();
+  if (!candidate || TELEGRAM_BOT_TOKEN_SHAPE_PATTERN.test(candidate)) {
+    // Empty, or an actual token pasted where an env key belongs.
+    return fallback;
+  }
+  return TELEGRAM_BOT_TOKEN_ENV_VAR_PATTERN.test(candidate) ? candidate : fallback;
+}
+
+function normalizeTelegramBotProfile(
+  botId: string,
+  source: Record<string, unknown> | null
+): TelegramBotProfile {
+  const defaults = createDefaultTelegramBotProfile(botId);
+  if (!source) {
+    return defaults;
+  }
+
+  const scope = asTelegramBotScope(source.scope, defaults.scope);
+  return {
+    id: botId,
+    enabled: source.enabled === undefined ? defaults.enabled : Boolean(source.enabled),
+    scope,
+    projectId: asNullableString(source.projectId),
+    agentId: asNullableString(source.agentId),
+    tokenEnvVar: asTelegramBotTokenEnvVar(source.tokenEnvVar, defaults.tokenEnvVar),
+    telegramBotId: asNullableString(source.telegramBotId),
+    telegramUsername: asNullableString(source.telegramUsername)?.replace(/^@/u, "") ?? null,
+    replyMode: "default_public",
+    showAgentPrefix:
+      source.showAgentPrefix === undefined ? defaults.showAgentPrefix : Boolean(source.showAgentPrefix),
+    chatId: asNullableString(source.chatId),
+    paired: Boolean(source.paired),
+    pairedAt: asNullableString(source.pairedAt),
+    pendingPairingCode: asNullableString(source.pendingPairingCode),
+    pendingPairingExpiresAt: asNullableString(source.pendingPairingExpiresAt),
+    lastChatType: asTelegramChatType(source.lastChatType, defaults.lastChatType),
+    lastMessageThreadId: asNullableString(source.lastMessageThreadId),
+    lastInteractionAt: asNullableString(source.lastInteractionAt),
+    notifyWorkflowProgress:
+      source.notifyWorkflowProgress === undefined
+        ? defaults.notifyWorkflowProgress
+        : Boolean(source.notifyWorkflowProgress),
+    boundAt: asNullableString(source.boundAt),
+    lastValidatedAt: asNullableString(source.lastValidatedAt)
+  };
+}
+
+/**
+ * Repairs the registry shape and enforces the invariants that can be fixed safely.
+ * Conflicts are resolved deterministically by sorted bot id, and the losing bot is
+ * disabled rather than repointed, so a misconfiguration is visible instead of
+ * silently delivering messages to the wrong project. Hard rejection of a conflicting
+ * bind happens in the runtime, where an error can reach the operator.
+ */
+function normalizeTelegramBots(
+  source: Record<string, unknown> | null,
+  projects: Record<string, ProjectState>
+): Record<string, TelegramBotProfile> {
+  if (!source) {
+    return {};
+  }
+
+  const normalized: TelegramBotProfile[] = [];
+  for (const [candidateId, value] of Object.entries(source)) {
+    const record = asRecord(value);
+    const rawId = asString(record?.id, candidateId).trim().toLowerCase();
+    if (!TELEGRAM_BOT_ID_PATTERN.test(rawId)) {
+      continue;
+    }
+    normalized.push(normalizeTelegramBotProfile(rawId, record));
+  }
+
+  normalized.sort((a, b) => a.id.localeCompare(b.id));
+
+  const claimedProjects = new Set<string>();
+  const claimedTokenEnvVars = new Set<string>();
+  const claimedTelegramBotIds = new Set<string>();
+  const hasFloating = { value: false };
+  const result: Record<string, TelegramBotProfile> = {};
+
+  for (const bot of normalized) {
+    let next = bot;
+
+    if (next.scope === "pinned" && (!next.projectId || !projects[next.projectId])) {
+      // Orphaned binding: keep the recorded projectId so the operator can see what broke.
+      next = { ...next, enabled: false };
+    }
+
+    if (next.enabled && next.scope === "pinned" && next.projectId) {
+      if (claimedProjects.has(next.projectId)) {
+        next = { ...next, enabled: false };
+      } else {
+        claimedProjects.add(next.projectId);
+      }
+    }
+
+    if (next.enabled && next.scope === "floating") {
+      if (hasFloating.value) {
+        next = { ...next, enabled: false };
+      } else {
+        hasFloating.value = true;
+      }
+    }
+
+    if (next.enabled) {
+      if (claimedTokenEnvVars.has(next.tokenEnvVar)) {
+        next = { ...next, enabled: false };
+      } else {
+        claimedTokenEnvVars.add(next.tokenEnvVar);
+      }
+    }
+
+    if (next.enabled && next.telegramBotId) {
+      if (claimedTelegramBotIds.has(next.telegramBotId)) {
+        next = { ...next, enabled: false };
+      } else {
+        claimedTelegramBotIds.add(next.telegramBotId);
+      }
+    }
+
+    if (next.scope === "pinned" && next.projectId && next.agentId) {
+      const project = projects[next.projectId];
+      if (project && !project.agents[next.agentId]) {
+        // Pinned agent is gone: fall back to the project's active agent at routing time.
+        next = { ...next, agentId: null };
+      }
+    }
+
+    result[next.id] = next;
+  }
+
+  return result;
+}
+
+/**
+ * One-time v2 -> v3 migration: the single shared telegram config becomes one bot.
+ * The migrated bot is `floating`, so an upgraded install keeps following
+ * `activeProjectId` and nothing observable changes until the operator pins it.
+ */
+function migrateTelegramBots(
+  existing: Record<string, TelegramBotProfile>,
+  telegram: TelegramConfig,
+  activeProjectId: string,
+  sourceVersion: number
+): Record<string, TelegramBotProfile> {
+  if (Object.keys(existing).length > 0) {
+    return existing;
+  }
+  if (sourceVersion >= TELEGRAM_BOT_REGISTRY_VERSION) {
+    return existing;
+  }
+  if (!telegram.chatId) {
+    // Never configured: stay unconfigured rather than inventing a bot.
+    return existing;
+  }
+
+  const migrated: TelegramBotProfile = {
+    ...createDefaultTelegramBotProfile(
+      DEFAULT_TELEGRAM_BOT_ID,
+      LEGACY_TELEGRAM_BOT_TOKEN_ENV_VAR
+    ),
+    scope: "floating",
+    projectId: activeProjectId,
+    chatId: telegram.chatId,
+    paired: telegram.paired,
+    pairedAt: telegram.pairedAt,
+    pendingPairingCode: telegram.pendingPairingCode,
+    pendingPairingExpiresAt: telegram.pendingPairingExpiresAt,
+    lastChatType: telegram.lastChatType,
+    lastMessageThreadId: telegram.lastMessageThreadId,
+    lastInteractionAt: telegram.lastInteractionAt,
+    notifyWorkflowProgress: telegram.notifyWorkflowProgress,
+    boundAt: telegram.pairedAt
+  };
+
+  return { [migrated.id]: migrated };
+}
+
 export function defaultProjectState(config: OpenColabConfig): OpenColabState {
   void config;
   const defaultProject = createDefaultProjectState(DEFAULT_PROJECT_ID);
@@ -246,6 +547,7 @@ export function defaultProjectState(config: OpenColabConfig): OpenColabState {
     projects: {
       [defaultProject.id]: defaultProject
     },
+    telegramBots: {},
     telegram: createDefaultTelegramConfig()
   };
 }
@@ -283,10 +585,25 @@ export function getActiveAgent(project: ProjectState): AgentConfig {
 }
 
 export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
-  const telegram = normalizeTelegram(
-    asRecord((state as unknown as Record<string, unknown>).telegram),
-    createDefaultTelegramConfig()
+  const withProjects = ensureProjectShape(state);
+  const source = state as unknown as Record<string, unknown>;
+  const telegramBots = normalizeTelegramBots(
+    asRecord(source.telegramBots),
+    withProjects.projects
   );
+
+  return {
+    ...withProjects,
+    telegramBots,
+    telegram: projectLegacyTelegramConfig(
+      telegramBots,
+      normalizeTelegram(asRecord(source.telegram), createDefaultTelegramConfig())
+    )
+  };
+}
+
+/** Repairs project/agent/heartbeat shape without touching the telegram registry. */
+function ensureProjectShape(state: OpenColabState): OpenColabState {
   const projects = { ...state.projects };
   if (Object.keys(projects).length === 0) {
     const fallback = createDefaultProjectState(DEFAULT_PROJECT_ID);
@@ -295,8 +612,7 @@ export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
       activeProjectId: fallback.id,
       projects: {
         [fallback.id]: fallback
-      },
-      telegram
+      }
     };
   }
 
@@ -319,8 +635,7 @@ export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
     return {
       ...state,
       activeProjectId,
-      projects,
-      telegram
+      projects
     };
   }
 
@@ -336,8 +651,7 @@ export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
     return {
       ...state,
       activeProjectId,
-      projects,
-      telegram
+      projects
     };
   }
 
@@ -351,8 +665,7 @@ export function ensureProjectAndAgent(state: OpenColabState): OpenColabState {
   return {
     ...state,
     activeProjectId,
-    projects,
-    telegram
+    projects
   };
 }
 
@@ -533,12 +846,19 @@ function normalizeState(raw: unknown, defaults: OpenColabState): OpenColabState 
       normalizeSharedTelegram(source, sourceProjects, activeProjectId, defaults.telegram),
       sourceVersion
     );
+    const telegramBots = migrateTelegramBots(
+      normalizeTelegramBots(asRecord(source.telegramBots), projects),
+      telegram,
+      activeProjectId,
+      sourceVersion
+    );
 
     return {
       version: CURRENT_VERSION,
       updatedAt: asString(source.updatedAt, defaults.updatedAt),
       activeProjectId,
       projects,
+      telegramBots,
       telegram
     };
   }
@@ -585,17 +905,24 @@ function normalizeLegacyState(
     }
   };
 
+  const legacyTelegram = migrateTelegram(
+    normalizeTelegram(sourceTelegram, defaults.telegram),
+    asVersion(source.version)
+  );
+  const projectsById = { [project.id]: project };
+
   const normalized: OpenColabState = {
     version: CURRENT_VERSION,
     updatedAt: asString(source.updatedAt, defaults.updatedAt),
     activeProjectId: project.id,
-    projects: {
-      [project.id]: project
-    },
-    telegram: migrateTelegram(
-      normalizeTelegram(sourceTelegram, defaults.telegram),
+    projects: projectsById,
+    telegramBots: migrateTelegramBots(
+      normalizeTelegramBots(asRecord(source.telegramBots), projectsById),
+      legacyTelegram,
+      project.id,
       asVersion(source.version)
-    )
+    ),
+    telegram: legacyTelegram
   };
 
   return ensureProjectAndAgent(normalized);

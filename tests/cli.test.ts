@@ -476,3 +476,261 @@ test("upgrade help describes git and packaged install flows", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+async function seedTwoProjectBots(rootDir: string): Promise<void> {
+  const runtime = createRuntime(rootDir, {
+    telegramIdentityFetcher: async (token) => ({
+      telegramBotId: `tg-${token}`,
+      username: `${token}_handle`,
+    }),
+  });
+  runtime.init();
+  runtime.createProject("alpha");
+  runtime.createProject("beta");
+  await runtime.addTelegramBot({
+    token: "alpha_token",
+    botId: "alpha_bot",
+    projectId: "alpha",
+    chatId: "111",
+  });
+  await runtime.addTelegramBot({
+    token: "beta_token",
+    botId: "beta_bot",
+    projectId: "beta",
+    chatId: "222",
+  });
+  runtime.markTelegramPaired("111", "alpha_bot");
+  runtime.markTelegramPaired("222", "beta_bot");
+}
+
+test("telegram help describes the per-project bot commands", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-tg-help-"));
+
+  try {
+    const result = runCli(tempDir, ["telegram", "--help"]);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout.includes("opencolab telegram bot add"), true);
+    assert.equal(result.stdout.includes("opencolab telegram bot bind"), true);
+    assert.equal(result.stdout.includes("opencolab telegram bot pin"), true);
+    assert.equal(
+      result.stdout.includes("One project owns at most one enabled bot"),
+      true,
+    );
+    assert.equal(
+      result.stdout.includes(
+        "Messages to a bot route to its project regardless of the active project",
+      ),
+      true,
+    );
+    assert.equal(
+      result.stdout.includes("Tokens live only in .env.local"),
+      true,
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("telegram bot list explains how to add the first bot", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-tg-empty-"));
+
+  try {
+    const runtime = createRuntime(tempDir);
+    runtime.init();
+
+    const result = runCli(tempDir, ["telegram", "bot", "list"]);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout.includes("No Telegram bots configured."), true);
+    assert.equal(result.stdout.includes("opencolab telegram bot add"), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("telegram bot list shows each binding and which bot owns each project", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-tg-list-"));
+
+  try {
+    await seedTwoProjectBots(tempDir);
+
+    const result = runCli(tempDir, ["telegram", "bot", "list"]);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout.includes("Telegram bots (2)"), true);
+    assert.equal(result.stdout.includes("alpha_bot @alpha_token_handle"), true);
+    assert.equal(result.stdout.includes("target: project alpha"), true);
+    assert.equal(result.stdout.includes("target: project beta"), true);
+
+    // Project coverage must name the owner, and say so plainly when there is none.
+    assert.equal(result.stdout.includes("Project notification owners"), true);
+    assert.equal(result.stdout.includes("- alpha: alpha_bot"), true);
+    assert.equal(
+      result.stdout.includes(
+        "- default: none (heartbeat + workflow updates are skipped)",
+      ),
+      true,
+    );
+
+    const json = runCli(tempDir, ["telegram", "bot", "list", "--json"]);
+    const parsed = JSON.parse(json.stdout) as Array<{
+      id: string;
+      tokenEnvVar: string;
+      tokenPresent: boolean;
+    }>;
+    assert.deepEqual(
+      parsed.map((bot) => bot.id),
+      ["alpha_bot", "beta_bot"],
+    );
+    assert.equal(parsed[0].tokenEnvVar, "TELEGRAM_BOT_TOKEN_ALPHA_BOT");
+    assert.equal(parsed[0].tokenPresent, true);
+    // The listing carries env var names, never token values.
+    assert.equal(json.stdout.includes("alpha_token"), true, "username is derived from it");
+    assert.equal(
+      parsed.every((bot) => !/^\d+:/.test(bot.tokenEnvVar)),
+      true,
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("telegram bot bind rejects a project that another enabled bot already owns", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-tg-conflict-"));
+
+  try {
+    await seedTwoProjectBots(tempDir);
+
+    const result = runCli(tempDir, [
+      "telegram",
+      "bot",
+      "bind",
+      "--id",
+      "beta_bot",
+      "--project",
+      "alpha",
+    ]);
+    assert.notEqual(result.status, 0);
+    const output = `${result.stdout}${result.stderr}`;
+    assert.equal(output.includes("already bound to Telegram bot 'alpha_bot'"), true);
+
+    // The refused bind left beta_bot where it was.
+    const after = runCli(tempDir, ["telegram", "bot", "show", "--id", "beta_bot", "--json"]);
+    const parsed = JSON.parse(after.stdout) as { projectId: string };
+    assert.equal(parsed.projectId, "beta");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("telegram bot pin and unbind move a bot between pinned and legacy modes", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-tg-pin-"));
+
+  try {
+    await seedTwoProjectBots(tempDir);
+
+    const unbound = runCli(tempDir, ["telegram", "bot", "unbind", "--id", "alpha_bot"]);
+    assert.equal(unbound.status, 0);
+    assert.equal(unbound.stdout.includes("floating again"), true);
+
+    const pinned = runCli(tempDir, [
+      "telegram",
+      "bot",
+      "pin",
+      "--id",
+      "alpha_bot",
+      "--project",
+      "alpha",
+    ]);
+    assert.equal(pinned.status, 0);
+    assert.equal(pinned.stdout.includes("pinned to project alpha"), true);
+    assert.equal(
+      pinned.stdout.includes("no longer follows the active project"),
+      true,
+    );
+
+    const shown = runCli(tempDir, ["telegram", "bot", "show", "--id", "alpha_bot", "--json"]);
+    const parsed = JSON.parse(shown.stdout) as { scope: string; projectId: string };
+    assert.equal(parsed.scope, "pinned");
+    assert.equal(parsed.projectId, "alpha");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("telegram bot remove deletes the profile and its token", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-tg-remove-"));
+
+  try {
+    await seedTwoProjectBots(tempDir);
+    const envBefore = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envBefore.includes("TELEGRAM_BOT_TOKEN_BETA_BOT"), true);
+
+    const removed = runCli(tempDir, ["telegram", "bot", "remove", "--id", "beta_bot"]);
+    assert.equal(removed.status, 0);
+    assert.equal(removed.stdout.includes("Bot 'beta_bot' removed."), true);
+    assert.equal(
+      removed.stdout.includes("Removed TELEGRAM_BOT_TOKEN_BETA_BOT from .env.local."),
+      true,
+    );
+    assert.equal(removed.stdout.includes("/revoke"), true);
+
+    const envAfter = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envAfter.includes("TELEGRAM_BOT_TOKEN_BETA_BOT"), false);
+    assert.equal(envAfter.includes("TELEGRAM_BOT_TOKEN_ALPHA_BOT"), true);
+
+    const list = runCli(tempDir, ["telegram", "bot", "list", "--json"]);
+    const parsed = JSON.parse(list.stdout) as Array<{ id: string }>;
+    assert.deepEqual(
+      parsed.map((bot) => bot.id),
+      ["alpha_bot"],
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("telegram bot remove --keep-token leaves the secret in place", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-tg-keep-token-"));
+
+  try {
+    await seedTwoProjectBots(tempDir);
+
+    const removed = runCli(tempDir, [
+      "telegram",
+      "bot",
+      "remove",
+      "--id",
+      "beta_bot",
+      "--keep-token",
+    ]);
+    assert.equal(removed.status, 0);
+    assert.equal(
+      removed.stdout.includes("Left TELEGRAM_BOT_TOKEN_BETA_BOT in .env.local."),
+      true,
+    );
+
+    const envAfter = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envAfter.includes("TELEGRAM_BOT_TOKEN_BETA_BOT"), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("telegram bot commands require an explicit bot id", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-cli-tg-id-required-"));
+
+  try {
+    await seedTwoProjectBots(tempDir);
+
+    const result = runCli(tempDir, ["telegram", "bot", "show"]);
+    assert.notEqual(result.status, 0);
+    assert.equal(`${result.stdout}${result.stderr}`.includes("--id"), true);
+
+    const unknown = runCli(tempDir, ["telegram", "bot", "show", "--id", "nope"]);
+    assert.notEqual(unknown.status, 0);
+    const output = `${unknown.stdout}${unknown.stderr}`;
+    assert.equal(output.includes("Unknown Telegram bot: nope"), true);
+    assert.equal(output.includes("known: alpha_bot, beta_bot"), true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

@@ -170,7 +170,7 @@ import { handleWebRequest } from "./web/server/index.js";
 
 - `GET /health`
 - `GET /api/state`
-- `POST /api/telegram/webhook`
+- `POST /api/telegram/webhook/<bot_id>` (the unsuffixed path targets the `default` bot)
 
 Then it may delegate other web routes to `handleWebRequest(...)`.
 
@@ -385,7 +385,10 @@ Shows:
 
 - runtime root
 - gateway port
-- Telegram pairing state
+- Telegram bot registry state: per bot, its id, `@username`, bound project, target agent, mode,
+  enabled/paired/token-present flags, and whether its binding is orphaned. Never chat ids or
+  tokens. The scalar `telegram: { paired, pendingPairing, chatPresent }` field remains as a
+  deprecated projection of the default bot for one release.
 - provider setup summary
 - package/source install mode when available
 - web build/version information

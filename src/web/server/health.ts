@@ -72,6 +72,18 @@ export function buildHealthStatus(runtime: OpenColabRuntime): WebHealthStatus {
       pendingPairing: Boolean(state.telegram.pendingPairingCode),
       chatPresent: Boolean(state.telegram.chatId)
     },
+    telegramBots: runtime.listTelegramBotSummaries().map((bot) => ({
+      id: bot.id,
+      username: bot.telegramUsername,
+      projectId: bot.effectiveProjectId,
+      agentId: bot.effectiveAgentId,
+      scope: bot.scope,
+      enabled: bot.enabled,
+      paired: bot.paired,
+      pendingPairing: Boolean(bot.pendingPairingCode),
+      tokenPresent: bot.tokenPresent,
+      orphaned: bot.orphaned
+    })),
     providers,
     build: readBuildInfo()
   };

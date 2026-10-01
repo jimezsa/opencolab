@@ -8,6 +8,8 @@ import { defaultTelegramFileSender } from "../src/gateway.js";
 import type { RunpodExecutionService } from "../src/gpu-providers/runpod/index.js";
 import { readProjectState } from "../src/project-config.js";
 import { createRuntime } from "../src/runtime.js";
+import type { TelegramBotContext } from "../src/gateway.js";
+import { createDefaultTelegramBotProfile } from "../src/project-config.js";
 import type {
   ExecutionTargetAvailabilityResult,
   ExecutionTargetTestResult,
@@ -17,6 +19,20 @@ import type {
   ExperimentRunSummary,
   OpenColabState
 } from "../src/types.js";
+
+// The gateway refuses to act for a bot with no token, so every runtime test needs one.
+// Injected senders ignore it; resolveBotContext does not.
+process.env.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "test_bot_token";
+
+function buildTestBotContext(
+  overrides: Partial<TelegramBotContext["profile"]> = {}
+): TelegramBotContext {
+  const profile = {
+    ...createDefaultTelegramBotProfile("default", "TELEGRAM_BOT_TOKEN"),
+    ...overrides
+  };
+  return { botId: profile.id, token: "test_bot_token", profile };
+}
 
 function buildAgentDir(rootDir: string, projectId: string, agentId = "professor"): string {
   return path.join(rootDir, "projects", projectId, "AGENTS", agentId);
@@ -3901,7 +3917,7 @@ test("default telegram file sender uploads local file URLs as multipart", async 
         file: pathToFileURL(reportPath).href,
         caption: "report"
       },
-      {} as OpenColabState
+      buildTestBotContext()
     );
 
     assert.equal(sent, true);
@@ -3958,7 +3974,7 @@ test("default telegram file sender uploads Windows absolute paths as multipart",
         file: windowsPath,
         caption: "report"
       },
-      {} as OpenColabState
+      buildTestBotContext()
     );
 
     assert.equal(sent, true);
@@ -3996,7 +4012,7 @@ test("default telegram file sender keeps remote URLs as JSON references", async 
         file: "https://example.com/chart.png",
         caption: "chart"
       },
-      {} as OpenColabState
+      buildTestBotContext()
     );
 
     assert.equal(sent, true);
@@ -4059,7 +4075,11 @@ test("paired webhook can reset the session with /session_reset and create a new 
 
     assert.equal(resetResult.ok, true);
     assert.equal(resetResult.action, "management_command");
-    assert.equal(resetResult.response.startsWith("Session reset. New session:"), true);
+    assert.equal(
+      resetResult.response.startsWith("Session reset for professor (project default)."),
+      true
+    );
+    assert.equal(resetResult.response.includes("New session:"), true);
 
     const secondSessionDirs = fs
       .readdirSync(sessionsDir, { withFileTypes: true })
@@ -4400,7 +4420,7 @@ test("removed Telegram command families fall back to the supported picker comman
       assert.equal(result.action, "management_command");
       assert.equal(
         result.response,
-        "Supported commands: /projects | /agents | /session_reset | /stop | /workflow_notifications on|off|status"
+        "Supported commands: /projects | /agents | /whoami | /session_reset | /stop | /workflow_notifications on|off|status"
       );
       assert.equal(JSON.stringify(runtime.getState()), initialState);
     }

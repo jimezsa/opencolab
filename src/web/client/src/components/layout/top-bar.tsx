@@ -33,15 +33,39 @@ export function TopBar({ title, subtitle, health }: TopBarProps) {
         )}
       </div>
       <div className="flex items-center gap-2">
-        {health?.telegram.paired ? (
-          <Badge variant="secondary">tg paired</Badge>
-        ) : (
-          <Badge variant="outline">tg unpaired</Badge>
-        )}
+        <TelegramBadge bots={health?.telegramBots} />
         <Badge variant="outline">gateway {gatewayLabel}</Badge>
         <ThemeToggle />
       </div>
     </header>
+  )
+}
+
+/** One bot per project, so the badge counts paired bots rather than showing a single flag. */
+function TelegramBadge({
+  bots,
+}: {
+  bots: WebHealthStatus["telegramBots"] | undefined
+}) {
+  if (!bots || bots.length === 0) {
+    return <Badge variant="outline">no tg bots</Badge>
+  }
+
+  const ready = bots.filter(
+    (bot) => bot.enabled && bot.paired && bot.tokenPresent,
+  ).length
+  if (ready === bots.length) {
+    return (
+      <Badge variant="secondary">
+        {bots.length === 1 ? "tg paired" : `tg ${String(ready)} bots`}
+      </Badge>
+    )
+  }
+
+  return (
+    <Badge variant="outline">
+      tg {String(ready)}/{String(bots.length)} ready
+    </Badge>
   )
 }
 

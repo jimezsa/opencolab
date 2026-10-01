@@ -7,6 +7,14 @@ This document is a design draft for a multi-bot Telegram architecture in OpenCol
 It is intentionally separate from the current runtime contract in `docs/spec.md`.
 Nothing in this file is normative for the existing OpenColab runtime until the design is promoted into `docs/spec.md`, `README.md`, and implementation.
 
+> **Note:** the bot registry, per-bot token/transport plumbing, per-bot pairing and
+> authorization, and the "routing target comes from the inbound bot, not global state" rule
+> described below are now implemented, along the *bot-per-project* axis, and specified in
+> `docs/multi_bot_project_routing_spec.md` (promoted into `docs/spec.md` sections 6 and 8).
+> What remains open in this document is the *many-bots-in-one-project* axis: mention routing,
+> specialist reply policies, shared project memory, and internal delegation. The implemented
+> schema already reserves a per-bot `replyMode` field for that work.
+
 ## 2. Purpose
 
 OpenColab v1 models Telegram as one shared bot configuration and one active Telegram-routed agent inside the active project.

@@ -17,6 +17,7 @@ import {
 import { ErrorState, LoadingState } from "@/components/layout/page-state"
 import { api } from "@/lib/api"
 import { useAsync } from "@/lib/state"
+import type { WebHealthStatus } from "@shared/types"
 
 export default function SettingsRoute() {
   const health = useAsync(() => api.health(), [])
@@ -44,17 +45,72 @@ export default function SettingsRoute() {
               hint={data.build.packaged ? "packaged" : "source"}
             />
             <Field
-              label="Telegram"
-              value={data.telegram.paired ? "paired" : "unpaired"}
+              label="Telegram bots"
+              value={String(data.telegramBots.length)}
               hint={
-                data.telegram.pendingPairing
-                  ? "pairing pending"
-                  : data.telegram.chatPresent
-                    ? "chat configured"
-                    : "no chat"
+                data.telegramBots.length === 0
+                  ? "none configured"
+                  : `${String(
+                      data.telegramBots.filter(
+                        (bot) => bot.enabled && bot.paired && bot.tokenPresent,
+                      ).length,
+                    )} ready`
               }
             />
           </dl>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Telegram bots</CardTitle>
+          <CardDescription>
+            One bot per project. A message to a bot is answered by that project's
+            target agent. Chat ids and tokens are never shown.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data.telegramBots.length === 0 ? (
+            <p className="text-muted-foreground text-xs">
+              No bots configured. Add one with{" "}
+              <code className="font-mono">
+                opencolab telegram bot add --token &lt;botfather_token&gt;
+                --project &lt;project_id&gt;
+              </code>
+              .
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Bot</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Agent</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.telegramBots.map((bot) => (
+                  <TableRow key={bot.id}>
+                    <TableCell className="font-mono text-xs">
+                      {bot.username ? `@${bot.username}` : bot.id}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {bot.scope === "floating"
+                        ? `${bot.projectId ?? "none"} (follows active)`
+                        : (bot.projectId ?? "unbound")}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {bot.agentId ?? "none"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <BotStatusBadge bot={bot} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -97,6 +153,20 @@ export default function SettingsRoute() {
       </Card>
     </div>
   )
+}
+
+/** Reports the first thing that would stop this bot from answering. */
+function BotStatusBadge({
+  bot,
+}: {
+  bot: WebHealthStatus["telegramBots"][number]
+}) {
+  if (!bot.enabled) return <Badge variant="outline">disabled</Badge>
+  if (bot.orphaned) return <Badge variant="destructive">orphaned</Badge>
+  if (!bot.tokenPresent) return <Badge variant="destructive">no token</Badge>
+  if (bot.pendingPairing) return <Badge variant="outline">pairing</Badge>
+  if (!bot.paired) return <Badge variant="outline">unpaired</Badge>
+  return <Badge variant="secondary">ready</Badge>
 }
 
 function Field({

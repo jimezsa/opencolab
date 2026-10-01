@@ -2,10 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { OpenColabRuntime } from "../src/runtime.js";
 import {
+  fetchTelegramBotIdentity,
   fetchTelegramBotUsername,
   startTelegramPolling,
   waitForTelegramHandshake,
 } from "../src/telegram-poller.js";
+
+const TEST_BOTS = [{ botId: "default", token: "test_bot_token" }];
 
 test("polling advances offset after a failed update", async () => {
   const originalFetch = globalThis.fetch;
@@ -70,6 +73,7 @@ test("polling advances offset after a failed update", async () => {
   };
 
   const runtime = {
+    listTelegramPollableBots: () => TEST_BOTS,
     handleTelegramWebhook: async () => {
       handledUpdates += 1;
       throw new Error("provider exploded");
@@ -96,7 +100,10 @@ test("polling advances offset after a failed update", async () => {
 
     assert.equal(handledUpdates, 1);
     assert.equal(fetchUrls.some((url) => url.includes("offset=102")), true);
-    assert.equal(logs.includes("Telegram update 101 failed: provider exploded"), true);
+    assert.equal(
+      logs.includes("[bot default] Telegram update 101 failed: provider exploded"),
+      true
+    );
   } finally {
     pollingHandle?.stop();
     globalThis.fetch = originalFetch;
@@ -194,6 +201,7 @@ test("polling can dispatch /stop while a previous update is still running", asyn
   };
 
   const runtime = {
+    listTelegramPollableBots: () => TEST_BOTS,
     handleTelegramWebhook: async (update: { message?: { text?: string } }) => {
       const text = update.message?.text ?? "";
       handledTexts.push(text);
@@ -312,6 +320,7 @@ test("waitForTelegramHandshake drains stale updates and returns the first fresh 
 
   try {
     const result = await waitForTelegramHandshake({
+      token: "test_bot_token",
       timeoutMs: 2000,
       pollTimeoutSeconds: 1,
       acknowledgeText: "Paired ✅",
@@ -356,6 +365,7 @@ test("waitForTelegramHandshake returns null when no message arrives before the t
 
   try {
     const result = await waitForTelegramHandshake({
+      token: "test_bot_token",
       timeoutMs: 40,
       pollTimeoutSeconds: 1,
       onWaiting: () => {
@@ -393,6 +403,7 @@ test("waitForTelegramHandshake returns null on a polling conflict", async () => 
 
   try {
     const result = await waitForTelegramHandshake({
+      token: "test_bot_token",
       timeoutMs: 2000,
       pollTimeoutSeconds: 1,
       logger: (message) => {
@@ -419,17 +430,45 @@ test("fetchTelegramBotUsername returns the bot username from getMe", async () =>
   globalThis.fetch = async (input) => {
     const url = String(input);
     if (url.includes("/getMe")) {
-      return jsonResponse({ ok: true, result: { username: "opencolab_bot" } });
+      return jsonResponse({
+        ok: true,
+        result: { id: 7000000001, username: "opencolab_bot" }
+      });
     }
     throw new Error(`Unexpected fetch url: ${url}`);
   };
 
   try {
-    const username = await fetchTelegramBotUsername();
+    const username = await fetchTelegramBotUsername("test_bot_token");
     assert.equal(username, "opencolab_bot");
   } finally {
     globalThis.fetch = originalFetch;
     restoreToken(previousToken);
+  }
+});
+
+test("fetchTelegramBotIdentity returns the bot id and username, and null on a bad token", async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/bot good_token/getMe".replace(" ", ""))) {
+      return jsonResponse({ ok: true, result: { id: 42, username: "@handle_bot" } });
+    }
+    return new Response("Unauthorized", { status: 401 });
+  };
+
+  try {
+    const ok = await fetchTelegramBotIdentity("good_token");
+    assert.deepEqual(ok, { telegramBotId: "42", username: "handle_bot" });
+
+    const bad = await fetchTelegramBotIdentity("bad_token");
+    assert.equal(bad, null);
+
+    const empty = await fetchTelegramBotIdentity("   ");
+    assert.equal(empty, null);
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
 
@@ -454,4 +493,176 @@ async function wait(ms: number): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+test("polling runs one independent loop per bot and tags updates with the receiving bot", async () => {
+  const originalFetch = globalThis.fetch;
+  let pollingHandle: { stop: () => void; refresh: () => void; activeBotIds: () => string[] } | null =
+    null;
+  const seen: Array<{ botId: string; updateId: number }> = [];
+  const delivered = new Set<string>();
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/deleteWebhook")) {
+      return jsonResponse({ ok: true, result: true });
+    }
+    if (url.includes("/getUpdates?timeout=0")) {
+      return jsonResponse({ ok: true, result: [] });
+    }
+    if (url.includes("/getUpdates?timeout=25")) {
+      // Each bot's loop uses its own token in the URL, so the update it receives is
+      // unambiguous without reading anything from the payload.
+      const botToken = url.includes("/bottoken_a/") ? "token_a" : "token_b";
+      if (delivered.has(botToken)) {
+        return longPollResponse({ ok: true, result: [] });
+      }
+      delivered.add(botToken);
+      return longPollResponse({
+        ok: true,
+        result: [{ update_id: botToken === "token_a" ? 11 : 22 }]
+      });
+    }
+    throw new Error(`Unexpected fetch url: ${url}`);
+  };
+
+  const runtime = {
+    listTelegramPollableBots: () => [
+      { botId: "bot_a", token: "token_a" },
+      { botId: "bot_b", token: "token_b" }
+    ],
+    handleTelegramWebhook: async (
+      update: { update_id: number },
+      source: { botId: string }
+    ) => {
+      seen.push({ botId: source.botId, updateId: update.update_id });
+      return { ok: true };
+    }
+  } as unknown as OpenColabRuntime;
+
+  try {
+    pollingHandle = startTelegramPolling(runtime, { logger: () => undefined });
+    assert.notEqual(pollingHandle, null);
+    assert.deepEqual(pollingHandle?.activeBotIds(), ["bot_a", "bot_b"]);
+
+    await waitUntil(() => seen.length === 2);
+    assert.deepEqual(
+      [...seen].sort((a, b) => a.botId.localeCompare(b.botId)),
+      [
+        { botId: "bot_a", updateId: 11 },
+        { botId: "bot_b", updateId: 22 }
+      ]
+    );
+  } finally {
+    pollingHandle?.stop();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("the polling supervisor starts and stops loops as the registry changes", async () => {
+  const originalFetch = globalThis.fetch;
+  let pollingHandle: { stop: () => void; refresh: () => void; activeBotIds: () => string[] } | null =
+    null;
+  let bots = [{ botId: "bot_a", token: "token_a" }];
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/deleteWebhook")) {
+      return jsonResponse({ ok: true, result: true });
+    }
+    return longPollResponse({ ok: true, result: [] });
+  };
+
+  const runtime = {
+    listTelegramPollableBots: () => bots,
+    handleTelegramWebhook: async () => ({ ok: true })
+  } as unknown as OpenColabRuntime;
+
+  try {
+    pollingHandle = startTelegramPolling(runtime, { logger: () => undefined });
+    assert.deepEqual(pollingHandle?.activeBotIds(), ["bot_a"]);
+
+    // A CLI process adds a bot while the gateway runs.
+    bots = [
+      { botId: "bot_a", token: "token_a" },
+      { botId: "bot_b", token: "token_b" }
+    ];
+    pollingHandle?.refresh();
+    assert.deepEqual(pollingHandle?.activeBotIds(), ["bot_a", "bot_b"]);
+
+    // ...then removes one.
+    bots = [{ botId: "bot_b", token: "token_b" }];
+    pollingHandle?.refresh();
+    assert.deepEqual(pollingHandle?.activeBotIds(), ["bot_b"]);
+
+    // A rotated token replaces the loop so the stale secret stops being used.
+    bots = [{ botId: "bot_b", token: "token_b_rotated" }];
+    pollingHandle?.refresh();
+    assert.deepEqual(pollingHandle?.activeBotIds(), ["bot_b"]);
+  } finally {
+    pollingHandle?.stop();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("a revoked token stops only its own loop", async () => {
+  const originalFetch = globalThis.fetch;
+  let pollingHandle: { stop: () => void; refresh: () => void; activeBotIds: () => string[] } | null =
+    null;
+  const logs: string[] = [];
+  let healthyPolls = 0;
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/deleteWebhook")) {
+      return jsonResponse({ ok: true, result: true });
+    }
+    if (url.includes("/botrevoked/")) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+    if (url.includes("/getUpdates?timeout=25")) {
+      healthyPolls += 1;
+    }
+    return longPollResponse({ ok: true, result: [] });
+  };
+
+  const runtime = {
+    listTelegramPollableBots: () => [
+      { botId: "dead_bot", token: "revoked" },
+      { botId: "live_bot", token: "good" }
+    ],
+    handleTelegramWebhook: async () => ({ ok: true })
+  } as unknown as OpenColabRuntime;
+
+  try {
+    pollingHandle = startTelegramPolling(runtime, {
+      logger: (message) => {
+        logs.push(message);
+      }
+    });
+
+    await waitUntil(() =>
+      logs.some((line) => line.includes("[bot dead_bot] Telegram rejected the token"))
+    );
+    await waitUntil(() => healthyPolls > 0);
+  } finally {
+    pollingHandle?.stop();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+/** Mirrors Telegram's long poll just enough to yield to the macrotask queue. */
+async function longPollResponse(body: unknown): Promise<Response> {
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  return jsonResponse(body);
+}
+
+async function waitUntil(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start > timeoutMs) {
+      throw new Error("waitUntil: timed out");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }

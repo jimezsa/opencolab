@@ -1,5 +1,9 @@
 # Telegram Pairing Handshake Spec
 
+> **Note:** pairing is now per bot. Every step below is scoped to one bot id, the handshake
+> listens on that bot's own token, and `ignite` runs this flow for the bot bound to the selected
+> project. See `docs/spec.md` section 6.2 and `docs/multi_bot_project_routing_spec.md`.
+
 ## Goal
 
 Make Telegram pairing in `opencolab ignite` a one-step handshake.

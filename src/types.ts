@@ -145,11 +145,55 @@ export interface ProjectState {
   executionTargets: Record<string, ExecutionTargetConfig>;
 }
 
+/**
+ * How a Telegram bot picks its routing target.
+ * - `pinned`: the bot always routes to its bound project (multi-bot mode).
+ * - `floating`: the bot follows `activeProjectId` (legacy single-bot behavior).
+ */
+export type TelegramBotScope = "pinned" | "floating";
+
+/** Reserved for mention-aware group routing; v1 only supports one public responder. */
+export type TelegramBotReplyMode = "default_public";
+
+/**
+ * One Telegram bot identity bound to one OpenColab project.
+ * Holds metadata and chat/pairing state only; the token itself lives in
+ * `.env.local` under `tokenEnvVar` and must never be persisted here.
+ */
+export interface TelegramBotProfile {
+  id: string;
+  enabled: boolean;
+  scope: TelegramBotScope;
+  projectId: string | null;
+  agentId: string | null;
+  tokenEnvVar: string;
+  telegramBotId: string | null;
+  telegramUsername: string | null;
+  replyMode: TelegramBotReplyMode;
+  showAgentPrefix: boolean;
+  chatId: string | null;
+  paired: boolean;
+  pairedAt: string | null;
+  pendingPairingCode: string | null;
+  pendingPairingExpiresAt: string | null;
+  lastChatType: TelegramChatType | null;
+  lastMessageThreadId: string | null;
+  lastInteractionAt: string | null;
+  notifyWorkflowProgress: boolean;
+  boundAt: string | null;
+  lastValidatedAt: string | null;
+}
+
 export interface OpenColabState {
-  version: 2;
+  version: 3;
   updatedAt: string;
   activeProjectId: string;
   projects: Record<string, ProjectState>;
+  telegramBots: Record<string, TelegramBotProfile>;
+  /**
+   * @deprecated Read-only projection of the default bot, kept so a downgrade to a
+   * pre-multi-bot binary keeps working. Never read by current code; removed next release.
+   */
   telegram: TelegramConfig;
 }
 
@@ -250,8 +294,11 @@ export interface GatewayResult {
   ok: boolean;
   action:
     | "ignored"
+    | "unknown_bot"
+    | "token_missing"
     | "unauthorized_chat"
     | "pairing_required"
+    | "routing_error"
     | "agent_error"
     | "agent_stopped"
     | "agent_response"

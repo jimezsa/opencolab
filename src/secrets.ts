@@ -40,8 +40,17 @@ export function resolveEnvVar(key: string): string | null {
   return readEnvValue(key);
 }
 
+/** @deprecated Reads the legacy shared token. Use the bot profile's `tokenEnvVar` instead. */
 export function resolveTelegramBotToken(): string | null {
   return readEnvValue(TELEGRAM_BOT_TOKEN_ENV_VAR);
+}
+
+/**
+ * Reads the token for one Telegram bot. There is deliberately no fallback to another
+ * bot's token: a missing secret must stay a visible misconfiguration.
+ */
+export function resolveTelegramBotTokenFor(tokenEnvVar: string): string | null {
+  return readEnvValue(tokenEnvVar);
 }
 
 export function resolveRunpodApiKey(): string | null {
@@ -50,10 +59,6 @@ export function resolveRunpodApiKey(): string | null {
 
 export function hasProviderApiKey(providerName: ProviderName): boolean {
   return resolveProviderApiKey(providerName) !== null;
-}
-
-export function hasTelegramBotToken(): boolean {
-  return resolveTelegramBotToken() !== null;
 }
 
 export function hasRunpodApiKey(): boolean {
@@ -187,6 +192,46 @@ export function writeSecretToLocalEnv(rootDir: string, key: string, value: strin
 
   fs.writeFileSync(envPath, `${nextLines.join("\n")}\n`, "utf8");
   process.env[trimmedKey] = trimmedValue;
+}
+
+/** Deletes one key from .env.local and the live process env. No-op when absent. */
+export function removeSecretFromLocalEnv(rootDir: string, key: string): boolean {
+  const trimmedKey = key.trim();
+  if (!trimmedKey) {
+    return false;
+  }
+
+  const envPath = path.join(rootDir, ".env.local");
+  if (!fs.existsSync(envPath)) {
+    delete process.env[trimmedKey];
+    return false;
+  }
+
+  const content = fs.readFileSync(envPath, "utf8");
+  const lines = content.length > 0 ? content.split(/\r?\n/) : [];
+  let removed = false;
+  const nextLines = lines.filter((line) => {
+    const candidate = parseEnvLine(line);
+    if (candidate?.key === trimmedKey) {
+      removed = true;
+      return false;
+    }
+    return true;
+  });
+
+  if (removed) {
+    while (nextLines.length > 0 && nextLines[nextLines.length - 1] === "") {
+      nextLines.pop();
+    }
+    fs.writeFileSync(
+      envPath,
+      nextLines.length > 0 ? `${nextLines.join("\n")}\n` : "",
+      "utf8"
+    );
+  }
+
+  delete process.env[trimmedKey];
+  return removed;
 }
 
 function readEnvValue(key: string): string | null {

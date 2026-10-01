@@ -10,12 +10,13 @@ v1 supports:
 
 - multiple local projects
 - multiple agents per project
-- one active project at a time
+- one active project at a time for CLI and OpenColab Studio
 - one active agent inside the active project
+- one Telegram bot per project, so a chat routes to its own project independently of the active project
 - one provider runtime per agent: `openai`, `anthropic`, `gemini`, `minimax`, `xai`, `openrouter`, or `kimi`
 - optional project-scoped execution targets for bounded remote GPU experiments
 - one remote experiment backend in scope first: Runpod Pods on Secure Cloud with attached network volumes and SSH access
-- one user channel: Telegram
+- one user channel: Telegram, with one bot identity per project
 - one operator channel: OpenColab CLI
 
 No parallel orchestration between agents/projects is included in this version.
@@ -24,7 +25,10 @@ No parallel orchestration between agents/projects is included in this version.
 
 The reasoning runtime path is:
 
-`Telegram -> Gateway -> Active Project -> Active Agent -> Provider Runtime`
+`Telegram Bot -> Gateway -> Bound Project -> Target Agent -> Provider Runtime`
+
+The inbound bot identity decides the project. The globally active project participates in
+Telegram routing only for a legacy `floating` bot (see section 8.1).
 
 The bounded remote experiment path is:
 
@@ -49,14 +53,14 @@ Required:
 
 - Create/list/select projects from CLI.
 - Create/list/select agents from CLI (scoped to selected project).
-- List/select projects from Telegram picker commands.
-- List/select agents from Telegram picker commands.
-- Route Telegram messages to the selected project/agent runtime.
-- Route Telegram text and file messages (documents, photos, audio, video, voice, stickers, and related media) to the selected project/agent runtime.
-- For inbound Telegram files, resolve the Telegram `file_id` to a local file inside the active project when possible, using collision-safe local filenames, and pass the local path to the agent runtime alongside metadata and caption text.
+- Bind, list, show, rebind, enable, disable, remove, pair, and test Telegram bots from CLI.
+- List/select the target agent for the asking chat from Telegram picker commands.
+- Route Telegram messages to the inbound bot's bound project and target agent.
+- Route Telegram text and file messages (documents, photos, audio, video, voice, stickers, and related media) to that project/agent runtime.
+- For inbound Telegram files, resolve the Telegram `file_id` to a local file inside the resolved project when possible, using collision-safe local filenames, and pass the local path to the agent runtime alongside metadata and caption text.
 - Create/list/show/test/remove project-scoped GPU execution targets from CLI.
 - Start/status/logs/fetch/cancel/list bounded remote GPU jobs from CLI.
-- Persist project/agent/provider settings plus one shared Telegram configuration in `opencolab.json`.
+- Persist project/agent/provider settings plus the Telegram bot registry in `opencolab.json`.
 - Persist execution-target settings in `opencolab.json` and experiment run records under the active project tree.
 
 Not required in v1:
@@ -248,23 +252,57 @@ Requirements for session storage:
 - `BOOTSTRAP.md` is onboarding scaffolding, must be read first while it still exists, and should not be treated as permanent prompt context after initialization
 - inbound Telegram files remain shared project resources and should be stored at project scope (for example under `projects/<project_id>/memory/TelegramInbox/`), not duplicated per agent
 
-## 6. Telegram Pairing Flow
+## 6. Telegram Bots and Pairing Flow
 
-Pairing remains mandatory before regular routing.
+### 6.1 Bot Registry
+
+Telegram bots live in an installation-scoped registry, keyed by a local `botId`.
+Each bot is bound to exactly one project and holds its own chat and pairing state.
+
+Requirements:
+
+- a bot id matches `^[a-z0-9][a-z0-9_]{0,31}$` and is immutable
+- a bot's token lives in `.env.local` under the bot's own `tokenEnvVar`; `opencolab.json` stores
+  only the env var name, never a token value
+- there is no token fallback between bots: a bot with a missing token is skipped and reported
+- binding a token must validate it with `getMe` first and persist nothing on failure
+- the bot's real `@username` and Telegram bot id are recorded from `getMe`, not typed by the operator
+- at most one enabled bot per project; a conflicting bind is rejected and names the existing bot
+- `tokenEnvVar` and the Telegram bot id are unique across bots
+- a bot whose bound project no longer exists is normalized to disabled and reported as orphaned,
+  never silently repointed at another project
+- bot creation in BotFather stays a manual operator step; agents must not create bots
+
+### 6.2 Pairing
+
+Pairing remains mandatory before regular routing, and is per bot.
 
 Sequence:
 
-1. Operator runs pairing start from CLI.
-2. System sends short-lived code to the shared configured Telegram chat.
+1. Operator runs pairing start from CLI for one bot.
+2. System sends a short-lived code through that bot to that bot's chat.
 3. Operator completes pairing from CLI with the code.
-4. Gateway enables trusted routing.
+4. Gateway enables trusted routing for that bot.
 
 Requirements:
 
 - code expiry (recommended 10 minutes)
 - single-use code
+- a pending code for one bot is independent of every other bot
+- a code issued for one bot must not complete pairing for another
 - failed attempts do not enable routing
-- non-paired chats are rejected
+- a chat that does not equal the bot's own `chatId` is rejected
+
+### 6.3 Inbound Ingestion
+
+- the gateway runs one independent polling loop per enabled, token-present bot, each with its
+  own update offset
+- every inbound update is tagged with the `botId` of the loop or webhook path that received it;
+  the `botId` must never be read from the update payload
+- webhook ingestion is `POST /api/telegram/webhook/<bot_id>`, with the unsuffixed path resolving
+  to the `default` bot
+- one bot failing (invalid token, revoked bot, repeated conflict) must stop only that bot's loop
+- the polling supervisor must pick up registry changes made by another process without a restart
 
 ## 7. CLI Requirements
 
@@ -277,6 +315,8 @@ Required command groups:
 - `opencolab setup model`
 - `opencolab setup telegram`
 - `opencolab setup telegram pair`
+- `opencolab telegram bot`
+- `opencolab telegram commands sync`
 - `opencolab gateway`
 - `opencolab project`
 - `opencolab agent`
@@ -383,34 +423,98 @@ Responsibilities:
 - the published npm package must include the built CLI entrypoint, built web assets, built-in agent templates, and built-in shared skills required for runtime fallback behavior
 - the npm package build artifacts may be generated at pack/publish time rather than committed to the repository
 
-## 8. Telegram Commands
+### 7.1 Telegram Bot CLI
 
-Gateway must support project/agent picker commands plus direct session reset and stop commands from authorized, paired chat.
+`opencolab telegram bot` is the operator surface for the registry:
+
+- `add --token <value> [--id <bot>] [--project <id>] [--agent <id>] [--floating]`
+- `list [--json]`, `show --id <bot> [--json]`
+- `bind --id <bot> --project <id> [--agent <id>|--agent-auto]`
+- `pin --id <bot> [--project <id>]`, `unbind --id <bot>`
+- `enable|disable --id <bot>`
+- `remove --id <bot> [--keep-token]`
+- `pair --id <bot> start|complete --code <code>`
+- `test --id <bot>`
+- `opencolab telegram commands sync [--id <bot>|--all]`
+
+Requirements:
+
+- `add` is all-or-nothing: validate flags, `getMe`, check invariants, write the token, persist the
+  profile, then sync the command menu
+- token entry is CLI-only; a token sent as a chat message must never be accepted
+- `list` and `show` must mask secrets, show `tokenEnvVar` rather than any token value, and name
+  which bot owns each project's notifications, printing `none` when a project has no bot
+- `remove` deletes the profile and, unless `--keep-token`, its `.env.local` key, and should remind
+  the operator to `/revoke` in BotFather
+- the legacy `opencolab setup telegram`, `setup telegram pair`, `setup telegram commands sync`, and
+  `setup telegram workflow-notifications` commands remain supported as aliases over the
+  `default` bot
+- status output must state plainly when a bot is still `floating`, because that is the upgrade
+  default and explains why a chat still follows the active project
+
+## 8. Telegram Routing and Commands
+
+### 8.1 Target Resolution
+
+Routing resolves from the inbound bot, not from global state:
+
+```
+pinned:    project = projects[profile.projectId]
+           agent   = profile.agentId ?? project.activeAgentId
+floating:  project = projects[activeProjectId]      // legacy single-bot behavior
+           agent   = project.activeAgentId
+```
+
+Requirements:
+
+- a message to a pinned bot must not read or write `activeProjectId`
+- the resolved project/agent pair must be passed explicitly into provider execution,
+  conversation memory, inbound-file staging, and outbound file resolution
+- if the pinned agent no longer exists, the bot falls back to the project's active agent for
+  that one turn, says so in chat, and leaves the stored binding alone
+- if the bound project has no agents, the bot explains the problem and runs nothing
+- the conversation lane key must include the `botId`, so `/stop` and busy detection are per bot
+- provider turns for one agent must serialize across bots, chats, web chat, and heartbeat,
+  because they share the same session files
+
+### 8.2 Commands
+
+Gateway must support picker commands plus direct session reset and stop commands from an
+authorized, paired chat.
 
 Minimum supported commands:
 
-- `/projects`
 - `/agents`
+- `/whoami`
+- `/projects`
 - `/session_reset`
 - `/stop`
 
-Messages that are not management commands are routed to the active agent.
+Messages that are not management commands are routed to the bot's target agent.
 
 Interactive selection requirements:
 
-- `/projects` must return a project picker with inline Telegram buttons for every known project plus a cancel button
-- tapping a project button must switch the active project and persist the selection
-- `/agents` must return an agent picker with inline Telegram buttons for every agent in the active project plus a cancel button
-- tapping an agent button must switch the active agent and persist the selection
-- `/stop` must cancel the active routed run for the same Telegram conversation lane, append a compact assistant recovery entry, and prevent the stopped run from sending a late final reply
-- gateway must accept Telegram `callback_query` updates for these button taps, answer the callback query, and send a clear selection confirmation
+- `/agents` must return an agent picker with inline Telegram buttons for every agent in the
+  resolved project plus a cancel button
+- for a pinned bot, tapping an agent button must set that bot's own target agent and must not
+  change `project.activeAgentId` or `activeProjectId`
+- for a floating bot, tapping an agent button keeps the legacy behavior of switching the
+  project's active agent
+- `/projects` on a pinned bot must be informational: it reports the binding and the target agent
+  and changes nothing, including when a project callback is replayed
+- `/projects` on a floating bot must keep the legacy project picker that switches the active project
+- `/whoami` must report the bot, its mode, its project, and its target agent
+- `/session_reset` must reset the resolved agent's session, not the globally active agent's
+- `/stop` must cancel the active routed run for the same bot's conversation lane, append a compact
+  assistant recovery entry, and prevent the stopped run from sending a late final reply
+- gateway must accept Telegram `callback_query` updates for these button taps, answer the callback
+  query, and send a clear selection confirmation
 
-Slash-menu registration:
+Slash-menu registration is per bot:
 
-- `/projects` -> interactive project picker
-- `/agents` -> interactive agent picker
-- `/session_reset` -> reset the active session and start a new session folder
-- `/stop` -> stop the active routed run and save a compact recovery summary
+- pinned bots publish `/agents`, `/whoami`, `/projects`, `/session_reset`, `/stop`,
+  `/workflow_notifications`
+- floating bots publish the same list; `/projects` there is a live picker
 
 ## 9. Provider Constraints
 
@@ -547,6 +651,31 @@ Minimum shape:
       }
     }
   },
+  "telegramBots": {
+    "default": {
+      "id": "default",
+      "enabled": true,
+      "scope": "pinned",
+      "projectId": "default",
+      "agentId": null,
+      "tokenEnvVar": "TELEGRAM_BOT_TOKEN",
+      "telegramBotId": "7712345678",
+      "telegramUsername": "opencolab_default_bot",
+      "replyMode": "default_public",
+      "showAgentPrefix": true,
+      "chatId": "<telegram-chat-id>",
+      "paired": true,
+      "pairedAt": "2026-02-27T00:00:00.000Z",
+      "pendingPairingCode": null,
+      "pendingPairingExpiresAt": null,
+      "lastChatType": "private",
+      "lastMessageThreadId": null,
+      "lastInteractionAt": "2026-02-27T00:05:00.000Z",
+      "notifyWorkflowProgress": true,
+      "boundAt": "2026-02-27T00:00:00.000Z",
+      "lastValidatedAt": "2026-02-27T00:00:00.000Z"
+    }
+  },
   "telegram": {
     "chatId": "<telegram-chat-id>",
     "paired": true,
@@ -558,6 +687,22 @@ Minimum shape:
 }
 ```
 
+Telegram bot registry persistence requirements:
+
+- `telegramBots` is installation-scoped and keyed by `botId`
+- `scope` is `pinned` (project-bound) or `floating` (legacy: follows `activeProjectId`)
+- `agentId` is `null` to follow the bound project's `activeAgentId`, or a pinned agent id
+- `replyMode` is reserved for future mention-aware group routing; only `default_public` is accepted
+- top-level `telegram` is **deprecated**: it is a read-only projection of the default bot, written
+  so a downgrade to a pre-registry binary keeps working, and is removed in the following release
+- a v2 config without `telegramBots` is migrated on load into exactly one `floating` bot derived
+  from `telegram` plus `activeProjectId`, so an upgraded install changes nothing observable;
+  a v2 config with no configured chat migrates to no bots at all
+- the migration is version-gated and must not rerun over an existing registry
+- malformed bot entries are dropped; conflicts over a project, a `tokenEnvVar`, or a Telegram bot
+  id disable the losing bot deterministically by sorted id rather than repointing it
+- a value in `tokenEnvVar` that looks like a raw bot token must be rejected at normalization
+
 Heartbeat persistence requirements:
 
 - pending heartbeat state must live in the owning project entry inside `opencolab.json`
@@ -568,6 +713,7 @@ Heartbeat persistence requirements:
 Notes:
 
 - secret values are stored in `.env.local` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, `TELEGRAM_BOT_TOKEN`)
+- each additional Telegram bot stores its token under its own key, by default `TELEGRAM_BOT_TOKEN_<BOT_ID>`; the `default` bot keeps the bare `TELEGRAM_BOT_TOKEN`
 - when OpenAI auth mode is `oauth`, `OPENAI_API_KEY` is optional
 - when Anthropic auth mode is `oauth`, `ANTHROPIC_API_KEY` is optional
 - when Gemini auth mode is `oauth`, `GEMINI_API_KEY` is optional
@@ -1035,24 +1181,38 @@ Requirements:
 - `notify: digest` must send at most one compact final text message after the heartbeat turn finishes; it must not create live status or progress streaming for the background run
 - `notify: live` must reuse the existing Telegram live-status renderer for provider progress during the heartbeat turn, must not create a generic placeholder before meaningful provider progress exists, and may send the same compact final digest after the live status closes when the result is meaningful or needs attention
 - `notify: digest` must always notify on heartbeat `failed` and `timed_out` outcomes, should notify on clear human-input blockers, and should notify on `completed` only when the final assistant output is meaningful and non-trivial
-- heartbeat Telegram delivery must target the configured paired chat only; the runtime may preserve the most recent authorized Telegram chat type and topic/thread id for live status and digest delivery, but must not guess a different chat or per-agent destination
+- heartbeat Telegram delivery is project-addressed: it must go to the enabled, paired, token-present bot bound to the heartbeat's own project, using that bot's remembered chat type and topic/thread id
+- when no bot owns that project, the heartbeat notification must be skipped and logged, never delivered into another project's chat
+- workflow run notifications follow the same rule, gated per bot by `notifyWorkflowProgress`
 
 ## 14. Acceptance Criteria
 
 v1 is complete when all are true:
 
 - CLI can create/select projects and agents.
-- Telegram can create/select projects and agents.
-- Active project routes to its active agent and provider runtime.
-- Provider runtimes can edit the active project workspace without interactive permission prompts.
-- `opencolab.json` persists active project, all project/agent configs, and one shared Telegram config.
+- Telegram can select the target agent for the asking chat.
+- Each Telegram bot routes to its bound project and target agent, independently of `activeProjectId`.
+- Two bots in two projects never cross-deliver replies, live status, files, heartbeat digests, or
+  workflow notifications.
+- `/agents` in one chat changes only that chat's target agent; `/projects` in a pinned chat changes
+  nothing.
+- Conversation memory for a routed turn is written under the resolved project's target agent.
+- Two bots can run turns concurrently; two turns on one agent serialize.
+- `/stop` stops only the asking bot's in-flight run.
+- Upgrading an existing single-bot install changes nothing observable: same chat, still paired, same
+  routing, no re-pairing, no manual file edit, and `TELEGRAM_BOT_TOKEN` still honored.
+- A bot with a missing or invalid token is skipped and reported, and never borrows another bot's token.
+- `opencolab.json` contains no token values; every bot shows a `tokenEnvVar` only.
+- Removing one bot leaves the others fully working.
+- Provider runtimes can edit the resolved project workspace without interactive permission prompts.
+- `opencolab.json` persists active project, all project/agent configs, and the Telegram bot registry.
 - A running gateway must preserve valid project and agent changes made by separate CLI processes instead of overwriting them from a stale in-memory state snapshot.
 - The default `professor` agent is created under `projects/<project_id>/AGENTS/professor/`.
 - The optional built-in `beginner` agent is created under `projects/<project_id>/AGENTS/beginner/` when used.
 - The optional built-in `autoresearch` agent is created under `projects/<project_id>/AGENTS/autoresearch/` when used.
 - Additional agents are created under `projects/<project_id>/AGENTS/<agent_id>/`.
 - New agents seed an empty `HEARTBEAT.md`, and heartbeat stays disabled until the user adds a valid `after:` value.
-- Optional `notify: digest` can send one compact paired-chat Telegram follow-up after a meaningful heartbeat completion, timeout, failure, or clear blocker; `notify: live` can also show the existing Telegram live-status surface while the heartbeat turn runs.
+- Optional `notify: digest` can send one compact follow-up to the bot bound to that heartbeat's project after a meaningful completion, timeout, failure, or clear blocker; `notify: live` can also show the existing Telegram live-status surface while the heartbeat turn runs. A project with no bound bot gets no notification.
 - Optional `message: <plain text>` can replace the default heartbeat prompt `continue` while still requiring a valid `after:` line.
 - The default `professor` agent seeds from the built-in professor template assets, sourced from `src/agent-templates/professor/` in the repository and shipped in packaged installs; the built-in `beginner` and `autoresearch` agent ids and additional agents follow the same built-in template rules with fallback to shared template assets.
 - Agent conversation logs are saved in per-agent `memory/Session/<session_id>/<YYYY-MM-DD>.jsonl`.

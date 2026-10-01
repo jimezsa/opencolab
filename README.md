@@ -17,6 +17,7 @@ _Accelerating Scientific Discovery_ — Turn your research into an always-on aut
 - ✅ Deep Research swarm skills for paper search, grounded QA (Reasoning-based RAG), figure extraction, parallel summaries, D2 block diagrams, and LaTeX paper/report generation.
 - ✅ Provider runtime support for OpenAI, Anthropic, Gemini, MiniMax, xAI, OpenRouter, and Kimi.
 - ✅ Multi-project, multi-agent local workspace with CLI and Telegram control.
+- ✅ One Telegram bot per project: open that chat and the project's own agent answers, no switching.
 - ✅ Run Experiment on external GPU servers(Runpod)
 - ✅ Git-versioned LaTeX paper workspaces with `latexmk` PDF builds.
 
@@ -86,7 +87,7 @@ Current runtime architecture:
 
 Remote experiment path:
 
-`Telegram/CLI -> Active Project -> Active Agent -> Execution Target -> Remote Run`
+`Telegram Bot -> Bound Project -> Target Agent -> Execution Target -> Remote Run`
 
 ## Runtime CLI Install Links
 
@@ -427,15 +428,16 @@ opencolab gateway restart --port 4646
 - `opencolab upgrade` upgrades one-link installer-managed package installs, one-link installer-managed hacky clone installs, and manual git/source installs
 - managed package and clone upgrades keep the installer-managed runtime root and restart a managed background gateway with its saved settings when one is running
 - generic npm/global installs without installer metadata should still be upgraded with the package manager, for example `npm install -g opencolab@latest`
-- Telegram webhook endpoint: `POST http://127.0.0.1:4646/api/telegram/webhook`
-- Inbound Telegram files are downloaded into the active project under `memory/TelegramInbox/` when possible
+- Telegram webhook endpoint: `POST http://127.0.0.1:4646/api/telegram/webhook/<bot_id>` (the unsuffixed path targets the `default` bot)
+- The gateway runs one polling loop per enabled bot, each with its own token and update offset, and picks up bots added from another shell without a restart
+- Inbound Telegram files are downloaded into the resolved project under `memory/TelegramInbox/` when possible
 - Agents can return files with raw `@telegram-file <json>` lines using relative paths, absolute paths including Windows drive-letter or UNC paths, or `file://` URLs
 - Long-running work uses one bounded live status surface before the final answer instead of sending a stream of progress messages
 - OpenColab waits for real runtime progress before creating the live status surface; it does not send a generic placeholder status card
 - In paired private chats, groups, and other chats, OpenColab uses one persistent editable status message that remains visible after the final answer
 - Every live status surface streams the same bounded recent tool-activity list
 - Live status marks the newest visible step with `🟢` and older visible steps with `⚪` so the current action is easy to spot
-- Routed Telegram text replies are prefixed with the active agent id on the first line so one chat can safely manage multiple agents
+- Routed Telegram text replies are prefixed with the answering agent id on the first line so one chat can safely manage multiple agents
 - Final text replies are split into ordered chunks when needed so Telegram's text limit does not drop the answer
 - `sendChatAction` remains active as startup feedback and as fallback when no live status event is available
 - If provider execution fails because of auth, timeout, CLI setup problems, or Telegram API delivery issues, the gateway logs the Telegram status and description instead of failing silently
@@ -464,25 +466,47 @@ opencolab workflow status --run-id <id>
 
 `opencolab.json` is shared by the CLI, Studio, and the background gateway. Long-running processes merge their state changes onto the latest file on disk before saving, so agents or projects created from another shell are preserved while the gateway is running.
 
-Telegram:
+Telegram bots, one per project:
 
-```text
-/projects
-/agents
-/session_reset
-/stop
+```bash
+# Create the bot in BotFather first, then bind its token to a project.
+opencolab telegram bot add --token <botfather_token> --project <project_id>
+opencolab telegram bot pair --id <bot> start
+opencolab telegram bot list
+```
+
+Other registry commands:
+
+```bash
+opencolab telegram bot show --id <bot>
+opencolab telegram bot bind --id <bot> --project <id> [--agent <id>|--agent-auto]
+opencolab telegram bot pin --id <bot>        # stop following the active project
+opencolab telegram bot unbind --id <bot>     # back to legacy follow-the-active-project mode
+opencolab telegram bot enable|disable --id <bot>
+opencolab telegram bot remove --id <bot> [--keep-token]
+opencolab telegram bot test --id <bot>
+opencolab telegram commands sync --all
 ```
 
 Telegram slash-menu commands:
 
 ```text
-/projects
 /agents
+/whoami
+/projects
 /session_reset
 /stop
 ```
 
-`/projects` and `/agents` open inline-button pickers in Telegram so users can switch the active project or agent with one tap. `/session_reset` starts a new active session. `/stop` cancels the active routed task for the same chat or topic and saves a compact recovery summary for later resume. Project and agent creation remain CLI-driven.
+A message to a bot is answered by that bot's project and target agent, whatever the CLI's active project happens to be, so switching projects means tapping a different chat. `/agents` opens an inline-button picker for the bound project's agents and changes who answers **in that chat only** — it does not move the project's active agent or the global active project. `/whoami` reports the chat's bot, project, and agent. `/projects` in a project-bound chat is informational and changes nothing. `/session_reset` starts a new session for that chat's agent. `/stop` cancels that bot's active routed task and saves a compact recovery summary for later resume. Project, agent, and bot creation remain CLI-driven.
+
+Notes:
+
+- One project owns at most one enabled bot, so a chat is never ambiguous.
+- Each bot's token lives in `.env.local` under its own key (`TELEGRAM_BOT_TOKEN_<BOT_ID>`; the `default` bot keeps the bare `TELEGRAM_BOT_TOKEN`). `opencolab.json` stores only the env var name.
+- A bot with a missing token is skipped and reported; it never borrows another bot's token.
+- A project with no bound bot gets no heartbeat or workflow notifications. `opencolab telegram bot list` prints the owner of each project, or `none`.
+- Upgrading an existing single-bot install changes nothing: the bot keeps following the active project until you run `opencolab telegram bot pin --id default`.
 
 ## Agent Layout and Memory
 
@@ -490,7 +514,7 @@ Telegram slash-menu commands:
 - Agent directories live under `projects/<project_id>/AGENTS/<agent_id>/`
 - Required agent files: `AGENTS.md`, `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, `MEMORY.md`, `HEARTBEAT.md`, plus agent-local `SKILLS/`
 - `HEARTBEAT.md` is seeded empty for every agent and stays off by default; heartbeat activates only when the user adds a valid `after:` duration such as `after: 30m`
-- `HEARTBEAT.md` may also include `notify: digest` to send one compact follow-up after a meaningful heartbeat completion, timeout, failure, or clear blocker, or `notify: live` to show the existing Telegram live-status surface during the heartbeat turn; if `notify:` is omitted, heartbeat stays silent in Telegram
+- `HEARTBEAT.md` may also include `notify: digest` to send one compact follow-up after a meaningful heartbeat completion, timeout, failure, or clear blocker, or `notify: live` to show the existing Telegram live-status surface during the heartbeat turn; if `notify:` is omitted, heartbeat stays silent in Telegram. The follow-up goes to the bot bound to that project, and is skipped when the project has no bot.
 - `HEARTBEAT.md` may include `message: <plain text>` to replace the default heartbeat prompt `continue`; a valid `after:` line is still required
 - Agents should modify `HEARTBEAT.md` only with explicit user approval
 - On first contact, agents must read `BOOTSTRAP.md` before `ALMA.md` whenever `BOOTSTRAP.md` still exists
@@ -501,7 +525,7 @@ Telegram slash-menu commands:
 - `professor` should fill the `PROJECT-AND-TEAM.md` front matter once the project identity is known
 - `professor` is the lead agent and may propose or create durable specialist agents for research, coding, experiments, or writing after human approval
 - Professor-led creation uses the OpenColab CLI, for example `opencolab agent create --agent-id <id>`, with follow-up `opencolab setup model --agent-id <id> ...` when per-agent provider setup is needed
-- Creating an OpenColab agent is separate from creating a Telegram bot identity; BotFather and token binding remain operator-managed steps
+- Creating an OpenColab agent is separate from creating a Telegram bot identity; BotFather and token binding remain operator-managed steps via `opencolab telegram bot add`
 - Shared skills live under `projects/SKILLS/` and are reused across all projects and agents
 - Agent-local skills live under `projects/<project_id>/AGENTS/<agent_id>/SKILLS/`
 - Built-in templates come from `src/agent-templates/`, with shared scaffolds in `src/agent-templates/shared/` and concise role overrides in folders such as `professor/`, `beginner/`, `autoresearch/`, and `specialist/`; role `AGENTS.md` files avoid restating detailed rules already owned by shared files or injected built-in guidance
@@ -514,8 +538,8 @@ Built-in shared workflows include `fast-research`, `pro-research`, `deep-researc
 
 ## Configuration and Development
 
-- `opencolab.json` stores active project state, project and agent maps, per-agent provider config, project-scoped execution targets, optional per-project pending heartbeat wake-up state, and shared Telegram pairing state at the runtime root
-- `.env.local` stores secrets such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, and `TELEGRAM_BOT_TOKEN` at the runtime root
+- `opencolab.json` stores active project state, project and agent maps, per-agent provider config, project-scoped execution targets, optional per-project pending heartbeat wake-up state, and the Telegram bot registry at the runtime root
+- `.env.local` stores secrets such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MINIMAX_API_KEY`, `XAI_API_KEY`, `RUNPOD_API_KEY`, and one `TELEGRAM_BOT_TOKEN*` key per Telegram bot at the runtime root
 - Remote run manifests, status, logs, sync metadata, and fetched artifacts live under `projects/<project_id>/experiments/`
 - Secret values should not be committed to git
 

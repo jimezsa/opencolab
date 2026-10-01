@@ -25,12 +25,20 @@ import {
   createDefaultManualSshProfile,
   createDefaultAgentConfig,
   createDefaultProjectState,
+  createDefaultTelegramBotProfile,
   DEFAULT_AGENT_ID,
+  DEFAULT_TELEGRAM_BOT_ID,
+  deriveTelegramBotId,
+  deriveTelegramBotTokenEnvVar,
   ensureProjectAndAgent,
   getActiveAgent as getProjectActiveAgent,
   getActiveProject,
+  getTelegramBot,
+  isValidTelegramBotId,
+  listTelegramBots,
   mergeProjectStateChanges,
   readProjectState,
+  resolveTelegramBotForProject,
   writeProjectState
 } from "./project-config.js";
 import {
@@ -50,14 +58,18 @@ import {
   buildAssistantRecoveryLog,
   defaultTelegramMessageEditor,
   defaultTelegramStatusMessageCreator,
+  type TelegramBotContext,
   type TelegramCallbackAnswerer,
   type TelegramDraftSender,
   type TelegramMessageEditor,
+  type TelegramRoutingTarget,
   type TelegramStatusMessageCreator,
+  type TelegramUpdateSource,
   TelegramGateway,
   type TelegramFileSender,
   type TelegramSender,
   type TelegramTypingSender,
+  withBotProfile,
   isProviderTimeoutError
 } from "./gateway.js";
 import { createTelegramWorkflowNotifierFactory } from "./telegram-workflow-notifier.js";
@@ -86,6 +98,7 @@ import type {
   ProviderReasoningEffort,
   TaskProgressEvent,
   TaskProgressKind,
+  TelegramBotProfile,
   TelegramFilePayload,
   WorkflowApprovalDecision,
   WorkflowEvent,
@@ -95,6 +108,16 @@ import type {
   WorkflowSummary,
   WorkflowValidationResult
 } from "./types.js";
+import {
+  removeSecretFromLocalEnv,
+  resolveTelegramBotTokenFor,
+  writeSecretToLocalEnv
+} from "./secrets.js";
+import {
+  fetchTelegramBotIdentity,
+  type TelegramBotIdentity,
+  type TelegramPollableBot
+} from "./telegram-poller.js";
 import { ensureDir, nowIso } from "./utils.js";
 import {
   WorkflowService,
@@ -146,6 +169,8 @@ export interface RuntimeOptions {
   telegramDraftSender?: TelegramDraftSender;
   telegramStatusMessageCreator?: TelegramStatusMessageCreator;
   telegramMessageEditor?: TelegramMessageEditor;
+  /** Overrides the getMe lookup used to validate a bot token before binding it. */
+  telegramIdentityFetcher?: (token: string) => Promise<TelegramBotIdentity | null>;
   runpodExecutionService?: RunpodExecutionService;
   manualSshService?: ManualSshService;
   agentResponder?: (
@@ -166,6 +191,31 @@ export interface ModelSetupInput {
 
 export interface TelegramSetupInput {
   chatId: string;
+  /** Defaults to the `default` bot so legacy single-bot CLI flows keep working. */
+  botId?: string;
+}
+
+export interface TelegramBotAddInput {
+  token: string;
+  botId?: string;
+  projectId?: string;
+  agentId?: string | null;
+  floating?: boolean;
+  chatId?: string | null;
+}
+
+export interface TelegramBotBindInput {
+  projectId?: string;
+  agentId?: string | null;
+  /** When true, clears the pinned agent so the bot follows the project default again. */
+  agentAuto?: boolean;
+}
+
+export interface TelegramBotSummary extends TelegramBotProfile {
+  tokenPresent: boolean;
+  orphaned: boolean;
+  effectiveProjectId: string | null;
+  effectiveAgentId: string | null;
 }
 
 export interface ExecutionTargetSetupInput {
@@ -273,23 +323,21 @@ export class OpenColabRuntime {
         this.state = ensureProjectAndAgent(next);
         this.persist();
       },
-      readConversationMemory: (chatId, limit): AgentMemoryContext =>
-        this.conversations.readPromptMemory(this.resolveActiveAgentPath(), limit),
-      appendConversation: (chatId, message) =>
-        this.conversations.append(this.resolveActiveAgentPath(), message),
-      resetConversationSession: () => this.conversations.resetSession(this.resolveActiveAgentPath()),
+      resolveBotToken: (profile) => resolveTelegramBotTokenFor(profile.tokenEnvVar),
+      readConversationMemory: (target, limit): AgentMemoryContext =>
+        this.conversations.readPromptMemory(target.agent.path, limit),
+      appendConversation: (target, message) =>
+        this.conversations.append(target.agent.path, message),
+      resetConversationSession: (target) =>
+        this.conversations.resetSession(target.agent.path),
       onAgentTurnStarted: (projectId, agentId) => {
         this.clearPendingHeartbeatForTurnStart(projectId, agentId);
       },
       onAgentTurnFinished: (projectId, agentId, outcome) => {
         this.recordHeartbeatOutcome(projectId, agentId, outcome);
       },
-      respond: async (input, respondOptions) => {
-        if (this.options.agentResponder) {
-          return this.options.agentResponder(input, respondOptions);
-        }
-        return this.providerAgent.respond(input, respondOptions);
-      },
+      respond: async (target, input, respondOptions) =>
+        this.respondWithAgentContext(target.project, target.agent, input, respondOptions),
       telegramSender: this.options.telegramSender,
       telegramTypingSender: this.options.telegramTypingSender,
       telegramFileSender: this.options.telegramFileSender,
@@ -474,62 +522,111 @@ export class OpenColabRuntime {
     return this.state;
   }
 
+  /**
+   * Sets a bot's trusted chat. Defaults to the `default` bot so the legacy
+   * `opencolab setup telegram --chat-id` flow keeps working unchanged.
+   *
+   * Unlike `addTelegramBot`, this does not validate a token: the legacy flow writes the
+   * token separately, and the bot it creates is `floating`, so it cannot misroute to a
+   * project it was never bound to.
+   */
   setupTelegram(input: TelegramSetupInput): OpenColabState {
-    const chatChanged = this.state.telegram.chatId !== input.chatId;
+    const botId = input.botId?.trim() || DEFAULT_TELEGRAM_BOT_ID;
+    const chatId = input.chatId.trim();
+    const existing = getTelegramBot(this.state, botId);
 
-    this.state = {
-      ...this.state,
-      telegram: {
-        ...this.state.telegram,
-        chatId: input.chatId,
-        paired: chatChanged ? false : this.state.telegram.paired,
-        pairedAt: chatChanged ? null : this.state.telegram.pairedAt,
+    if (!existing) {
+      const profile: TelegramBotProfile = {
+        ...createDefaultTelegramBotProfile(botId, deriveTelegramBotTokenEnvVar(botId)),
+        scope: botId === DEFAULT_TELEGRAM_BOT_ID ? "floating" : "pinned",
+        projectId: this.state.activeProjectId,
+        chatId,
+        boundAt: nowIso()
+      };
+      this.state = ensureProjectAndAgent({
+        ...this.state,
+        telegramBots: { ...this.state.telegramBots, [botId]: profile }
+      });
+      this.persist();
+      return this.state;
+    }
+
+    const chatChanged = existing.chatId !== chatId;
+    this.state = ensureProjectAndAgent(
+      withBotProfile(this.state, botId, {
+        chatId,
+        paired: chatChanged ? false : existing.paired,
+        pairedAt: chatChanged ? null : existing.pairedAt,
         pendingPairingCode: null,
         pendingPairingExpiresAt: null,
-        lastChatType: chatChanged ? null : this.state.telegram.lastChatType,
-        lastMessageThreadId: chatChanged ? null : this.state.telegram.lastMessageThreadId,
-        lastInteractionAt: chatChanged ? null : this.state.telegram.lastInteractionAt
-      }
-    };
+        lastChatType: chatChanged ? null : existing.lastChatType,
+        lastMessageThreadId: chatChanged ? null : existing.lastMessageThreadId,
+        lastInteractionAt: chatChanged ? null : existing.lastInteractionAt
+      })
+    );
 
     this.persist();
     return this.state;
   }
 
-  markTelegramPaired(chatId: string): OpenColabState {
-    const chatChanged = this.state.telegram.chatId !== chatId;
+  markTelegramPaired(chatId: string, botId = DEFAULT_TELEGRAM_BOT_ID): OpenColabState {
+    const normalizedChatId = chatId.trim();
+    const existing = getTelegramBot(this.state, botId);
 
-    this.state = {
-      ...this.state,
-      telegram: {
-        ...this.state.telegram,
-        chatId,
+    if (!existing) {
+      this.setupTelegram({ chatId: normalizedChatId, botId });
+      return this.markTelegramPaired(normalizedChatId, botId);
+    }
+
+    const chatChanged = existing.chatId !== normalizedChatId;
+    this.state = ensureProjectAndAgent(
+      withBotProfile(this.state, botId, {
+        chatId: normalizedChatId,
         paired: true,
         pairedAt: nowIso(),
         pendingPairingCode: null,
         pendingPairingExpiresAt: null,
-        lastChatType: chatChanged ? null : this.state.telegram.lastChatType,
-        lastMessageThreadId: chatChanged
-          ? null
-          : this.state.telegram.lastMessageThreadId,
-        lastInteractionAt: chatChanged
-          ? null
-          : this.state.telegram.lastInteractionAt
-      }
-    };
+        lastChatType: chatChanged ? null : existing.lastChatType,
+        lastMessageThreadId: chatChanged ? null : existing.lastMessageThreadId,
+        lastInteractionAt: chatChanged ? null : existing.lastInteractionAt
+      })
+    );
 
     this.persist();
     return this.state;
   }
 
-  setTelegramWorkflowNotifications(enabled: boolean): OpenColabState {
-    this.state = {
-      ...this.state,
-      telegram: {
-        ...this.state.telegram,
-        notifyWorkflowProgress: enabled
-      }
-    };
+  /** Records the real Telegram identity for a bot after a successful getMe. */
+  recordTelegramBotIdentity(
+    botId: string,
+    identity: { telegramBotId: string; username: string | null }
+  ): OpenColabState {
+    if (!getTelegramBot(this.state, botId)) {
+      return this.state;
+    }
+    this.state = ensureProjectAndAgent(
+      withBotProfile(this.state, botId, {
+        telegramBotId: identity.telegramBotId,
+        telegramUsername: identity.username,
+        lastValidatedAt: nowIso()
+      })
+    );
+    this.persist();
+    return this.state;
+  }
+
+  setTelegramWorkflowNotifications(
+    enabled: boolean,
+    botId = DEFAULT_TELEGRAM_BOT_ID
+  ): OpenColabState {
+    if (!getTelegramBot(this.state, botId)) {
+      throw new Error(
+        `Unknown Telegram bot: ${botId}. Configure Telegram first with 'opencolab setup telegram' or 'opencolab telegram bot add'.`
+      );
+    }
+    this.state = ensureProjectAndAgent(
+      withBotProfile(this.state, botId, { notifyWorkflowProgress: enabled })
+    );
     this.persist();
     return this.state;
   }
@@ -940,16 +1037,306 @@ export class OpenColabRuntime {
     return this.runpodExecutionService.cancelRun(project, runId);
   }
 
-  async startPairing(): Promise<{ code: string; expiresAt: string; sent: boolean }> {
-    return this.gateway.startPairing();
+  async startPairing(
+    botId = DEFAULT_TELEGRAM_BOT_ID
+  ): Promise<{ botId: string; code: string; expiresAt: string; sent: boolean }> {
+    return this.gateway.startPairing(botId);
   }
 
-  completePairing(code: string): { pairedAt: string } {
-    return this.gateway.completePairing(code);
+  completePairing(
+    code: string,
+    botId = DEFAULT_TELEGRAM_BOT_ID
+  ): { botId: string; pairedAt: string } {
+    return this.gateway.completePairing(botId, code);
   }
 
-  async handleTelegramWebhook(body: unknown): Promise<GatewayResult> {
-    return this.gateway.handleWebhook(body);
+  async handleTelegramWebhook(
+    body: unknown,
+    source: TelegramUpdateSource = { botId: DEFAULT_TELEGRAM_BOT_ID }
+  ): Promise<GatewayResult> {
+    return this.gateway.handleWebhook(body, source);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Telegram bot registry
+  // ---------------------------------------------------------------------------
+
+  getTelegramBotProfile(botId: string): TelegramBotProfile | null {
+    return getTelegramBot(this.refreshStateFromDisk(), botId);
+  }
+
+  listTelegramBotSummaries(): TelegramBotSummary[] {
+    return listTelegramBots(this.state).map((profile) => this.describeTelegramBot(profile));
+  }
+
+  getTelegramBotSummary(botId: string): TelegramBotSummary {
+    return this.describeTelegramBot(this.requireTelegramBot(botId));
+  }
+
+  /** Enabled bots whose token is present, for the polling supervisor. */
+  listTelegramPollableBots(): TelegramPollableBot[] {
+    const bots: TelegramPollableBot[] = [];
+    for (const profile of listTelegramBots(this.refreshStateFromDisk())) {
+      if (!profile.enabled) {
+        continue;
+      }
+      const token = resolveTelegramBotTokenFor(profile.tokenEnvVar);
+      if (!token) {
+        continue;
+      }
+      bots.push({ botId: profile.id, token });
+    }
+    return bots;
+  }
+
+  resolveTelegramBotContext(botId: string): TelegramBotContext | null {
+    const profile = getTelegramBot(this.state, botId);
+    if (!profile || !profile.enabled) {
+      return null;
+    }
+    const token = resolveTelegramBotTokenFor(profile.tokenEnvVar);
+    if (!token) {
+      return null;
+    }
+    return { botId: profile.id, token, profile };
+  }
+
+  /**
+   * Resolves the bot that owns a project's notifications, or null when none is bound.
+   * Null means "stay silent": a project's updates never go to another project's chat.
+   */
+  resolveTelegramBotContextForProject(projectId: string): TelegramBotContext | null {
+    const profile = resolveTelegramBotForProject(this.state, projectId);
+    if (!profile) {
+      return null;
+    }
+    const token = resolveTelegramBotTokenFor(profile.tokenEnvVar);
+    if (!token) {
+      return null;
+    }
+    return { botId: profile.id, token, profile };
+  }
+
+  /**
+   * Binds a BotFather token to a project. Validates the token with getMe first and
+   * persists nothing on failure, so a bad token can never leave a half-bound profile.
+   */
+  async addTelegramBot(input: TelegramBotAddInput): Promise<TelegramBotSummary> {
+    const token = input.token.trim();
+    if (!token) {
+      throw new Error("A Telegram bot token is required.");
+    }
+
+    const identity = await (this.options.telegramIdentityFetcher ??
+      fetchTelegramBotIdentity)(token);
+    if (!identity) {
+      throw new Error(
+        "Telegram rejected that token (getMe failed). Check the token from BotFather and retry; nothing was saved."
+      );
+    }
+
+    const requestedId = input.botId?.trim();
+    const botId = requestedId
+      ? deriveTelegramBotId(requestedId)
+      : deriveTelegramBotId(identity.username ?? `bot_${identity.telegramBotId}`);
+    if (!botId || !isValidTelegramBotId(botId)) {
+      throw new Error(
+        `Could not derive a valid bot id${requestedId ? ` from '${requestedId}'` : ""}. Pass --id with lowercase letters, digits, or underscores.`
+      );
+    }
+
+    if (getTelegramBot(this.state, botId)) {
+      throw new Error(
+        `Telegram bot '${botId}' already exists. Use 'opencolab telegram bot bind --id ${botId}' to repoint it, or pass a different --id.`
+      );
+    }
+
+    const floating = input.floating === true;
+    const projectId = floating ? null : (input.projectId ?? this.state.activeProjectId);
+    if (!floating) {
+      if (!projectId || !this.state.projects[projectId]) {
+        throw new Error(`Unknown project: ${String(projectId)}`);
+      }
+      this.assertProjectUnclaimed(projectId, botId);
+    }
+
+    const agentId = input.agentId?.trim() || null;
+    if (agentId && projectId) {
+      const project = this.state.projects[projectId];
+      if (!project.agents[agentId]) {
+        throw new Error(`Unknown agent in project '${projectId}': ${agentId}`);
+      }
+    }
+
+    const tokenEnvVar = deriveTelegramBotTokenEnvVar(botId);
+    for (const existing of listTelegramBots(this.state)) {
+      if (existing.tokenEnvVar === tokenEnvVar) {
+        throw new Error(
+          `Env var ${tokenEnvVar} is already used by bot '${existing.id}'. Pass a different --id.`
+        );
+      }
+      if (existing.telegramBotId && existing.telegramBotId === identity.telegramBotId) {
+        throw new Error(
+          `That Telegram bot is already registered as '${existing.id}'. Remove it first or bind that profile instead.`
+        );
+      }
+    }
+
+    writeSecretToLocalEnv(this.config.rootDir, tokenEnvVar, token);
+
+    const now = nowIso();
+    const profile: TelegramBotProfile = {
+      ...createDefaultTelegramBotProfile(botId, tokenEnvVar),
+      scope: floating ? "floating" : "pinned",
+      projectId,
+      agentId,
+      telegramBotId: identity.telegramBotId,
+      telegramUsername: identity.username,
+      chatId: input.chatId?.trim() || null,
+      boundAt: now,
+      lastValidatedAt: now
+    };
+
+    this.state = ensureProjectAndAgent({
+      ...this.state,
+      telegramBots: { ...this.state.telegramBots, [botId]: profile }
+    });
+    this.persist();
+    return this.getTelegramBotSummary(botId);
+  }
+
+  bindTelegramBot(botId: string, input: TelegramBotBindInput): TelegramBotSummary {
+    const profile = this.requireTelegramBot(botId);
+
+    const projectId = input.projectId?.trim() || profile.projectId;
+    if (!projectId || !this.state.projects[projectId]) {
+      throw new Error(`Unknown project: ${String(projectId)}`);
+    }
+    this.assertProjectUnclaimed(projectId, botId);
+
+    let agentId = profile.agentId;
+    if (input.agentAuto) {
+      agentId = null;
+    } else if (input.agentId !== undefined) {
+      agentId = input.agentId?.trim() || null;
+    }
+    if (agentId && !this.state.projects[projectId].agents[agentId]) {
+      throw new Error(`Unknown agent in project '${projectId}': ${agentId}`);
+    }
+
+    this.state = ensureProjectAndAgent(
+      withBotProfile(this.state, botId, {
+        scope: "pinned",
+        projectId,
+        agentId,
+        enabled: true,
+        boundAt: nowIso()
+      })
+    );
+    this.persist();
+    return this.getTelegramBotSummary(botId);
+  }
+
+  /** Pins a floating bot to a project without changing anything else. */
+  pinTelegramBot(botId: string, projectId?: string): TelegramBotSummary {
+    const profile = this.requireTelegramBot(botId);
+    const target = projectId?.trim() || profile.projectId || this.state.activeProjectId;
+    return this.bindTelegramBot(botId, { projectId: target });
+  }
+
+  /** Returns a bot to legacy behavior: follows the globally active project. */
+  unbindTelegramBot(botId: string): TelegramBotSummary {
+    this.requireTelegramBot(botId);
+    this.state = ensureProjectAndAgent(
+      withBotProfile(this.state, botId, { scope: "floating", agentId: null })
+    );
+    this.persist();
+    return this.getTelegramBotSummary(botId);
+  }
+
+  setTelegramBotEnabled(botId: string, enabled: boolean): TelegramBotSummary {
+    const profile = this.requireTelegramBot(botId);
+    if (enabled && profile.scope === "pinned" && profile.projectId) {
+      this.assertProjectUnclaimed(profile.projectId, botId);
+    }
+    this.state = ensureProjectAndAgent(withBotProfile(this.state, botId, { enabled }));
+    this.persist();
+    return this.getTelegramBotSummary(botId);
+  }
+
+  setTelegramBotWorkflowNotifications(botId: string, enabled: boolean): TelegramBotSummary {
+    this.requireTelegramBot(botId);
+    this.state = ensureProjectAndAgent(
+      withBotProfile(this.state, botId, { notifyWorkflowProgress: enabled })
+    );
+    this.persist();
+    return this.getTelegramBotSummary(botId);
+  }
+
+  removeTelegramBot(
+    botId: string,
+    options: { keepToken?: boolean } = {}
+  ): { botId: string; tokenEnvVar: string; tokenRemoved: boolean } {
+    const profile = this.requireTelegramBot(botId);
+    const nextBots = { ...this.state.telegramBots };
+    delete nextBots[botId];
+
+    this.state = ensureProjectAndAgent({ ...this.state, telegramBots: nextBots });
+    this.persist();
+
+    const tokenRemoved = options.keepToken
+      ? false
+      : removeSecretFromLocalEnv(this.config.rootDir, profile.tokenEnvVar);
+
+    return { botId, tokenEnvVar: profile.tokenEnvVar, tokenRemoved };
+  }
+
+  private requireTelegramBot(botId: string): TelegramBotProfile {
+    const profile = getTelegramBot(this.state, botId);
+    if (!profile) {
+      const known = listTelegramBots(this.state)
+        .map((bot) => bot.id)
+        .join(", ");
+      throw new Error(
+        `Unknown Telegram bot: ${botId}${known ? ` (known: ${known})` : " (no bots configured)"}`
+      );
+    }
+    return profile;
+  }
+
+  /** One project owns at most one enabled bot, so a chat can never be ambiguous. */
+  private assertProjectUnclaimed(projectId: string, botId: string): void {
+    const conflict = listTelegramBots(this.state).find(
+      (bot) =>
+        bot.id !== botId &&
+        bot.enabled &&
+        bot.scope === "pinned" &&
+        bot.projectId === projectId
+    );
+    if (conflict) {
+      throw new Error(
+        `Project '${projectId}' is already bound to Telegram bot '${conflict.id}'. ` +
+          `Disable or rebind that bot first ('opencolab telegram bot disable --id ${conflict.id}').`
+      );
+    }
+  }
+
+  private describeTelegramBot(profile: TelegramBotProfile): TelegramBotSummary {
+    const effectiveProjectId =
+      profile.scope === "floating" ? this.state.activeProjectId : profile.projectId;
+    const project = effectiveProjectId ? this.state.projects[effectiveProjectId] : undefined;
+    const effectiveAgentId =
+      profile.scope === "floating"
+        ? (project?.activeAgentId ?? null)
+        : (profile.agentId ?? project?.activeAgentId ?? null);
+
+    return {
+      ...profile,
+      tokenPresent: resolveTelegramBotTokenFor(profile.tokenEnvVar) !== null,
+      orphaned: profile.scope === "pinned" && (!profile.projectId || !project),
+      effectiveProjectId: effectiveProjectId ?? null,
+      effectiveAgentId
+    };
   }
 
   resolveProjectAgentPair(projectId: string, agentId: string): { project: ProjectState; agent: AgentConfig } {
@@ -1211,7 +1598,8 @@ export class OpenColabRuntime {
       return existing;
     }
     const notifierFactory = createTelegramWorkflowNotifierFactory({
-      getState: () => this.state,
+      resolveBotContextForProject: (targetProjectId) =>
+        this.resolveTelegramBotContextForProject(targetProjectId),
       statusMessageCreator:
         this.options.telegramStatusMessageCreator ??
         defaultTelegramStatusMessageCreator,
@@ -1336,9 +1724,21 @@ export class OpenColabRuntime {
     ensureAgentFiles(this.config.rootDir, agent);
     const heartbeatSettings = this.readHeartbeatSettings(agent);
     const heartbeatMessage = heartbeatSettings.message;
+    const heartbeatBotCtx = this.resolveTelegramBotContextForProject(projectId);
+    if (!heartbeatBotCtx && heartbeatSettings.notifyMode !== "quiet") {
+      console.log(
+        `[opencolab:heartbeat] project=${projectId} agent=${agentId} notification skipped: ` +
+          "no telegram bot is bound to this project."
+      );
+    }
     const liveStatus =
-      heartbeatSettings.notifyMode === "live"
-        ? this.gateway.openHeartbeatLiveStatus(projectId, agentId, agent.provider)
+      heartbeatSettings.notifyMode === "live" && heartbeatBotCtx
+        ? this.gateway.openHeartbeatLiveStatus(
+            heartbeatBotCtx,
+            projectId,
+            agentId,
+            agent.provider
+          )
         : null;
 
     const memory = this.conversations.readPromptMemory(agent.path, 8);
@@ -1378,7 +1778,7 @@ export class OpenColabRuntime {
         at: nowIso()
       });
       this.recordHeartbeatOutcome(projectId, agentId, "completed");
-      await this.maybeSendHeartbeatDigest(agent, heartbeatSettings.notifyMode, {
+      await this.maybeSendHeartbeatDigest(projectId, agent, heartbeatSettings.notifyMode, {
         outcome: "completed",
         response,
         progressState
@@ -1399,7 +1799,7 @@ export class OpenColabRuntime {
       });
       const outcome = isProviderTimeoutError(error) ? "timed_out" : "failed";
       this.recordHeartbeatOutcome(projectId, agentId, outcome);
-      await this.maybeSendHeartbeatDigest(agent, heartbeatSettings.notifyMode, {
+      await this.maybeSendHeartbeatDigest(projectId, agent, heartbeatSettings.notifyMode, {
         outcome,
         error,
         progressState
@@ -1490,6 +1890,7 @@ export class OpenColabRuntime {
   }
 
   private async maybeSendHeartbeatDigest(
+    projectId: string,
     agent: AgentConfig,
     notifyMode: HeartbeatNotifyMode,
     result: HeartbeatDigestResult
@@ -1503,7 +1904,14 @@ export class OpenColabRuntime {
       return;
     }
 
-    await this.gateway.sendHeartbeatDigest(digest);
+    // Project-addressed: when no bot owns this project the digest is dropped rather
+    // than delivered into some other project's chat.
+    const ctx = this.resolveTelegramBotContextForProject(projectId);
+    if (!ctx) {
+      return;
+    }
+
+    await this.gateway.sendHeartbeatDigest(ctx, digest);
   }
 
   private clearPendingHeartbeatForTurnStart(projectId: string, agentId: string): void {

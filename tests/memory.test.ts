@@ -8,6 +8,9 @@ import { ConversationStore } from "../src/conversation.js";
 import { createDefaultAgentConfig } from "../src/project-config.js";
 import { createRuntime } from "../src/runtime.js";
 
+// The gateway refuses to act for a bot with no token; injected senders ignore the value.
+process.env.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "test_bot_token";
+
 test("conversation store builds memory from today's active session and yesterday summary", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-memory-store-"));
   const store = new ConversationStore(tempDir);

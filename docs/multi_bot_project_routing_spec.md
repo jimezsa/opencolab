@@ -2,10 +2,15 @@
 
 ## 1. Status
 
-Design spec. Not yet normative.
+**Implemented.** Phases 1-8 of section 23 are in the runtime; the normative contract now lives in
+`docs/spec.md` (sections 2, 3, 4, 6, 7.1, 8, 10, 13.11, 14), with `README.md` and `AGENTS.md`
+synced. Phase 9 — removing the deprecated `state.telegram` projection, the legacy
+`resolveTelegramBotToken()` shim, and the Studio scalar — is deliberately deferred one release so
+a downgrade stays safe.
 
-Nothing here is binding on the runtime until it is promoted into `docs/spec.md`, `README.md`, and `AGENTS.md`,
-and implemented. This document is written to be implementable as-is.
+This document is kept as the design record: it explains the baseline it replaced, why each
+decision was made, and what was intentionally left out. Section 6 describes the pre-change code
+and its line numbers are therefore historical.
 
 ## 2. Problem
 

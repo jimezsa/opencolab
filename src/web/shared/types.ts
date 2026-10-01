@@ -145,6 +145,20 @@ export interface WebProviderHealth {
   authMode: string;
 }
 
+/** Per-bot health. Deliberately carries no chat ids and no tokens. */
+export interface WebTelegramBotHealth {
+  id: string;
+  username: string | null;
+  projectId: string | null;
+  agentId: string | null;
+  scope: "pinned" | "floating";
+  enabled: boolean;
+  paired: boolean;
+  pendingPairing: boolean;
+  tokenPresent: boolean;
+  orphaned: boolean;
+}
+
 export interface WebHealthStatus {
   gateway: {
     ok: boolean;
@@ -152,11 +166,15 @@ export interface WebHealthStatus {
     rootDir: string;
     runtimeMode: "mock" | "real";
   };
+  /**
+   * @deprecated Projection of the default bot. Use `telegramBots`; removed next release.
+   */
   telegram: {
     paired: boolean;
     pendingPairing: boolean;
     chatPresent: boolean;
   };
+  telegramBots: WebTelegramBotHealth[];
   providers: WebProviderHealth[];
   build: {
     version: string | null;

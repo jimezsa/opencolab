@@ -1576,3 +1576,319 @@ test("project state preserves Kimi provider runtime and model", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Telegram bot registry (v2 -> v3)
+// ---------------------------------------------------------------------------
+
+function buildMultiProjectState(): Record<string, unknown> {
+  const buildProject = (id: string, agentIds: string[]) => ({
+    id,
+    path: `projects/${id}`,
+    activeAgentId: agentIds[0],
+    agents: Object.fromEntries(
+      agentIds.map((agentId) => [
+        agentId,
+        {
+          id: agentId,
+          path: `projects/${id}/AGENTS/${agentId}`,
+          files: {},
+          provider: { name: "anthropic" },
+        },
+      ]),
+    ),
+  });
+
+  return {
+    activeProjectId: "alpha",
+    projects: {
+      alpha: buildProject("alpha", ["professor", "scout"]),
+      beta: buildProject("beta", ["professor"]),
+    },
+  };
+}
+
+test("v2 telegram config migrates to one floating bot so an upgrade changes nothing", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-bot-migrate-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 2,
+        ...buildMultiProjectState(),
+        telegram: {
+          chatId: "12345",
+          paired: true,
+          pairedAt: "2026-01-01T00:00:00.000Z",
+          lastChatType: "private",
+          lastMessageThreadId: "77",
+          lastInteractionAt: "2026-01-02T00:00:00.000Z",
+          notifyWorkflowProgress: false,
+        },
+      }),
+      "utf8",
+    );
+
+    const state = readProjectState(config);
+    const bots = Object.values(state.telegramBots);
+    assert.equal(bots.length, 1);
+
+    const bot = bots[0];
+    assert.equal(bot.id, "default");
+    // Floating preserves the legacy behavior of following the active project.
+    assert.equal(bot.scope, "floating");
+    assert.equal(bot.projectId, "alpha");
+    assert.equal(bot.agentId, null);
+    assert.equal(bot.tokenEnvVar, "TELEGRAM_BOT_TOKEN");
+    assert.equal(bot.chatId, "12345");
+    assert.equal(bot.paired, true);
+    assert.equal(bot.pairedAt, "2026-01-01T00:00:00.000Z");
+    assert.equal(bot.lastChatType, "private");
+    assert.equal(bot.lastMessageThreadId, "77");
+    assert.equal(bot.lastInteractionAt, "2026-01-02T00:00:00.000Z");
+    assert.equal(bot.notifyWorkflowProgress, false);
+
+    // The deprecated projection still reports the same values for older readers.
+    assert.equal(state.telegram.chatId, "12345");
+    assert.equal(state.telegram.paired, true);
+    assert.equal(state.telegram.notifyWorkflowProgress, false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("an unconfigured v2 install migrates to no bots at all", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-bot-migrate-empty-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 2,
+        ...buildMultiProjectState(),
+        telegram: { chatId: null, paired: false },
+      }),
+      "utf8",
+    );
+
+    assert.deepEqual(readProjectState(config).telegramBots, {});
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("the bot migration is one-time and never reruns over an existing registry", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-bot-migrate-once-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    // A v3 install that deliberately removed its bot must stay bot-free.
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 3,
+        ...buildMultiProjectState(),
+        telegramBots: {},
+        telegram: { chatId: "12345", paired: true },
+      }),
+      "utf8",
+    );
+    assert.deepEqual(readProjectState(config).telegramBots, {});
+
+    // Migrating twice is idempotent: write the migrated state back and reload.
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 2,
+        ...buildMultiProjectState(),
+        telegram: { chatId: "12345", paired: true },
+      }),
+      "utf8",
+    );
+    const first = readProjectState(config);
+    updateProjectState(config, () => first);
+    const second = readProjectState(config);
+    assert.deepEqual(second.telegramBots, first.telegramBots);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("a bot bound to a missing project is disabled, not repointed", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-bot-orphan-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 3,
+        ...buildMultiProjectState(),
+        telegramBots: {
+          ghost: {
+            id: "ghost",
+            enabled: true,
+            scope: "pinned",
+            projectId: "deleted_project",
+            tokenEnvVar: "TELEGRAM_BOT_TOKEN_GHOST",
+            chatId: "999",
+            paired: true,
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const bot = readProjectState(config).telegramBots.ghost;
+    assert.equal(bot.enabled, false);
+    // The broken binding is preserved so the operator can see what happened.
+    assert.equal(bot.projectId, "deleted_project");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("conflicting bots are disabled deterministically instead of fighting over a project", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-bot-conflict-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 3,
+        ...buildMultiProjectState(),
+        telegramBots: {
+          // Two enabled bots claim project alpha; sorted id wins.
+          zulu: {
+            id: "zulu",
+            enabled: true,
+            scope: "pinned",
+            projectId: "alpha",
+            tokenEnvVar: "TELEGRAM_BOT_TOKEN_ZULU",
+          },
+          alfa: {
+            id: "alfa",
+            enabled: true,
+            scope: "pinned",
+            projectId: "alpha",
+            tokenEnvVar: "TELEGRAM_BOT_TOKEN_ALFA",
+          },
+          // Duplicate token env var is also a hard conflict.
+          bravo: {
+            id: "bravo",
+            enabled: true,
+            scope: "pinned",
+            projectId: "beta",
+            tokenEnvVar: "TELEGRAM_BOT_TOKEN_ALFA",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const bots = readProjectState(config).telegramBots;
+    assert.equal(bots.alfa.enabled, true);
+    assert.equal(bots.zulu.enabled, false);
+    assert.equal(bots.bravo.enabled, false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("a pinned agent that no longer exists is cleared so routing falls back", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-bot-agent-gone-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 3,
+        ...buildMultiProjectState(),
+        telegramBots: {
+          alpha_bot: {
+            id: "alpha_bot",
+            enabled: true,
+            scope: "pinned",
+            projectId: "alpha",
+            agentId: "deleted_agent",
+            tokenEnvVar: "TELEGRAM_BOT_TOKEN_ALPHA_BOT",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const bot = readProjectState(config).telegramBots.alpha_bot;
+    assert.equal(bot.agentId, null);
+    assert.equal(bot.enabled, true);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("a raw token pasted into tokenEnvVar is rejected so secrets never land in state", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-bot-token-shape-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 3,
+        ...buildMultiProjectState(),
+        telegramBots: {
+          alpha_bot: {
+            id: "alpha_bot",
+            enabled: true,
+            scope: "pinned",
+            projectId: "alpha",
+            tokenEnvVar: "1234567890:AAEhBOweik6ad9r_QXZ2vxyzABCDEFGHIJK",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const bot = readProjectState(config).telegramBots.alpha_bot;
+    assert.equal(bot.tokenEnvVar, "TELEGRAM_BOT_TOKEN_ALPHA_BOT");
+    const raw = fs.readFileSync(config.projectConfigPath, "utf8");
+    assert.equal(raw.includes("AAEhBOweik6ad9r"), true, "fixture sanity");
+    updateProjectState(config, (current) => current);
+    const rewritten = fs.readFileSync(config.projectConfigPath, "utf8");
+    assert.equal(rewritten.includes("AAEhBOweik6ad9r"), false);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("malformed bot entries are dropped rather than half-loaded", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opencolab-bot-malformed-"));
+
+  try {
+    const config = loadConfig(tempDir);
+    fs.writeFileSync(
+      config.projectConfigPath,
+      JSON.stringify({
+        version: 3,
+        ...buildMultiProjectState(),
+        telegramBots: {
+          "Not A Valid Id": { enabled: true, scope: "pinned", projectId: "alpha" },
+          "": { enabled: true },
+          good: { id: "good", enabled: true, scope: "pinned", projectId: "beta" },
+        },
+      }),
+      "utf8",
+    );
+
+    const bots = readProjectState(config).telegramBots;
+    assert.deepEqual(Object.keys(bots), ["good"]);
+    assert.equal(bots.good.tokenEnvVar, "TELEGRAM_BOT_TOKEN_GOOD");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
