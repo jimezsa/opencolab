@@ -19,6 +19,7 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
     KIMI_API_KEY: process.env.KIMI_API_KEY,
     RUNPOD_API_KEY: process.env.RUNPOD_API_KEY,
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+    IMAGE_GEN_MODEL: process.env.IMAGE_GEN_MODEL,
   };
   delete process.env.OPENAI_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
@@ -29,6 +30,7 @@ function clearSecretEnvVars(): Record<string, string | undefined> {
   delete process.env.KIMI_API_KEY;
   delete process.env.RUNPOD_API_KEY;
   delete process.env.TELEGRAM_BOT_TOKEN;
+  delete process.env.IMAGE_GEN_MODEL;
   return previous;
 }
 
@@ -66,7 +68,8 @@ test("ignite configures project, provider, and telegram", async () => {
     "123456:telegram_bot_token",
     "10001",
     "n", // skip pairing
-    "y", // open the optional Gemini + Runpod section
+    "y", // open the optional image + Gemini + Runpod section
+    "", // accept the default image generation model
     "y", // add gemini built-in tools key
     "gemini_tools_key_123",
   ];
@@ -206,12 +209,13 @@ test("ignite edits an existing telegram token via single-key confirm without re-
     "openai_test_key_123", // openai api key
     "999999:new_token", // new telegram bot token
     "10001", // telegram chat id
+    "", // accept the default image generation model
     "gemini_tools_key_123", // gemini built-in tools key
   ];
   const confirmAnswers = [
     "y", // add a telegram bot for this project
     "n", // skip pairing
-    "y", // open the optional Gemini + Runpod section
+    "y", // open the optional image + Gemini + Runpod section
     "y", // add gemini built-in tools key
     "n", // skip runpod
   ];
@@ -1128,7 +1132,8 @@ test("ignite can save the Gemini built-in tools key without changing the active 
     "gpt-5.5",
     "high",
     "n", // skip telegram
-    "y", // open the optional Gemini + Runpod section
+    "y", // open the optional image + Gemini + Runpod section
+    "", // accept the default image generation model
     "y", // add gemini built-in tools key
     "gemini_built_in_key_123",
     "n", // skip runpod
@@ -1168,6 +1173,11 @@ test("ignite can save the Gemini built-in tools key without changing the active 
       true,
     );
     assert.equal(
+      envLocal.includes("IMAGE_GEN_MODEL=gemini-nano-banana-2.1"),
+      true,
+    );
+    assert.equal(process.env.IMAGE_GEN_MODEL, "gemini-nano-banana-2.1");
+    assert.equal(
       outputs.some((line) =>
         line.includes("Saved GEMINI_API_KEY in .env.local for shared tools."),
       ),
@@ -1178,6 +1188,189 @@ test("ignite can save the Gemini built-in tools key without changing the active 
         line.includes(
           "pageindex-grounded can use the existing GEMINI_API_KEY for the local PageIndex runner.",
         ),
+      ),
+      true,
+    );
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite can pick an OpenAI image model and save OPENAI_API_KEY under ChatGPT oauth", async () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-image-gen-openai-"),
+  );
+  const previousEnv = clearSecretEnvVars();
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
+  runtime.init();
+
+  const answers = [
+    "",
+    "openai",
+    "oauth",
+    "gpt-5.5",
+    "high",
+    "n", // skip telegram
+    "y", // open the optional image + Gemini + Runpod section
+    "gpt-image-2.6-sunburst", // image generation model
+    "y", // add OPENAI_API_KEY for image-gen
+    "openai_image_key_123",
+    "n", // skip the gemini built-in tools key
+    "n", // skip the gemini key for pageindex-grounded
+    "n", // skip runpod
+  ];
+  const prompts: string[] = [];
+  const outputs: string[] = [];
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async (prompt) => {
+          prompts.push(prompt);
+          return answers.shift() ?? "";
+        },
+        write: (line) => {
+          outputs.push(line);
+        },
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
+    );
+
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
+
+    const agent = runtime.getActiveAgent();
+    assert.equal(agent.provider.name, "openai");
+    assert.equal(agent.provider.authMode, "oauth");
+    assert.equal(process.env.IMAGE_GEN_MODEL, "gpt-image-2.6-sunburst");
+    assert.equal(process.env.OPENAI_API_KEY, "openai_image_key_123");
+    assert.equal(process.env.GEMINI_API_KEY, undefined);
+
+    const envLocal = fs.readFileSync(path.join(tempDir, ".env.local"), "utf8");
+    assert.equal(envLocal.includes("IMAGE_GEN_MODEL=gpt-image-2.6-sunburst"), true);
+    assert.equal(envLocal.includes("OPENAI_API_KEY=openai_image_key_123"), true);
+    assert.equal(
+      prompts.some((prompt) =>
+        prompt.includes(
+          "Image generation model (gemini-nano-banana-2.1|gemini-3-pro-image|gemini-3.1-flash-lite-image|gpt-image-2.6-sunburst|gpt-image-2.6-flare) [gemini-nano-banana-2.1]",
+        ),
+      ),
+      true,
+    );
+    assert.equal(
+      outputs.some((line) =>
+        line.includes("Set OPENAI_API_KEY here: https://platform.openai.com/api-keys"),
+      ),
+      true,
+    );
+    assert.equal(
+      outputs.some((line) =>
+        line.includes("Saved OPENAI_API_KEY in .env.local for image-gen."),
+      ),
+      true,
+    );
+  } finally {
+    restoreSecretEnvVars(previousEnv);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("ignite keeps an existing image model and reuses the OpenAI provider key in chooser mode", async () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "opencolab-ignite-image-gen-keep-"),
+  );
+  const previousEnv = clearSecretEnvVars();
+  fs.writeFileSync(
+    path.join(tempDir, ".env.local"),
+    "IMAGE_GEN_MODEL=gpt-image-2.6-flare\n",
+    "utf8",
+  );
+  process.env.IMAGE_GEN_MODEL = "gpt-image-2.6-flare";
+  const runtime = createRuntime(tempDir, {
+    telegramIdentityFetcher: async () => ({
+      telegramBotId: "7000000001",
+      username: "opencolab_bot"
+    })
+  });
+  runtime.init();
+
+  const answers = [
+    "",
+    "openai_provider_key_123", // openai api key for the provider
+    "n", // skip telegram
+    "y", // open the optional image + Gemini + Runpod section
+    "n", // skip the gemini built-in tools key
+    "n", // skip the gemini key for pageindex-grounded
+    "n", // skip runpod
+  ];
+  const outputs: string[] = [];
+  let imageModelOptions: string[] | null = null;
+  let imageModelDefault: string | null = null;
+
+  try {
+    await runIgnite(
+      runtime,
+      {
+        ask: async () => answers.shift() ?? "",
+        choose: async (prompt, options, defaultValue) => {
+          if (prompt === "| Provider:") {
+            return "openai";
+          }
+          if (prompt === "| Auth mode:") {
+            return "api-key";
+          }
+          if (prompt === "| Model:") {
+            return "gpt-5.5";
+          }
+          if (prompt === "| Image generation model:") {
+            imageModelOptions = [...options];
+            imageModelDefault = defaultValue;
+            return defaultValue;
+          }
+          return options[0] ?? "";
+        },
+        write: (line) => {
+          outputs.push(line);
+        },
+      },
+      {
+        syncTelegramCommands: async () => ({ ok: true }),
+      },
+    );
+
+    assert.equal(
+      answers.length,
+      0,
+      "all scripted onboarding answers should be consumed",
+    );
+    assert.deepEqual(imageModelOptions, [
+      "gemini-nano-banana-2.1",
+      "gemini-3-pro-image",
+      "gemini-3.1-flash-lite-image",
+      "gpt-image-2.6-sunburst",
+      "gpt-image-2.6-flare",
+    ]);
+    assert.equal(imageModelDefault, "gpt-image-2.6-flare");
+    assert.equal(process.env.IMAGE_GEN_MODEL, "gpt-image-2.6-flare");
+    assert.equal(
+      outputs.some((line) => line.includes("image-gen will keep using gpt-image-2.6-flare.")),
+      true,
+    );
+    assert.equal(
+      outputs.some((line) =>
+        line.includes("image-gen will use the existing OPENAI_API_KEY for gpt-image-2.6-flare."),
       ),
       true,
     );
@@ -1206,7 +1399,8 @@ test("ignite can save the Gemini key for pageindex-grounded without changing the
     "oauth",
     "gemini-2.5-pro",
     "n", // skip telegram
-    "y", // open the optional Gemini + Runpod section
+    "y", // open the optional image + Gemini + Runpod section
+    "", // accept the default image generation model
     "n", // skip the gemini built-in tools key
     "y", // add the gemini key for pageindex-grounded
     "pageindex_gemini_key_123",
@@ -1280,7 +1474,8 @@ test("ignite can configure an optional Runpod GPU server", async () => {
     "",
     "openai_test_key_for_runpod",
     "n", // skip telegram
-    "y", // open the optional Gemini + Runpod section
+    "y", // open the optional image + Gemini + Runpod section
+    "", // accept the default image generation model
     "n", // skip gemini built-in tools key
     "n", // skip pageindex-grounded key
     "y", // configure runpod now

@@ -10,6 +10,8 @@ import type { ProviderName } from "./types.js";
 
 export const TELEGRAM_BOT_TOKEN_ENV_VAR = "TELEGRAM_BOT_TOKEN";
 export const RUNPOD_API_KEY_ENV_VAR = "RUNPOD_API_KEY";
+/** Model the shared image-gen skill calls; not a secret, but lives in .env.local beside the keys it needs. */
+export const IMAGE_GEN_MODEL_ENV_VAR = "IMAGE_GEN_MODEL";
 const OAUTH_STATUS_TIMEOUT_MS = 5_000;
 
 interface CommandResult {

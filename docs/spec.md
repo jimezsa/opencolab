@@ -170,7 +170,7 @@ Initialization requirements:
 - template-specific files may fall back to `src/agent-templates/shared/` in the source tree when a role folder does not provide an override, and packaged installs must preserve that fallback behavior with shipped runtime assets
 - in the current built-in layout, role folders provide concise `AGENTS.md` overrides that keep role-specific contracts in the role file while deferring reusable maintenance, tool, memory, and evidence rules to the shared template files and injected built-in guidance; some roles may also override `IDENTITY.md` or `ALMA.md`, and `src/agent-templates/shared/` provides the shared fallback `BOOTSTRAP.md`, `IDENTITY.md`, `ALMA.md`, `TOOLS.md`, `USER.md`, `TODO.md`, and `MEMORY.md` templates
 - when an agent directory is created, an empty `SKILLS/` directory must exist for agent-local skills
-- the built-in `fast-research`, `pro-research`, `deep-research`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `latex-paper-writer`, `nano-banana`, `block-diagram`, `autoresearch`, and `runpod-job` skills must be available from the shared `projects/SKILLS/` directory
+- the built-in `fast-research`, `pro-research`, `deep-research`, `paper-summary`, `pageindex-grounded`, `pdf-figure-extract`, `latex-paper-writer`, `image-gen`, `block-diagram`, `autoresearch`, and `runpod-job` skills must be available from the shared `projects/SKILLS/` directory
 - built-in tool guidance and built-in skill summaries must be repo-managed and injected into prompts at runtime rather than copied into agent-local `TOOLS.md`
 - default templates must encode: human defines the initial problem first, then assists agents while they refine and execute
 - default templates must encode: before deep investigation, agents must clarify the human's true intention for the topic
@@ -365,6 +365,7 @@ Responsibilities:
 - in Gemini `oauth` mode, setup must not require `GEMINI_API_KEY`
 - Gemini-based built-in shared tools must use `GEMINI_API_KEY` even when the active agent runtime uses a different provider or Gemini `oauth`
 - the shared `pageindex-grounded` skill must be able to use `GEMINI_API_KEY` for the local PageIndex runner even when the active agent runtime uses another provider or Gemini `oauth`
+- the shared `image-gen` skill must read its model from `IMAGE_GEN_MODEL` in `.env.local`, use `GEMINI_API_KEY` for Gemini image models and `OPENAI_API_KEY` for OpenAI image models, and need `OPENAI_API_KEY` for OpenAI image models even when the active agent runtime uses OpenAI `oauth`
 - in OpenAI `oauth` mode, runtime preflight must verify Codex login state and return remediation guidance if login is missing
 - in Anthropic `oauth` mode, runtime preflight must verify Claude Code login state and return remediation guidance if login is missing or only `ANTHROPIC_API_KEY` auth is active
 - in Gemini `oauth` mode, runtime must return remediation guidance when the CLI reports missing Google login or missing Gemini credentials
@@ -388,6 +389,7 @@ Responsibilities:
 - provide an interactive onboarding flow for first-time setup of project selection, provider/model, built-in shared-tool key setup, Telegram setup, and optional pairing
 - `ignite` onboarding should allow skipping the current step with `Esc` and continue to the next step
 - `ignite` onboarding should detect existing provider setup and allow keeping or updating it
+- `ignite` onboarding should include an optional step to choose the `image-gen` model from a curated Gemini and OpenAI list, persist it as `IMAGE_GEN_MODEL` in `.env.local`, keep an existing value as the default, and ask for `OPENAI_API_KEY` when an OpenAI image model is chosen and no key is set
 - `ignite` onboarding should include optional steps to persist `GEMINI_API_KEY` for Gemini-based built-in shared tools and `pageindex-grounded` when the local PageIndex runner needs it
 - `opencolab setup api-key` must persist the canonical env var for one specific provider without mutating provider/model/auth settings
 - `opencolab gpu server` must support lifecycle commands: `add`, `list`, `show`, `availability`, `test`, and `remove`
@@ -1137,7 +1139,19 @@ The same pattern should extend to other important long-running tasks, including:
 - batch file conversion
 - report generation
 
-### 13.9 Failure and Recovery UX
+### 13.9 Image Generation Skill Requirements
+
+The shared `image-gen` skill must:
+
+- generate and edit images from a prompt plus optional reference images through `projects/SKILLS/image-gen/scripts/image_gen.py`,
+- support Google Gemini image models (default `gemini-nano-banana-2.1`, plus `gemini-3-pro-image` and `gemini-3.1-flash-lite-image`) and OpenAI GPT Image models (`gpt-image-2.6-sunburst` and `gpt-image-2.6-flare`),
+- choose the provider from the model name: `gpt-image-*` and `chatgpt-image-*` call OpenAI, every other model calls Gemini,
+- resolve the model from `--model`, then `IMAGE_GEN_MODEL`, then the legacy `NANO_BANANA_MODEL` override from the former `nano-banana` skill, then the default,
+- keep provider-specific options (Gemini image size, Google Search grounding, image-only output; OpenAI size, quality, background, output format, count) and ignore options for the other provider with a warning instead of failing,
+- save outputs under the current project's `images/` folder by default, plus a `.txt` file for any model text and a `.json` run summary naming the provider, model, prompt, inputs, options, and outputs,
+- report a missing API key or SDK package explicitly instead of silently switching providers.
+
+### 13.10 Failure and Recovery UX
 
 Progress support must improve failure handling as well as success handling.
 
@@ -1147,7 +1161,7 @@ Requirements:
 - warnings that reduce coverage or confidence should be surfaced before the final answer when they materially change the result
 - if the runtime needs human intervention, the user should receive a `needs_input` style message instead of waiting for timeout or generic failure
 
-### 13.10 Provider Timeout Recovery
+### 13.11 Provider Timeout Recovery
 
 Provider CLI timeout is a normal failure mode, not an edge case. OpenColab must preserve enough context for the next turn to resume cleanly when `OPENCOLAB_PROVIDER_CLI_TIMEOUT_MS` is reached.
 
@@ -1162,7 +1176,7 @@ Requirements:
 - bounded runtime telemetry for timed-out executions may be persisted separately from conversation memory, but if persisted it must live in a separate operational log rather than in `memory/Session/` as synthetic assistant chatter
 - timeout handling should attempt a short final progress flush before forceful termination when the provider runtime supports it, but the recovery record must not depend on that flush succeeding
 
-### 13.11 Heartbeat Wake-Up
+### 13.12 Heartbeat Wake-Up
 
 Heartbeat is a delayed follow-up for the active agent, not a general scheduler.
 

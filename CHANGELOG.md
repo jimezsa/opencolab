@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Added OpenAI GPT Image support to the shared image skill and an image-model choice to `opencolab ignite`. The skill's runner now calls either Google Gemini or OpenAI, picking the provider from the model name (`gpt-image-*` and `chatgpt-image-*` go to OpenAI, everything else to Gemini). Inputs turn an OpenAI request into an edit, and OpenAI-only options are exposed: `--size`, `--quality`, `--background`, `--output-format` (including animated `gif` and vector `svg`), and `--count`. With OpenAI models, `--aspect-ratio` maps to the closest standard size, so the same command works under either provider; options for the other provider are ignored with a warning. Ignite's optional section now asks for the image model from a curated list (`gemini-nano-banana-2.1`, `gemini-3-pro-image`, `gemini-3.1-flash-lite-image`, `gpt-image-2.6-sunburst`, `gpt-image-2.6-flare`) and saves it as `IMAGE_GEN_MODEL` in `.env.local`, keeping an existing value as the default. When an OpenAI image model is chosen and `OPENAI_API_KEY` is missing, it offers to save the key, because ChatGPT/Codex OAuth login does not cover the image API.
+
+### Changed
+
+- Renamed the shared `nano-banana` skill to `image-gen` (`projects/SKILLS/image-gen/`, runner `scripts/image_gen.py`), since it is no longer Gemini-only. Skills are discovered by directory, so agents see the new name on their next prompt; notes in an agent's own memory that point at the old path need to be updated by hand. The runner resolves its model from `--model`, then `IMAGE_GEN_MODEL`, then the legacy `NANO_BANANA_MODEL`, so an existing override keeps working after upgrade.
+- Bumped the default image model from Nano Banana Pro `gemini-3-pro-image-preview` to Nano Banana 2.1 `gemini-nano-banana-2.1`, Google's current recommended image model.
+
+### Fixed
+
+- Fixed the image runner saving to `artifacts/nano-banana/` when no `--output-prefix` was given, which contradicted the skill's own rule to save under `images/`. The default is now `images/image-gen-<timestamp>`.
+
 ## [0.2.16] - 2026-10-22
 
 ### Added

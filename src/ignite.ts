@@ -19,6 +19,7 @@ import { DEFAULT_TELEGRAM_BOT_ID } from "./project-config.js";
 import type { OpenColabRuntime, TelegramBotSummary } from "./runtime.js";
 import {
   getProviderApiKeyEnvVar,
+  IMAGE_GEN_MODEL_ENV_VAR,
   resolveProviderApiKey,
   resolveRunpodApiKey,
   RUNPOD_API_KEY_ENV_VAR,
@@ -94,6 +95,16 @@ const PROVIDER_MODEL_OPTIONS: Record<ProviderName, string[]> = {
   ],
   kimi: ["k2p5", "kimi-k2-thinking"],
 };
+// First entry is the default. gpt-image-*/chatgpt-image-* models call OpenAI;
+// everything else calls Gemini (mirrors projects/SKILLS/image-gen/scripts/image_gen.py).
+const IMAGE_GEN_MODEL_OPTIONS = [
+  "gemini-nano-banana-2.1",
+  "gemini-3-pro-image",
+  "gemini-3.1-flash-lite-image",
+  "gpt-image-2.6-sunburst",
+  "gpt-image-2.6-flare",
+];
+const OPENAI_IMAGE_MODEL_PATTERN = /^(gpt-image-|chatgpt-image-)/i;
 const BUILT_IN_TOOLS_PROVIDER: ProviderName = "gemini";
 const PAGEINDEX_GROUNDED_PROVIDER: ProviderName = "gemini";
 const PROVIDER_API_KEY_SETUP_URLS: Record<ProviderName, string> = {
@@ -162,7 +173,7 @@ export async function runIgnite(
   io.write("|");
   await runStep(
     io,
-    "* More optional Gemini image generation and Runpod GPU",
+    "* More optional image generation, Gemini tools, and Runpod GPU",
     async (stepIo) => configureMore(runtime, stepIo),
   );
 
@@ -642,11 +653,11 @@ async function configureMore(
 ): Promise<void> {
   const shouldConfigure = await askYesNo(
     io,
-    "Set up optional Gemini image generation and Runpod GPU now?",
+    "Set up optional image generation, Gemini tools, and Runpod GPU now?",
     false,
   );
   if (!shouldConfigure) {
-    io.write("Optional Gemini image generation and Runpod setup skipped.");
+    io.write("Optional image generation, Gemini tools, and Runpod setup skipped.");
     return;
   }
 
@@ -658,8 +669,55 @@ async function configureBuiltInTools(
   runtime: OpenColabRuntime,
   io: IgniteIo,
 ): Promise<void> {
+  await configureImageGeneration(runtime, io);
   await configureGeminiBuiltInTools(runtime, io);
   await configurePageIndexGrounded(runtime, io);
+}
+
+async function configureImageGeneration(
+  runtime: OpenColabRuntime,
+  io: IgniteIo,
+): Promise<void> {
+  const existingModel = resolveEnvVar(IMAGE_GEN_MODEL_ENV_VAR);
+  const defaultModel = existingModel ?? IMAGE_GEN_MODEL_OPTIONS[0];
+  const model = await askFromOptions(
+    io,
+    "Image generation model",
+    withFallbackOption(IMAGE_GEN_MODEL_OPTIONS, defaultModel),
+    defaultModel,
+  );
+  if (model === existingModel) {
+    io.write(`image-gen will keep using ${model}.`);
+  } else {
+    writeSecretToLocalEnv(runtime.config.rootDir, IMAGE_GEN_MODEL_ENV_VAR, model);
+    io.write(`Saved ${IMAGE_GEN_MODEL_ENV_VAR}=${model} in .env.local for image-gen.`);
+  }
+
+  // Gemini image models share GEMINI_API_KEY with the Gemini tools step that follows.
+  if (!OPENAI_IMAGE_MODEL_PATTERN.test(model)) {
+    return;
+  }
+
+  const imageKeyEnvVar = getProviderApiKeyEnvVar("openai");
+  if (resolveProviderApiKey("openai")) {
+    io.write(`image-gen will use the existing ${imageKeyEnvVar} for ${model}.`);
+    return;
+  }
+
+  const shouldConfigure = await askYesNo(
+    io,
+    `Add ${imageKeyEnvVar} now so image-gen can call ${model}? ChatGPT login does not cover the image API.`,
+    true,
+  );
+  if (!shouldConfigure) {
+    io.write(`image-gen key setup skipped. Set ${imageKeyEnvVar} later to use ${model}.`);
+    return;
+  }
+
+  writeApiKeySetupLink(io, imageKeyEnvVar, "openai");
+  const imageApiKey = await askRequiredWithOptionalDefault(io, `${imageKeyEnvVar} value`);
+  writeSecretToLocalEnv(runtime.config.rootDir, imageKeyEnvVar, imageApiKey);
+  io.write(`Saved ${imageKeyEnvVar} in .env.local for image-gen.`);
 }
 
 async function configureRunpod(
